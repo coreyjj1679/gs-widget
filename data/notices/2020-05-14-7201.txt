@@ -1,0 +1,31 @@
+안녕하세요.
+\\
+고객지원팀입니다.
+\\
+\\
+하기와 같이 본 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+본 서버 -------------------------------------------------
+\\
+\\
+일시 : 2020. 05. 14 (16:30 ~ 17:00) 30분간
+\\
+\\
+-2020.05.14-
+\\
+[거상 패치 V29417]
+\\
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- 파티 전투 시 예약시전 스킬이 비정상적으로 사용되지 않았던 현상이 수정되었습니다.
+\\
+- 육의전에 등록한 일부 아이템의 검색 및 취소가 불가능했던 현상이 수정되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 작업상황에 따라 변동 될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=374\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

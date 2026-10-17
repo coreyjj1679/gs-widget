@@ -1,0 +1,27 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+아래와 같이 하룡(테스트)서버 패치작업이 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+하룡(테스트) 서버 -------------------------------------------------
+\\
+\\
+일시 : 2020. 3. 28 (15:50 ~ 16:20) 30분간
+\\
+\\
+-2020.03.28-
+\\
+[거상 패치 V29404]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- 동아리 정보가 제대로 표시되지 않던 오류가 수정 되었습니다.
+\\
+- 소상단의 특성이 초기화 되었으며 소모된 거상머니는 전장으로 지급 되었습니다.
+\\
+- 소상단의 상태메시지가 초기화 되었습니다.
+\\
+\\
+감사합니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=379\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

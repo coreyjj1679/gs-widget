@@ -1,0 +1,13 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+하기와 같이 본 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+감사합니다.
+\\
+본 서버 -------------------------------------------------​
+일시 : 2022. 12. 30 (12:30 ~ 13:00) 30분간
+\\
+[거상 패치 V31602]
+1. 1월 출석 보상 아이템이 변경되었습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=229\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

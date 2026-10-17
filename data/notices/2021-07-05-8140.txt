@@ -1,0 +1,31 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+아래와 같이 본서버 패치 작업이 있을 예정이오니 게임 이용에 참고 해주시기 바랍니다.
+\\
+\\
+\\
+본 서버 -------------------------------------------------
+\\
+\\
+일시 : 2021. 7. 6 (9:00 ~ 10:00) 60분간
+\\
+\\
+-2021.7.6-
+\\
+[거상 패치 V30402]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- 기간제 신발을 착용 후 축지법을 사용 할 수 없던 오류가 수정되었습니다.
+\\
+- 몬스터가 더이상 '[이벤트]조각난 뇌룡보주(거래불가)' 아이템을 드랍하지 않습니다.
+\\
+\\
+\\
+감사합니다.
+\\
+\\
+\\
+* 점검 시간은 작업상황에 따라 변동 될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=304\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

@@ -1,0 +1,26 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+아래와 같이 본서버 패치가 있을 예정이오니, 게임 이용에 참고하여 주시기 바랍니다.
+\\
+\\
+본서버 -------------------------------------------------
+\\
+\\
+일시 : 2021. 8. 25 (10:00 ~ 10:30) 30분간 (10:00 ~ 10:40) 40분간
+\\
+\\
+-2021.8.25-
+\\
+[거상 패치 V30415]
+\\
+1. 여름 이벤트가 종료 되었습니다.
+\\
+- '여름 이벤트' 관련 아이템(무인도신호폭죽, 바캉스신호폭죽, [이벤트] 진주)이 삭제 되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 작업상황에 따라 변동 될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=298\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

@@ -1,0 +1,26 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+하기와 같이 본 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+본 서버 -------------------------------------------------
+\\
+\\
+일시 : 2019. 1. 16 (15:00 ~ 15:20) 20분간
+\\
+\\
+-2019.1.16-
+\\
+[거상 패치 V28409]
+\\
+1. 다음 사항이 수정 되었습니다.
+\\
+- 키보드스킬 단독 사용시 alt키를 이용하여 비정상적인 스킬 시전이 가능했던 오류가 수정 되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=413\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

@@ -1,0 +1,14 @@
+안녕하세요. 거상 고객지원팀입니다.
+아래와 같이 하룡(테스트)서버 패치가 있을 예정이오니 게임 이용에 참고 해주시기 바랍니다.
+테스트 서버 -------------------------------------------------
+일시 : 2022. 1. 19 (10:30 ~ 11:00) 30분간
+-2022.1.19-
+[거상 패치 V30807]
+1. 크리스마스 이벤트가 종료되었습니다.
+- 산타클로스 NPC 는 더이상 나오지 않으며, 크리스마스트리 NPC 는 다음 패치에 제거되므로 '산타의양말' 교환을 서두르셔야합니다.
+- 크리스마스 이벤트 몬스터는 더이상 등장하지 않습니다.
+2. 다음 사항이 수정되었습니다.
+- '우뢰폭발', '비격진천뢰' 스킬투명화가 적용되지 않던 오류가 수정되었습니다.
+감사합니다.
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=277\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

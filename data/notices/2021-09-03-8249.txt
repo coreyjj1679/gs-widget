@@ -1,0 +1,29 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+아래와 같이 본서버 패치가 있을 예정이오니, 게임 이용에 참고하여 주시기 바랍니다.
+\\
+\\
+\\
+본 서버 -------------------------------------------------
+\\
+\\
+일시 : 2021. 9. 3 (11:00 ~ 11:30) 30분간
+\\
+\\
+-2021.9.03-
+\\
+[거상 패치 V30416]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- 소지금 초과 메시지가 잘못 표시되던 오류가 수정 되었습니다.
+\\
+\\
+\\
+감사합니다.
+\\
+\\
+\\
+* 점검 시간은 작업상황에 따라 변동 될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=296\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

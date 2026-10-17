@@ -1,0 +1,28 @@
+안녕하세요. 고객지원팀입니다.
+\\
+\\
+하기와 같이 테스트 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+테스트 서버 -------------------------------------------------
+\\
+\\
+일시 : 2020. 12. 30 (18:30 ~ 18:50) 20분간
+\\
+\\
+-2020.12.30-
+\\
+[거상 패치 V29902]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- '뒤틀린 이야기' 던전 진입 후 소환 스킬 사용 시 클라이언트가 강제 종료되던 오류가 수정되었습니다.
+\\
+- 251레벨에서 경험치 두루마리가 사용되지 않은 오류가 수정되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 작업상황에 따라 변동 될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=336\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

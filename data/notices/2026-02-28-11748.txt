@@ -1,0 +1,7 @@
+안녕하세요. 거상 고객지원팀 입니다.
+하기와 같이 본서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+본 서버 -------------------------------------------------
+일시 : 2026. 2. 28 (09:00 ~ 09:30) 30분간
+-2026.02.28-[거상 패치 V34023]1. 다음 사항이 수정되었습니다.- '천하장사' 아이템 효과가 정상적으로 적용되지 않던 오류가 수정되었습니다. 감사합니다.
+* 점검 시간은 진행 상황에 따라 다소 변동 될 수 있습니다.​ ​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=40\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

@@ -1,0 +1,16 @@
+안녕하세요. 거상 고객지원팀입니다.
+하기와 같이 테스트서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.​
+\\
+테스트 서버 -------------------------------------------------
+\\
+일시 : 2022. 3. 25 (16:50 ~ 17:00) 10분간
+\\
+-2022.3.25-
+[거상 패치 V31002]
+1. 다음 사항이 수정되었습니다.
+- '기묘한 설화' 의 '어려움' 난이도는 사천왕이 전투에 참여해야 진행할 수 있도록 변경되었습니다.
+\\
+감사합니다.
+\\
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=268\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

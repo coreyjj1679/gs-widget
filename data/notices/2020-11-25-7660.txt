@@ -1,0 +1,26 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+아래와 같이 11월 25일 본서버 패치가 있을 예정이오니 게임 이용에 참고 해주시기 바랍니다.
+\\
+\\
+본 서버 -----------------------------------------------------------------------
+\\
+\\
+일시 : 2020. 11. 25 (15:00 ~ 15:20) 20분간
+\\
+\\
+-2020.11.25-
+\\
+[거상 패치 V29821]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- '[이벤트]조각난 풍룡보주(거래불가)' 아이템이 파티 전투 시 드랍되던 현상이 수정되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=341\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

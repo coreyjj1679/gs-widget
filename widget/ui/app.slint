@@ -1,0 +1,4411 @@
+import { Palette, LineEdit, TextEdit } from "std-widgets.slint";
+
+export struct Hit {
+    title: string,
+    subtitle: string,
+    key: string,
+    icon: image,
+    has-icon: bool,
+    no-image: bool,
+    can-favourite: bool,
+    favourite: bool,
+    solo: bool,
+    has-badge: bool,
+    badge: image,
+    aside: string,
+    chip: string,
+}
+
+export struct Fact {
+    label: string,
+    value: string,
+    key: string,
+    icon: image,
+    has-icon: bool,
+    section: string,
+}
+
+export struct AliasRow {
+    name: string,
+    codes: string,
+    detail: string,
+    count: int,
+}
+
+struct Category {
+    id: string,
+    name: string,
+}
+
+component NoImage inherits Rectangle {
+    in property <string> label;
+    in property <length> side: 36px;
+    width: side;
+    height: side;
+    border-radius: 4px;
+    background: #1c1916;
+    border-width: 1px;
+    border-color: #3a342c;
+    Text {
+        width: parent.width - 4px;
+        height: parent.height - 2px;
+        text: root.label;
+        wrap: word-wrap;
+        font-size: root.side >= 56px ? 12px : 8px;
+        color: #a3988c;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component WinButton inherits Rectangle {
+    in property <string> glyph;
+    in property <bool> danger: false;
+    callback clicked();
+    width: glyph == "設定" ? 48px : glyph == "Setting" ? 64px : glyph == "EN" ? 34px : 30px;
+    height: 24px;
+    border-radius: 6px;
+    background: tap.has-hover ? (danger ? #7f1d1d : #5c4e3a) : (danger ? #4a3030 : #3f362c);
+    Text {
+        text: root.glyph;
+        color: #f3efe8;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component SearchToggle inherits Rectangle {
+    in property <bool> open;
+    in property <string> label;
+    callback clicked();
+    height: 28px;
+    border-radius: 7px;
+    background: open ? #d4b483 : (tap.has-hover ? #5c4e3a : #3f362c);
+    label-text := Text {
+        x: 12px;
+        text: root.label;
+        color: open ? #1a140e : #f3efe8;
+        font-size: 12px;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+    width: label-text.preferred-width + 24px;
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component StarMark inherits Rectangle {
+    in property <bool> filled;
+    callback clicked();
+    width: 32px;
+    height: 32px;
+    Path {
+        x: 6px;
+        y: 5px;
+        width: 20px;
+        height: 20px;
+        fill: root.filled ? #d4b483 : transparent;
+        stroke: root.filled ? #e6c98a : #8a8076;
+        stroke-width: 1.4px;
+        commands: "M 10 0.6 L 12.7 6.4 L 19 6.9 L 14.2 11.1 L 15.8 17.4 L 10 14 L 4.2 17.4 L 5.8 11.1 L 1 6.9 L 7.3 6.4 Z";
+    }
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component FilterChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+    height: 28px;
+    horizontal-stretch: 1;
+    border-radius: 7px;
+    background: active ? #d4b483 : #1c1916;
+    border-width: 1px;
+    border-color: active ? #d4b483 : #3a342c;
+    Text {
+        text: root.label;
+        color: active ? #1a140e : #f3efe8;
+        font-size: 12px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component DockMenuButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> danger: false;
+    callback clicked();
+    height: 22px;
+    border-radius: 6px;
+    background: danger ? (tap.has-hover ? #7f1d1d : #4a3030) : (tap.has-hover ? #5c4e3a : #3f362c);
+    label-text := Text {
+        x: 8px;
+        text: root.label;
+        color: #f3efe8;
+        font-size: 11px;
+        font-weight: 600;
+        vertical-alignment: center;
+    }
+    width: label-text.preferred-width + 16px;
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component LangChip inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+    height: 30px;
+    horizontal-stretch: 1;
+    border-radius: 7px;
+    background: active ? #d4b483 : (tap.has-hover ? #2a2622 : #141210);
+    Text {
+        text: root.label;
+        color: active ? #1a140e : #f3efe8;
+        font-size: 12px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component PatchTab inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+    horizontal-stretch: 1;
+    background: active ? #d4b483 : (tap.has-hover ? #2a2622 : transparent);
+    Text {
+        text: root.label;
+        color: active ? #1a140e : #f3efe8;
+        font-size: 12px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component PatchPill inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+    height: 26px;
+    border-radius: 13px;
+    background: active ? #d4b483 : #1c1916;
+    border-width: 1px;
+    border-color: active ? #d4b483 : #3a342c;
+    label-text := Text {
+        x: 12px;
+        height: 100%;
+        text: root.label;
+        font-size: 12px;
+        font-weight: 600;
+        color: active ? #1a140e : #c8bfb4;
+        vertical-alignment: center;
+    }
+    width: label-text.preferred-width + 24px;
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component OpacitySlider inherits Rectangle {
+    in property <float> value: 1;
+    callback edited(float);
+    height: 22px;
+    property <float> ratio: max(0, min(1, (root.value - 0.25) / 0.75));
+
+    function pick(x: length) {
+        if (track.width <= 1px) {
+            return;
+        }
+        root.edited(0.25 + max(0, min(1, x / track.width)) * 0.75);
+    }
+
+    track := Rectangle {
+        y: (parent.height - self.height) / 2;
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: #3a342c;
+        Rectangle {
+            x: 0px;
+            width: parent.width * root.ratio;
+            height: 100%;
+            border-radius: 3px;
+            background: #d4b483;
+        }
+        Rectangle {
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
+            y: -4px;
+            x: min(max(0px, parent.width * root.ratio - 7px), max(0px, parent.width - 14px));
+            background: #f3efe8;
+            border-width: 1px;
+            border-color: #d4b483;
+        }
+        TouchArea {
+            y: -10px;
+            width: 100%;
+            height: 26px;
+            mouse-cursor: pointer;
+            pointer-event(event) => {
+                if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                    root.pick(self.mouse-x);
+                }
+            }
+            moved => {
+                if (self.pressed) {
+                    root.pick(self.mouse-x);
+                }
+            }
+        }
+    }
+}
+
+component AliasCard inherits Rectangle {
+    in property <string> name;
+    in property <string> codes;
+    in property <string> detail;
+    in property <bool> editing;
+    in-out property <string> name-draft;
+    in-out property <string> codes-draft;
+    callback name-edited(string);
+    callback codes-edited(string);
+    callback remove();
+    callback find-edited(string);
+    callback find-accepted();
+    callback choose(string);
+    callback drop-code(string);
+    callback begin-edit();
+    callback done();
+    callback save();
+    callback toggle-hit(int);
+    in property <string> find-hint: "搜尋道具";
+    in property <string> edit-label: "編輯";
+    in property <string> save-label: "儲存";
+    in property <string> delete-label: "刪除";
+    in property <string> row-mark: "";
+    in property <int> count: 0;
+    in property <[Hit]> icons;
+    in property <bool> suggesting: false;
+    in property <[Hit]> hits;
+    in property <int> pick: 0;
+    in-out property <string> find-draft: "";
+    init => {
+        root.name-draft = root.name;
+        root.codes-draft = root.codes;
+    }
+    changed name => { root.name-draft = root.name; }
+    changed codes => { root.codes-draft = root.codes; }
+    border-radius: 8px;
+    background: #1c1916;
+    border-width: 1px;
+    border-color: #3a342c;
+    clip: true;
+    VerticalLayout {
+        padding: 8px;
+        spacing: 8px;
+        alignment: start;
+        if !editing: HorizontalLayout {
+            width: 100%;
+            spacing: 10px;
+            alignment: stretch;
+            cross-axis-alignment: center;
+            Text {
+                text: root.name;
+                width: 72px;
+                horizontal-stretch: 0;
+                font-size: 14px;
+                font-weight: 700;
+                color: #d4b483;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            HorizontalLayout {
+                horizontal-stretch: 1;
+                spacing: 0px;
+                alignment: start;
+                for icon in root.icons: Rectangle {
+                    visible: icon.aside == root.row-mark;
+                    width: icon.aside == root.row-mark ? 36px : 0px;
+                    height: 32px;
+                    if icon.has-icon && icon.aside == root.row-mark: Image {
+                        width: 28px;
+                        height: 28px;
+                        y: 2px;
+                        source: icon.icon;
+                        image-fit: contain;
+                    }
+                }
+            }
+            Rectangle {
+                horizontal-stretch: 0;
+                width: 52px;
+                height: 28px;
+                border-radius: 7px;
+                background: edit-tap.has-hover ? #5c4e3a : #3f362c;
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: root.edit-label;
+                    font-size: 12px;
+                    color: #f3efe8;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                edit-tap := TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    clicked => { root.begin-edit(); }
+                    mouse-cursor: pointer;
+                }
+            }
+        }
+        if editing: HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            cross-axis-alignment: center;
+            Rectangle {
+                horizontal-stretch: 2;
+                min-width: 72px;
+                height: 32px;
+                clip: true;
+                LineEdit {
+                    width: 100%;
+                    height: 100%;
+                    font-size: 13px;
+                    placeholder-text: "ALIAS";
+                    text <=> root.name-draft;
+                    edited => { root.name-edited(self.text); }
+                }
+            }
+            Rectangle {
+                horizontal-stretch: 3;
+                min-width: 96px;
+                height: 32px;
+                clip: true;
+                LineEdit {
+                    width: 100%;
+                    height: 100%;
+                    font-size: 13px;
+                    placeholder-text: root.find-hint;
+                    text <=> root.find-draft;
+                    edited => { root.find-edited(self.text); }
+                    accepted => { root.find-accepted(); }
+                }
+            }
+        }
+        if editing: HorizontalLayout {
+            spacing: 8px;
+            LangChip {
+                label: root.save-label;
+                active: true;
+                clicked => { root.save(); }
+            }
+            LangChip {
+                label: root.delete-label;
+                active: false;
+                clicked => { root.remove(); }
+            }
+        }
+        if editing: VerticalLayout {
+            spacing: 4px;
+            alignment: start;
+            for icon in root.icons: HorizontalLayout {
+                visible: icon.aside == root.row-mark;
+                height: icon.aside == root.row-mark ? 32px : 0px;
+                spacing: 8px;
+                alignment: start;
+                if icon.aside == root.row-mark && icon.has-icon: Image {
+                    width: 28px;
+                    height: 28px;
+                    source: icon.icon;
+                    image-fit: contain;
+                }
+                if icon.aside == root.row-mark: Text {
+                    text: icon.subtitle;
+                    font-size: 12px;
+                    color: #d4b483;
+                    vertical-alignment: center;
+                }
+                if icon.aside == root.row-mark: Text {
+                    horizontal-stretch: 1;
+                    text: icon.title;
+                    font-size: 13px;
+                    color: #f3efe8;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                if icon.aside == root.row-mark: Rectangle {
+                    width: 24px;
+                    height: 24px;
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: "×";
+                        font-size: 14px;
+                        color: #a3988c;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                    TouchArea {
+                        width: 100%;
+                        height: 100%;
+                        clicked => { root.drop-code(icon.key); }
+                        mouse-cursor: pointer;
+                    }
+                }
+            }
+        }
+        if root.suggesting: VerticalLayout {
+            spacing: 4px;
+            alignment: start;
+            for hit[j] in root.hits: Rectangle {
+                height: 36px;
+                border-radius: 6px;
+                background: j == root.pick ? #2a241e : #100e0c;
+                border-width: 1px;
+                border-color: hit.chip == "yes" ? #d4b483 : #3a342c;
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 8px;
+                    alignment: start;
+                    cross-axis-alignment: center;
+                    height: 100%;
+                    Rectangle {
+                        width: 16px;
+                        height: 100%;
+                        Rectangle {
+                            width: 16px;
+                            height: 16px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 3px;
+                            border-width: 1px;
+                            border-color: #d4b483;
+                            background: hit.chip == "yes" ? #d4b483 : transparent;
+                        }
+                    }
+                    if hit.has-icon: Image {
+                        width: 28px;
+                        height: 28px;
+                        source: hit.icon;
+                        image-fit: contain;
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: hit.title;
+                        font-size: 13px;
+                        color: #f3efe8;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: hit.subtitle;
+                        font-size: 12px;
+                        color: #d4b483;
+                        vertical-alignment: center;
+                    }
+                }
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    clicked => { root.toggle-hit(j); }
+                    mouse-cursor: pointer;
+                }
+            }
+        }
+    }
+}
+
+component SectionToggle inherits Rectangle {
+    in property <string> label;
+    in property <bool> open;
+    in property <bool> picked;
+    callback clicked();
+    height: 36px;
+    border-radius: 8px;
+    background: open ? #2a241e : #1c1916;
+    border-width: picked ? 2px : 1px;
+    border-color: picked ? #d4b483 : #3a342c;
+    Text {
+        x: 12px;
+        width: parent.width - 40px;
+        height: 100%;
+        text: root.label;
+        font-size: 13px;
+        color: #f3efe8;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    Text {
+        x: parent.width - 24px;
+        width: 16px;
+        height: 100%;
+        text: open ? "–" : "+";
+        font-size: 16px;
+        color: #d4b483;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component DockSortRow inherits Rectangle {
+    in property <string> label;
+    in property <string> badge;
+    in property <image> logo;
+    in property <string> glyph: "";
+    in property <bool> on;
+    in property <bool> lifted;
+    in property <bool> marked;
+    callback toggled();
+    callback grip-pressed(length);
+    callback grip-moved(length);
+    callback grip-released();
+    callback up();
+    callback down();
+    in property <bool> can-up: false;
+    in property <bool> can-down: false;
+    height: 52px;
+    border-radius: 8px;
+    background: lifted ? #2c261f : (marked ? #241c14 : #1c1916);
+    border-width: 1px;
+    border-color: marked || lifted ? #d4b483 : #3a342c;
+    HorizontalLayout {
+        width: 100%;
+        padding-left: 4px;
+        padding-right: 10px;
+        spacing: 8px;
+        cross-axis-alignment: center;
+        Rectangle {
+            height: 44px;
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                cross-axis-alignment: center;
+                Rectangle {
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 8px;
+                    background: #120f0c;
+                    border-width: 1px;
+                    border-color: #5a4a34;
+                    if root.glyph == "": Image {
+                        source: root.logo;
+                        width: 26px;
+                        height: 26px;
+                        x: 5px;
+                        y: 5px;
+                        image-fit: contain;
+                    }
+                    if root.glyph != "": Text {
+                        width: 100%;
+                        height: 100%;
+                        text: root.glyph;
+                        font-size: 16px;
+                        color: #d4b483;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    width: 28px;
+                    text: root.badge;
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: root.on ? #d4b483 : #6f675e;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.label;
+                    font-size: 14px;
+                    color: root.on ? #f3efe8 : #8a8076;
+                    vertical-alignment: center;
+                }
+            }
+            grip := TouchArea {
+                width: 100%;
+                height: 100%;
+                mouse-cursor: grab;
+                pointer-event(event) => {
+                    if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                        root.grip-pressed(self.mouse-y);
+                    }
+                    if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
+                        root.grip-released();
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        root.grip-moved(self.mouse-y);
+                    }
+                }
+            }
+        }
+        Rectangle {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            background: root.can-up ? (up-tap.has-hover ? #5c4e3a : #3f362c) : #241f1b;
+            Text {
+                width: 100%;
+                height: 100%;
+                text: "↑";
+                font-size: 13px;
+                color: root.can-up ? #f3efe8 : #5c534c;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            up-tap := TouchArea {
+                width: 100%;
+                height: 100%;
+                enabled: root.can-up;
+                clicked => { root.up(); }
+                mouse-cursor: root.can-up ? pointer : default;
+            }
+        }
+        Rectangle {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            background: root.can-down ? (down-tap.has-hover ? #5c4e3a : #3f362c) : #241f1b;
+            Text {
+                width: 100%;
+                height: 100%;
+                text: "↓";
+                font-size: 13px;
+                color: root.can-down ? #f3efe8 : #5c534c;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            down-tap := TouchArea {
+                width: 100%;
+                height: 100%;
+                enabled: root.can-down;
+                clicked => { root.down(); }
+                mouse-cursor: root.can-down ? pointer : default;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            min-width: 8px;
+            height: 44px;
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                mouse-cursor: grab;
+                pointer-event(event) => {
+                    if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                        root.grip-pressed(self.mouse-y);
+                    }
+                    if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
+                        root.grip-released();
+                    }
+                }
+                moved => {
+                    if (self.pressed) {
+                        root.grip-moved(self.mouse-y);
+                    }
+                }
+            }
+        }
+        Rectangle {
+            width: 36px;
+            height: 20px;
+            border-radius: 10px;
+            background: root.on ? #d4b483 : #3a342c;
+            Rectangle {
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                x: root.on ? 19px : 3px;
+                y: 3px;
+                background: root.on ? #1a140e : #c8bfb4;
+            }
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => { root.toggled(); }
+                mouse-cursor: pointer;
+            }
+        }
+    }
+}
+
+component KeyLine inherits Rectangle {
+    in property <string> keys;
+    in property <string> action;
+    height: 28px;
+    HorizontalLayout {
+        spacing: 16px;
+        key-box := Rectangle {
+            width: 188px;
+            clip: true;
+            Text {
+                width: parent.width;
+                height: 100%;
+                text: root.keys;
+                font-size: 13px;
+                font-weight: 600;
+                color: #d4b483;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.action;
+            font-size: 13px;
+            color: #c8bfb4;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+component CategoryTile inherits Rectangle {
+    in property <image> logo;
+    in property <string> glyph: "";
+    in property <string> name;
+    in property <bool> selected: false;
+    in property <bool> arranging: false;
+    in property <bool> lifted: false;
+    in property <bool> drop-target: false;
+    callback clicked();
+    callback pressed(length, length);
+    callback dragged(length, length);
+    callback released();
+    callback long-pressed(length, length);
+    property <bool> arming: false;
+    property <bool> latched: false;
+    property <length> origin-x: 0px;
+    property <length> origin-y: 0px;
+    property <float> hold: arming ? 1 : 0;
+    property <length> badge: min(max(root.width - 20px, 28px), max(root.height - 40px, 28px));
+    animate hold {
+        duration: 420ms;
+        easing: linear;
+    }
+    changed hold => {
+        if (root.hold > 0.98 && root.arming && !root.latched && !root.arranging) {
+            root.latched = true;
+            root.arming = false;
+            root.long-pressed(area.mouse-x, area.mouse-y);
+        }
+    }
+    border-radius: min(16px, root.width * 0.12);
+    background: lifted ? #3a3228 : (selected || drop-target || area.has-hover ? #2a241e : #1c1916);
+    border-width: selected || drop-target || lifted ? 2px : 1px;
+    border-color: selected || drop-target || lifted ? #d4b483 : arranging ? #8a7048 : (area.has-hover ? #8a7048 : #3a342c);
+    opacity: lifted ? 0.72 : 1;
+    VerticalLayout {
+        alignment: center;
+        spacing: root.width < 120px ? 6px : 10px;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: root.badge;
+                height: root.badge;
+                border-radius: root.badge * 0.2;
+                background: #120f0c;
+                border-width: 1px;
+                border-color: #5a4a34;
+                if root.glyph == "": Image {
+                    source: root.logo;
+                    width: root.badge * 0.84;
+                    height: root.badge * 0.84;
+                    image-fit: contain;
+                    x: root.badge * 0.08;
+                    y: root.badge * 0.08;
+                }
+                if root.glyph != "": Text {
+                    width: 100%;
+                    height: 100%;
+                    text: root.glyph;
+                    font-size: root.badge * 0.38;
+                    color: #d4b483;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+        Text {
+            width: root.width - 12px;
+            text: root.name;
+            font-size: root.width < 120px ? 12px : 14px;
+            font-weight: 600;
+            color: #f3efe8;
+            horizontal-alignment: center;
+            overflow: elide;
+        }
+    }
+    area := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => {
+            if (!root.arranging && !root.latched) {
+                root.clicked();
+            }
+        }
+        pointer-event(event) => {
+            if (event.button != PointerEventButton.left) {
+                return;
+            }
+            if (event.kind == PointerEventKind.down) {
+                root.origin-x = self.mouse-x;
+                root.origin-y = self.mouse-y;
+                if (root.arranging) {
+                    root.pressed(self.mouse-x, self.mouse-y);
+                } else {
+                    root.latched = false;
+                    root.arming = true;
+                }
+            }
+            if (event.kind == PointerEventKind.up) {
+                root.arming = false;
+                if (root.arranging) {
+                    root.released();
+                }
+            }
+        }
+        moved => {
+            if (root.arming && !root.latched && (self.mouse-x < root.origin-x - 8px || self.mouse-x > root.origin-x + 8px || self.mouse-y < root.origin-y - 8px || self.mouse-y > root.origin-y + 8px)) {
+                root.arming = false;
+            }
+            if (root.arranging && self.pressed) {
+                root.dragged(self.mouse-x, self.mouse-y);
+            }
+        }
+        mouse-cursor: root.arranging ? grab : pointer;
+    }
+}
+
+component HitRow inherits Rectangle {
+    in property <Hit> hit;
+    in property <color> title-color: #f3efe8;
+    in property <bool> selected: false;
+    in property <bool> compact: false;
+    in property <string> no-image-label: "沒有圖片";
+    callback clicked();
+    callback favourite-clicked();
+    height: compact ? 36px : 52px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: selected ? #d4b483 : transparent;
+    property <bool> heading: hit.chip == "label";
+    background: selected ? #2a241e : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? #2c261f : #1c1914) : (area.has-hover ? #241f1b : transparent);
+    property <bool> marked: hit.can-favourite || hit.favourite;
+    property <length> tail: (marked ? 62px : 0px) + (!marked && hit.has-badge ? 26px : 0px);
+    property <bool> show-chip: hit.chip == "yes" || hit.chip == "no";
+    property <bool> disclosure: hit.chip == "section";
+    property <bool> disclosure-open: disclosure && hit.aside == "▼";
+    property <bool> show-aside: !root.show-chip && !root.disclosure && hit.aside != "";
+    property <length> chip-w: 68px;
+    property <length> aside-box: root.show-chip ? root.chip-w : 108px;
+    area := TouchArea {
+        x: 0px;
+        width: parent.width - root.tail;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: root.hit.key == "" && !root.disclosure ? default : pointer;
+        HorizontalLayout {
+            width: 100%;
+            height: 100%;
+            padding-left: 8px;
+            padding-right: root.show-aside || root.show-chip ? root.aside-box + 12px : 8px;
+            spacing: 8px;
+            alignment: start;
+            cross-axis-alignment: center;
+            if root.hit.has-icon: Image {
+                source: root.hit.icon;
+                width: root.compact ? 22px : 36px;
+                height: root.compact ? 22px : 36px;
+                image-fit: contain;
+            }
+            if root.hit.no-image: NoImage {
+                side: root.compact ? 28px : 36px;
+                label: root.no-image-label;
+            }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                min-width: 0px;
+                alignment: center;
+                cross-axis-alignment: stretch;
+                Text {
+                    horizontal-stretch: 1;
+                    min-width: 0px;
+                    text: root.hit.title;
+                    overflow: elide;
+                    font-weight: root.heading ? 600 : 400;
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    color: root.hit.chip == "section" || root.heading ? #d4b483 : root.hit.solo ? #e24b4b : root.title-color;
+                }
+                if root.hit.subtitle != "": Text {
+                    horizontal-stretch: 1;
+                    min-width: 0px;
+                    text: root.hit.subtitle;
+                    overflow: elide;
+                    font-size: root.compact ? 11px : 12px;
+                    horizontal-alignment: left;
+                    vertical-alignment: center;
+                    color: root.hit.solo ? #e24b4b : #a3988c;
+                }
+            }
+        }
+    }
+    if root.show-chip: Rectangle {
+        x: parent.width - root.tail - 8px - root.chip-w;
+        y: (parent.height - 22px) / 2;
+        width: root.chip-w;
+        height: 22px;
+        border-radius: 11px;
+        background: root.hit.chip == "yes" ? #1d6b43 : #8a4034;
+        Text {
+            width: 100%;
+            height: 100%;
+            text: root.hit.aside;
+            font-size: 11px;
+            font-weight: 700;
+            color: root.hit.chip == "yes" ? #e8f7ee : #fdece8;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    if root.disclosure: Path {
+        x: parent.width - 22px;
+        y: (parent.height - 10px) / 2;
+        width: 10px;
+        height: 10px;
+        stroke: #8a8076;
+        stroke-width: 1.6px;
+        commands: root.disclosure-open ? "M 1 3 L 5 7 L 9 3" : "M 3 1 L 7 5 L 3 9";
+    }
+    if root.show-aside: Text {
+        x: parent.width - root.tail - 10px - root.aside-box;
+        y: 0px;
+        width: root.aside-box;
+        height: parent.height;
+        text: root.hit.aside;
+        font-size: 13px;
+        font-weight: 600;
+        color: #d4b483;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    if root.hit.has-badge: Image {
+        x: parent.width - (root.marked ? 40px : 8px) - 18px;
+        y: (parent.height - 18px) / 2;
+        width: 18px;
+        height: 18px;
+        source: root.hit.badge;
+        image-fit: contain;
+    }
+    if root.marked: StarMark {
+        x: parent.width - 36px;
+        y: (parent.height - self.height) / 2;
+        filled: root.hit.favourite;
+        clicked => {
+            if (root.hit.can-favourite) {
+                root.favourite-clicked();
+            } else {
+                root.clicked();
+            }
+        }
+    }
+}
+
+component DockChip inherits Rectangle {
+    in property <image> logo;
+    in property <string> glyph: "";
+    in property <bool> selected: false;
+    in property <int> mark: 0;
+    in property <length> side: 60px;
+    callback clicked();
+    callback right-clicked();
+    width: side;
+    height: side;
+    border-radius: side * 0.22;
+    background: #120f0ce6;
+    border-width: selected || tap.has-hover ? 2px : 1px;
+    border-color: selected || tap.has-hover ? #d4b483 : #5a4a34;
+    if root.glyph == "": Image {
+        source: root.logo;
+        width: side - 16px;
+        height: side - 16px;
+        image-fit: contain;
+        x: 8px;
+        y: 8px;
+    }
+    if root.glyph != "": Text {
+        width: 100%;
+        height: 100%;
+        text: root.glyph;
+        font-size: side * 0.42;
+        color: #d4b483;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    if root.mark > 0: Rectangle {
+        x: 3px;
+        y: 3px;
+        width: 26px;
+        height: 14px;
+        border-radius: 7px;
+        background: #120f0cf2;
+        Text {
+            width: 100%;
+            height: 100%;
+            text: "F" + root.mark;
+            font-size: 9px;
+            font-weight: 700;
+            color: #d4b483;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                root.right-clicked();
+            }
+        }
+        mouse-cursor: pointer;
+    }
+}
+
+component FactLine inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> key: "";
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <bool> selected: false;
+    in property <bool> last: false;
+    in property <length> line-height: 30px;
+    in property <bool> wrap-value: false;
+    in property <length> label-width: 112px;
+    callback open();
+    property <bool> heading: value == "" && !has-icon;
+    height: heading ? 28px : wrap-value ? max(line-height, value-text.preferred-height + 8px) : line-height;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: selected ? #d4b483 : transparent;
+    background: selected ? #2a241e : transparent;
+    HorizontalLayout {
+        width: parent.width;
+        height: 100%;
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+        alignment: start;
+        cross-axis-alignment: center;
+        Text {
+            width: root.heading ? parent.width - 20px : root.label-width;
+            text: root.label;
+            font-size: root.heading ? 13px : 12px;
+            font-weight: root.heading ? 600 : 400;
+            color: root.heading ? #d4b483 : #a3988c;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        if root.has-icon: Image {
+            width: 28px;
+            height: 28px;
+            source: root.icon;
+            image-fit: contain;
+        }
+        value-text := Text {
+            horizontal-stretch: 1;
+            width: max(parent.width - root.label-width - (root.has-icon ? 64px : 28px), 24px);
+            text: root.value;
+            font-size: 13px;
+            color: root.key == "" ? #f3efe8 : #e6d7bc;
+            horizontal-alignment: root.has-icon ? left : right;
+            wrap: root.wrap-value ? word-wrap : no-wrap;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+    }
+    if !root.last: Rectangle {
+        y: root.height - 1px;
+        height: 1px;
+        background: #2a241e;
+    }
+    if root.key != "": TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.open(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component ChainButton inherits Rectangle {
+    in property <string> caption;
+    in property <string> name;
+    in property <bool> end: false;
+    in property <bool> picked: false;
+    callback clicked();
+    height: 40px;
+    border-radius: 8px;
+    background: root.picked ? #2a241e : tap.has-hover ? #3a3228 : #1c1916;
+    border-width: 1px;
+    border-color: root.picked || tap.has-hover ? #d4b483 : #3a342c;
+    VerticalLayout {
+        width: 100%;
+        padding-left: 10px;
+        padding-right: 10px;
+        alignment: center;
+        Text {
+            width: 100%;
+            text: root.caption;
+            font-size: 10px;
+            font-weight: 700;
+            color: #d4b483;
+            horizontal-alignment: root.end ? right : left;
+            overflow: elide;
+        }
+        Text {
+            width: 100%;
+            text: root.name;
+            font-size: 12px;
+            color: #f3efe8;
+            horizontal-alignment: root.end ? right : left;
+            overflow: elide;
+        }
+    }
+    tap := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+export component App inherits Window {
+    in-out property <string> query;
+    in-out property <string> category;
+    in-out property <string> nation;
+    in-out property <string> nation-name;
+    in-out property <string> place;
+    in-out property <string> place-name;
+    in-out property <string> area;
+    in-out property <string> area-name;
+    in-out property <string> viewing;
+    in-out property <string> lang: "zh-en";
+    in-out property <bool> collapsed: false;
+    in-out property <bool> dock-menu: false;
+    callback dock-drag(length, length);
+    in-out property <bool> settings-open: false;
+    in-out property <[Hit]> hits;
+    in-out property <[Hit]> links;
+    in-out property <[Hit]> related;
+    in-out property <string> detail;
+    in-out property <[Fact]> facts;
+    in-out property <[int]> task-picks;
+    in-out property <[Fact]> reward-facts;
+    in-out property <[Hit]> chain-prev;
+    in-out property <[Hit]> chain-next;
+    in-out property <string> quest-npc: "";
+    in-out property <string> sheet-title;
+    in-out property <string> sheet-alt;
+    in-out property <string> sheet-code;
+    in-out property <string> sheet-note;
+    in-out property <image> item-icon;
+    in-out property <bool> show-icon;
+    in-out property <image> element-icon;
+    in-out property <bool> show-element: false;
+    in-out property <bool> copied: false;
+    in-out property <string> ship: "";
+    in-out property <string> client-version: "V3.4220";
+    in-out property <bool> favourites-only: false;
+    in-out property <bool> stick-cursor: false;
+    in-out property <bool> viewing-monster: false;
+    in-out property <bool> viewing-recipe: false;
+    in-out property <bool> viewing-quest: false;
+    in-out property <bool> viewing-npc: false;
+    in-out property <bool> viewing-hero: false;
+    in-out property <bool> viewing-item: false;
+    in-out property <bool> viewing-set: false;
+    in-out property <string> item-tab: "";
+    in-out property <string> item-source: "";
+    in-out property <string> source-note: "";
+    in-out property <int> source-note-lines: 0;
+    in-out property <[Hit]> sources;
+    in-out property <bool> viewing-favourite: false;
+    in-out property <bool> viewing-no-image: false;
+    property <string> no-image-label: lang == "en-zh" ? "No image" : "沒有圖片";
+    in-out property <int> cursor: 0;
+    in-out property <int> task-focus: -1;
+    in-out property <int> next-focus: -1;
+    in-out property <int> home-cursor: 0;
+    in-out property <int> icon-size: 1;
+    in-out property <[int]> home-order: [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    in-out property <[int]> dock-order: [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    in-out property <[int]> dock-draft: [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    in-out property <[int]> dock-shown: [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    in-out property <bool> dock-editing: false;
+    in-out property <int> settings-tab: 0;
+    in-out property <bool> arranging: false;
+    in-out property <int> hotkey-nth: 0;
+    property <length> home-pad: 16px;
+    property <length> home-gap: 12px;
+    property <length> icon-base: icon-size == 0 ? 72px : icon-size == 2 ? 168px : 96px;
+    property <int> home-span: max(1, min(root.home-order.length, max(1, round(max(root.width - 16px, 40px) / (root.icon-base + root.home-gap) - 0.5))));
+    in-out property <int> saved-cursor: 0;
+    in-out property <length> list-offset: 0px;
+    in-out property <length> drop-offset: 0px;
+    in-out property <length> task-offset: 0px;
+    in-out property <length> form-offset: 0px;
+    in-out property <length> form-body: 0px;
+    property <length> form-span: max(form-body - item-form-h, 0px);
+    in-out property <bool> show-item-fx: false;
+    in-out property <bool> show-set-fx: false;
+    in-out property <bool> show-total-fx: false;
+    in-out property <bool> has-item-fx: false;
+    in-out property <bool> has-set-fx: false;
+    in-out property <bool> has-total-fx: false;
+    in-out property <int> fold-focus: 0;
+    property <length> item-fold-y: 0px;
+    property <length> set-fold-y: 0px;
+    property <length> total-fold-y: 0px;
+    in-out property <length> quest-facts-body: 0px;
+    callback query-changed(string, string);
+    callback open-hit(string);
+    callback source-changed(string);
+    callback restore-view() -> bool;
+    callback forget-view();
+    callback request-close();
+    callback went-home();
+    callback lang-changed(string);
+    callback collapse-changed(bool);
+    callback copy-note();
+    callback toggle-favourite(string);
+    callback dock-changed(bool, bool, bool, bool, bool, bool, bool, bool, bool, bool);
+    callback home-reordered(int, int);
+    callback icon-size-set(int);
+    callback dock-shift(int, int);
+    callback dock-moved(int, int);
+    callback dock-park();
+    callback dock-order-save();
+    callback dock-order-cancel();
+    callback opacity-changed(float);
+    callback show-set-extra-changed(bool);
+    callback alias-save();
+    callback alias-cancel();
+    callback alias-add();
+    callback alias-remove(int);
+    callback alias-name(int, string);
+    callback alias-codes(int, string);
+    callback alias-query(int, string);
+    callback alias-commit(int, string);
+    callback alias-finish(int);
+    callback alias-toggle(int);
+    callback alias-drop(int, string);
+    callback alias-refresh();
+    in-out property <int> alias-edit: -1;
+    in-out property <[AliasRow]> alias-rows;
+    in-out property <[Hit]> alias-icons;
+    in-out property <[Hit]> alias-hits;
+    in-out property <int> alias-pick: 0;
+    in-out property <int> alias-target: -1;
+    in-out property <float> window-opacity: 1;
+    in-out property <bool> show-set-extra: false;
+    property <int> opacity-percent: round(root.window-opacity * 100);
+    in-out property <bool> dock-vertical: false;
+    in-out property <bool> dock-monster: true;
+    in-out property <bool> dock-item: true;
+    in-out property <bool> dock-recipe: true;
+    in-out property <bool> dock-quest: true;
+    in-out property <bool> dock-patch: true;
+    in-out property <bool> dock-npc: true;
+    in-out property <bool> dock-hero: true;
+    in-out property <bool> dock-works: true;
+    in-out property <bool> dock-atlas: true;
+    in-out property <string> hero-group: "rank";
+    in-out property <image> hero-logo;
+    in-out property <bool> hero-logo-ready: false;
+
+    title: "巨商";
+    no-frame: true;
+    always-on-top: true;
+    icon: @image-url("app-icon.png");
+    default-font-family: "Microsoft JhengHei UI";
+    default-font-size: 14px;
+    default-font-weight: 400;
+    background: transparent;
+    preferred-width: 560px;
+    preferred-height: 740px;
+    resize-border-width: 6px;
+
+    function open-category(id: string) {
+        root.category = id;
+        root.nation = "";
+        root.nation-name = "";
+        root.area = "";
+        root.area-name = "";
+        root.place = "";
+        root.place-name = "";
+        root.viewing = "";
+        root.query = "";
+        root.search-open = false;
+        root.favourites-only = false;
+        root.ship = "";
+        root.query-changed(id, "");
+    }
+
+    function quest-type-index() -> int {
+        if (root.area == "0") { return 1; }
+        if (root.area == "2") { return 2; }
+        if (root.area == "5") { return 3; }
+        if (root.area == "7") { return 4; }
+        return 0;
+    }
+
+    function cycle-set-type(step: int) {
+        if (!root.set-browser) {
+            return;
+        }
+        if (root.area == "" || root.area == "0") {
+            root.area = step > 0 ? "2" : "1";
+        } else if (root.area == "2") {
+            root.area = step > 0 ? "1" : "0";
+        } else {
+            root.area = step > 0 ? "0" : "2";
+        }
+        root.cursor = 0;
+        root.list-offset = 0px;
+        root.query-changed(root.category, root.query);
+    }
+
+    function cycle-quest-type(step: int) {
+        if (root.category != "quest" || root.place != "main" || root.viewing != "") {
+            return;
+        }
+        let index = root.quest-type-index();
+        if (step > 0) {
+            if (index == 0) { root.area = "0"; }
+            else if (index == 1) { root.area = "2"; }
+            else if (index == 2) { root.area = "5"; }
+            else if (index == 3) { root.area = "7"; }
+            else { root.area = ""; }
+        } else if (index == 0) {
+            root.area = "7";
+        } else if (index == 1) {
+            root.area = "";
+        } else if (index == 2) {
+            root.area = "0";
+        } else if (index == 3) {
+            root.area = "2";
+        } else {
+            root.area = "5";
+        }
+        root.query-changed(root.category, root.query);
+    }
+
+    function set-item-tab(mode: string) {
+        if (!root.viewing-item) {
+            return;
+        }
+        root.item-tab = mode;
+        root.drop-offset = 0px;
+        root.form-offset = 0px;
+        root.cursor = 0;
+    }
+
+    function scroll-form(dir: int) {
+        if (!root.viewing-item || root.item-links) {
+            return;
+        }
+        let span = root.form-span;
+        let next = root.form-offset - dir * 44px;
+        if (next > 0px) {
+            root.form-offset = 0px;
+        } else if (next < -span) {
+            root.form-offset = -span;
+        } else {
+            root.form-offset = next;
+        }
+    }
+
+    function fold-row(key: string) -> bool {
+        key == "fold:item" || key == "fold:set" || key == "fold:total"
+    }
+
+    function fold-open(key: string) -> bool {
+        key == "fold:item" ? root.show-item-fx : key == "fold:set" ? root.show-set-fx : root.show-total-fx
+    }
+
+    function section-open(section: string) -> bool {
+        section == "item" ? root.show-item-fx : section == "set" ? root.show-set-fx : section == "total" ? root.show-total-fx : true
+    }
+
+    function focus-fold(key: string) {
+        if (key == "fold:item") {
+            root.fold-focus = 0;
+        } else if (key == "fold:set") {
+            root.fold-focus = 1;
+        } else if (key == "fold:total") {
+            root.fold-focus = 2;
+        }
+    }
+
+    function toggle-fold(key: string) {
+        if (key == "fold:item") {
+            root.show-item-fx = !root.show-item-fx;
+        } else if (key == "fold:set") {
+            root.show-set-fx = !root.show-set-fx;
+        } else if (key == "fold:total") {
+            root.show-total-fx = !root.show-total-fx;
+        }
+        root.reveal-fold();
+    }
+
+    function toggle-fold-focus() {
+        if (root.fold-focus == 0 && root.has-item-fx) {
+            root.show-item-fx = !root.show-item-fx;
+        } else if (root.fold-focus == 1 && root.has-set-fx) {
+            root.show-set-fx = !root.show-set-fx;
+        } else if (root.fold-focus == 2 && root.has-total-fx) {
+            root.show-total-fx = !root.show-total-fx;
+        }
+        root.reveal-fold();
+    }
+
+    function step-fold(delta: int) {
+        if (delta > 0) {
+            if (root.fold-focus <= 0 && root.has-set-fx) {
+                root.fold-focus = 1;
+            } else if (root.fold-focus <= 1 && root.has-total-fx) {
+                root.fold-focus = 2;
+            }
+        } else if (root.fold-focus >= 2 && root.has-set-fx) {
+            root.fold-focus = 1;
+        } else if (root.fold-focus >= 1 && root.has-item-fx) {
+            root.fold-focus = 0;
+        }
+        root.reveal-fold();
+    }
+
+    function reveal-fold() {
+        if (!root.viewing-set || root.item-links) {
+            return;
+        }
+        let y = root.fold-focus == 1 ? root.set-fold-y : root.fold-focus == 2 ? root.total-fold-y : root.item-fold-y;
+        let view = root.item-form-h;
+        if (view < 40px) {
+            return;
+        }
+        let top = -root.form-offset;
+        if (y < top + 4px) {
+            root.form-offset = -max(y - 4px, 0px);
+        } else if (y + 40px > top + view) {
+            root.form-offset = -(y + 40px - view);
+        }
+        if (root.form-offset > 0px) {
+            root.form-offset = 0px;
+        }
+    }
+
+    function set-hero-group(mode: string) {
+        if (root.category != "hero" || root.viewing != "") {
+            return;
+        }
+        root.hero-group = mode;
+        root.place = "";
+        root.place-name = "";
+        root.area = "";
+        root.area-name = "";
+        root.query = "";
+        root.search-open = false;
+        root.query-changed("hero", "");
+    }
+
+    function toggle-saved() {
+        if (root.category != "monster") {
+            return;
+        }
+        root.favourites-only = !root.favourites-only;
+        root.query-changed(root.category, root.query);
+    }
+
+    function mark-favourite() {
+        if (root.viewing-monster) {
+            root.toggle-favourite(root.viewing);
+            return;
+        }
+        if (root.viewing == "" && root.cursor >= 0 && root.cursor < root.hits.length && root.hits[root.cursor].can-favourite) {
+            root.toggle-favourite(root.hits[root.cursor].key);
+            return;
+        }
+        root.activate();
+    }
+
+    function close-settings() {
+        if (root.dock-editing) {
+            root.dock-order-cancel();
+            root.dock-editing = false;
+        }
+        root.settings-open = false;
+    }
+
+    function cycle-settings(delta: int) {
+        if (root.settings-tab == 2) {
+            root.alias-edit = -1;
+            root.alias-hits = [];
+            root.alias-target = -1;
+        }
+        root.settings-tab = root.settings-tab + delta;
+        if (root.settings-tab > 3) {
+            root.settings-tab = 0;
+        }
+        if (root.settings-tab < 0) {
+            root.settings-tab = 3;
+        }
+        if (root.settings-tab == 2) {
+            root.alias-refresh();
+        }
+    }
+
+    function go-home() {
+        if (root.collapsed) {
+            root.collapsed = false;
+        }
+        if (root.settings-open) {
+            root.close-settings();
+        }
+        root.search-open = false;
+        root.arranging = false;
+        if (root.category == "" && root.viewing == "") {
+            keys.focus();
+            return;
+        }
+        root.category = "";
+        root.nation = "";
+        root.nation-name = "";
+        root.area = "";
+        root.area-name = "";
+        root.place = "";
+        root.place-name = "";
+        root.viewing = "";
+        root.viewing-monster = false;
+        root.viewing-recipe = false;
+        root.viewing-quest = false;
+        root.viewing-npc = false;
+        root.viewing-item = false;
+        root.viewing-set = false;
+        root.item-tab = "";
+        root.viewing-favourite = false;
+        root.query = "";
+        root.detail = "";
+        root.show-icon = false;
+        root.show-element = false;
+        root.form-open = false;
+        root.drops-open = false;
+        root.related-open = false;
+        root.went-home();
+        keys.focus();
+    }
+
+    function choose-lang(code: string) {
+        root.lang = code;
+        root.lang-changed(code);
+    }
+
+    function go-back() {
+        if (root.viewing != "") {
+            if (root.restore-view()) {
+                return;
+            }
+            root.forget-view();
+            root.viewing = "";
+            root.viewing-monster = false;
+            root.viewing-recipe = false;
+            root.viewing-quest = false;
+            root.viewing-npc = false;
+            root.viewing-hero = false;
+            root.viewing-item = false;
+            root.viewing-set = false;
+            root.item-tab = "";
+            root.viewing-favourite = false;
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+        } else if (root.category == "quest" && root.area != "") {
+            root.search-open = false;
+            root.area = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("quest", "");
+        } else if (root.category == "quest" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.area = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("quest", "");
+        } else if (root.category == "atlas" && root.area != "") {
+            root.search-open = false;
+            root.area = "";
+            root.area-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("atlas", "");
+        } else if (root.category == "atlas" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("atlas", "");
+        } else if (root.category == "works" && root.area != "") {
+            root.search-open = false;
+            root.area = "";
+            root.area-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("works", "");
+        } else if (root.category == "works" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("works", "");
+        } else if (root.category == "hero" && root.area != "") {
+            root.search-open = false;
+            root.area = "";
+            root.area-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("hero", "");
+        } else if (root.category == "hero" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("hero", "");
+        } else if (root.category == "item" && root.area != "" && root.place != "set") {
+            root.search-open = false;
+            root.area = "";
+            root.area-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("item", "");
+        } else if (root.category == "item" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.area = "";
+            root.area-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("item", "");
+        } else if (root.category == "recipe" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.viewing-recipe = false;
+            root.query-changed("recipe", "");
+        } else if (root.category == "monster" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("monster", "");
+        } else if (root.category == "monster" && root.area != "") {
+            root.search-open = false;
+            root.area = "";
+            root.area-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("monster", "");
+        } else if (root.category == "monster" && root.nation != "") {
+            root.search-open = false;
+            root.nation = "";
+            root.nation-name = "";
+            root.area = "";
+            root.area-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("monster", "");
+        } else if (root.category != "") {
+            root.search-open = false;
+            root.category = "";
+            root.nation = "";
+            root.nation-name = "";
+            root.area = "";
+            root.area-name = "";
+            root.place = "";
+            root.place-name = "";
+            root.viewing = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.went-home();
+            keys.focus();
+        }
+    }
+
+    function list-count() -> int {
+        if (root.viewing == "") {
+            return root.hits.length;
+        }
+        if (root.viewing-monster && root.related-open) {
+            return root.related.length;
+        }
+        if (root.viewing != "" && root.viewing-monster && !root.drops-open) {
+            return 0;
+        }
+        return root.links.length;
+    }
+
+    function reveal-list(index: int) {
+        if (root.hits.length == 0) {
+            return;
+        }
+        let row = index * 52px;
+        let view = root.list-view;
+        let top = -root.list-offset;
+        if (row < top) {
+            root.list-offset = -row;
+        } else if (row + 52px > top + view) {
+            root.list-offset = view - row - 52px;
+        }
+        let floor = min(0px, view - root.hits.length * 52px);
+        if (root.list-offset < floor) {
+            root.list-offset = floor;
+        }
+        if (root.list-offset > 0px) {
+            root.list-offset = 0px;
+        }
+    }
+
+    function reveal-drops(index: int) {
+        let related-list = root.viewing-monster && root.related-open;
+        let count = related-list ? root.related.length : root.links.length;
+        if (count == 0) {
+            return;
+        }
+        let stride = related-list ? 52px : root.card-sheet ? root.link-row : 36px;
+        let row = index * stride;
+        let view = related-list ? root.drops-panel-h : root.viewing-hero ? max(root.height - root.foot - 136px, 180px) : root.quest-sheet ? root.quest-scalar-h : root.card-sheet ? root.card-list-h : root.drops-view;
+        let tail = root.quest-sheet ? root.reward-facts.length * 30px : 0px;
+        let top = -root.drop-offset;
+        if (row < top) {
+            root.drop-offset = -row;
+        } else if (row + stride > top + view) {
+            root.drop-offset = view - row - stride;
+        }
+        let floor = min(0px, view - tail - count * stride);
+        if (root.drop-offset < floor) {
+            root.drop-offset = floor;
+        }
+        if (root.drop-offset > 0px) {
+            root.drop-offset = 0px;
+        }
+    }
+
+    function reveal-task(index: int) {
+        if (root.facts.length == 0 || index < 0) {
+            return;
+        }
+        let count = max(root.facts.length, 1);
+        let body = max(root.quest-facts-body, count * root.quest-fact-row);
+        let row-h = body / count;
+        let row = index * row-h;
+        let view = root.quest-form-h;
+        let top = -root.task-offset;
+        if (row < top) {
+            root.task-offset = -row;
+        } else if (row + row-h > top + view) {
+            root.task-offset = view - row - row-h;
+        }
+        let floor = min(0px, view - body);
+        if (root.task-offset < floor) {
+            root.task-offset = floor;
+        }
+        if (root.task-offset > 0px) {
+            root.task-offset = 0px;
+        }
+    }
+
+    pure function task-picked(index: int) -> bool {
+        if (root.task-focus < 0 || root.task-focus >= root.task-picks.length) {
+            return false;
+        }
+        return root.task-picks[root.task-focus] == index;
+    }
+
+    function focus-task(index: int) {
+        root.task-focus = index;
+        root.next-focus = -1;
+    }
+
+    function focus-reward(index: int) {
+        root.task-focus = -1;
+        root.next-focus = -1;
+        root.cursor = index;
+        root.reveal-drops(index);
+    }
+
+    function move-quest(delta: int) {
+        if (root.task-focus >= root.task-picks.length) {
+            root.task-focus = -1;
+        }
+        if (root.task-focus >= 0) {
+            if (delta < 0) {
+                if (root.task-focus > 0) {
+                    root.focus-task(root.task-focus - 1);
+                }
+                return;
+            }
+            if (root.task-focus + 1 < root.task-picks.length) {
+                root.focus-task(root.task-focus + 1);
+                return;
+            }
+            if (root.links.length > 0) {
+                root.focus-reward(0);
+                return;
+            }
+            if (root.chain-next.length > 1) {
+                root.task-focus = -1;
+                root.next-focus = 0;
+                return;
+            }
+            return;
+        }
+        if (root.next-focus >= 0) {
+            let next = root.next-focus + delta;
+            if (next < 0) {
+                root.next-focus = -1;
+                if (root.links.length > 0) {
+                    root.focus-reward(root.links.length - 1);
+                    return;
+                }
+                if (root.task-picks.length > 0) {
+                    root.focus-task(root.task-picks.length - 1);
+                }
+                return;
+            }
+            if (next >= root.chain-next.length) {
+                return;
+            }
+            root.next-focus = next;
+            return;
+        }
+        if (root.links.length == 0) {
+            if (delta < 0 && root.task-picks.length > 0) {
+                root.focus-task(root.task-picks.length - 1);
+                return;
+            }
+            if (delta > 0 && root.task-picks.length > 0) {
+                root.focus-task(0);
+                return;
+            }
+            if (delta > 0 && root.chain-next.length > 1) {
+                root.next-focus = 0;
+            }
+            return;
+        }
+        let next = root.cursor + delta;
+        if (next < 0) {
+            if (root.task-picks.length > 0) {
+                root.focus-task(root.task-picks.length - 1);
+            }
+            return;
+        }
+        if (next >= root.links.length) {
+            if (delta > 0 && root.chain-next.length > 1) {
+                root.task-focus = -1;
+                root.next-focus = 0;
+            }
+            return;
+        }
+        root.focus-reward(next);
+    }
+
+    function move-list(delta: int) {
+        if (root.quest-sheet) {
+            root.move-quest(delta);
+            return;
+        }
+        if (root.list-count() <= 0) {
+            return;
+        }
+        root.cursor = root.cursor + delta;
+        if (root.cursor < 0) {
+            root.cursor = 0;
+        }
+        if (root.cursor >= root.list-count()) {
+            root.cursor = root.list-count() - 1;
+        }
+        if (root.viewing == "") {
+            root.reveal-list(root.cursor);
+        } else {
+            root.reveal-drops(root.cursor);
+        }
+    }
+
+    function dock-on(index: int) -> bool {
+        if (index == 0) { return root.dock-monster; }
+        if (index == 1) { return root.dock-item; }
+        if (index == 2) { return root.dock-recipe; }
+        if (index == 3) { return root.dock-quest; }
+        if (index == 4) { return root.dock-patch; }
+        if (index == 5) { return root.dock-npc; }
+        if (index == 6) { return root.dock-hero; }
+        if (index == 7) { return root.dock-works; }
+        if (index == 8) { return root.dock-atlas; }
+        return false;
+    }
+
+    function toggle-dock(index: int) {
+        if (index == 0) { root.dock-monster = !root.dock-monster; }
+        else if (index == 1) { root.dock-item = !root.dock-item; }
+        else if (index == 2) { root.dock-recipe = !root.dock-recipe; }
+        else if (index == 3) { root.dock-quest = !root.dock-quest; }
+        else if (index == 4) { root.dock-patch = !root.dock-patch; }
+        else if (index == 5) { root.dock-npc = !root.dock-npc; }
+        else if (index == 6) { root.dock-hero = !root.dock-hero; }
+        else if (index == 7) { root.dock-works = !root.dock-works; }
+        else if (index == 8) { root.dock-atlas = !root.dock-atlas; }
+        else { return; }
+        root.publish-dock();
+        root.dock-park();
+    }
+
+    function category-short(index: int) -> string {
+        if (index == 0) { return root.lang == "en-zh" ? "Monsters" : "怪物"; }
+        if (index == 1) { return root.lang == "en-zh" ? "Items" : "道具"; }
+        if (index == 2) { return root.lang == "en-zh" ? "Crafting" : "合成"; }
+        if (index == 3) { return root.lang == "en-zh" ? "Quests" : "任務"; }
+        if (index == 4) { return root.lang == "en-zh" ? "Updates" : "更新"; }
+        if (index == 5) { return "NPC"; }
+        if (index == 6) { return root.lang == "en-zh" ? "Roster" : "角色"; }
+        if (index == 7) { return root.lang == "en-zh" ? "Production" : "生產"; }
+        return root.lang == "en-zh" ? "Shop" : "商店";
+    }
+
+    function home-at(cat: int) -> int {
+        if (root.home-order[0] == cat) { return 0; }
+        if (root.home-order[1] == cat) { return 1; }
+        if (root.home-order[2] == cat) { return 2; }
+        if (root.home-order[3] == cat) { return 3; }
+        if (root.home-order[4] == cat) { return 4; }
+        if (root.home-order[5] == cat) { return 5; }
+        if (root.home-order[6] == cat) { return 6; }
+        if (root.home-order[7] == cat) { return 7; }
+        if (root.home-order[8] == cat) { return 8; }
+        return 0;
+    }
+
+    function dock-at(cat: int) -> int {
+        if (root.dock-order[0] == cat) { return 0; }
+        if (root.dock-order[1] == cat) { return 1; }
+        if (root.dock-order[2] == cat) { return 2; }
+        if (root.dock-order[3] == cat) { return 3; }
+        if (root.dock-order[4] == cat) { return 4; }
+        if (root.dock-order[5] == cat) { return 5; }
+        if (root.dock-order[6] == cat) { return 6; }
+        if (root.dock-order[7] == cat) { return 7; }
+        if (root.dock-order[8] == cat) { return 8; }
+        return 0;
+    }
+
+    function visible-index(cat: int) -> int {
+        if (!root.dock-on(cat)) { return 0; }
+        let at = root.dock-at(cat);
+        return 1
+            + (at > 0 && root.dock-on(root.dock-order[0]) ? 1 : 0)
+            + (at > 1 && root.dock-on(root.dock-order[1]) ? 1 : 0)
+            + (at > 2 && root.dock-on(root.dock-order[2]) ? 1 : 0)
+            + (at > 3 && root.dock-on(root.dock-order[3]) ? 1 : 0)
+            + (at > 4 && root.dock-on(root.dock-order[4]) ? 1 : 0)
+            + (at > 5 && root.dock-on(root.dock-order[5]) ? 1 : 0)
+            + (at > 6 && root.dock-on(root.dock-order[6]) ? 1 : 0)
+            + (at > 7 && root.dock-on(root.dock-order[7]) ? 1 : 0)
+            + (at > 8 && root.dock-on(root.dock-order[8]) ? 1 : 0);
+    }
+
+    function advance-dock(pos: int, offset: int) {
+        let next = pos + offset;
+        if (next < 0 || next >= root.dock-order.length) { return; }
+        if (root.home-cursor == root.dock-order[pos] && root.dock-on(root.dock-order[next])) {
+            root.home-cursor = root.dock-order[next];
+        }
+    }
+
+    function step-dock(delta: int) {
+        if (delta == 0) { return; }
+        let pos = root.dock-at(root.home-cursor);
+        if (delta > 0) {
+            root.advance-dock(pos, 1);
+            root.advance-dock(pos, 2);
+            root.advance-dock(pos, 3);
+            root.advance-dock(pos, 4);
+            root.advance-dock(pos, 5);
+            root.advance-dock(pos, 6);
+            root.advance-dock(pos, 7);
+            root.advance-dock(pos, 8);
+        } else {
+            root.advance-dock(pos, -1);
+            root.advance-dock(pos, -2);
+            root.advance-dock(pos, -3);
+            root.advance-dock(pos, -4);
+            root.advance-dock(pos, -5);
+            root.advance-dock(pos, -6);
+            root.advance-dock(pos, -7);
+            root.advance-dock(pos, -8);
+        }
+    }
+
+    function open-nth-visible(n: int) {
+        root.try-open(0, n);
+        root.try-open(1, n);
+        root.try-open(2, n);
+        root.try-open(3, n);
+        root.try-open(4, n);
+        root.try-open(5, n);
+        root.try-open(6, n);
+        root.try-open(7, n);
+        root.try-open(8, n);
+    }
+
+    function try-open(pos: int, n: int) {
+        if (pos < 0 || pos >= root.dock-order.length) {
+            return;
+        }
+        if (root.visible-index(root.dock-order[pos]) == n) {
+            root.open-dock(root.dock-order[pos]);
+        }
+    }
+
+    function move-home(dx: int, dy: int) {
+        let pos = root.home-at(root.home-cursor);
+        let cols = root.home-span;
+        let row = floor(pos / cols);
+        let col = pos - row * cols;
+        let ncol = col + dx;
+        let nrow = row + dy;
+        if (ncol < 0 || ncol >= cols || nrow < 0) {
+            return;
+        }
+        let next = nrow * cols + ncol;
+        if (next >= 0 && next < root.home-order.length) {
+            root.home-cursor = root.home-order[next];
+        }
+    }
+
+    function grid-slot(ax: length, ay: length, origin-x: length, origin-y: length, tile-w: length, tile-h: length, gap: length, cols: int, count: int) -> int {
+        if (tile-w <= 1px || tile-h <= 1px || ax < origin-x || ay < origin-y) {
+            return -1;
+        }
+        let col = round((ax - origin-x) / (tile-w + gap) - 0.5);
+        let row = round((ay - origin-y) / (tile-h + gap) - 0.5);
+        if (col < 0 || row < 0 || col >= cols) {
+            return -1;
+        }
+        let index = row * cols + col;
+        if (index < 0 || index >= count) {
+            return -1;
+        }
+        return index;
+    }
+
+    function category-logo(index: int) -> image {
+        if (index == 0) { return @image-url("icons/monster.png"); }
+        if (index == 1) { return @image-url("icons/item.png"); }
+        if (index == 2) { return @image-url("icons/recipe.png"); }
+        if (index == 3) { return @image-url("icons/quest.png"); }
+        if (index == 4) { return @image-url("logo.png"); }
+        if (index == 5) { return @image-url("icons/npc.png"); }
+        if (index == 6) { return root.hero-logo-ready ? root.hero-logo : @image-url("logo.png"); }
+        if (index == 7) { return @image-url("icons/works.png"); }
+        return @image-url("icons/shop.png");
+    }
+
+    function category-glyph(index: int) -> string {
+        if (index == 6 && !root.hero-logo-ready) { return "將"; }
+        return "";
+    }
+
+    function publish-dock() {
+        root.dock-changed(root.dock-vertical, root.dock-monster, root.dock-item, root.dock-recipe, root.dock-quest, root.dock-patch, root.dock-npc, root.dock-hero, root.dock-works, root.dock-atlas);
+    }
+
+    function open-dock(index: int) {
+        if (!root.dock-on(index)) { return; }
+        root.home-cursor = index;
+        if (root.settings-open) {
+            root.close-settings();
+        }
+        root.collapsed = false;
+        root.open-category(root.categories[index].id);
+    }
+
+    function activate() {
+        if (root.collapsed) {
+            root.open-dock(root.home-cursor);
+            return;
+        }
+        if (root.category == "") {
+            if (root.arranging) {
+                return;
+            }
+            root.open-category(root.categories[root.home-cursor].id);
+            return;
+        }
+        if (root.viewing == "") {
+            if (root.cursor >= 0 && root.cursor < root.hits.length) {
+                root.open-hit(root.hits[root.cursor].key);
+            }
+            return;
+        }
+        if (root.viewing-monster && root.related-open) {
+            if (root.cursor >= 0 && root.cursor < root.related.length && root.related[root.cursor].key != "") {
+                root.open-hit(root.related[root.cursor].key);
+            }
+            return;
+        }
+        if (root.viewing-monster && !root.drops-open) {
+            return;
+        }
+        if (root.quest-sheet && root.next-focus >= 0 && root.next-focus < root.chain-next.length) {
+            root.open-hit(root.chain-next[root.next-focus].key);
+            return;
+        }
+        if (root.quest-sheet && root.task-focus >= 0) {
+            if (root.task-focus < root.task-picks.length) {
+                let index = root.task-picks[root.task-focus];
+                if (index >= 0 && index < root.facts.length && root.facts[index].key != "") {
+                    root.open-hit(root.facts[index].key);
+                }
+            }
+            return;
+        }
+        if ((root.item-links || root.viewing-hero) && root.cursor >= 0 && root.cursor < root.links.length && root.links[root.cursor].chip == "section") {
+            root.source-changed(root.links[root.cursor].key);
+            return;
+        }
+        if (root.cursor >= 0 && root.cursor < root.links.length && root.links[root.cursor].key != "") {
+            root.open-hit(root.links[root.cursor].key);
+        }
+    }
+
+    function open-prev() {
+        if (root.chain-prev.length > 0) {
+            root.open-hit(root.chain-prev[0].key);
+        }
+    }
+
+    function open-next() {
+        if (root.chain-next.length == 0) {
+            return;
+        }
+        if (root.next-focus >= 0 && root.next-focus < root.chain-next.length) {
+            root.open-hit(root.chain-next[root.next-focus].key);
+            return;
+        }
+        root.open-hit(root.chain-next[0].key);
+    }
+
+    function shrink-window() {
+        root.collapsed = !root.collapsed;
+    }
+
+    function handle-key(event: KeyEvent) -> EventResult {
+        if (event.modifiers.control && event.text == "-") {
+            root.shrink-window();
+            return accept;
+        }
+        if (event.text == Key.Home) {
+            root.go-home();
+            return accept;
+        }
+        if (root.collapsed) {
+            if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                root.step-dock(-1);
+                return accept;
+            }
+            if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
+                root.step-dock(1);
+                return accept;
+            }
+            if (event.text == Key.Space || event.text == Key.Return) {
+                root.open-dock(root.home-cursor);
+                return accept;
+            }
+            if (event.text == Key.Escape) {
+                root.collapsed = false;
+                return accept;
+            }
+            return reject;
+        }
+        if (root.settings-open) {
+            if (event.text == Key.Tab || event.text == Key.Backtab) {
+                root.cycle-settings(event.text == Key.Tab ? 1 : -1);
+                return accept;
+            }
+            if (event.text == Key.Escape) {
+                if (root.alias-hits.length > 0) {
+                    root.alias-hits = [];
+                    root.alias-target = -1;
+                    return accept;
+                }
+                root.close-settings();
+                return accept;
+            }
+            if (event.text == Key.Backspace && !(root.settings-tab == 2 && root.alias-edit >= 0)) {
+                root.close-settings();
+                return accept;
+            }
+            if (root.settings-tab == 2 && root.alias-hits.length > 0 && event.text == Key.UpArrow) {
+                root.alias-pick = max(root.alias-pick - 1, 0);
+                return accept;
+            }
+            if (root.settings-tab == 2 && root.alias-hits.length > 0 && event.text == Key.DownArrow) {
+                root.alias-pick = min(root.alias-pick + 1, root.alias-hits.length - 1);
+                return accept;
+            }
+            return reject;
+        }
+        if (event.modifiers.control && (event.text == "f" || event.text == "F")) {
+            if (root.viewing == "" && root.category != "") {
+                root.search-open = true;
+            }
+            return accept;
+        }
+        if ((event.text == Key.Tab || event.text == Key.Backtab) && root.category == "quest" && root.place == "main" && root.viewing == "") {
+            root.cycle-quest-type(event.text == Key.Tab ? 1 : -1);
+            return accept;
+        }
+        if ((event.text == Key.Tab || event.text == Key.Backtab) && root.set-browser) {
+            root.cycle-set-type(event.text == Key.Tab ? 1 : -1);
+            return accept;
+        }
+        if ((event.text == Key.Tab || event.text == Key.Backtab) && root.category == "hero" && root.viewing == "") {
+            root.set-hero-group(root.hero-group == "land" ? "rank" : "land");
+            return accept;
+        }
+        if ((event.text == Key.Tab || event.text == Key.Backtab) && root.viewing-item) {
+            root.set-item-tab(root.item-tab == "links" ? "" : "links");
+            return accept;
+        }
+        if ((event.text == Key.Tab || event.text == Key.Backtab) && root.category == "monster") {
+            root.toggle-saved();
+            return accept;
+        }
+        if (root.category == "" && root.arranging && event.text == Key.Escape) {
+            root.arranging = false;
+            return accept;
+        }
+        if (event.text == Key.Escape) {
+            if (root.search-open) {
+                root.close-search();
+            } else {
+                root.go-back();
+            }
+            return accept;
+        }
+        if (event.text == Key.Backspace) {
+            root.go-back();
+            return accept;
+        }
+        if (root.category == "") {
+            if (event.text == Key.LeftArrow) {
+                root.move-home(-1, 0);
+                return accept;
+            }
+            if (event.text == Key.RightArrow) {
+                root.move-home(1, 0);
+                return accept;
+            }
+            if (event.text == Key.UpArrow) {
+                root.move-home(0, -1);
+                return accept;
+            }
+            if (event.text == Key.DownArrow) {
+                root.move-home(0, 1);
+                return accept;
+            }
+            if (event.text == Key.Space || event.text == Key.Return) {
+                root.activate();
+                return accept;
+            }
+            return reject;
+        }
+        if (root.category == "patch" && root.viewing != "") {
+            if (event.text == Key.Escape) {
+                root.go-back();
+                return accept;
+            }
+            if (event.modifiers.control && (event.text == "c" || event.text == "C")) {
+                root.copy-note();
+                return accept;
+            }
+            return reject;
+        }
+        if (root.viewing != "" && root.viewing-monster && !root.drops-open && !root.related-open && (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.LeftArrow || event.text == Key.RightArrow)) {
+            root.move-sheet(event.text == Key.DownArrow || event.text == Key.RightArrow ? 1 : -1);
+            return accept;
+        }
+        if (root.viewing != "" && root.viewing-monster && root.drops-open && event.text == Key.LeftArrow) {
+            root.drops-open = false;
+            root.sheet-focus = root.drops-slot();
+            return accept;
+        }
+        if (root.viewing != "" && root.viewing-monster && root.related-open && event.text == Key.LeftArrow) {
+            root.related-open = false;
+            root.sheet-focus = root.related-slot();
+            return accept;
+        }
+        if (root.quest-sheet && event.text == Key.LeftArrow) {
+            root.open-prev();
+            return accept;
+        }
+        if (root.quest-sheet && event.text == Key.RightArrow) {
+            root.open-next();
+            return accept;
+        }
+        if (root.viewing-set && !root.item-links && (event.text == Key.UpArrow || event.text == Key.DownArrow)) {
+            root.step-fold(event.text == Key.DownArrow ? 1 : -1);
+            return accept;
+        }
+        if (root.viewing-set && !root.item-links && (event.text == Key.LeftArrow || event.text == Key.RightArrow)) {
+            root.scroll-form(event.text == Key.RightArrow ? 1 : -1);
+            return accept;
+        }
+        if (root.viewing-set && !root.item-links && event.text == Key.Space) {
+            root.toggle-fold-focus();
+            return accept;
+        }
+        if (root.viewing-item && !root.item-links && (event.text == Key.UpArrow || event.text == Key.DownArrow)) {
+            root.scroll-form(event.text == Key.DownArrow ? 1 : -1);
+            return accept;
+        }
+        if (event.text == Key.UpArrow) {
+            root.move-list(-1);
+            return accept;
+        }
+        if (event.text == Key.DownArrow) {
+            root.move-list(1);
+            return accept;
+        }
+        if (event.text == Key.Space) {
+            if (root.viewing != "" && root.viewing-monster && !root.drops-open && !root.related-open) {
+                root.toggle-sheet();
+                return accept;
+            }
+            root.activate();
+            return accept;
+        }
+        if (event.text == Key.Return || event.text == "\n") {
+            if (root.category == "monster") {
+                root.mark-favourite();
+            } else {
+                root.activate();
+            }
+            return accept;
+        }
+        return reject;
+    }
+
+    changed hits => {
+        if (root.stick-cursor) {
+            root.stick-cursor = false;
+            return;
+        }
+        root.cursor = 0;
+        root.list-offset = 0px;
+    }
+
+    changed links => {
+        root.drop-offset = 0px;
+    }
+
+    changed cursor => {
+        if (root.item-links) {
+            root.reveal-drops(root.cursor);
+        }
+    }
+
+    property <bool> in-detail: false;
+
+    changed task-picks => {
+        root.task-offset = 0px;
+        root.quest-facts-body = 0px;
+    }
+
+    changed task-focus => {
+        if (root.task-focus < 0 || root.task-focus >= root.task-picks.length) {
+            return;
+        }
+        root.reveal-task(root.task-picks[root.task-focus]);
+    }
+
+    changed viewing => {
+        root.next-focus = -1;
+        root.task-focus = -1;
+        root.task-offset = 0px;
+        root.form-offset = 0px;
+        root.show-item-fx = false;
+        root.show-set-fx = false;
+        root.show-total-fx = false;
+        root.fold-focus = 0;
+        if (root.viewing != "") {
+            if (!root.in-detail) {
+                root.saved-cursor = root.cursor;
+            }
+            root.in-detail = true;
+            root.cursor = 0;
+            keys.focus();
+        } else {
+            root.in-detail = false;
+            root.cursor = root.saved-cursor;
+            root.reveal-list(root.cursor);
+        }
+        root.form-open = false;
+        root.drops-open = false;
+        root.related-open = false;
+        root.sheet-focus = 0;
+    }
+
+    function drops-slot() -> int {
+        return root.links.length > 0 ? 1 : -1;
+    }
+
+    function related-slot() -> int {
+        if (root.related.length == 0) {
+            return -1;
+        }
+        return root.links.length > 0 ? 2 : 1;
+    }
+
+    function move-sheet(delta: int) {
+        if (!root.monster-sheet) {
+            return;
+        }
+        let count = 1 + (root.links.length > 0 ? 1 : 0) + (root.related.length > 0 ? 1 : 0);
+        root.sheet-focus = root.sheet-focus + delta;
+        if (root.sheet-focus < 0) {
+            root.sheet-focus = 0;
+        }
+        if (root.sheet-focus >= count) {
+            root.sheet-focus = count - 1;
+        }
+    }
+
+    function close-search() {
+        root.search-open = false;
+        if (root.query != "") {
+            root.query = "";
+            root.cursor = 0;
+            root.query-changed(root.category, "");
+        }
+        keys.focus();
+    }
+
+    function toggle-search() {
+        if (root.viewing != "" || root.category == "") {
+            return;
+        }
+        if (root.search-open) {
+            root.close-search();
+        } else {
+            root.search-open = true;
+        }
+    }
+
+    function toggle-sheet() {
+        if (!root.monster-sheet) {
+            return;
+        }
+        if (root.sheet-focus == 0) {
+            root.form-open = !root.form-open;
+            if (root.form-open) {
+                root.drops-open = false;
+                root.related-open = false;
+            }
+            return;
+        }
+        if (root.sheet-focus == root.drops-slot()) {
+            root.drops-open = !root.drops-open;
+            if (root.drops-open) {
+                root.form-open = false;
+                root.related-open = false;
+                root.drop-offset = 0px;
+                root.cursor = 0;
+            }
+            return;
+        }
+        root.related-open = !root.related-open;
+        if (root.related-open) {
+            root.form-open = false;
+            root.drops-open = false;
+            root.drop-offset = 0px;
+            root.cursor = 0;
+        }
+    }
+
+    in-out property <bool> search-open: false;
+    property <bool> set-browser: category == "item" && place == "set" && viewing == "";
+    property <length> search-y: category == "patch" ? 128px : set-browser || category == "monster" || category == "hero" || (category == "quest" && place == "main") ? 86px : 50px;
+    property <length> list-y: search-open ? (category == "patch" ? 176px : set-browser || category == "monster" || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
+    property <length> foot: 26px;
+    property <length> list-view: max(root.height - list-y - 68px, 80px);
+    in-out property <bool> form-open: false;
+    in-out property <bool> drops-open: false;
+    in-out property <bool> related-open: false;
+    in-out property <int> sheet-focus: 0;
+    property <bool> monster-sheet: viewing-monster && viewing != "" && facts.length > 0;
+    property <bool> recipe-sheet: viewing-recipe && viewing != "" && facts.length > 0;
+    property <bool> quest-sheet: viewing-quest && viewing != "";
+    property <bool> item-sheet: !viewing-hero && !viewing-monster && !viewing-recipe && !viewing-quest && viewing != "" && facts.length > 0;
+    property <bool> item-links: viewing-item && item-tab == "links";
+    property <length> link-row: 52px;
+    property <bool> record-sheet: item-sheet || recipe-sheet;
+    property <bool> card-sheet: record-sheet || quest-sheet;
+    property <length> item-icon-y: 56px;
+    property <length> item-icon-side: 96px;
+    property <length> item-form-y: (sheet-alt == "" ? 206px : 222px) + (viewing-item ? 40px : 0px);
+    property <length> item-form-room: max(root.height - foot - item-form-y - 16px, 80px);
+    property <length> item-form-h: item-links ? 0px : min(max(form-body, 36px), item-form-room);
+    property <length> item-note-h: 0px;
+    property <length> source-note-h: item-links && source-note-lines > 0 ? source-note-lines * 22px : 0px;
+    property <length> item-list-y: item-links ? item-form-y + source-note-h : item-form-y + item-form-h + item-note-h + 28px;
+    property <length> item-list-h: max(root.height - foot - 42px - item-list-y - 16px, 72px);
+    property <length> quest-title-y: 56px;
+    property <length> quest-code-y: quest-title-y + (sheet-alt == "" ? 26px : 46px);
+    property <length> quest-note-y: quest-code-y + 22px;
+    property <length> quest-note-h: sheet-note == "" ? 0px : 96px;
+    property <bool> quest-has-reward: quest-sheet && (reward-facts.length > 0 || links.length > 0);
+    property <length> quest-chain-h: !quest-sheet || (chain-prev.length == 0 && chain-next.length == 0) ? 0px : chain-next.length > 1 ? min(chain-next.length * 44px, 132px) : 52px;
+    property <length> chain-w: max((root.width - 36px) / 2, 96px);
+    property <length> quest-ask-y: quest-note-y + quest-note-h + 8px;
+    property <length> quest-ask-h: facts.length == 0 ? 0px : 20px;
+    property <length> quest-form-y: quest-ask-y + quest-ask-h;
+    property <length> quest-fact-row: 36px;
+    property <length> quest-form-h: !quest-sheet || facts.length == 0 ? 0px : min(max(quest-facts-body, facts.length * quest-fact-row + 2px), 150px);
+    property <length> quest-reward-y: quest-form-y + quest-form-h + (quest-has-reward ? 10px : 0px);
+    property <length> quest-reward-h: quest-has-reward ? 20px : 0px;
+    property <length> quest-scalar-y: quest-reward-y + quest-reward-h;
+    property <length> quest-reward-body: reward-facts.length * 30px + links.length * link-row;
+    property <length> quest-reward-room: max(root.height - foot - 42px - quest-scalar-y - quest-chain-h - 8px, 0px);
+    property <length> quest-scalar-h: !quest-has-reward ? 0px : min(quest-reward-body + 2px, quest-reward-room);
+    property <length> quest-list-y: quest-form-y + quest-form-h + 28px;
+    property <length> quest-list-h: 0px;
+    property <length> card-list-y: quest-sheet ? quest-list-y : item-list-y;
+    property <length> card-list-h: quest-sheet ? quest-list-h : item-list-h;
+    property <length> side-gap: 14px;
+    property <length> portrait-y: 58px;
+    property <length> portrait-side: 120px;
+    property <length> toggle-y: portrait-y + portrait-side + (sheet-alt == "" ? 62px : 78px);
+    property <length> body-room: max(root.height - foot - 42px - toggle-y - 16px, 120px);
+    property <length> form-h: min(facts.length * 30px + 2px, body-room - (links.length > 0 ? 52px : 0px) - (related.length > 0 ? 44px : 0px));
+    property <length> drops-header-y: form-open ? toggle-y + 52px + form-h : toggle-y + 44px;
+    property <length> related-header-y: links.length > 0 ? drops-header-y + 44px : drops-header-y;
+    property <length> drops-panel-y: (related.length > 0 ? related-header-y : drops-header-y) + 44px;
+    property <length> drops-panel-h: max(root.height - foot - 42px - drops-panel-y - 16px, 80px);
+    property <length> stats-y: show-icon ? 124px : 48px;
+    property <length> detail-block: links.length > 0 ? 132px : max(root.height - foot - stats-y - 80px, 80px);
+    property <length> drops-y: stats-y + detail-block + 4px;
+    property <length> drops-view: max(root.height - foot - drops-y - 58px, 48px);
+
+    property <length> dock-side: root.dock-vertical ? min(max(root.width - 28px, 40px), 96px) : min(max(root.height - 28px, 40px), 96px);
+
+    property <[Category]> categories: [
+        { id: "monster", name: root.lang == "en-zh" ? "Monsters · 怪物" : "怪物 · Monsters" },
+        { id: "item", name: root.lang == "en-zh" ? "Items · 道具" : "道具 · Items" },
+        { id: "recipe", name: root.lang == "en-zh" ? "Crafting · 合成" : "合成 · Crafting" },
+        { id: "quest", name: root.lang == "en-zh" ? "Quests · 任務" : "任務 · Quests" },
+        { id: "patch", name: root.lang == "en-zh" ? "Updates · 更新" : "更新 · Updates" },
+        { id: "npc", name: root.lang == "en-zh" ? "NPCs · 人物" : "人物 · NPCs" },
+        { id: "hero", name: root.lang == "en-zh" ? "Roster · 角色" : "角色 · Roster" },
+        { id: "works", name: root.lang == "en-zh" ? "Production · 生產" : "生產 · Production" },
+        { id: "atlas", name: root.lang == "en-zh" ? "Shop · 商店" : "商店 · Shop" },
+    ];
+
+    changed collapsed => {
+        root.collapse-changed(root.collapsed);
+    }
+
+    changed hotkey-nth => {
+        if (root.hotkey-nth >= 1) {
+            root.open-nth-visible(root.hotkey-nth);
+            root.hotkey-nth = 0;
+        }
+    }
+
+    init => {
+        Palette.color-scheme = ColorScheme.dark;
+        keys.focus();
+    }
+
+    keys := FocusScope {
+        width: 100%;
+        height: 100%;
+        focus-on-click: true;
+        key-pressed(event) => {
+            return root.handle-key(event);
+        }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        opacity: root.window-opacity;
+        background: root.collapsed ? transparent : #141210e8;
+        border-radius: root.collapsed ? 0px : 20px;
+        clip: !root.collapsed;
+        border-width: root.collapsed ? 0px : 1px;
+        border-color: #3a342c;
+
+        if root.collapsed: dock-bar := TouchArea {
+            width: 100%;
+            height: 100%;
+            property <bool> moving: false;
+            property <length> grab-x: 0px;
+            property <length> grab-y: 0px;
+            pointer-event(event) => {
+                if (event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                    root.dock-menu = !root.dock-menu;
+                }
+                if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                    self.moving = true;
+                    self.grab-x = self.mouse-x;
+                    self.grab-y = self.mouse-y;
+                    root.dock-menu = false;
+                }
+                if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
+                    self.moving = false;
+                }
+            }
+            moved => {
+                if (self.pressed && self.moving) {
+                    root.dock-drag(self.mouse-x - self.grab-x, self.mouse-y - self.grab-y);
+                }
+            }
+            Rectangle {
+                x: 4px;
+                y: 4px;
+                width: parent.width - 8px;
+                height: parent.height - 8px;
+                border-radius: 20px;
+                background: #141210d4;
+                border-width: 1px;
+                border-color: #d4b48355;
+                if !root.dock-vertical: HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 12px;
+                    alignment: center;
+                    cross-axis-alignment: center;
+                    for slot in root.dock-shown: DockChip {
+                        side: root.dock-side;
+                        logo: root.category-logo(slot);
+                        glyph: root.category-glyph(slot);
+                        mark: root.visible-index(slot);
+                        selected: root.home-cursor == slot;
+                        clicked => { root.dock-menu = false; root.open-dock(slot); }
+                        right-clicked => { root.dock-menu = true; }
+                    }
+                    Rectangle { horizontal-stretch: 1; min-width: 4px; }
+                }
+                if root.dock-vertical: VerticalLayout {
+                    padding-top: 12px;
+                    padding-bottom: 12px;
+                    spacing: 12px;
+                    alignment: center;
+                    cross-axis-alignment: center;
+                    for slot in root.dock-shown: DockChip {
+                        side: root.dock-side;
+                        logo: root.category-logo(slot);
+                        glyph: root.category-glyph(slot);
+                        mark: root.visible-index(slot);
+                        selected: root.home-cursor == slot;
+                        clicked => { root.dock-menu = false; root.open-dock(slot); }
+                        right-clicked => { root.dock-menu = true; }
+                    }
+                    Rectangle { vertical-stretch: 1; min-height: 4px; }
+                }
+            }
+            if root.dock-menu && !root.dock-vertical: HorizontalLayout {
+                x: max(8px, parent.width - self.width - 8px);
+                y: max(4px, (parent.height - self.height) / 2);
+                spacing: 4px;
+                DockMenuButton {
+                    label: root.lang == "en-zh" ? "Open" : "放大";
+                    clicked => {
+                        root.dock-menu = false;
+                        root.collapsed = false;
+                    }
+                }
+                DockMenuButton {
+                    label: root.lang == "en-zh" ? "Close" : "關閉";
+                    danger: true;
+                    clicked => {
+                        root.dock-menu = false;
+                        root.request-close();
+                    }
+                }
+            }
+            if root.dock-menu && root.dock-vertical: VerticalLayout {
+                x: max(4px, (parent.width - self.width) / 2);
+                y: max(4px, parent.height - self.height - 8px);
+                width: min(parent.width - 8px, 72px);
+                spacing: 4px;
+                DockMenuButton {
+                    horizontal-stretch: 1;
+                    label: root.lang == "en-zh" ? "Open" : "放大";
+                    clicked => {
+                        root.dock-menu = false;
+                        root.collapsed = false;
+                    }
+                }
+                DockMenuButton {
+                    horizontal-stretch: 1;
+                    label: root.lang == "en-zh" ? "Close" : "關閉";
+                    danger: true;
+                    clicked => {
+                        root.dock-menu = false;
+                        root.request-close();
+                    }
+                }
+            }
+        }
+
+        if !root.collapsed: VerticalLayout {
+            spacing: 0;
+
+            Rectangle {
+                height: 42px;
+                background: #100e0ce8;
+                WindowMoveArea {
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 8px;
+                        spacing: 4px;
+                        Text {
+                            text: root.lang == "en-zh" ? "GERSANG" : "巨商";
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: #d4b483;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; min-width: 1px; }
+                        WinButton {
+                            glyph: root.lang == "en-zh" ? "Setting" : "設定";
+                            clicked => {
+                                if (root.settings-open) {
+                                    root.close-settings();
+                                } else {
+                                    root.settings-open = true;
+                                }
+                            }
+                        }
+                        WinButton {
+                            glyph: "–";
+                            clicked => { root.collapsed = true; }
+                        }
+                        WinButton {
+                            glyph: "×";
+                            danger: true;
+                            clicked => { root.request-close(); }
+                        }
+                    }
+                }
+            }
+
+            body := Rectangle {
+                vertical-stretch: 1;
+
+                if root.category == "" && !root.settings-open: home := Rectangle {
+                    width: parent.width;
+                    height: 100%;
+                    property <length> board-w: max(self.width - 16px, 40px);
+                    property <length> board-h: max(self.height - 52px, 40px);
+                    property <int> rows: max(1, (root.home-order.length + root.home-span - 1) / root.home-span);
+                    property <length> col-side: (board-w - (root.home-span - 1) * root.home-gap) / root.home-span;
+                    property <length> row-side: (board-h - (rows - 1) * root.home-gap) / rows;
+                    property <length> side: max(1px, min(col-side, max(root.icon-base, row-side)));
+                    property <length> grid-h: rows * side + (rows - 1) * root.home-gap;
+                    property <length> origin-x: 8px + max(0px, (board-w - (root.home-span * side + (root.home-span - 1) * root.home-gap)) / 2);
+                    property <int> drag-index: -1;
+                    property <int> drop-index: -1;
+                    property <bool> dragged: false;
+                    property <length> press-x: 0px;
+                    property <length> press-y: 0px;
+                    function stop-arrange() {
+                        root.arranging = false;
+                        home.drag-index = -1;
+                        home.drop-index = -1;
+                        home.dragged = false;
+                    }
+                    Text {
+                        x: root.home-pad;
+                        y: 14px;
+                        width: root.arranging ? max(root.width - 96px, 40px) : max(root.width - 32px, 40px);
+                        overflow: elide;
+                        text: root.arranging ? (root.lang == "en-zh" ? "Drag to move. Tap empty space when done." : "拖曳換位，點空白處完成") : (root.lang == "en-zh" ? "Browse" : "分類");
+                        font-size: 12px;
+                        color: #a3988c;
+                        vertical-alignment: center;
+                    }
+                    if root.arranging: done-btn := LangChip {
+                        x: parent.width - self.width - 14px;
+                        y: 8px;
+                        width: root.lang == "en-zh" ? 64px : 56px;
+                        horizontal-stretch: 0;
+                        label: root.lang == "en-zh" ? "Done" : "完成";
+                        active: true;
+                        clicked => { home.stop-arrange(); }
+                    }
+                    home-grid := Flickable {
+                        y: 44px;
+                        width: 100%;
+                        height: max(parent.height - 44px, 1px);
+                        content-width: self.width;
+                        content-height: max(home.grid-h, self.height);
+                        if root.arranging: TouchArea {
+                            width: parent.width;
+                            height: max(home.grid-h, parent.height);
+                            clicked => { home.stop-arrange(); }
+                        }
+                        for slot[i] in root.home-order: CategoryTile {
+                            property <int> line: floor(i / root.home-span);
+                            property <int> column: i - line * root.home-span;
+                            x: home.origin-x + column * (home.side + root.home-gap);
+                            y: line * (home.side + root.home-gap) + (home.drag-index == i ? -6px : 0px);
+                            width: home.side;
+                            height: home.side;
+                            selected: root.home-cursor == slot && !root.arranging;
+                            arranging: root.arranging;
+                            lifted: root.arranging && home.drag-index == i;
+                            drop-target: root.arranging && home.drop-index == i && home.drag-index != -1 && home.drag-index != i;
+                            logo: root.category-logo(slot);
+                            glyph: root.category-glyph(slot);
+                            name: root.category-short(slot);
+                            clicked => {
+                                root.home-cursor = slot;
+                                root.open-category(root.categories[slot].id);
+                            }
+                            pressed(px, py) => {
+                                home.drag-index = i;
+                                home.drop-index = i;
+                                home.dragged = false;
+                                home.press-x = px;
+                                home.press-y = py;
+                            }
+                            long-pressed(px, py) => {
+                                root.arranging = true;
+                                home.drag-index = i;
+                                home.drop-index = i;
+                                home.dragged = false;
+                                home.press-x = px;
+                                home.press-y = py;
+                            }
+                            dragged(px, py) => {
+                                if (home.drag-index != i) {
+                                    return;
+                                }
+                                if (px < home.press-x - 6px || px > home.press-x + 6px || py < home.press-y - 6px || py > home.press-y + 6px) {
+                                    home.dragged = true;
+                                }
+                                let hit = root.grid-slot(self.x + px, self.y + py, home.origin-x, 0px, home.side, home.side, root.home-gap, root.home-span, root.home-order.length);
+                                if (hit >= 0) {
+                                    home.drop-index = hit;
+                                }
+                            }
+                            released => {
+                                if (home.drag-index == i && home.dragged && home.drop-index >= 0 && home.drop-index != i) {
+                                    root.home-reordered(i, home.drop-index);
+                                }
+                                home.drag-index = -1;
+                                home.drop-index = -1;
+                                home.dragged = false;
+                            }
+                        }
+                    }
+                    if root.detail != "": Text {
+                        x: root.home-pad;
+                        y: 48px;
+                        width: max(root.width - 2 * root.home-pad, 40px);
+                        text: root.detail;
+                        wrap: word-wrap;
+                        color: #e7c7c7;
+                    }
+                }
+
+                if root.category != "" && !root.settings-open: Rectangle {
+                    width: root.width;
+                    height: 100%;
+
+                    WinButton {
+                        x: 14px;
+                        y: 14px;
+                        glyph: "←";
+                        clicked => { root.go-back(); }
+                    }
+                    Text {
+                        x: 52px;
+                        y: 16px;
+                        width: root.category == "patch" && root.viewing != "" ? max(root.width - 150px, 40px) : root.viewing == "" ? max(root.width - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.width - 70px, 40px);
+                        overflow: elide;
+                        text: root.favourites-only && root.category == "monster" ? (root.lang == "en-zh" ? "Favourites" : "收藏") : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.categories[3].name;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: #f3efe8;
+                    }
+                    if root.viewing == "": SearchToggle {
+                        x: root.width - self.width - 14px;
+                        y: 12px;
+                        open: root.search-open;
+                        label: root.lang == "en-zh" ? "Search" : "搜尋";
+                        clicked => { root.toggle-search(); }
+                    }
+                    if root.category == "patch" && root.viewing != "": LangChip {
+                        x: root.width - 78px;
+                        y: 12px;
+                        width: 60px;
+                        horizontal-stretch: 0;
+                        label: root.copied ? (root.lang == "en-zh" ? "Copied" : "已複製") : (root.lang == "en-zh" ? "Copy" : "複製");
+                        active: root.copied;
+                        clicked => { root.copy-note(); }
+                    }
+                    if root.category == "patch" && root.viewing == "": Rectangle {
+                        x: 14px;
+                        y: 48px;
+                        width: max(root.width - 28px, 40px);
+                        height: 32px;
+                        border-radius: 8px;
+                        clip: true;
+                        background: #141210;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        HorizontalLayout {
+                            spacing: 1px;
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "All" : "全部";
+                                active: root.place == "";
+                                clicked => {
+                                    root.place = "";
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Live" : "本服";
+                                active: root.place == "live";
+                                clicked => {
+                                    root.place = "live";
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "All srv" : "全服";
+                                active: root.place == "all";
+                                clicked => {
+                                    root.place = "all";
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Test" : "測試";
+                                active: root.place == "test";
+                                clicked => {
+                                    root.place = "test";
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                        }
+                    }
+                    if root.category == "patch" && root.viewing == "": HorizontalLayout {
+                        x: 14px;
+                        y: 88px;
+                        width: max(root.width - 28px, 40px);
+                        spacing: 6px;
+                        alignment: start;
+                        PatchPill {
+                            label: root.lang == "en-zh" ? "In" : "已實裝";
+                            active: root.ship == "yes";
+                            clicked => {
+                                root.ship = root.ship == "yes" ? "" : "yes";
+                                root.query-changed(root.category, root.query);
+                            }
+                        }
+                        PatchPill {
+                            label: root.lang == "en-zh" ? "Not in" : "未實裝";
+                            active: root.ship == "no";
+                            clicked => {
+                                root.ship = root.ship == "no" ? "" : "no";
+                                root.query-changed(root.category, root.query);
+                            }
+                        }
+                        Rectangle { horizontal-stretch: 1; min-width: 8px; }
+                        PatchPill {
+                            label: root.nation == "old" ? (root.lang == "en-zh" ? "Oldest" : "最早") : (root.lang == "en-zh" ? "Newest" : "最新");
+                            active: root.nation == "old";
+                            clicked => {
+                                root.nation = root.nation == "old" ? "" : "old";
+                                root.query-changed(root.category, root.query);
+                            }
+                        }
+                    }
+                    if root.category == "hero" && root.viewing == "": Rectangle {
+                        x: 14px;
+                        y: 48px;
+                        width: max(root.width - 28px, 40px);
+                        height: 32px;
+                        border-radius: 8px;
+                        clip: true;
+                        background: #141210;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        HorizontalLayout {
+                            spacing: 1px;
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Class" : "階級";
+                                active: root.hero-group != "land";
+                                clicked => { root.set-hero-group("rank"); }
+                            }
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Region" : "地區";
+                                active: root.hero-group == "land";
+                                clicked => { root.set-hero-group("land"); }
+                            }
+                        }
+                    }
+                    if root.category == "quest" && root.place == "main" && root.viewing == "": HorizontalLayout {
+                        x: 14px;
+                        y: 48px;
+                        width: max(parent.width - 28px, 40px);
+                        height: 28px;
+                        spacing: 6px;
+                        FilterChip {
+                            label: root.lang == "en-zh" ? "All" : "全部";
+                            active: root.area == "";
+                            clicked => {
+                                if (root.area != "") {
+                                    root.area = "";
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                        }
+                        FilterChip {
+                            label: root.lang == "en-zh" ? "Starter" : "新手";
+                            active: root.area == "0";
+                            clicked => {
+                                root.area = "0";
+                                root.query-changed(root.category, root.query);
+                            }
+                        }
+                        FilterChip {
+                            label: root.lang == "en-zh" ? "Combat" : "戰鬥";
+                            active: root.area == "2";
+                            clicked => {
+                                root.area = "2";
+                                root.query-changed(root.category, root.query);
+                            }
+                        }
+                        FilterChip {
+                            label: root.lang == "en-zh" ? "Repeat" : "重複";
+                            active: root.area == "5";
+                            clicked => {
+                                root.area = "5";
+                                root.query-changed(root.category, root.query);
+                            }
+                        }
+                        FilterChip {
+                            label: root.lang == "en-zh" ? "Timed" : "限時";
+                            active: root.area == "7";
+                            clicked => {
+                                root.area = "7";
+                                root.query-changed(root.category, root.query);
+                            }
+                        }
+                    }
+                    if root.category == "monster" && root.viewing == "": HorizontalLayout {
+                        x: 14px;
+                        y: 48px;
+                        width: 196px;
+                        height: 28px;
+                        spacing: 6px;
+                        FilterChip {
+                            label: root.lang == "en-zh" ? "All" : "全部";
+                            active: !root.favourites-only;
+                            clicked => {
+                                if (root.favourites-only) {
+                                    root.favourites-only = false;
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                        }
+                        FilterChip {
+                            label: root.lang == "en-zh" ? "Saved" : "收藏";
+                            active: root.favourites-only;
+                            clicked => {
+                                if (!root.favourites-only) {
+                                    root.favourites-only = true;
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                        }
+                    }
+                    if root.viewing-monster: StarMark {
+                        x: root.width - 48px;
+                        y: 10px;
+                        filled: root.viewing-favourite;
+                        clicked => { root.toggle-favourite(root.viewing); }
+                    }
+                    if root.set-browser: Rectangle {
+                        x: 14px;
+                        y: 48px;
+                        width: max(root.width - 28px, 40px);
+                        height: 32px;
+                        border-radius: 8px;
+                        clip: true;
+                        background: #141210;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        HorizontalLayout {
+                            spacing: 1px;
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Normal" : "一般";
+                                active: root.area == "" || root.area == "0";
+                                clicked => { root.area = "0"; root.cursor = 0; root.list-offset = 0px; root.query-changed(root.category, root.query); }
+                            }
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Exclusive" : "專用";
+                                active: root.area == "2";
+                                clicked => { root.area = "2"; root.cursor = 0; root.list-offset = 0px; root.query-changed(root.category, root.query); }
+                            }
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Charm" : "咒術";
+                                active: root.area == "1";
+                                clicked => { root.area = "1"; root.cursor = 0; root.list-offset = 0px; root.query-changed(root.category, root.query); }
+                            }
+                        }
+                    }
+                    if root.viewing == "" && root.search-open: search := LineEdit {
+                        x: 14px;
+                        y: root.search-y;
+                        width: max(root.width - 28px, 40px);
+                        placeholder-text: root.lang == "en-zh" ? "Search" : "搜尋";
+                        text <=> root.query;
+                        init => { self.focus(); }
+                        edited => {
+                            root.cursor = 0;
+                            root.query-changed(root.category, self.text);
+                        }
+                        accepted => {
+                            root.search-open = false;
+                            keys.focus();
+                        }
+                        key-pressed(event) => {
+                            if (event.modifiers.control && event.text == "-") {
+                                root.shrink-window();
+                                return accept;
+                            }
+                            if (event.modifiers.control && (event.text == "f" || event.text == "F")) {
+                                root.close-search();
+                                return accept;
+                            }
+                            if (event.text == Key.Home) {
+                                root.go-home();
+                                return accept;
+                            }
+                            if (event.text == Key.Escape || (event.text == Key.Backspace && root.query == "")) {
+                                root.close-search();
+                                return accept;
+                            }
+                            if (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.Tab || event.text == Key.Backtab) {
+                                return root.handle-key(event);
+                            }
+                            return reject;
+                        }
+                    }
+                    if root.viewing == "": list := Flickable {
+                        x: 14px;
+                        y: root.list-y;
+                        width: max(root.width - 28px, 40px);
+                        height: root.list-view;
+                        content-width: self.width;
+                        content-height: max(root.hits.length * 52px, 1px);
+                        content-y <=> root.list-offset;
+                        for row[i] in root.hits: HitRow {
+                            x: 0px;
+                            y: i * 52px;
+                            width: max(root.width - 28px, 40px);
+                            selected: root.cursor == i;
+                            hit: row;
+                            no-image-label: root.no-image-label;
+                            clicked => {
+                                root.cursor = i;
+                                root.open-hit(row.key);
+                            }
+                            favourite-clicked => { root.toggle-favourite(row.key); }
+                        }
+                    }
+                    if root.favourites-only && root.viewing == "" && root.hits.length == 0: Text {
+                        x: 18px;
+                        y: root.list-y;
+                        text: root.query == "" ? (root.lang == "en-zh" ? "No favourites yet. Press Enter on a monster." : "還沒有收藏。在怪物上按 Enter。") : (root.lang == "en-zh" ? "No matches" : "沒有符合的收藏");
+                        color: #a3988c;
+                    }
+                    if root.viewing-monster && root.show-icon: Image {
+                        x: root.side-gap;
+                        y: root.portrait-y;
+                        width: root.portrait-side;
+                        height: root.portrait-side;
+                        source: root.item-icon;
+                        image-fit: contain;
+                    }
+                    if root.record-sheet && root.show-icon: Image {
+                        x: (parent.width - root.item-icon-side) / 2;
+                        y: root.item-icon-y;
+                        width: root.item-icon-side;
+                        height: root.item-icon-side;
+                        source: root.item-icon;
+                        image-fit: contain;
+                    }
+                    if root.viewing != "" && !root.viewing-monster && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.show-icon: Image {
+                        x: 0px;
+                        y: 48px;
+                        width: 64px;
+                        height: 64px;
+                        source: root.item-icon;
+                        image-fit: contain;
+                    }
+                    if root.viewing-hero && root.viewing != "": Text {
+                        x: root.show-icon ? 76px : 14px;
+                        y: 50px;
+                        width: max(parent.width - (root.show-icon ? 90px : 28px), 40px);
+                        text: root.sheet-title;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: #f3efe8;
+                        overflow: elide;
+                    }
+                    if root.viewing-hero && root.viewing != "" && root.sheet-alt != "": Text {
+                        x: root.show-icon ? 76px : 14px;
+                        y: 72px;
+                        width: max(parent.width - (root.show-icon ? 90px : 28px), 40px);
+                        text: root.sheet-alt;
+                        font-size: 13px;
+                        color: #d4b483;
+                        overflow: elide;
+                    }
+                    if root.viewing-hero && root.viewing != "": Text {
+                        x: root.show-icon ? 76px : 14px;
+                        y: root.sheet-alt == "" ? 74px : 92px;
+                        width: max(parent.width - (root.show-icon ? 90px : 28px), 40px);
+                        text: root.sheet-code;
+                        font-size: 12px;
+                        color: #a3988c;
+                        overflow: elide;
+                    }
+                    if root.viewing-monster && root.show-element: Image {
+                        x: root.side-gap + root.portrait-side - 22px;
+                        y: root.portrait-y + root.portrait-side - 22px;
+                        width: 28px;
+                        height: 28px;
+                        source: root.element-icon;
+                        image-fit: contain;
+                    }
+                    if root.viewing != "" && !root.viewing-monster && root.category != "patch" && root.show-element: Image {
+                        x: 68px;
+                        y: 78px;
+                        width: 26px;
+                        height: 26px;
+                        source: root.element-icon;
+                        image-fit: contain;
+                    }
+                    if root.monster-sheet: Text {
+                        x: root.side-gap;
+                        y: root.portrait-y + root.portrait-side + 10px;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        text: root.sheet-title;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: #f3efe8;
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+                    if root.monster-sheet && root.sheet-alt != "": Text {
+                        x: root.side-gap;
+                        y: root.portrait-y + root.portrait-side + 32px;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        text: root.sheet-alt;
+                        font-size: 13px;
+                        color: #d4b483;
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+                    if root.monster-sheet: Text {
+                        x: root.side-gap;
+                        y: root.portrait-y + root.portrait-side + (root.sheet-alt == "" ? 34px : 50px);
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        text: root.sheet-code;
+                        font-size: 12px;
+                        color: #a3988c;
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+                    if root.monster-sheet: SectionToggle {
+                        x: root.side-gap;
+                        y: root.toggle-y;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        label: root.lang == "en-zh" ? "Details" : "資料";
+                        open: root.form-open;
+                        picked: root.sheet-focus == 0;
+                        clicked => {
+                            root.sheet-focus = 0;
+                            root.form-open = !root.form-open;
+                            if (root.form-open) {
+                                root.drops-open = false;
+                                root.related-open = false;
+                            }
+                            keys.focus();
+                        }
+                    }
+                    if root.monster-sheet && root.links.length > 0: SectionToggle {
+                        x: root.side-gap;
+                        y: root.drops-header-y;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        label: root.lang == "en-zh" ? "Drops" : "掉落";
+                        open: root.drops-open;
+                        picked: root.sheet-focus == root.drops-slot();
+                        clicked => {
+                            root.sheet-focus = root.drops-slot();
+                            root.drops-open = !root.drops-open;
+                            if (root.drops-open) {
+                                root.form-open = false;
+                                root.related-open = false;
+                                root.drop-offset = 0px;
+                                root.cursor = 0;
+                            }
+                            keys.focus();
+                        }
+                    }
+                    if root.monster-sheet && root.related.length > 0: SectionToggle {
+                        x: root.side-gap;
+                        y: root.related-header-y;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        label: root.lang == "en-zh" ? "Related" : "相關";
+                        open: root.related-open;
+                        picked: root.sheet-focus == root.related-slot();
+                        clicked => {
+                            root.sheet-focus = root.related-slot();
+                            root.related-open = !root.related-open;
+                            if (root.related-open) {
+                                root.form-open = false;
+                                root.drops-open = false;
+                                root.drop-offset = 0px;
+                                root.cursor = 0;
+                            }
+                            keys.focus();
+                        }
+                    }
+                    if root.monster-sheet && root.form-open: Rectangle {
+                        x: root.side-gap;
+                        y: root.toggle-y + 44px;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        height: root.form-h;
+                        background: #1c1916;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        sheet := Flickable {
+                            width: 100%;
+                            height: 100%;
+                            content-width: self.width;
+                            content-height: max(root.facts.length * 30px, 1px);
+                            for fact[i] in root.facts: FactLine {
+                                y: i * 30px;
+                                width: sheet.width;
+                                label: fact.label;
+                                value: fact.value;
+                                key: fact.key;
+                                last: i + 1 == root.facts.length;
+                                open => { root.open-hit(fact.key); }
+                            }
+                        }
+                    }
+                    if root.record-sheet && root.viewing-no-image: NoImage {
+                        x: (parent.width - 96px) / 2;
+                        y: root.item-icon-y;
+                        side: 96px;
+                        label: root.no-image-label;
+                    }
+                    if root.record-sheet: Text {
+                        x: root.side-gap;
+                        y: root.item-icon-y + root.item-icon-side + 10px;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        text: root.sheet-title;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: #f3efe8;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    if root.record-sheet && root.sheet-alt != "": Text {
+                        x: root.side-gap;
+                        y: root.item-icon-y + root.item-icon-side + 32px;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        text: root.sheet-alt;
+                        font-size: 13px;
+                        color: #d4b483;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    if root.record-sheet: Text {
+                        x: root.side-gap;
+                        y: root.item-icon-y + root.item-icon-side + (root.sheet-alt == "" ? 34px : 50px);
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        text: root.sheet-code;
+                        font-size: 12px;
+                        color: #a3988c;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    if root.viewing-item: Rectangle {
+                        x: root.side-gap;
+                        y: root.item-form-y - 40px;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        height: 32px;
+                        border-radius: 8px;
+                        clip: true;
+                        background: #141210;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        HorizontalLayout {
+                            spacing: 1px;
+                            PatchTab {
+                                label: root.lang == "en-zh" ? "Details" : "資料";
+                                active: root.item-tab != "links";
+                                clicked => { root.set-item-tab(""); }
+                            }
+                            PatchTab {
+                                label: root.viewing-set ? (root.lang == "en-zh" ? "Pieces" : "部件") : (root.lang == "en-zh" ? "Related" : "相關");
+                                active: root.item-tab == "links";
+                                clicked => { root.set-item-tab("links"); }
+                            }
+                        }
+                    }
+                    form-card := Rectangle {
+                        x: root.side-gap;
+                        y: root.item-form-y;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        height: root.item-form-h;
+                        visible: root.record-sheet && !root.item-links;
+                        background: #1c1916;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        clip: true;
+                        item-form := Flickable {
+                            width: 100%;
+                            height: 100%;
+                            content-width: self.width;
+                            content-height: max(form-col.preferred-height, 1px);
+                            content-y <=> root.form-offset;
+                            form-col := VerticalLayout {
+                                width: parent.width;
+                                padding-top: 4px;
+                                padding-bottom: 4px;
+                                changed preferred-height => {
+                                    root.form-body = self.preferred-height;
+                                    if (root.form-offset < -root.form-span) {
+                                        root.form-offset = -root.form-span;
+                                    }
+                                }
+                                for fact in root.facts: VerticalLayout {
+                                    changed y => {
+                                        if (fact.key == "fold:item") {
+                                            root.item-fold-y = self.y;
+                                        } else if (fact.key == "fold:set") {
+                                            root.set-fold-y = self.y;
+                                        } else if (fact.key == "fold:total") {
+                                            root.total-fold-y = self.y;
+                                        }
+                                    }
+                                    if root.fold-row(fact.key): SectionToggle {
+                                        width: parent.width;
+                                        label: fact.label;
+                                        open: root.fold-open(fact.key);
+                                        picked: (fact.key == "fold:item" && root.fold-focus == 0) || (fact.key == "fold:set" && root.fold-focus == 1) || (fact.key == "fold:total" && root.fold-focus == 2);
+                                        clicked => {
+                                            root.focus-fold(fact.key);
+                                            root.toggle-fold(fact.key);
+                                            keys.focus();
+                                        }
+                                    }
+                                    if !root.fold-row(fact.key) && root.section-open(fact.section): FactLine {
+                                        wrap-value: fact.has-icon;
+                                        label-width: fact.value == "" || fact.has-icon ? 0px : 120px;
+                                        line-height: fact.has-icon ? 40px : 32px;
+                                        label: fact.label;
+                                        value: fact.value;
+                                        key: fact.key;
+                                        icon: fact.icon;
+                                        has-icon: fact.has-icon;
+                                        open => { root.open-hit(fact.key); }
+                                    }
+                                }
+                                if root.sheet-note != "": VerticalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    padding-top: 6px;
+                                    padding-bottom: 10px;
+                                    spacing: 8px;
+                                    Rectangle {
+                                        height: 1px;
+                                        background: #2a241e;
+                                    }
+                                    Text {
+                                        width: parent.width;
+                                        text: root.sheet-note;
+                                        wrap: word-wrap;
+                                        font-size: 13px;
+                                        color: #f3efe8;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if root.quest-sheet && root.show-icon: Image {
+                        x: root.side-gap;
+                        y: root.quest-title-y;
+                        width: 48px;
+                        height: 48px;
+                        source: root.item-icon;
+                        image-fit: contain;
+                    }
+                    if root.quest-sheet && root.show-icon && root.quest-npc != "": TouchArea {
+                        x: root.side-gap;
+                        y: root.quest-title-y;
+                        width: 48px;
+                        height: 48px;
+                        clicked => { root.open-hit(root.quest-npc); }
+                        mouse-cursor: pointer;
+                    }
+                    if root.quest-sheet: Text {
+                        x: root.show-icon ? root.side-gap + 56px : root.side-gap;
+                        y: root.quest-title-y;
+                        width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
+                        text: root.sheet-title;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: #f3efe8;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    if root.quest-sheet && root.sheet-alt != "": Text {
+                        x: root.show-icon ? root.side-gap + 56px : root.side-gap;
+                        y: root.quest-title-y + 24px;
+                        width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
+                        text: root.sheet-alt;
+                        font-size: 13px;
+                        color: #d4b483;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    if root.quest-sheet: Text {
+                        x: root.show-icon ? root.side-gap + 56px : root.side-gap;
+                        y: root.quest-code-y;
+                        width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
+                        text: root.sheet-code;
+                        font-size: 12px;
+                        color: #a3988c;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+                    if root.quest-sheet && root.sheet-note != "": note-scroll := Flickable {
+                        x: root.side-gap;
+                        y: root.quest-note-y;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        height: root.quest-note-h;
+                        content-width: self.width;
+                        content-height: max(quest-note.preferred-height, 1px);
+                        quest-note := Text {
+                            width: parent.width;
+                            text: root.sheet-note;
+                            wrap: word-wrap;
+                            font-size: 13px;
+                            color: #f3efe8;
+                        }
+                    }
+                    if root.quest-sheet && root.facts.length > 0: Text {
+                        x: root.side-gap;
+                        y: root.quest-ask-y;
+                        text: root.lang == "en-zh" ? "Task" : "要求";
+                        font-size: 12px;
+                        color: #a3988c;
+                    }
+                    if root.quest-sheet && root.facts.length > 0: Rectangle {
+                        x: root.side-gap;
+                        y: root.quest-form-y;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        height: root.quest-form-h;
+                        background: #1c1916;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        quest-form := Flickable {
+                            width: 100%;
+                            height: 100%;
+                            content-width: self.width;
+                            content-height: max(task-stack.preferred-height, 1px);
+                            content-y <=> root.task-offset;
+                            task-stack := VerticalLayout {
+                                width: parent.width;
+                                property <length> measured: self.preferred-height;
+                                init => { root.quest-facts-body = self.measured; }
+                                changed measured => { root.quest-facts-body = self.measured; }
+                                for fact[i] in root.facts: FactLine {
+                                    width: parent.width;
+                                    wrap-value: true;
+                                    label-width: 80px;
+                                    label: fact.label;
+                                    value: fact.value;
+                                    key: fact.key;
+                                    icon: fact.icon;
+                                    has-icon: fact.has-icon;
+                                    selected: root.task-picked(i);
+                                    line-height: root.quest-fact-row;
+                                    last: i + 1 == root.facts.length;
+                                    open => {
+                                        if (fact.key != "") {
+                                            root.open-hit(fact.key);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if root.quest-has-reward: Text {
+                        x: root.side-gap;
+                        y: root.quest-reward-y;
+                        text: root.lang == "en-zh" ? "Reward" : "獎勵";
+                        font-size: 12px;
+                        color: #a3988c;
+                    }
+                    if root.quest-has-reward: Rectangle {
+                        x: root.side-gap;
+                        y: root.quest-scalar-y;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        height: root.quest-scalar-h;
+                        background: #1c1916;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        reward-box := Flickable {
+                            width: 100%;
+                            height: 100%;
+                            content-width: self.width;
+                            content-height: max(root.quest-reward-body, 1px);
+                            content-y <=> root.drop-offset;
+                            for row[i] in root.links: HitRow {
+                                x: 4px;
+                                y: i * root.link-row;
+                                width: max(reward-box.width - 8px, 40px);
+                                selected: root.cursor == i && root.next-focus < 0 && root.task-focus < 0;
+                                hit: row;
+                                no-image-label: root.no-image-label;
+                                clicked => {
+                                    root.cursor = i;
+                                    root.open-hit(row.key);
+                                }
+                            }
+                            for fact[i] in root.reward-facts: FactLine {
+                                y: root.links.length * root.link-row + i * 30px;
+                                width: reward-box.width;
+                                label: fact.label;
+                                value: fact.value;
+                                last: i + 1 == root.reward-facts.length;
+                            }
+                        }
+                    }
+                    if root.card-sheet && !root.quest-sheet && !root.viewing-item && (root.links.length == 0 || root.links[0].chip != "section") && (root.links.length > 0 || root.category != "hero"): Text {
+                        x: root.side-gap;
+                        y: root.card-list-y - 22px;
+                        text: (root.category == "hero" ? (root.lang == "en-zh" ? "Class line" : "轉職") : root.quest-sheet ? (root.lang == "en-zh" ? "Links" : "連結") : root.viewing-npc ? (root.lang == "en-zh" ? "Quests" : "任務") : root.recipe-sheet ? (root.lang == "en-zh" ? "Materials" : "材料") : (root.lang == "en-zh" ? "Dropped by" : "會掉落的怪物")) + "  " + root.links.length;
+                        font-size: 12px;
+                        color: #a3988c;
+                    }
+                    if root.card-sheet && !root.quest-sheet && root.links.length == 0 && root.category != "hero" && (!root.viewing-item || root.item-links): Text {
+                        x: root.side-gap;
+                        y: root.card-list-y;
+                        text: root.quest-sheet ? (root.lang == "en-zh" ? "No links" : "沒有連結") : root.viewing-npc ? (root.lang == "en-zh" ? "No quests" : "沒有任務") : root.recipe-sheet ? (root.lang == "en-zh" ? "No materials" : "沒有材料") : root.viewing-set ? (root.lang == "en-zh" ? "No pieces" : "沒有部件") : root.viewing-item ? (root.lang == "en-zh" ? "Nothing related" : "沒有相關") : (root.lang == "en-zh" ? "No monsters drop this" : "沒有怪物掉落");
+                        font-size: 13px;
+                        color: #f3efe8;
+                    }
+                    if root.viewing != "" && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.viewing-no-image: NoImage {
+                        x: 0px;
+                        y: 48px;
+                        side: 64px;
+                        label: root.no-image-label;
+                    }
+                    if root.viewing != "" && !root.viewing-hero && root.category != "patch" && !root.monster-sheet && !root.record-sheet && !root.quest-sheet: stats := Flickable {
+                        x: 0px;
+                        y: 120px;
+                        width: max(root.width - 28px, 80px);
+                        height: root.links.length > 0 ? 112px : max(root.height - foot - 200px, 80px);
+                        content-width: self.width;
+                        content-height: max(stats-text.preferred-height, 1px);
+                        stats-text := Text {
+                            width: stats.width;
+                            text: root.detail;
+                            wrap: word-wrap;
+                            font-size: 13px;
+                            color: #f3efe8;
+                        }
+                    }
+                    if root.item-links && root.source-note != "": Text {
+                        x: root.side-gap;
+                        y: root.item-form-y;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        height: max(root.source-note-h - 8px, 0px);
+                        text: root.source-note;
+                        wrap: word-wrap;
+                        overflow: elide;
+                        font-size: 13px;
+                        color: #e6d7bc;
+                    }
+                    if root.card-sheet && !root.quest-sheet && root.links.length > 0 && (!root.viewing-item || root.item-links): Rectangle {
+                        x: root.side-gap;
+                        y: root.card-list-y;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        height: root.card-list-h;
+                        background: #1c1916;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        item-drops := Flickable {
+                            width: 100%;
+                            height: 100%;
+                            content-width: self.width;
+                            content-height: max(root.links.length * root.link-row, 1px);
+                            content-y <=> root.drop-offset;
+                            for row[i] in root.links: HitRow {
+                                x: 4px;
+                                y: i * root.link-row;
+                                width: max(item-drops.width - 8px, 40px);
+                                selected: root.cursor == i;
+                                hit: row;
+                                no-image-label: root.no-image-label;
+                                clicked => {
+                                    if (row.chip == "section") {
+                                        root.source-changed(row.key);
+                                        return;
+                                    }
+                                    root.cursor = i;
+                                    if (row.key != "") {
+                                        root.open-hit(row.key);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if root.monster-sheet && root.related-open: related-list := Flickable {
+                        x: root.side-gap;
+                        y: root.drops-panel-y;
+                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        height: root.drops-panel-h;
+                        content-width: self.width;
+                        content-height: max(root.related.length * 52px, 1px);
+                        content-y <=> root.drop-offset;
+                        for row[i] in root.related: HitRow {
+                            x: 0px;
+                            y: i * 52px;
+                            width: related-list.width;
+                            selected: root.cursor == i;
+                            hit: row;
+                            no-image-label: root.no-image-label;
+                            clicked => {
+                                root.cursor = i;
+                                if (row.key != "") {
+                                    root.open-hit(row.key);
+                                }
+                            }
+                        }
+                    }
+                    if root.viewing != "" && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.links.length > 0 && (!root.monster-sheet || root.drops-open) && !root.related-open: drops := Flickable {
+                        x: root.monster-sheet ? root.side-gap : 0px;
+                        y: root.monster-sheet ? root.drops-panel-y : (root.viewing-hero ? 124px : 240px);
+                        width: root.monster-sheet ? max(parent.width - 2 * root.side-gap, 40px) : max(root.width - 28px, 40px);
+                        height: root.monster-sheet ? root.drops-panel-h : (root.viewing-hero ? max(root.height - foot - 136px, 180px) : max(root.height - foot - 310px, 120px));
+                        content-width: self.width;
+                        content-height: max(root.links.length * 36px, 1px);
+                        content-y <=> root.drop-offset;
+                        for row[i] in root.links: HitRow {
+                            x: 0px;
+                            y: i * 36px;
+                            width: drops.width;
+                            compact: true;
+                            selected: root.cursor == i;
+                            hit: row;
+                            no-image-label: root.no-image-label;
+                            title-color: #d4b483;
+                            clicked => {
+                                if (row.chip == "section") {
+                                    root.cursor = i;
+                                    root.source-changed(row.key);
+                                    return;
+                                }
+                                if (row.key == "") {
+                                    return;
+                                }
+                                root.cursor = i;
+                                root.open-hit(row.key);
+                            }
+                        }
+                    }
+                    if root.quest-sheet && root.chain-prev.length > 0: ChainButton {
+                        x: root.side-gap;
+                        y: parent.height - root.quest-chain-h + 4px;
+                        width: root.chain-w;
+                        caption: root.lang == "en-zh" ? "←  Prev" : "←  前置";
+                        name: root.chain-prev[0].title;
+                        clicked => { root.open-hit(root.chain-prev[0].key); }
+                    }
+                    if root.quest-sheet && root.chain-next.length == 1: ChainButton {
+                        x: parent.width - root.side-gap - root.chain-w;
+                        y: parent.height - root.quest-chain-h + 4px;
+                        width: root.chain-w;
+                        end: true;
+                        caption: root.lang == "en-zh" ? "Next  →" : "下一個  →";
+                        name: root.chain-next[0].title;
+                        clicked => { root.open-hit(root.chain-next[0].key); }
+                    }
+                    if root.quest-sheet && root.chain-next.length > 1: next-scroll := Flickable {
+                        x: parent.width - root.side-gap - root.chain-w;
+                        y: parent.height - root.quest-chain-h;
+                        width: root.chain-w;
+                        height: root.quest-chain-h;
+                        content-width: self.width;
+                        content-height: max(root.chain-next.length * 44px, 1px);
+                        content-y: root.next-focus < 1 ? 0px : -min(root.next-focus * 44px, max(root.chain-next.length * 44px - self.height, 0px));
+                        for row[i] in root.chain-next: ChainButton {
+                            y: i * 44px;
+                            width: next-scroll.width;
+                            end: true;
+                            picked: root.next-focus == i;
+                            caption: root.lang == "en-zh" ? "Next  →" : "下一個  →";
+                            name: row.title;
+                            clicked => {
+                                root.next-focus = i;
+                                root.open-hit(row.key);
+                            }
+                        }
+                    }
+                    if root.category == "patch" && root.viewing != "": Rectangle {
+                        x: 14px;
+                        y: 54px;
+                        width: max(root.width - 28px, 40px);
+                        height: max(parent.height - 70px, 80px);
+                        background: #1c1916;
+                        border-radius: 10px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        note := TextEdit {
+                            x: 16px;
+                            y: 14px;
+                            width: parent.width - 32px;
+                            height: parent.height - 28px;
+                            text: root.detail;
+                            read-only: true;
+                            wrap: word-wrap;
+                            font-size: 15px;
+                            init => { self.focus(); }
+                        }
+                    }
+                }
+            }
+            Rectangle {
+                height: root.foot;
+                Rectangle {
+                    y: 0px;
+                    height: 1px;
+                    background: #3a342c88;
+                }
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: (root.lang == "en-zh" ? "Client  " : "對應版本  ") + root.client-version;
+                    font-size: 11px;
+                    color: #a3988c;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+
+        if root.settings-open && !root.collapsed: Rectangle {
+            x: 0px;
+            y: 42px;
+            width: parent.width;
+            height: parent.height - 42px - root.foot;
+            background: #141210;
+            WinButton {
+                x: 14px;
+                y: 14px;
+                glyph: "←";
+                clicked => { root.close-settings(); }
+            }
+            Text {
+                x: 52px;
+                y: 16px;
+                text: root.lang == "en-zh" ? "Settings" : "設定";
+                font-size: 16px;
+                font-weight: 600;
+                color: #f3efe8;
+            }
+            Rectangle {
+                x: 16px;
+                y: 52px;
+                width: parent.width - 32px;
+                height: 32px;
+                border-radius: 8px;
+                clip: true;
+                background: #141210;
+                border-width: 1px;
+                border-color: #3a342c;
+                HorizontalLayout {
+                    spacing: 1px;
+                    PatchTab {
+                        label: root.lang == "en-zh" ? "Look" : "外觀";
+                        active: root.settings-tab == 0;
+                        clicked => { root.settings-tab = 0; }
+                    }
+                    PatchTab {
+                        label: root.lang == "en-zh" ? "Bar" : "浮動列";
+                        active: root.settings-tab == 1;
+                        clicked => { root.settings-tab = 1; }
+                    }
+                    PatchTab {
+                        label: root.lang == "en-zh" ? "Aliases" : "別名";
+                        active: root.settings-tab == 2;
+                        clicked => {
+                            root.settings-tab = 2;
+                            root.alias-refresh();
+                        }
+                    }
+                    PatchTab {
+                        label: root.lang == "en-zh" ? "Keys" : "快捷鍵";
+                        active: root.settings-tab == 3;
+                        clicked => { root.settings-tab = 3; }
+                    }
+                }
+            }
+            if root.settings-tab == 1: VerticalLayout {
+                x: 16px;
+                y: 96px;
+                width: parent.width - 32px;
+                height: parent.height - 96px;
+                spacing: 8px;
+                alignment: start;
+                Text {
+                    text: root.lang == "en-zh" ? "Direction" : "方向";
+                    font-size: 12px;
+                    color: #a3988c;
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Row" : "橫向";
+                        active: !root.dock-vertical;
+                        clicked => {
+                            if (root.dock-vertical) {
+                                root.dock-vertical = false;
+                                root.publish-dock();
+                            }
+                        }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Column" : "直向";
+                        active: root.dock-vertical;
+                        clicked => {
+                            if (!root.dock-vertical) {
+                                root.dock-vertical = true;
+                                root.publish-dock();
+                            }
+                        }
+                    }
+                }
+                Text {
+                    text: root.lang == "en-zh" ? "Drag the middle of a row. Arrows work too." : "拖中間換順序，也可以用上下箭頭。";
+                    font-size: 12px;
+                    color: #8a8076;
+                    wrap: word-wrap;
+                }
+                order-list := Rectangle {
+                    height: root.dock-draft.length * 56px;
+                    property <int> from-row: -1;
+                    property <int> over-row: -1;
+                    property <length> grab: 0px;
+                    property <length> nudge: 0px;
+                    for slot[i] in root.dock-draft: DockSortRow {
+                        x: order-list.from-row == i ? 10px : 0px;
+                        y: order-list.from-row == i ? max(0px, i * 56px + order-list.nudge) : i * 56px;
+                        width: order-list.from-row == i ? parent.width - 10px : parent.width;
+                        horizontal-stretch: 1;
+                        label: root.category-short(slot);
+                        logo: root.category-logo(slot);
+                        glyph: root.category-glyph(slot);
+                        badge: root.dock-on(slot) ? ("F" + root.visible-index(slot)) : "–";
+                        on: root.dock-on(slot);
+                        lifted: order-list.from-row == i;
+                        marked: order-list.over-row == i && order-list.from-row != i;
+                        toggled => { root.toggle-dock(slot); }
+                        can-up: i > 0 && (root.dock-on(slot) || !root.dock-on(root.dock-draft[i - 1]));
+                        can-down: i + 1 < root.dock-draft.length && (!root.dock-on(slot) || root.dock-on(root.dock-draft[i + 1]));
+                        up => { root.dock-moved(i, i - 1); }
+                        down => { root.dock-moved(i, i + 1); }
+                        grip-pressed(py) => {
+                            order-list.from-row = i;
+                            order-list.over-row = i;
+                            order-list.grab = py;
+                            order-list.nudge = 0px;
+                        }
+                        grip-moved(py) => {
+                            order-list.nudge = py - order-list.grab;
+                            let row = round((i * 56px + order-list.nudge) / 56px - 0.5);
+                            if (row < 0) {
+                                order-list.over-row = 0;
+                            } else if (row >= root.dock-draft.length) {
+                                order-list.over-row = root.dock-draft.length - 1;
+                            } else {
+                                order-list.over-row = row;
+                            }
+                        }
+                        grip-released => {
+                            if (order-list.from-row >= 0 && order-list.over-row >= 0 && order-list.from-row != order-list.over-row) {
+                                root.dock-moved(order-list.from-row, order-list.over-row);
+                            }
+                            order-list.from-row = -1;
+                            order-list.over-row = -1;
+                            order-list.nudge = 0px;
+                        }
+                    }
+                }
+            }
+            settings-sheet := Flickable {
+                y: 96px;
+                width: 100%;
+                height: parent.height - 96px;
+                visible: root.settings-tab != 1;
+                content-width: self.width;
+                content-height: panel.preferred-height;
+                panel := VerticalLayout {
+                width: parent.width;
+                padding: 16px;
+                padding-bottom: 24px;
+                spacing: 16px;
+                alignment: start;
+                if root.settings-tab == 0: HorizontalLayout {
+                    alignment: space-between;
+                    Text {
+                        text: root.lang == "en-zh" ? "Opacity" : "透明度";
+                        font-size: 11px;
+                        color: #a3988c;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.opacity-percent + "%";
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: #d4b483;
+                        vertical-alignment: center;
+                    }
+                }
+                if root.settings-tab == 0: OpacitySlider {
+                    value: root.window-opacity;
+                    edited(value) => {
+                        root.window-opacity = value;
+                        root.opacity-changed(value);
+                    }
+                }
+                if root.settings-tab == 0: Text {
+                    text: root.lang == "en-zh" ? "Name order" : "名稱順序";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 0: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Chinese first" : "中文在前";
+                        active: root.lang != "en-zh";
+                        clicked => { root.choose-lang("zh-en"); }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "English first" : "英文在前";
+                        active: root.lang == "en-zh";
+                        clicked => { root.choose-lang("en-zh"); }
+                    }
+                }
+                if root.settings-tab == 0: Text {
+                    text: root.lang == "en-zh" ? "Icon size" : "圖示大小";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 0: Text {
+                    text: root.lang == "en-zh" ? "Set pieces" : "套裝部件";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 0: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Timed and event" : "期限與活動";
+                        active: root.show-set-extra;
+                        clicked => {
+                            root.show-set-extra = !root.show-set-extra;
+                            root.show-set-extra-changed(root.show-set-extra);
+                        }
+                    }
+                }
+                if root.settings-tab == 0: Text {
+                    text: root.lang == "en-zh" ? "Off hides timed and event copies." : "關閉時不顯示期限和活動版。";
+                    font-size: 11px;
+                    color: #6f675e;
+                    wrap: word-wrap;
+                }
+                if root.settings-tab == 0: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Small" : "小";
+                        active: root.icon-size == 0;
+                        clicked => {
+                            root.icon-size = 0;
+                            root.icon-size-set(0);
+                        }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Medium" : "中";
+                        active: root.icon-size == 1;
+                        clicked => {
+                            root.icon-size = 1;
+                            root.icon-size-set(1);
+                        }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Large" : "大";
+                        active: root.icon-size == 2;
+                        clicked => {
+                            root.icon-size = 2;
+                            root.icon-size-set(2);
+                        }
+                    }
+                }
+                if root.settings-tab == 2: Text {
+                    text: root.lang == "en-zh" ? "Search aliases" : "搜尋別名";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 2: Text {
+                    text: root.lang == "en-zh" ? "One line per alias. Edit a row to search and add items." : "一行一個別名。點該列的編輯，再用右邊搜尋加入道具。";
+                    font-size: 11px;
+                    color: #6f675e;
+                    wrap: word-wrap;
+                }
+                if root.settings-tab == 2: VerticalLayout {
+                    spacing: 6px;
+                    for row[i] in root.alias-rows: AliasCard {
+                        name: row.name;
+                        codes: row.codes;
+                        detail: row.detail;
+                        count: row.count;
+                        editing: root.alias-edit == i;
+                        edit-label: root.lang == "en-zh" ? "Edit" : "編輯";
+                        row-mark: "" + i;
+                        icons: root.alias-icons;
+                        find-hint: root.lang == "en-zh" ? "Search item" : "搜尋道具";
+                        save-label: root.lang == "en-zh" ? "Save" : "儲存";
+                        delete-label: root.lang == "en-zh" ? "Delete" : "刪除";
+                        suggesting: root.alias-edit == i && root.alias-target == i && root.alias-hits.length > 0;
+                        hits: root.alias-hits;
+                        pick: root.alias-pick;
+                        name-edited(text) => { root.alias-name(i, text); }
+                        codes-edited(text) => { root.alias-codes(i, text); }
+                        remove => { root.alias-remove(i); }
+                        begin-edit => { root.alias-edit = i; }
+                        done => {
+                            root.alias-edit = -1;
+                            root.alias-hits = [];
+                            root.alias-target = -1;
+                        }
+                        save => {
+                            root.alias-name(i, self.name-draft);
+                            root.alias-finish(i);
+                            root.alias-save();
+                            root.alias-edit = -1;
+                            root.alias-hits = [];
+                            root.alias-target = -1;
+                        }
+                        find-edited(text) => { root.alias-query(i, text); }
+                        find-accepted => { root.alias-finish(i); }
+                        toggle-hit(index) => { root.alias-toggle(index); }
+                        drop-code(key) => { root.alias-drop(i, key); }
+                    }
+                }
+                if root.settings-tab == 2 && root.alias-rows.length == 0 && root.alias-edit < 0: Text {
+                    text: root.lang == "en-zh" ? "No aliases yet." : "還沒有別名。";
+                    font-size: 12px;
+                    color: #8a8076;
+                }
+                if root.settings-tab == 2: HorizontalLayout {
+                    spacing: 8px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Add" : "新增";
+                        active: false;
+                        clicked => { root.alias-add(); }
+                    }
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "F1–F9";
+                    action: root.lang == "en-zh" ? "Open that bar item" : "開啟浮動列對應項目";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Ctrl+-";
+                    action: root.lang == "en-zh" ? "Shrink to the bar. Press again to open the window" : "把介面收成浮動列，再按一次展開";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Ctrl+F";
+                    action: root.lang == "en-zh" ? "Search" : "搜尋";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Esc";
+                    action: root.lang == "en-zh" ? "Back, or close search and settings" : "返回，或關閉搜尋和設定";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Backspace";
+                    action: root.lang == "en-zh" ? "Back" : "返回";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Home";
+                    action: root.lang == "en-zh" ? "Go to the home page" : "回到主目錄";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "↑  ↓";
+                    action: root.lang == "en-zh" ? "Move in the list. On a set, move between Item, Set, and Total" : "移動清單；套裝資料是在道具、套裝、合計之間";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "←  →";
+                    action: root.lang == "en-zh" ? "Home grid, bar, scroll a set, or the previous and next quest" : "主目錄、浮動列、套裝資料捲動，或任務的上一個和下一個";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Enter";
+                    action: root.lang == "en-zh" ? "Open. Expand a related heading, or save a monster" : "開啟；相關分類是展開或收合，怪物是收藏";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Space";
+                    action: root.lang == "en-zh" ? "Open. Expand a heading or a set section" : "開啟；相關分類和套裝分類是展開或收合";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Tab";
+                    action: root.lang == "en-zh" ? "Switch the filter, or the settings tabs" : "切換本頁篩選，或設定頁的分頁";
+                }
+                if root.settings-tab == 3: KeyLine {
+                    keys: "Ctrl+C";
+                    action: root.lang == "en-zh" ? "Copy an update note" : "複製更新內文";
+                }
+                if root.settings-tab == 3: Text {
+                    text: root.lang == "en-zh" ? "While this window is open, F1–F9 open the bar." : "視窗開著時，F1–F9 用來開浮動列。";
+                    font-size: 11px;
+                    color: #8a8076;
+                    wrap: word-wrap;
+                }
+                }
+            }
+        }
+    }
+}

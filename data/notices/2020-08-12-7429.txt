@@ -1,0 +1,26 @@
+안녕하세요. 고객지원팀입니다.
+\\
+\\
+하기와 같이 본 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+본 서버 -------------------------------------------------
+\\
+\\
+일시 : 2020. 08. 13 (10:00 ~ 10:30) 30분간
+\\
+\\
+-2020.08.13-
+\\
+[거상 패치 V29609]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- '고급천왕검'의 '화룡' 스킬로 생성되는 화룡이 정상적으로 떨어지지 않았던 오류가 수정되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 작업상황에 따라 변동 될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=358\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

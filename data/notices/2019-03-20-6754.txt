@@ -1,0 +1,27 @@
+안녕하세요 거상 고객지원팀입니다.
+\\
+\\
+하기와 같이 하룡서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+테스트 서버 -------------------------------------------------
+\\
+\\
+일시 : 2019. 3. 20 (17:40 ~ 18:10) 30분간
+\\
+\\
+-2019.3.20-
+\\
+[거상 패치 V28503]
+\\
+1. 다음 사항이 수정 되었습니다.
+\\
+- 일시적으로 우호도 교환을 할 수 없도록 변경 되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+\\
+*점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=408\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

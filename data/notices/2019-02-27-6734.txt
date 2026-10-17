@@ -1,0 +1,27 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+아래와 같이 본서버 패치 작업이 있을 예정이오니 게임 이용에 참고 해주시기 바랍니다.
+\\
+\\
+본 서버 -------------------------------------------------
+\\
+\\
+일시 : 2019. 2. 27 (22:00 ~ 22:20) 20분간
+\\
+\\
+-2019.2.27-
+\\
+[거상 패치 V28423]
+\\
+1. 다음 사항이 수정 되었습니다.
+\\
+- 공성 전투 시 간헐적으로 클라이언트가 종료되던 현상이 수정 되었습니다.
+\\
+- 전투 시 이동불가 영역으로 이동이 가능 했던 현상이 수정 되었습니다.
+\\
+- 파티 전투 시 일부 스킬이 비정상적으로 시전되던 현상이 수정 되었습니다.
+\\
+\\
+이용에 불편을 드려 대단히 죄송합니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=409\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

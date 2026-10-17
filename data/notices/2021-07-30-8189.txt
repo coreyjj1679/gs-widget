@@ -1,0 +1,29 @@
+안녕하세요 거상 고객지원팀입니다.
+\\
+\\
+하기와 같이 테스트서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+테스트 서버 -------------------------------------------------
+\\
+\\
+일시 : 2021. 7. 30 (13:00 ~ 13:20) 20분간
+\\
+\\
+-2021.7.30-
+\\
+[거상 패치 V30409]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- 봉기부를 착용한 장수가 수호부[오], 신수부 청룡의 이동속도 증가 효과를 받았을 때 이미지가 잘못 나오던 현상이 수정되었습니다.
+\\
+- 몬스터 당나귀가 전투에 진입 할 경우 클라이언트가 종료되던 현상이 수정되었습니다.
+\\
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=301\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

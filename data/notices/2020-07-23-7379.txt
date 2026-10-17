@@ -1,0 +1,28 @@
+안녕하세요. 고객지원팀입니다.
+\\
+\\
+하기와 같이 테스트 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+테스트 서버 -------------------------------------------------
+\\
+\\
+일시 : 2020. 07. 23 (17:00 ~ 17:20) 20분간
+\\
+\\
+-2020.07.23-
+\\
+[거상 패치 V29604]
+\\
+1. 다음 사항이 수정되었습니다.
+\\
+- '신궁 주몽'의 전용무기 착용 후 공격 사거리가 줄어드는 오류가 수정되었습니다.
+\\
+- 정령탐색시 포만감이 부족할 경우 탐색이 불가능 하도록 수정되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 작업상황에 따라 변동 될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=362\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

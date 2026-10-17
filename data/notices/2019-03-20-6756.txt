@@ -1,0 +1,14 @@
+placeholder\",\"children\":\"2019-03-20\"}]]}],[\"$\",\"div\",null,{\"className\":\"min-h-64 overflow-x-auto px-5 py-7 text-[14px] leading-7 text-ink-secondary sm:px-7 [&_a]:text-link [&_a]:underline [&_br]:leading-7 [&_img]:h-auto [&_img]:max-w-full [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-line-strong [&_td]:p-2 [&_th]:border [&_th]:border-line-strong [&_th]:p-2 [&_ul]:ml-5 [&_ul]:list-disc\",\"dangerouslySetInnerHTML\":{\"__html\":\"일시 : 2019. 3. 20 (21:25~ 21:40) 15분간
+\\
+\\
+-2019.3.20-
+\\
+[거상 패치 V28505]
+\\
+1. 다음 사항이 수정 되었습니다.
+\\
+- 일시적으로 우호도 교환을 할 수 없도록 변경 되었습니다.
+\\
+\\
+*점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=408\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

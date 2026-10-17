@@ -1,0 +1,7 @@
+안녕하세요. 거상 고객지원팀 입니다.
+하기와 같이 테스트서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+테스트 서버 -------------------------------------------------
+일시 : 2024. 9. 30 (12:00 ~ 12:20) 20분간 -2024.09.30-[거상 패치 V33003]1. 다음 사항이 수정되었습니다.- '나바타카바차(火)', '나바타카바차(水)', '나바타카바차(雷)', '나바타카바차(風)'가 소환하는 '망각의잔재', '망각의메아리' 몬스터의 폭발 데미지가 더이상 보스에게 피해를 입히지 않도록 수정되었습니다.
+감사합니다.
+* 점검 시간은 진행 상황에 따라 다소 변동 될 수 있습니다.​ ​ ​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=131\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

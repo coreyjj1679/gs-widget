@@ -1,0 +1,11 @@
+안녕하세요. 거상 고객지원팀입니다.
+아래와 같이 하룡서버 패치가 있을 예정이오니 게임 이용에 참고 해주시기 바랍니다.
+하룡 서버 -------------------------------------------------
+일시 : 2026. 4. 3 (16:40 ~ 17:00) 20분간
+-2026.04.03-
+[거상 패치 V34206]
+1. 다음 사항이 수정되었습니다.
+- 화무신 강림 시 소환 위치가 틀어지던 오류가 수정되었습니다.
+- 공성 시 관청 UI에서 마을 체력이 실시간으로 갱신되도록 수정되었습니다.
+감사합니다.​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=32\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

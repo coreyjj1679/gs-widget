@@ -1,0 +1,18 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+하기와 같이 테스트서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+테스트 서버 -------------------------------------------------
+\\
+일시 : 2022. 2. 22 (16:20 ~ 16:50) 30분간
+\\
+-2022.2.22-
+[거상 패치 V30811]
+1. 다음 사항이 수정되었습니다.
+- 파티초대 시 간헐적으로 정상적으로 접속되어 있는 캐릭터를 초대할 수 없던 현상이 수정되었습니다.
+- 이동중 탈것 UI를 켠 상태에서 도착할 시 캐릭터가 제자리에서 이동하는 모션이 수정되었습니다
+- 외형변환 UI가 활성화된 상태에서 다른 캐릭터가 제자리로 멈춰진 상태의 이미지로 이동하던 현상이 수정되었습니다.
+감사합니다.
+\\
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=272\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

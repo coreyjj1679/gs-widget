@@ -1,0 +1,17 @@
+안녕하세요. 거상 고객지원팀 입니다.
+\\
+\\
+하기와 같이 테스트서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.​
+\\
+\\
+테스트 서버 -------------------------------------------------
+일시 : 2023. 1. 6 (15:20 ~ 15:50) 30분간
+\\
+[거상 패치 V31605]
+\\
+1. 다음 사항이 수정되었습니다.
+- '고위신선_청룡' NPC의 '아름다운 영수', '괴팍한 항아리 도사', '불타는 별의 주인', '짜릿한 별의 주인', '별을 섬기는 이' 퀘스트가 요구 아이템을 회수하지 않는 오류를 수정하였습니다.
+\\
+\\
+감사합니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=228\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

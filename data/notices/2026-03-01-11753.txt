@@ -1,0 +1,10 @@
+안녕하세요. 거상 고객지원팀 입니다.
+하기와 같이 본 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+본 서버 -------------------------------------------------
+일시 : 2026. 03. 01 (20:30 ~ 21:00) 30분간
+-2026.03.01-
+[거상 패치 V34024]
+1. 다음 사항이 수정되었습니다.
+- 일부 전투 컨텐츠에서 간헐적으로 클라이언트가 종료되던 오류가 수정되었습니다.
+감사합니다.​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=40\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

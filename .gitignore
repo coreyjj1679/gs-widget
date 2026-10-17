@@ -1,0 +1,26 @@
+widget/target/
+dist/
+**/__pycache__/
+*.py[cod]
+
+# Client parser. The published app reads data/gersang.db.
+/gersang/
+/update.bat
+
+# Local builds. A clone compiles its own.
+/gersang-widget.exe
+/gersang-widget-next.exe
+/gersang-widget-old.exe
+
+# This machine's window layout. A fresh clone starts from the defaults.
+data/favourites.txt
+data/dock.txt
+data/home.txt
+data/window.txt
+data/opacity.txt
+data/ui-lang.txt
+data/set-extra.txt
+data/client.txt
+
+# Cache from `python -m gersang update`. Not needed to run the widget.
+data/mt-cache.sqlite

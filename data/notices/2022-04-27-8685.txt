@@ -1,0 +1,10 @@
+안녕하세요. 거상 고객지원팀입니다.
+아래와 같이 하룡(테스트)서버 패치가 있을 예정이오니, 게임 이용에 참고 해주시기 바랍니다.
+테스트 서버 -------------------------------------------------
+일시 : 2022. 4. 27 (14:00 ~ 15:30) 90분간
+-2022.4.27-
+[거상 패치 V31008]
+1. 20주년 이벤트가 추가되었습니다.
+감사합니다.
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=264\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

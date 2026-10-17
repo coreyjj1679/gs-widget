@@ -1,0 +1,10 @@
+안녕하세요 거상 고객지원팀 입니다.
+하기와 같이 하룡서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+하룡 서버 -------------------------------------------------
+일시 : 2025. 7. 10 (17:20 ~ 17:50) 30분간
+-2025.07.10-
+[거상 패치 V33611]
+1. 다음 사항이 수정되었습니다.- 주인공 캐릭터가 변신무기를 착용한 상태에서 전투 진입 시 일부 능력치 증가 효과가 적용되지 않던 오류가 수정되었습니다.- NPC '은둔고수_대선'의 혈투의전장 '지난주 기록', '지난달 기록'이 속성 도전모드 순위로 표시되던 오류가 수정되었습니다.​
+감사합니다.
+* 점검 시간은 진행 상황에 따라 다소 변동 될 수 있습니다.​ ​ ​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=83\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

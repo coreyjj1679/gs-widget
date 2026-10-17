@@ -1,0 +1,7 @@
+안녕하세요. 거상 고객지원팀 입니다.
+하기와 같이 전체서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+전체 서버 -------------------------------------------------
+일시 : 2022. 5. 4 (17:20 ~ 17:50) 30분간
+-2022.5.4-[거상 패치 V31010]1. 다음 사항이 수정되었습니다.- '상' 이벤트로 획득 가능한 '[이벤트] 매일매일 감사박스' 아이템 수령 조건이 1시간에서 30분으로 변경되었습니다.
+감사합니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=263\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

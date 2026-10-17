@@ -1,0 +1,11 @@
+안녕하세요, 거상 고객지원팀입니다.
+하기와 같이 하룡서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+하룡 서버 -------------------------------------------------
+일시 : 2025. 7. 17 (16:30 ~ 17:00) 30분간
+-2025.07.17-
+[거상 패치 V33614]
+1. 다음 사항이 수정되었습니다.
+- 시간의 소용돌이에서 시나리오 진행 시 전투기회가 차감되지 않는 것처럼 보이던 오류가 수정되었습니다.
+감사합니다.
+* 점검 시간은 진행 상황에 따라 다소 변동 될 수 있습니다.​ ​ ​​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=82\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

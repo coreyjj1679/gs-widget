@@ -1,0 +1,31 @@
+안녕하세요. 거상 고객지원팀입니다.
+\\
+\\
+\\
+아래와 같이 하룡(테스트) 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+\\
+\\
+하룡(테스트)서버 -------------------------------------------------
+\\
+\\
+\\
+\\
+일시 : 2019. 2. 27 (21:50 ~ 22:00) 10분간
+\\
+\\
+\\
+\\
+\\
+-2019.2.27-
+\\
+\\
+[거상 패치 V28423]
+\\
+\\
+1. 다음 사항이 수정 되었습니다.
+\\
+\\
+- 공성 전투 시 간헐적으로 클라이언트가 종료되던 현상이 수정 되었습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=410\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

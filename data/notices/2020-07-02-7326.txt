@@ -1,0 +1,26 @@
+안녕하세요. 고객지원 팀입니다.
+\\
+\\
+하기와 같이 본 서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+\\
+\\
+본 서버 -------------------------------------------------
+\\
+\\
+일시 : 2020. 07. 02 (10:30 ~ 10:40) 10분간
+\\
+\\
+-2020.07.02-
+\\
+[거상 패치 V29430]
+\\
+1.다음 사항이 수정되었습니다.
+\\
+- '화해의사과-거래불가' 아이템이 거래되던 오류가 수정되었습니다.
+\\
+\\
+감사합니다.
+\\
+\\
+* 점검 시간은 사정에 따라 다소 변동될 수 있습니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=366\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

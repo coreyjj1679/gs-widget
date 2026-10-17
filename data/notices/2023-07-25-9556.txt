@@ -1,0 +1,14 @@
+안녕하세요, 거상 고객지원팀입니다.
+하기와 같이 테스트서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+테스트 서버 -------------------------------------------------
+일시 : 2023. 7. 25 (16:30 ~ 17:00) 30분간
+-2023.07.25-
+[거상 패치 V32011]
+1.다음 사항이 추가 및 수정되었습니다.
+- '귀묘의 더위 극복 챌린지' 이벤트 기간이 수정되었습니다.
+- 예약 스킬 사용 횟수 계산 시 '여와 세트'로 감소되는 마나감소 효과가 적용되지 않던 오류가 수정되었습니다.
+- 스킬 단축키 설정이 초기화 되었습니다.
+- 스킬 단축키 설정 기본값이 'R', 'F', 'T', 'G'로 변경되었습니다.
+- 게임설정이 초기화 되었습니다.
+감사합니다.​
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=200\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"

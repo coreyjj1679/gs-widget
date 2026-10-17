@@ -1,0 +1,10 @@
+안녕하세요. 거상 고객지원팀입니다.
+하기와 같이 본서버 패치가 있을 예정이니 참고하여 주시기 바랍니다.
+본 서버 -------------------------------------------------
+일시 : 2024. 11. 20 (15:30 ~ 15:50) 20분간
+-2024.11.20-
+[거상 패치 V33007]
+1. 다음 사항이 수정 및 추가되었습니다.
+- 마을 투자를 할 수 없던 오류가 수정되었습니다.
+감사합니다.
+\"}}],[\"$\",\"footer\",null,{\"className\":\"border-t border-line px-5 py-4 text-right sm:px-7\",\"children\":[\"$\",\"a\",null,{\"href\":\"https://www.gersang.co.kr/news/notice.gs?GSserKey=&GSserType=&GSbid=1001&GScid=&page=124\",\"target\":\"_blank\",\"rel\":\"noopener noreferrer\",\"className\":\"text-[12px] font-medium text-muted hover:text-link\",\"children\":\"
