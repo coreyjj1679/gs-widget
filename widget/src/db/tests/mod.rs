@@ -691,6 +691,13 @@ fn item_page_groups_by_category() {
     assert!(relations.iter().any(|hit| hit.key.starts_with("recipe:")));
     assert!(relations.iter().any(|hit| hit.chip == "section" && hit.title == "用途"));
     assert!(relations.iter().any(|hit| hit.key.starts_with("quest:")));
+    let (_, seal, _) = catalog.open_key("item:3066", "zh-en");
+    let ring = seal.iter().find(|hit| hit.key == "item:3588").expect("dui ring");
+    assert_eq!(ring.chip, "used-for");
+    assert_eq!(ring.aside, "生產");
+    assert!(ring.subtitle.contains('2'));
+    let (_, made, _) = catalog.open_key("item:3588", "zh-en");
+    assert!(made.iter().any(|hit| hit.key == "item:3066" && hit.chip == "make"));
     let sources = catalog.search("recipe", "", "zh-en", "", "");
     assert!(sources.iter().any(|hit| hit.key.starts_with("craft:") && hit.icon.is_some()));
     assert!(kinds.iter().any(|hit| hit.key == "icat:set" && hit.title == "套裝"));

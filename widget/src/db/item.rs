@@ -1515,6 +1515,7 @@ impl Catalog {
         self.push_section(&mut hits, lang, "make", self.production_for(code, lang));
         let mut uses = self.item_quest_uses(code, lang);
         uses.extend(self.recipes_using(code, lang));
+        uses.extend(self.formulas_using(code, lang));
         self.push_section(&mut hits, lang, "used-for", uses);
         self.push_section(&mut hits, lang, "also-from", self.item_quest_gains(code, lang));
         self.push_section(&mut hits, lang, "set", self.item_set_links(code, lang));
