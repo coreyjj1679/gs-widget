@@ -13,8 +13,8 @@ The catalog is `data/gersang.db`. Pictures are in `data/client`.
 ## Clone, build, open
 
 ```
-git clone <repo-url>
-cd gersang-app\widget
+git clone https://github.com/coreyjj1679/gs-widget.git
+cd gs-widget\widget
 cargo build --release
 target\release\gersang-widget.exe
 ```
