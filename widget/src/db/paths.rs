@@ -44,6 +44,17 @@ pub(in crate::db) fn locate_client(stored: PathBuf, data: &Path) -> PathBuf {
         .unwrap_or(bundled)
 }
 
+pub(in crate::db) fn characters_dir(client_root: &Path, data: &Path) -> Option<PathBuf> {
+    let bundled = client_root.join("Assets").join("Textures").join("Characters");
+    if bundled.is_dir() {
+        return Some(bundled);
+    }
+    client_hints(data).into_iter().find_map(|root| {
+        let folder = root.join("Assets").join("Textures").join("Characters");
+        folder.is_dir().then_some(folder)
+    })
+}
+
 pub(in crate::db) fn client_hints(data: &Path) -> Vec<PathBuf> {
     let mut hints = Vec::new();
     if let Ok(path) = std::env::var("GERSANG_CLIENT") {

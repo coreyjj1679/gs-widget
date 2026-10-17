@@ -89,6 +89,22 @@ pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) {
         shown.push(Hit {
             title: title.into(),
             subtitle: String::new().into(),
+            detail: SharedString::default(),
+            stat_kind: SharedString::default(),
+            stat_element: SharedString::default(),
+            stat_hp: SharedString::default(),
+            stat_mp: SharedString::default(),
+            stat_hit: SharedString::default(),
+            stat_magic: SharedString::default(),
+            stat_atk: SharedString::default(),
+            stat_exp: SharedString::default(),
+            drop1: Image::default(),
+            drop2: Image::default(),
+            drop3: Image::default(),
+            drop4: Image::default(),
+            drop_total: 0,
+            battle: Image::default(),
+            has_battle: false,
             key: id.into(),
             icon: Image::default(),
             has_icon: false,
@@ -150,6 +166,22 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
         shown.push(Hit {
             title: header.title,
             subtitle: header.subtitle,
+            detail: SharedString::default(),
+            stat_kind: SharedString::default(),
+            stat_element: SharedString::default(),
+            stat_hp: SharedString::default(),
+            stat_mp: SharedString::default(),
+            stat_hit: SharedString::default(),
+            stat_magic: SharedString::default(),
+            stat_atk: SharedString::default(),
+            stat_exp: SharedString::default(),
+            drop1: Image::default(),
+            drop2: Image::default(),
+            drop3: Image::default(),
+            drop4: Image::default(),
+            drop_total: 0,
+            battle: Image::default(),
+            has_battle: false,
             key: header.key,
             icon: Image::default(),
             has_icon: false,
@@ -246,6 +278,15 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     }
     if !element_shown {
         app.set_show_element(false);
+    }
+    app.set_show_battle(false);
+    if let Some(code) = key.strip_prefix("monster:") {
+        if let Some((path, frame)) = catalog.battle_sprite(code) {
+            if let Some(image) = cached_icon(cache, &path, frame) {
+                app.set_battle_icon(image);
+                app.set_show_battle(true);
+            }
+        }
     }
     let lang = app.get_lang().to_string();
     app.set_sheet_note("".into());
@@ -456,6 +497,22 @@ pub(crate) fn link_rows(
         rows.push(Hit {
             title: SharedString::from(hit.title),
             subtitle: SharedString::from(hit.subtitle),
+            detail: SharedString::default(),
+            stat_kind: SharedString::default(),
+            stat_element: SharedString::default(),
+            stat_hp: SharedString::default(),
+            stat_mp: SharedString::default(),
+            stat_hit: SharedString::default(),
+            stat_magic: SharedString::default(),
+            stat_atk: SharedString::default(),
+            stat_exp: SharedString::default(),
+            drop1: Image::default(),
+            drop2: Image::default(),
+            drop3: Image::default(),
+            drop4: Image::default(),
+            drop_total: 0,
+            battle: Image::default(),
+            has_battle: false,
             key: SharedString::from(hit.key),
             icon,
             has_icon,

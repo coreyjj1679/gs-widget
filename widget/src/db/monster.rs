@@ -127,6 +127,20 @@ pub(in crate::db) fn load_places(conn: &Connection, texts: &HashMap<String, Stri
     Ok(places)
 }
 
+pub struct MonsterBrief {
+    pub kind: String,
+    pub element: String,
+    pub hp: String,
+    pub mp: String,
+    pub hit: String,
+    pub magic: String,
+    pub atk: String,
+    pub exp: String,
+    pub drops: Vec<(PathBuf, i32)>,
+    pub drop_total: i32,
+    pub battle: Option<(PathBuf, i32)>,
+}
+
 impl Catalog {
     pub(in crate::db) fn monster_text(&self, code: &str, lang: &str) -> String {
         let row = self.conn.query_row(
@@ -259,6 +273,114 @@ impl Catalog {
             }
         }
         lines
+    }
+
+    pub fn monster_cards(&self, codes: &[String], lang: &str) -> HashMap<String, MonsterBrief> {
+        let mut cards: HashMap<String, MonsterBrief> = HashMap::new();
+        if codes.is_empty() {
+            return cards;
+        }
+        let marks = std::iter::repeat("?").take(codes.len()).collect::<Vec<_>>().join(",");
+        let stats = format!(
+            "SELECT code, hp, mp, hit_resist, magic_resist, atk_min, atk_max, exp, element, element_gts, is_boss, unit_type
+             FROM monsters WHERE code IN ({marks})"
+        );
+        if let Ok(mut stmt) = self.conn.prepare(&stats) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, i64>(7)?,
+                    row.get::<_, i64>(8)?,
+                    row.get::<_, i64>(9)?,
+                    row.get::<_, i64>(10)?,
+                    row.get::<_, i64>(11)?,
+                ))
+            }) {
+                for row in rows.flatten() {
+                    let (code, hp, mp, hit, magic, atk_min, atk_max, exp, element, ela, boss, unit) = row;
+                    let kind = if boss == 1 { phrase("boss", lang) } else { phrase("normal", lang) };
+                    let unit_name = if unit == 1 { phrase("air", lang) } else { phrase("ground", lang) };
+                    let mut element_text = element_name(element, lang);
+                    if ela > 0 {
+                        element_text.push_str(&format!(" · {} {}", phrase("ela", lang), commas(ela)));
+                    }
+                    cards.insert(
+                        code,
+                        MonsterBrief {
+                            kind: format!("{kind} · {unit_name}"),
+                            element: element_text,
+                            hp: commas(hp),
+                            mp: commas(mp),
+                            hit: commas(hit),
+                            magic: commas(magic),
+                            atk: format!("{}-{}", commas(atk_min), commas(atk_max)),
+                            exp: commas(exp),
+                            drops: Vec::new(),
+                            drop_total: 0,
+                            battle: None,
+                        },
+                    );
+                }
+            }
+        }
+        let drops = format!(
+            "SELECT monster_code, item_code FROM monster_drops WHERE monster_code IN ({marks}) ORDER BY monster_code, slot"
+        );
+        if let Ok(mut stmt) = self.conn.prepare(&drops) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            }) {
+                for (code, item) in rows.flatten() {
+                    let Some(card) = cards.get_mut(&code) else { continue };
+                    card.drop_total += 1;
+                    if card.drops.len() < 4 {
+                        if let Some(icon) = self.item_icon(item) {
+                            card.drops.push(icon);
+                        }
+                    }
+                }
+            }
+        }
+        let sprites = format!("SELECT code, path FROM monster_sprites WHERE code IN ({marks})");
+        if let Ok(mut stmt) = self.conn.prepare(&sprites) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            }) {
+                for (code, relative) in rows.flatten() {
+                    let Some(card) = cards.get_mut(&code) else { continue };
+                    card.battle = self.character_file(&relative).map(|path| (path, 0));
+                }
+            }
+        }
+        cards
+    }
+
+    pub fn battle_sprite(&self, code: &str) -> Option<(PathBuf, i32)> {
+        let relative: String = self
+            .conn
+            .query_row("SELECT path FROM monster_sprites WHERE code = ?1", [code], |row| row.get(0))
+            .ok()?;
+        self.character_file(&relative).map(|path| (path, 0))
+    }
+
+    fn character_file(&self, relative: &str) -> Option<PathBuf> {
+        let name = Path::new(relative).file_name()?.to_string_lossy().to_lowercase();
+        let folder = self.characters.as_ref()?;
+        let mut cache = self.character_files.borrow_mut();
+        if cache.is_none() {
+            let listed = std::fs::read_dir(folder).ok()?.filter_map(Result::ok).filter_map(|entry| {
+                let path = entry.path();
+                path.is_file().then(|| (entry.file_name().to_string_lossy().to_lowercase(), path))
+            });
+            *cache = Some(listed.collect());
+        }
+        cache.as_ref()?.get(&name).cloned()
     }
 
     pub(in crate::db) fn place_names(&self, code: &str, lang: &str) -> Vec<String> {

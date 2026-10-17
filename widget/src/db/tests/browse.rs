@@ -89,6 +89,26 @@ fn labels_follow_the_display_mode() {
 }
 
 #[test]
+fn monster_cards_summarize_stats_and_drops() {
+    let catalog = Catalog::open().expect("db");
+    let cards = catalog.monster_cards(&["K63".into(), "M24".into(), "M96".into()], "zh-en");
+    let tiger = cards.get("K63").expect("K63");
+    assert!(tiger.element.contains("屬性值"));
+    assert!(tiger.element.contains("90"));
+    assert!(!tiger.hp.is_empty());
+    assert!(!tiger.hit.is_empty());
+    let deer = cards.get("M24").expect("M24");
+    assert!(deer.drop_total > 0);
+    assert!(!deer.drops.is_empty());
+    let sorceress = cards.get("M96").expect("M96");
+    if let Some((path, frame)) = &sorceress.battle {
+        assert!(path.is_file(), "{}", path.display());
+        assert_eq!(*frame, 0);
+    }
+    assert!(catalog.monster_cards(&[], "zh-en").is_empty());
+}
+
+#[test]
 fn place_names_follow_the_grouped_map() {
     let catalog = Catalog::open().expect("db");
     let area = catalog.area_name("2", "冰城", "zh-en");

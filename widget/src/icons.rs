@@ -54,6 +54,16 @@ pub(crate) fn remember_icon(cache_key: &str, image: Image) {
 }
 
 pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, links: bool) {
+    if let Some(key) = row_key.strip_suffix("#battle") {
+        paint_battle(&app.get_hits(), key, icon, has_icon);
+        return;
+    }
+    if let Some((key, slot)) = row_key.rsplit_once("#drop") {
+        if let Ok(slot) = slot.parse::<usize>() {
+            paint_drop(&app.get_hits(), key, slot, icon, has_icon);
+        }
+        return;
+    }
     let hits = if links { app.get_links() } else { app.get_hits() };
     if paint_model(&hits, row_key, icon.clone(), has_icon) {
         return;
@@ -61,6 +71,44 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
     if links {
         let related = app.get_related();
         paint_model(&related, row_key, icon, has_icon);
+    }
+}
+
+fn paint_battle(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) {
+    if !has_icon {
+        return;
+    }
+    let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return };
+    for index in 0..model.row_count() {
+        let Some(mut row) = model.row_data(index) else { continue };
+        if row.key.as_str() != row_key {
+            continue;
+        }
+        row.battle = icon;
+        row.has_battle = true;
+        model.set_row_data(index, row);
+        return;
+    }
+}
+
+fn paint_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, icon: Image, has_icon: bool) {
+    if !has_icon || slot > 3 {
+        return;
+    }
+    let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return };
+    for index in 0..model.row_count() {
+        let Some(mut row) = model.row_data(index) else { continue };
+        if row.key.as_str() != row_key {
+            continue;
+        }
+        match slot {
+            0 => row.drop1 = icon,
+            1 => row.drop2 = icon,
+            2 => row.drop3 = icon,
+            _ => row.drop4 = icon,
+        }
+        model.set_row_data(index, row);
+        return;
     }
 }
 

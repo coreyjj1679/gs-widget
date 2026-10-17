@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -28,7 +29,7 @@ pub use text::{hero_land_label, hero_rank_label, hero_tier_label, item_category_
 
 use alias::parse_alias_book;
 use load::{choose_pictures, load_portraits, load_sprites};
-use paths::{client_build, find_db, locate_client};
+use paths::{characters_dir, client_build, find_db, locate_client};
 use rows::Index;
 use search::all_floor_names;
 use text::{
@@ -51,6 +52,8 @@ pub struct Hit {
 pub struct Catalog {
     conn: Connection,
     client_root: PathBuf,
+    characters: Option<PathBuf>,
+    character_files: RefCell<Option<HashMap<String, PathBuf>>>,
     pictures: HashMap<String, (PathBuf, i32)>,
     index: Index,
 }
@@ -73,9 +76,17 @@ impl Catalog {
             .map(|path| PathBuf::from(path).parent().map(Path::to_path_buf).unwrap_or_default())
             .unwrap_or_default();
         let client_root = locate_client(stored, db.parent().unwrap_or(Path::new(".")));
+        let characters = characters_dir(&client_root, db.parent().unwrap_or(Path::new(".")));
         let pictures = choose_pictures(&client_root, &load_sprites(&conn), &load_portraits(&conn));
         let index = Index::load(&conn, &client_root, &pictures, db.parent().unwrap_or(Path::new(".")))?;
-        Ok(Self { conn, client_root, pictures, index })
+        Ok(Self {
+            conn,
+            client_root,
+            characters,
+            character_files: RefCell::new(None),
+            pictures,
+            index,
+        })
     }
 
     pub fn set_aliases(&self, text: &str) {

@@ -103,6 +103,15 @@ pub(crate) fn picture_key(key: &str) -> bool {
 }
 
 pub(crate) fn show_list(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, hits: Vec<db::Hit>, favourites: &HashSet<String>) {
+    let cards = if app.get_monster_gallery() {
+        let codes: Vec<String> = hits
+            .iter()
+            .filter_map(|hit| hit.key.strip_prefix("monster:").map(str::to_string))
+            .collect();
+        catalog.monster_cards(&codes, &app.get_lang())
+    } else {
+        std::collections::HashMap::new()
+    };
     let gen = session.generation.fetch_add(1, Ordering::Relaxed) + 1;
     let mut rows = Vec::with_capacity(hits.len());
     let mut jobs = Vec::new();
@@ -135,9 +144,64 @@ pub(crate) fn show_list(app: &App, session: &Session, catalog: &db::Catalog, nat
             },
             None => (Image::default(), false),
         };
+        let brief = hit.key.strip_prefix("monster:").and_then(|code| cards.get(code));
+        let mut drops = [Image::default(), Image::default(), Image::default(), Image::default()];
+        let drop_total = brief.map(|card| card.drop_total).unwrap_or(0);
+        if let Some(card) = brief {
+            for (index, (path, frame)) in card.drops.iter().enumerate().take(4) {
+                let cache_key = format!("{}#{frame}", path.display());
+                if let Some(image) = session.cache.borrow().get(&cache_key) {
+                    drops[index] = image.clone();
+                } else {
+                    jobs.push(IconJob {
+                        gen,
+                        links: false,
+                        cache_key,
+                        row_key: format!("{}#drop{index}", hit.key),
+                        path: path.clone(),
+                        frame: *frame,
+                    });
+                }
+            }
+        }
+        let mut battle = Image::default();
+        let mut has_battle = false;
+        if let Some((path, frame)) = brief.and_then(|card| card.battle.clone()) {
+            let cache_key = format!("{}#{frame}", path.display());
+            if let Some(image) = session.cache.borrow().get(&cache_key) {
+                battle = image.clone();
+                has_battle = true;
+            } else {
+                has_battle = true;
+                jobs.push(IconJob {
+                    gen,
+                    links: false,
+                    cache_key,
+                    row_key: format!("{}#battle", hit.key),
+                    path,
+                    frame,
+                });
+            }
+        }
         rows.push(Hit {
             title: SharedString::from(hit.title),
             subtitle: SharedString::from(hit.subtitle),
+            detail: SharedString::default(),
+            stat_kind: SharedString::from(brief.map(|card| card.kind.as_str()).unwrap_or("")),
+            stat_element: SharedString::from(brief.map(|card| card.element.as_str()).unwrap_or("")),
+            stat_hp: SharedString::from(brief.map(|card| card.hp.as_str()).unwrap_or("")),
+            stat_mp: SharedString::from(brief.map(|card| card.mp.as_str()).unwrap_or("")),
+            stat_hit: SharedString::from(brief.map(|card| card.hit.as_str()).unwrap_or("")),
+            stat_magic: SharedString::from(brief.map(|card| card.magic.as_str()).unwrap_or("")),
+            stat_atk: SharedString::from(brief.map(|card| card.atk.as_str()).unwrap_or("")),
+            stat_exp: SharedString::from(brief.map(|card| card.exp.as_str()).unwrap_or("")),
+            drop1: drops[0].clone(),
+            drop2: drops[1].clone(),
+            drop3: drops[2].clone(),
+            drop4: drops[3].clone(),
+            drop_total,
+            battle,
+            has_battle,
             key: SharedString::from(hit.key),
             icon,
             has_icon,
@@ -162,6 +226,22 @@ pub(crate) fn plain_hits(hits: Vec<db::Hit>) -> Vec<Hit> {
         .map(|hit| Hit {
             title: SharedString::from(hit.title),
             subtitle: SharedString::from(hit.subtitle),
+            detail: SharedString::default(),
+            stat_kind: SharedString::default(),
+            stat_element: SharedString::default(),
+            stat_hp: SharedString::default(),
+            stat_mp: SharedString::default(),
+            stat_hit: SharedString::default(),
+            stat_magic: SharedString::default(),
+            stat_atk: SharedString::default(),
+            stat_exp: SharedString::default(),
+            drop1: Image::default(),
+            drop2: Image::default(),
+            drop3: Image::default(),
+            drop4: Image::default(),
+            drop_total: 0,
+            battle: Image::default(),
+            has_battle: false,
             key: SharedString::from(hit.key),
             icon: Image::default(),
             has_icon: false,

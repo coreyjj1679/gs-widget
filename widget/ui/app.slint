@@ -3,6 +3,22 @@ import { Palette, LineEdit, TextEdit } from "std-widgets.slint";
 export struct Hit {
     title: string,
     subtitle: string,
+    detail: string,
+    stat-kind: string,
+    stat-element: string,
+    stat-hp: string,
+    stat-mp: string,
+    stat-hit: string,
+    stat-magic: string,
+    stat-atk: string,
+    stat-exp: string,
+    drop1: image,
+    drop2: image,
+    drop3: image,
+    drop4: image,
+    drop-total: int,
+    battle: image,
+    has-battle: bool,
     key: string,
     icon: image,
     has-icon: bool,
@@ -1066,6 +1082,220 @@ component HitRow inherits Rectangle {
     }
 }
 
+component MetaRow inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    visible: value != "";
+    height: value == "" ? 0px : 16px;
+    HorizontalLayout {
+        width: 100%;
+        height: 100%;
+        spacing: 8px;
+        Text {
+            width: 52px;
+            text: root.label;
+            font-size: 11px;
+            color: #8a8076;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.value;
+            font-size: 12px;
+            color: #f3efe8;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+component ModeButton inherits Rectangle {
+    in property <bool> gallery: false;
+    in property <bool> active: false;
+    callback clicked();
+    horizontal-stretch: 0;
+    width: 36px;
+    height: 28px;
+    border-radius: 7px;
+    background: active ? #d4b483 : #1c1916;
+    border-width: 1px;
+    border-color: active ? #d4b483 : #3a342c;
+    property <color> ink: active ? #1a140e : #d4b483;
+    if !root.gallery: Rectangle {
+        x: 10px;
+        y: 7px;
+        width: 16px;
+        height: 2px;
+        border-radius: 1px;
+        background: root.ink;
+    }
+    if !root.gallery: Rectangle {
+        x: 10px;
+        y: 13px;
+        width: 16px;
+        height: 2px;
+        border-radius: 1px;
+        background: root.ink;
+    }
+    if !root.gallery: Rectangle {
+        x: 10px;
+        y: 19px;
+        width: 16px;
+        height: 2px;
+        border-radius: 1px;
+        background: root.ink;
+    }
+    if root.gallery: Rectangle {
+        x: 9px;
+        y: 6px;
+        width: 7px;
+        height: 7px;
+        border-radius: 1px;
+        background: root.ink;
+    }
+    if root.gallery: Rectangle {
+        x: 19px;
+        y: 6px;
+        width: 7px;
+        height: 7px;
+        border-radius: 1px;
+        background: root.ink;
+    }
+    if root.gallery: Rectangle {
+        x: 9px;
+        y: 16px;
+        width: 7px;
+        height: 7px;
+        border-radius: 1px;
+        background: root.ink;
+    }
+    if root.gallery: Rectangle {
+        x: 19px;
+        y: 16px;
+        width: 7px;
+        height: 7px;
+        border-radius: 1px;
+        background: root.ink;
+    }
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+    }
+}
+
+component MonsterCard inherits Rectangle {
+    in property <Hit> hit;
+    in property <bool> selected: false;
+    in property <string> no-image-label: "沒有圖片";
+    in property <bool> english: false;
+    callback clicked();
+    callback favourite-clicked();
+    height: 214px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: selected ? #d4b483 : #3a342c;
+    background: selected ? #2a241e : (area.has-hover ? #241f1b : #1c1914);
+    area := TouchArea {
+        width: parent.width - 40px;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+        HorizontalLayout {
+            width: 100%;
+            height: 100%;
+            padding-left: 8px;
+            padding-right: 4px;
+            spacing: 8px;
+            Rectangle {
+                width: root.hit.has-battle ? 168px : 88px;
+                height: 100%;
+                HorizontalLayout {
+                    width: 100%;
+                    height: 100%;
+                    alignment: center;
+                    spacing: 6px;
+                    cross-axis-alignment: center;
+                    if root.hit.has-icon: Image {
+                        source: root.hit.icon;
+                        width: 72px;
+                        height: 72px;
+                        image-fit: contain;
+                    }
+                    if root.hit.no-image && !root.hit.has-battle: NoImage {
+                        side: 72px;
+                        label: root.no-image-label;
+                    }
+                    if root.hit.has-battle: Image {
+                        source: root.hit.battle;
+                        width: 84px;
+                        height: 120px;
+                        image-fit: contain;
+                    }
+                }
+            }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                min-width: 0px;
+                padding-top: 8px;
+                padding-bottom: 8px;
+                spacing: 1px;
+                Text {
+                    text: root.hit.title;
+                    font-size: 15px;
+                    font-weight: 600;
+                    color: #f3efe8;
+                    overflow: elide;
+                }
+                if root.hit.subtitle != "": Text {
+                    text: root.hit.subtitle;
+                    font-size: 12px;
+                    color: #d4b483;
+                    overflow: elide;
+                }
+                MetaRow { label: root.english ? "Type" : "種類"; value: root.hit.stat-kind; }
+                MetaRow { label: root.english ? "Element" : "屬性"; value: root.hit.stat-element; }
+                MetaRow { label: root.english ? "HP" : "體力"; value: root.hit.stat-hp; }
+                MetaRow { label: root.english ? "MP" : "魔力"; value: root.hit.stat-mp; }
+                MetaRow { label: root.english ? "Hit" : "打擊"; value: root.hit.stat-hit; }
+                MetaRow { label: root.english ? "Magic" : "魔法"; value: root.hit.stat-magic; }
+                MetaRow { label: root.english ? "Attack" : "攻擊"; value: root.hit.stat-atk; }
+                MetaRow { label: root.english ? "Exp" : "經驗"; value: root.hit.stat-exp; }
+                if root.hit.drop-total > 0: HorizontalLayout {
+                    height: 26px;
+                    spacing: 4px;
+                    alignment: start;
+                    Text {
+                        width: 52px;
+                        text: root.english ? "Drops" : "掉落";
+                        font-size: 11px;
+                        color: #8a8076;
+                        vertical-alignment: center;
+                    }
+                    if root.hit.drop1.width > 0: Image { source: root.hit.drop1; width: 22px; height: 22px; image-fit: contain; }
+                    if root.hit.drop2.width > 0: Image { source: root.hit.drop2; width: 22px; height: 22px; image-fit: contain; }
+                    if root.hit.drop3.width > 0: Image { source: root.hit.drop3; width: 22px; height: 22px; image-fit: contain; }
+                    if root.hit.drop4.width > 0: Image { source: root.hit.drop4; width: 22px; height: 22px; image-fit: contain; }
+                    if root.hit.drop-total > 4: Text {
+                        text: "+" + (root.hit.drop-total - 4);
+                        font-size: 11px;
+                        color: #d4b483;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+    StarMark {
+        x: parent.width - 36px;
+        y: 8px;
+        filled: root.hit.favourite;
+        clicked => { root.favourite-clicked(); }
+    }
+}
+
 component DockChip inherits Rectangle {
     in property <image> logo;
     in property <string> glyph: "";
@@ -1267,6 +1497,8 @@ export component App inherits Window {
     in-out property <string> sheet-note;
     in-out property <image> item-icon;
     in-out property <bool> show-icon;
+    in-out property <image> battle-icon;
+    in-out property <bool> show-battle: false;
     in-out property <image> element-icon;
     in-out property <bool> show-element: false;
     in-out property <bool> copied: false;
@@ -1275,6 +1507,7 @@ export component App inherits Window {
     in-out property <bool> favourites-only: false;
     in-out property <bool> stick-cursor: false;
     in-out property <bool> viewing-monster: false;
+    in-out property <bool> monster-gallery: false;
     in-out property <bool> viewing-recipe: false;
     in-out property <bool> viewing-quest: false;
     in-out property <bool> viewing-npc: false;
@@ -1653,6 +1886,7 @@ export component App inherits Window {
         root.query = "";
         root.detail = "";
         root.show-icon = false;
+        root.show-battle = false;
         root.show-element = false;
         root.form-open = false;
         root.drops-open = false;
@@ -1684,6 +1918,7 @@ export component App inherits Window {
             root.viewing-favourite = false;
             root.detail = "";
             root.show-icon = false;
+            root.show-battle = false;
             root.show-element = false;
         } else if (root.category == "quest" && root.area != "") {
             root.search-open = false;
@@ -1852,15 +2087,15 @@ export component App inherits Window {
         if (root.hits.length == 0) {
             return;
         }
-        let row = index * 52px;
+        let row = index * root.list-row;
         let view = root.list-view;
         let top = -root.list-offset;
         if (row < top) {
             root.list-offset = -row;
-        } else if (row + 52px > top + view) {
-            root.list-offset = view - row - 52px;
+        } else if (row + root.list-row > top + view) {
+            root.list-offset = view - row - root.list-row;
         }
-        let floor = min(0px, view - root.hits.length * 52px);
+        let floor = min(0px, view - root.hits.length * root.list-row);
         if (root.list-offset < floor) {
             root.list-offset = floor;
         }
@@ -1877,7 +2112,7 @@ export component App inherits Window {
         }
         let stride = related-list ? 52px : root.card-sheet ? root.link-row : 36px;
         let row = index * stride;
-        let view = related-list ? root.drops-panel-h : root.viewing-hero ? max(root.height - root.foot - 136px, 180px) : root.quest-sheet ? root.quest-scalar-h : root.card-sheet ? root.card-list-h : root.drops-view;
+        let view = related-list ? root.related-list-h : root.monster-sheet ? root.drops-list-h : root.viewing-hero ? max(root.height - root.foot - 136px, 180px) : root.quest-sheet ? root.quest-scalar-h : root.card-sheet ? root.card-list-h : root.drops-view;
         let tail = root.quest-sheet ? root.reward-facts.length * 30px : 0px;
         let top = -root.drop-offset;
         if (row < top) {
@@ -2638,6 +2873,8 @@ export component App inherits Window {
 
     in-out property <bool> search-open: false;
     property <bool> set-browser: category == "item" && place == "set" && viewing == "";
+    property <bool> monster-cards: category == "monster" && viewing == "" && (place != "" || favourites-only || (hits.length > 0 && hits[0].key.starts-with("monster:")));
+    property <length> list-row: monster-gallery && monster-cards ? 220px : 52px;
     property <length> search-y: category == "patch" ? 128px : set-browser || category == "monster" || category == "hero" || (category == "quest" && place == "main") ? 86px : 50px;
     property <length> list-y: search-open ? (category == "patch" ? 176px : set-browser || category == "monster" || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
     property <length> foot: 26px;
@@ -2688,13 +2925,21 @@ export component App inherits Window {
     property <length> side-gap: 14px;
     property <length> portrait-y: 58px;
     property <length> portrait-side: 120px;
-    property <length> toggle-y: portrait-y + portrait-side + (sheet-alt == "" ? 62px : 78px);
+    property <length> stage-h: 168px;
+    property <length> face-side: show-battle ? 96px : portrait-side;
+    property <length> face-x: show-battle ? side-gap + 8px : side-gap;
+    property <length> face-y: show-battle ? portrait-y + (stage-h - face-side) / 2 : portrait-y;
+    property <length> toggle-y: show-battle ? portrait-y + stage-h + 10px : portrait-y + portrait-side + (sheet-alt == "" ? 62px : 78px);
     property <length> body-room: max(root.height - foot - 42px - toggle-y - 16px, 120px);
     property <length> form-h: min(facts.length * 30px + 2px, body-room - (links.length > 0 ? 52px : 0px) - (related.length > 0 ? 44px : 0px));
     property <length> drops-header-y: form-open ? toggle-y + 52px + form-h : toggle-y + 44px;
-    property <length> related-header-y: links.length > 0 ? drops-header-y + 44px : drops-header-y;
-    property <length> drops-panel-y: (related.length > 0 ? related-header-y : drops-header-y) + 44px;
-    property <length> drops-panel-h: max(root.height - foot - 42px - drops-panel-y - 16px, 80px);
+    property <length> drops-list-y: drops-header-y + 44px;
+    property <length> drops-room: max(root.height - foot - 42px - drops-list-y - (related.length > 0 ? 60px : 12px), 72px);
+    property <length> drops-list-h: min(max(links.length * 36px, 36px), drops-room);
+    property <length> related-header-y: links.length == 0 ? drops-header-y : drops-open ? drops-list-y + drops-list-h + 8px : drops-header-y + 44px;
+    property <length> related-list-y: related-header-y + 44px;
+    property <length> related-room: max(root.height - foot - 42px - related-list-y - 12px, 72px);
+    property <length> related-list-h: min(max(related.length * 52px, 52px), related-room);
     property <length> stats-y: show-icon ? 124px : 48px;
     property <length> detail-block: links.length > 0 ? 132px : max(root.height - foot - stats-y - 80px, 80px);
     property <length> drops-y: stats-y + detail-block + 4px;
@@ -3214,7 +3459,7 @@ export component App inherits Window {
                     if root.category == "monster" && root.viewing == "": HorizontalLayout {
                         x: 14px;
                         y: 48px;
-                        width: 196px;
+                        width: max(root.width - 28px, 160px);
                         height: 28px;
                         spacing: 6px;
                         FilterChip {
@@ -3233,6 +3478,28 @@ export component App inherits Window {
                             clicked => {
                                 if (!root.favourites-only) {
                                     root.favourites-only = true;
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                        }
+                        if root.monster-cards: ModeButton {
+                            gallery: false;
+                            active: !root.monster-gallery;
+                            clicked => {
+                                if (root.monster-gallery) {
+                                    root.monster-gallery = false;
+                                    root.list-offset = 0px;
+                                    root.query-changed(root.category, root.query);
+                                }
+                            }
+                        }
+                        if root.monster-cards: ModeButton {
+                            gallery: true;
+                            active: root.monster-gallery;
+                            clicked => {
+                                if (!root.monster-gallery) {
+                                    root.monster-gallery = true;
+                                    root.list-offset = 0px;
                                     root.query-changed(root.category, root.query);
                                 }
                             }
@@ -3311,20 +3578,43 @@ export component App inherits Window {
                             return reject;
                         }
                     }
-                    if root.viewing == "": list := Flickable {
+                    if root.viewing == "" && !(root.monster-gallery && root.monster-cards): list := Flickable {
                         x: 14px;
                         y: root.list-y;
                         width: max(root.width - 28px, 40px);
                         height: root.list-view;
                         content-width: self.width;
-                        content-height: max(root.hits.length * 52px, 1px);
+                        content-height: max(root.hits.length * root.list-row, 1px);
                         content-y <=> root.list-offset;
                         for row[i] in root.hits: HitRow {
                             x: 0px;
-                            y: i * 52px;
+                            y: i * root.list-row;
                             width: max(root.width - 28px, 40px);
                             selected: root.cursor == i;
                             hit: row;
+                            no-image-label: root.no-image-label;
+                            clicked => {
+                                root.cursor = i;
+                                root.open-hit(row.key);
+                            }
+                            favourite-clicked => { root.toggle-favourite(row.key); }
+                        }
+                    }
+                    if root.viewing == "" && root.monster-gallery && root.monster-cards: gallery := Flickable {
+                        x: 14px;
+                        y: root.list-y;
+                        width: max(root.width - 28px, 40px);
+                        height: root.list-view;
+                        content-width: self.width;
+                        content-height: max(root.hits.length * root.list-row, 1px);
+                        content-y <=> root.list-offset;
+                        for row[i] in root.hits: MonsterCard {
+                            x: 0px;
+                            y: i * root.list-row;
+                            width: max(root.width - 28px, 40px);
+                            selected: root.cursor == i;
+                            hit: row;
+                            english: root.lang == "en-zh";
                             no-image-label: root.no-image-label;
                             clicked => {
                                 root.cursor = i;
@@ -3339,12 +3629,30 @@ export component App inherits Window {
                         text: root.query == "" ? (root.lang == "en-zh" ? "No favourites yet. Press Enter on a monster." : "還沒有收藏。在怪物上按 Enter。") : (root.lang == "en-zh" ? "No matches" : "沒有符合的收藏");
                         color: #a3988c;
                     }
-                    if root.viewing-monster && root.show-icon: Image {
+                    if root.viewing-monster && root.show-battle: Rectangle {
                         x: root.side-gap;
                         y: root.portrait-y;
-                        width: root.portrait-side;
-                        height: root.portrait-side;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        height: root.stage-h;
+                        border-radius: 12px;
+                        background: #1c1916;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                    }
+                    if root.viewing-monster && root.show-icon: Image {
+                        x: root.face-x;
+                        y: root.face-y;
+                        width: root.face-side;
+                        height: root.face-side;
                         source: root.item-icon;
+                        image-fit: contain;
+                    }
+                    if root.viewing-monster && root.show-battle: Image {
+                        x: parent.width - root.side-gap - 116px;
+                        y: root.portrait-y + 6px;
+                        width: 108px;
+                        height: root.stage-h - 12px;
+                        source: root.battle-icon;
                         image-fit: contain;
                     }
                     if root.record-sheet && root.show-icon: Image {
@@ -3392,8 +3700,8 @@ export component App inherits Window {
                         overflow: elide;
                     }
                     if root.viewing-monster && root.show-element: Image {
-                        x: root.side-gap + root.portrait-side - 22px;
-                        y: root.portrait-y + root.portrait-side - 22px;
+                        x: root.face-x + root.face-side - 22px;
+                        y: root.face-y + root.face-side - 22px;
                         width: 28px;
                         height: 28px;
                         source: root.element-icon;
@@ -3407,7 +3715,7 @@ export component App inherits Window {
                         source: root.element-icon;
                         image-fit: contain;
                     }
-                    if root.monster-sheet: Text {
+                    if root.monster-sheet && !root.show-battle: Text {
                         x: root.side-gap;
                         y: root.portrait-y + root.portrait-side + 10px;
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -3418,7 +3726,7 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet && root.sheet-alt != "": Text {
+                    if root.monster-sheet && !root.show-battle && root.sheet-alt != "": Text {
                         x: root.side-gap;
                         y: root.portrait-y + root.portrait-side + 32px;
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -3428,10 +3736,41 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet: Text {
+                    if root.monster-sheet && !root.show-battle: Text {
                         x: root.side-gap;
                         y: root.portrait-y + root.portrait-side + (root.sheet-alt == "" ? 34px : 50px);
                         width: max(parent.width - 2 * root.side-gap, 40px);
+                        text: root.sheet-code;
+                        font-size: 12px;
+                        color: #a3988c;
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+                    if root.monster-sheet && root.show-battle: Text {
+                        x: root.face-x + root.face-side + 12px;
+                        y: root.portrait-y + (root.stage-h - (root.sheet-alt == "" ? 42px : 60px)) / 2;
+                        width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
+                        text: root.sheet-title;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: #f3efe8;
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+                    if root.monster-sheet && root.show-battle && root.sheet-alt != "": Text {
+                        x: root.face-x + root.face-side + 12px;
+                        y: root.portrait-y + (root.stage-h - 60px) / 2 + 22px;
+                        width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
+                        text: root.sheet-alt;
+                        font-size: 13px;
+                        color: #d4b483;
+                        horizontal-alignment: left;
+                        overflow: elide;
+                    }
+                    if root.monster-sheet && root.show-battle: Text {
+                        x: root.face-x + root.face-side + 12px;
+                        y: root.portrait-y + (root.stage-h - (root.sheet-alt == "" ? 42px : 60px)) / 2 + (root.sheet-alt == "" ? 22px : 42px);
+                        width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
                         text: root.sheet-code;
                         font-size: 12px;
                         color: #a3988c;
@@ -3896,9 +4235,9 @@ export component App inherits Window {
                     }
                     if root.monster-sheet && root.related-open: related-list := Flickable {
                         x: root.side-gap;
-                        y: root.drops-panel-y;
+                        y: root.related-list-y;
                         width: max(parent.width - 2 * root.side-gap, 40px);
-                        height: root.drops-panel-h;
+                        height: root.related-list-h;
                         content-width: self.width;
                         content-height: max(root.related.length * 52px, 1px);
                         content-y <=> root.drop-offset;
@@ -3919,9 +4258,9 @@ export component App inherits Window {
                     }
                     if root.viewing != "" && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.links.length > 0 && (!root.monster-sheet || root.drops-open) && !root.related-open: drops := Flickable {
                         x: root.monster-sheet ? root.side-gap : 0px;
-                        y: root.monster-sheet ? root.drops-panel-y : (root.viewing-hero ? 124px : 240px);
+                        y: root.monster-sheet ? root.drops-list-y : (root.viewing-hero ? 124px : 240px);
                         width: root.monster-sheet ? max(parent.width - 2 * root.side-gap, 40px) : max(root.width - 28px, 40px);
-                        height: root.monster-sheet ? root.drops-panel-h : (root.viewing-hero ? max(root.height - foot - 136px, 180px) : max(root.height - foot - 310px, 120px));
+                        height: root.monster-sheet ? root.drops-list-h : (root.viewing-hero ? max(root.height - foot - 136px, 180px) : max(root.height - foot - 310px, 120px));
                         content-width: self.width;
                         content-height: max(root.links.length * 36px, 1px);
                         content-y <=> root.drop-offset;
