@@ -1209,7 +1209,7 @@ mod windows {
         let flags = if exclusive { 3 } else { 1 };
         if unsafe { LockFileEx(file.as_raw_handle(), flags, 0, 1, 0, &mut overlapped) } == 0 {
             return Err(if exclusive {
-                "Close every other gs-widget window before updating. No installed files were changed".into()
+                "Close every other gs-widget window and disconnect Gersang MCP in your AI apps before updating. No installed files were changed".into()
             } else {
                 "This application folder is being updated. Wait for the update to finish, then open it again".into()
             });

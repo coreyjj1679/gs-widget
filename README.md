@@ -53,6 +53,12 @@ The F1–F9 shortcuts may require holding Fn/Globe, depending on your keyboard s
 
 ## Interface
 
+### AI assistants / MCP
+
+The current source includes a local, read-only MCP server. In **Full / 完整** mode, choose **MCP** at the bottom of the sidebar for Codex, Cursor and Claude setup instructions. Copy buttons use this installation's actual executable and catalog paths. The compact widget has no MCP page.
+
+The same executable runs without a window when an AI client launches it with `--mcp`. It provides catalog search, details, monster drops, quest dependencies, recipes and cost calculation from user-supplied prices. You do not need Node.js, Python, an API key or a separate server. See [MCP.md](MCP.md) for desktop setup, limitations and verification. This feature requires a build containing these changes; older released ZIPs do not include it.
+
 Use **Full / 完整** for the desktop workspace: persistent category navigation, category search, monster comparisons, and a list beside the selected record's details. The overview provides quick entries and saved monsters. Full mode supports windows down to 960 × 640 logical pixels.
 
 Use **Widget / 小窗** for the compact interface, or **–** for the floating category bar. Full and widget modes share the same slate colors, bronze accents and control styling while keeping their different layouts and density. The floating bar uses the same palette with a translucent background; your window opacity setting still applies. Both systems share the Slint interface; macOS uses PingFang TC and Windows uses Microsoft JhengHei UI. See [DESIGN.md](DESIGN.md) for the implemented design tokens and layout rules.

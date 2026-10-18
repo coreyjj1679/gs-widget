@@ -1,5 +1,6 @@
 import { Palette, LineEdit, TextEdit, Button, ComboBox } from "std-widgets.slint";
 import { DesktopTheme, DesktopNavRow, DesktopEntry, DesktopIcon } from "desktop.slint";
+import { McpPane } from "mcp.slint";
 import { QuestRoadmap, QuestMapNode, QuestMapSegment } from "quest-roadmap.slint";
 export { QuestMapNode, QuestMapSegment }
 import { QuestGroupDirectory, QuestBrowseGroup } from "quest-group-directory.slint";
@@ -4390,12 +4391,24 @@ export component App inherits Window {
     in-out property <bool> full-mode: false;
     callback mode-changed(bool);
     property <length> nav-w: root.width < 1100px ? 176px : 208px;
-    property <length> nav-footer-h: root.updates-supported ? 144px : 112px;
+    property <length> nav-footer-h: root.updates-supported ? 188px : 156px;
     property <length> page-pad: root.full-mode ? 24px : 14px;
     property <length> pane-w: full-mode && !collapsed ? max(root.width - nav-w, 280px) : root.width;
     in-out property <bool> dock-menu: false;
     callback dock-drag(length, length);
     in-out property <bool> settings-open: false;
+    in-out property <bool> mcp-open: false;
+    in-out property <int> mcp-agent: 0;
+    in-out property <bool> mcp-windows: false;
+    in-out property <string> mcp-command;
+    in-out property <string> mcp-database;
+    in-out property <string> mcp-codex-config;
+    in-out property <string> mcp-cursor-config;
+    in-out property <string> mcp-claude-config;
+    in-out property <string> mcp-claude-cli;
+    in-out property <string> mcp-setup-error;
+    in-out property <string> mcp-copy-notice;
+    callback mcp-copy(string);
     in-out property <[Hit]> hits;
     in-out property <[Hit]> links;
     in-out property <[Hit]> related;
@@ -4629,6 +4642,7 @@ export component App inherits Window {
     resize-border-width: 6px;
 
     function open-category(id: string) {
+        root.mcp-open = false;
         root.calculator-open = false;
         root.quest-map-open = false;
         root.category = id;
@@ -4888,6 +4902,7 @@ export component App inherits Window {
     }
 
     function go-home() {
+        root.mcp-open = false;
         root.calculator-open = false;
         if (root.collapsed) {
             root.collapsed = false;
@@ -5711,7 +5726,7 @@ export component App inherits Window {
             RecordInfo.text = "";
             return accept;
         }
-        if (!root.settings-open && !root.collapsed && !root.calculator-open && (event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) {
+        if (!root.settings-open && !root.collapsed && !root.calculator-open && !root.mcp-open && (event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) {
             if (root.viewing == "" && root.cursor >= 0 && root.cursor < root.hits.length) {
                 RecordInfo.show(root.hits[root.cursor]);
             } else if (root.viewing-monster && root.related-open && root.cursor >= 0 && root.cursor < root.related.length) {
@@ -5734,7 +5749,7 @@ export component App inherits Window {
             root.shrink-window();
             return accept;
         }
-        if (root.calculator-open && !root.settings-open && !root.collapsed) {
+        if ((root.calculator-open || root.mcp-open) && !root.settings-open && !root.collapsed) {
             if (event.text == Key.Escape) { root.go-home(); return accept; }
             return reject;
         }
@@ -6411,7 +6426,7 @@ export component App inherits Window {
     changed full-mode => {
         root.hotkey-scope-changed(!root.full-mode);
         if (root.full-mode && root.settings-tab == 3) { root.select-settings(0); }
-        if (!root.full-mode) { root.calculator-open = false; }
+        if (!root.full-mode) { root.calculator-open = false; root.mcp-open = false; }
     }
 
     changed collapsed => {
@@ -6612,7 +6627,7 @@ export component App inherits Window {
                                 width: root.nav-w - 24px;
                                 label: root.lang == "en-zh" ? "Overview" : "圖鑑總覽";
                                 icon-path: "M3 10 L12 3 L21 10 M5 9 L5 21 L10 21 L10 14 L14 14 L14 21 L19 21 L19 9";
-                                selected: root.category == "" && !root.settings-open && !root.calculator-open;
+                                selected: root.category == "" && !root.settings-open && !root.calculator-open && !root.mcp-open;
                                 clicked => { root.go-home(); }
                             }
                             DesktopNavRow {
@@ -6730,7 +6745,7 @@ export component App inherits Window {
                         }
                         DesktopNavRow {
                             x: 12px;
-                            y: parent.height - 56px;
+                            y: parent.height - 100px;
                             width: root.nav-w - 24px;
                             glyph: "⚙️";
                             label: root.lang == "en-zh" ? "Settings" : "設定";
@@ -6743,6 +6758,15 @@ export component App inherits Window {
                                     root.settings-open = true;
                                 }
                             }
+                        }
+                        DesktopNavRow {
+                            x: 12px;
+                            y: parent.height - 56px;
+                            width: root.nav-w - 24px;
+                            label: "MCP";
+                            icon-path: "M8 3 L8 8 M16 3 L16 8 M5 8 L19 8 L19 12 L16 16 L8 16 L5 12 Z M12 16 L12 21";
+                            selected: root.mcp-open && !root.settings-open;
+                            clicked => { root.go-home(); root.mcp-open = true; root.mcp-copy-notice = ""; }
                         }
                     }
                     Rectangle {
@@ -6825,6 +6849,25 @@ export component App inherits Window {
 
             body := Rectangle {
                 vertical-stretch: 1;
+
+                if root.full-mode && root.mcp-open && !root.settings-open: McpPane {
+                    x: root.page-pad; y: 18px;
+                    width: parent.width - root.page-pad * 2;
+                    height: parent.height - root.foot - 30px;
+                    english: root.lang == "en-zh";
+                    windows: root.mcp-windows;
+                    agent <=> root.mcp-agent;
+                    command: root.mcp-command;
+                    database: root.mcp-database;
+                    codex-config: root.mcp-codex-config;
+                    cursor-config: root.mcp-cursor-config;
+                    claude-config: root.mcp-claude-config;
+                    claude-cli: root.mcp-claude-cli;
+                    setup-error: root.mcp-setup-error;
+                    copy-notice: root.mcp-copy-notice;
+                    copy(text) => { root.mcp-copy(text); }
+                    agent-changed => { root.mcp-copy-notice = ""; }
+                }
 
                 if root.full-mode && root.calculator-open && !root.settings-open: CalculatorPane {
                     x: root.page-pad; y: 18px;
@@ -7001,7 +7044,7 @@ export component App inherits Window {
                     }
                 }
 
-                if root.category == "" && !root.settings-open && !root.calculator-open && root.full-mode: Flickable {
+                if root.category == "" && !root.settings-open && !root.calculator-open && !root.mcp-open && root.full-mode: Flickable {
                     x: 0px; y: 0px;
                     width: 100%;
                     height: parent.height - root.foot;
@@ -9722,7 +9765,7 @@ export component App inherits Window {
             }
         }
 
-        if RecordInfo.text != "" && !root.settings-open && !root.collapsed && !root.calculator-open: Rectangle {
+        if RecordInfo.text != "" && !root.settings-open && !root.collapsed && !root.calculator-open && !root.mcp-open: Rectangle {
             x: root.width - self.width - 16px;
             y: 58px;
             width: min(440px, root.pane-w - 32px);
