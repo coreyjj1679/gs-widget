@@ -1,10 +1,12 @@
 param(
-    [Parameter(Mandatory = $true)][string]$BaselineZip,
-    [Parameter(Mandatory = $true)][string]$TestRoot
+    [Parameter(Mandatory = $true)][Alias("BaselineZip")][string]$AppZip,
+    [Parameter(Mandatory = $true)][string]$TestRoot,
+    [string]$ExpectedVersion = "1.0.0",
+    [string]$ExpectedSha256 = "5e036aad294b60cab04f4ca22271f28bedd5b47e281cced5a463561f88230098"
 )
 
 # Diagnose startup geometry independently of updating. This runs the immutable
-# published v1.0.0 executable with disposable preferences; no updater is invoked.
+# packaged executable with disposable preferences; no updater is invoked.
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 if (-not $IsWindows) { throw "Full-mode probe requires PowerShell 7 on Windows" }
@@ -101,25 +103,40 @@ function Read-SavedMode {
     return "missing"
 }
 
-$archive = (Resolve-Path -LiteralPath $BaselineZip).Path
+$archive = (Resolve-Path -LiteralPath $AppZip).Path
 $root = [System.IO.Path]::GetFullPath($TestRoot)
 if (Test-Path -LiteralPath $root) { throw "TestRoot must be a new disposable directory: $root" }
 $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($archiveHash -ne "5e036aad294b60cab04f4ca22271f28bedd5b47e281cced5a463561f88230098") {
-    throw "Full-mode probe requires the exact published v1.0.0 ZIP"
+if ($archiveHash -ne $ExpectedSha256) {
+    throw "Full-mode probe archive digest mismatch"
 }
 New-Item -ItemType Directory -Path $root | Out-Null
 $install = Join-Path $root "released app with spaces"
 Expand-Archive -LiteralPath $archive -DestinationPath $install
 $executable = Join-Path $install "gersang-widget.exe"
 $resource = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($executable)
+if ($resource.ProductVersion -ne $ExpectedVersion -or $resource.FileVersion -ne $ExpectedVersion) {
+    throw "Full-mode probe executable version mismatch"
+}
+$keysJson = @'
+import json, sqlite3, sys
+from contextlib import closing
+from pathlib import Path
+with closing(sqlite3.connect(Path(sys.argv[1]).resolve().as_uri() + "?mode=ro", uri=True)) as db:
+    print(json.dumps({table: [str(row[0]) for row in db.execute(f"SELECT code FROM {table} ORDER BY code LIMIT 2")] for table in ("items", "monsters")}))
+'@ | python - (Join-Path $install "data/gersang.db")
+if ($LASTEXITCODE -ne 0) { throw "Could not read catalogue keys for the full-mode probe" }
+$catalogKeys = $keysJson | ConvertFrom-Json
+if ($catalogKeys.items.Count -ne 2 -or $catalogKeys.monsters.Count -ne 2) {
+    throw "Full-mode probe needs two valid items and monsters"
+}
 $cases = [System.Collections.Generic.List[object]]::new()
 $report = [ordered]@{
     status = "running"
-    baselineArchiveSha256 = $archiveHash
-    baselineProductVersion = $resource.ProductVersion
-    baselineFileVersion = $resource.FileVersion
-    scope = "Published v1.0.0 normal startup only; no update/check-installation helper invoked"
+    archiveSha256 = $archiveHash
+    productVersion = $resource.ProductVersion
+    fileVersion = $resource.FileVersion
+    scope = "Packaged app normal startup only; no update/check-installation helper invoked"
     cases = $cases
 }
 $overrides = @{
@@ -153,12 +170,12 @@ try {
             $profileDirectory = Join-Path $profileRoot "gs-widget"
             New-Item -ItemType Directory -Path $profileDirectory -Force | Out-Null
             $env:LOCALAPPDATA = $profileRoot
-            $windowText = "size=560,740`npos=32,32`nmode=full`nfull-pos=32,32`nfull-size=$($size.Width),$($size.Height)`n"
+            $windowText = "size=560,600`npos=32,32`nmode=full`nfull-pos=32,32`nfull-size=$($size.Width),$($size.Height)`n"
             # Match the non-default preferences of the original failed fixture.
             $preferences = @{
                 "window.txt" = $windowText
-                "favourites.txt" = "D01`nD02`n"
-                "aliases.txt" = "# Dummy upgrade: Unicode aliases must survive.`n升級測試 1`nmy_dummy_alias 2`n"
+                "favourites.txt" = ($catalogKeys.monsters -join "`n") + "`n"
+                "aliases.txt" = "# Dummy upgrade: Unicode aliases must survive.`n升級測試 $($catalogKeys.items[0])`nmy_dummy_alias $($catalogKeys.items[1])`n"
                 "ui-lang.txt" = "en-zh"
                 "view.txt" = "pin=off`nbattle=0`ngallery=1`nanimate=0`nhotkeys=0`nlegacy=0`n"
                 "dock.txt" = "v=1`nshow=110111111`norder=8,7,6,5,4,3,2,1,0`nsize=84,580`n"
@@ -182,6 +199,7 @@ try {
                 finalWindowText = $null
                 finalSavedMode = $null
                 modePreserved = $false
+                geometryPreserved = $false
                 closedNormally = $false
                 passed = $false
             }
@@ -213,7 +231,17 @@ try {
                 $caseResult["finalSavedMode"] = Read-SavedMode -WindowText $caseResult.finalWindowText
                 $changedSamples = @($samples | Where-Object { $_.savedMode -ne "full" })
                 $caseResult["modePreserved"] = $caseResult.finalSavedMode -eq "full" -and $changedSamples.Count -eq 0
-                $caseResult["passed"] = $caseResult.modePreserved
+                $finalFields = @{}
+                foreach ($line in ($caseResult.finalWindowText -split "`n")) {
+                    $parts = $line.Trim() -split "=", 2
+                    if ($parts.Count -eq 2) { $finalFields[$parts[0]] = $parts[1] }
+                }
+                $lastGeometry = $samples[$samples.Count - 1].geometry.logicalClient
+                $caseResult["geometryPreserved"] = $finalFields["size"] -eq "560,600" -and `
+                    $finalFields["full-size"] -eq "$($size.Width),$($size.Height)" -and `
+                    [Math]::Abs($lastGeometry.width - $size.Width) -le 1 -and `
+                    [Math]::Abs($lastGeometry.height - $size.Height) -le 1
+                $caseResult["passed"] = $caseResult.modePreserved -and $caseResult.geometryPreserved
                 Write-Output "$caseName final saved mode: $($caseResult.finalSavedMode); preserved throughout observations: $($caseResult.modePreserved)"
                 Write-Output ($caseResult.finalWindowText | ConvertTo-Json -Compress)
             }
@@ -258,6 +286,6 @@ finally {
     $report | ConvertTo-Json -Depth 14 | Set-Content -LiteralPath (Join-Path $root "full-mode-probe.json") -Encoding utf8
 }
 if ($report.status -ne "passed") {
-    throw "Published v1.0.0 full-mode startup probe failed; inspect full-mode-probe.json for saved preferences and actual native geometry."
+    throw "v$ExpectedVersion full-mode startup probe failed; inspect full-mode-probe.json for saved preferences and actual native geometry."
 }
-Write-Output "Published v1.0.0 preserved full mode for all six isolated startup probes."
+Write-Output "v$ExpectedVersion preserved full mode and saved dimensions for all six isolated startup probes."

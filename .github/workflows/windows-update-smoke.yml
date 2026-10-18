@@ -180,9 +180,11 @@ jobs:
       - name: Exercise the released helper and real GUI restart in an isolated profile
         run: |
           ./scripts/smoke_windows_update.ps1 -BaselineZip "$env:RUNNER_TEMP/dummy-input/gs-widget-v1.0.0-windows-x64.zip" -CandidateZip "$env:RUNNER_TEMP/dummy-candidate/gs-widget-v1.0.1-windows-x64.zip" -TestRoot "$env:RUNNER_TEMP/gs widget dummy update"
-      - name: Diagnose saved full-mode startup on the published baseline
+      - name: Verify saved full-mode startup and dimensions on the candidate
         run: |
-          ./scripts/probe_windows_full_mode.ps1 -BaselineZip "$env:RUNNER_TEMP/dummy-input/gs-widget-v1.0.0-windows-x64.zip" -TestRoot "$env:RUNNER_TEMP/gs widget full mode"
+          $candidate = "$env:RUNNER_TEMP/dummy-candidate/gs-widget-v1.0.1-windows-x64.zip"
+          $digest = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+          ./scripts/probe_windows_full_mode.ps1 -AppZip $candidate -ExpectedVersion "1.0.1" -ExpectedSha256 $digest -TestRoot "$env:RUNNER_TEMP/gs widget full mode"
       - name: Save test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

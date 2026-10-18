@@ -630,16 +630,18 @@ fn main() {
         }
     });
 
-    if db::load_window().is_some_and(|pref| pref.full) {
+    let startup_window = db::load_window();
+    if startup_window.as_ref().is_some_and(|pref| pref.full) {
         app.set_full_mode(true);
     }
-    let saved_size = Rc::new(Cell::new(db::load_window().map(|pref| (pref.width, pref.height)).unwrap_or((560.0, 740.0))));
+    let saved_size = Rc::new(Cell::new(startup_window.as_ref().map(|pref| (pref.width, pref.height)).unwrap_or((560.0, 740.0))));
     let placed_size = Rc::clone(&saved_size);
     let dock_size = Rc::new(Cell::new((dock.width, dock.height)));
     let dock_vertical = Rc::new(Cell::new(dock.vertical));
     let dock_park = Rc::new(Cell::new((0i32, 0i32)));
     let expand_at = Rc::new(Cell::new(None::<(i32, i32)>));
     let size_hold = Rc::new(Cell::new(Instant::now()));
+    let startup_placed = Rc::new(Cell::new(false));
     let shown_at = Instant::now();
     let collapse_app = app.as_weak();
     let dock_while_open = Rc::clone(&dock_size);
@@ -710,14 +712,15 @@ fn main() {
     let watch_app = app.as_weak();
     let watch_dock = Rc::clone(&dock_size);
     let watch_hold = Rc::clone(&size_hold);
+    let watch_placed = Rc::clone(&startup_placed);
     let watch_full = Rc::new(Cell::new(
-        db::load_window()
+        startup_window.as_ref()
             .filter(|pref| pref.has_full_pos)
             .map(|pref| (pref.full_x, pref.full_y))
             .unwrap_or((0, 0)),
     ));
     let watch_full_size = Rc::new(Cell::new(
-        db::load_window()
+        startup_window.as_ref()
             .filter(|pref| pref.has_full_size)
             .map(|pref| (pref.full_width, pref.full_height))
             .unwrap_or((0.0, 0.0)),
@@ -727,7 +730,7 @@ fn main() {
     let watch_favs = Rc::clone(&favourites);
     let size_watch = Timer::default();
     size_watch.start(TimerMode::Repeated, Duration::from_millis(80), move || {
-        if Instant::now() < watch_hold.get() {
+        if !watch_placed.get() || Instant::now() < watch_hold.get() {
             return;
         }
         let Some(app) = watch_app.upgrade() else { return };
@@ -1528,10 +1531,11 @@ fn main() {
         }
     });
     let placed = app.as_weak();
+    let placed_hold = Rc::clone(&size_hold);
     Timer::single_shot(Duration::from_millis(40), move || {
         let Some(app) = placed.upgrade() else { return };
         let window = app.window();
-        if let Some(pref) = db::load_window() {
+        if let Some(pref) = startup_window {
             placed_size.set((pref.width, pref.height));
             if pref.full {
                 let (width, height) = if pref.has_full_size {
@@ -1549,6 +1553,10 @@ fn main() {
             placed_size.set((width, height));
             place_window(window, width, height, None);
         }
+        // Native resize events arrive after the placement request. Keep the
+        // watcher from saving the initial widget size over the restored mode.
+        placed_hold.set(Instant::now() + Duration::from_millis(500));
+        startup_placed.set(true);
         focus_window();
     });
     let anim_app = app.as_weak();

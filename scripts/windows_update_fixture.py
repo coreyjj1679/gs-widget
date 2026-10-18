@@ -94,9 +94,9 @@ def prepare(args) -> None:
         "home.txt": "size=2\norder=8,7,6,5,4,3,2,1,0\n",
         "opacity.txt": "85",
         "set-extra.txt": "1",
-        # Full mode automatically changes to widget below 960x640. Keep this
-        # updater fixture comfortably in widget mode on a hosted CI desktop,
-        # while retaining non-default remembered full-window geometry as data.
+        # Exercise widget mode here and retain remembered full-window geometry
+        # as data. The separate native full-mode probe checks startup restoration
+        # at three sizes, including the minimum full-mode dimensions.
         "window.txt": "size=560,600\npos=32,32\nmode=widget\nfull-pos=48,48\nfull-size=1120,720\n",
         "window-macos.txt": "preserve cross-platform personal settings\n",
         "client.txt": str(app / "data/client"),
