@@ -38,6 +38,8 @@ component ChangelogHistory inherits Rectangle {
                 color: DesktopTheme.text;
             }
             Text {
+                width: root.width;
+                height: self.preferred-height;
                 text: root.english ? "Release history included with this app. Available offline." : "此版本附帶的更新紀錄，離線也能閱讀。";
                 wrap: word-wrap;
                 font-size: 12px;
@@ -45,6 +47,8 @@ component ChangelogHistory inherits Rectangle {
             }
         }
         if root.releases.length == 0: Text {
+            width: root.width;
+            height: self.preferred-height;
             text: root.english ? "No release notes are included with this version." : "此版本尚未附帶更新日誌。";
             wrap: word-wrap;
             font-size: 13px;
@@ -79,28 +83,31 @@ component ChangelogHistory inherits Rectangle {
             for section in release.sections: VerticalLayout {
                 spacing: 7px;
                 Text {
+                    width: root.width;
+                    height: self.preferred-height;
                     text: root.english ? section.heading-en : section.heading-zh;
                     font-size: 13px;
                     font-weight: 600;
                     color: DesktopTheme.text;
                     wrap: word-wrap;
                 }
-                for entry in section.entries: HorizontalLayout {
-                    spacing: 8px;
-                    alignment: start;
+                for entry in section.entries: Rectangle {
+                    width: root.width;
+                    // Measure after applying the available width so wrapped
+                    // lines contribute to the enclosing scroll content height.
+                    height: entry-text.preferred-height;
                     Rectangle {
-                        width: 4px;
-                        Rectangle {
-                            y: 7px;
-                            width: 3px;
-                            height: 3px;
-                            border-radius: 2px;
-                            background: DesktopTheme.secondary;
-                        }
+                        x: 0px;
+                        y: 7px;
+                        width: 3px;
+                        height: 3px;
+                        border-radius: 2px;
+                        background: DesktopTheme.secondary;
                     }
-                    Text {
-                        horizontal-stretch: 1;
-                        min-width: 0px;
+                    entry-text := Text {
+                        x: 12px;
+                        width: parent.width - self.x;
+                        height: self.preferred-height;
                         text: root.english ? entry.text-en : entry.text-zh;
                         font-size: 13px;
                         color: DesktopTheme.text;
@@ -904,6 +911,7 @@ component AliasCard inherits Rectangle {
     in property <string> codes;
     in property <string> detail;
     in property <bool> editing;
+    in property <bool> full-mode: false;
     in-out property <string> name-draft;
     in-out property <string> codes-draft;
     callback name-edited(string);
@@ -950,7 +958,7 @@ component AliasCard inherits Rectangle {
             cross-axis-alignment: center;
             Text {
                 text: root.name;
-                width: 72px;
+                width: root.full-mode ? min(240px, max(root.width * 0.28, 144px)) : 72px;
                 horizontal-stretch: 0;
                 font-size: 14px;
                 font-weight: 700;
@@ -1000,7 +1008,7 @@ component AliasCard inherits Rectangle {
         }
         if editing: HorizontalLayout {
             spacing: 8px;
-            alignment: start;
+            alignment: root.full-mode ? stretch : start;
             cross-axis-alignment: center;
             Rectangle {
                 horizontal-stretch: 2;
@@ -1033,6 +1041,7 @@ component AliasCard inherits Rectangle {
             }
         }
         if editing: HorizontalLayout {
+            width: root.full-mode ? 200px : root.width - 16px;
             spacing: 8px;
             LangChip {
                 label: root.save-label;
@@ -1052,7 +1061,7 @@ component AliasCard inherits Rectangle {
                 visible: icon.aside == root.row-mark;
                 height: icon.aside == root.row-mark ? 32px : 0px;
                 spacing: 8px;
-                alignment: start;
+                alignment: root.full-mode ? stretch : start;
                 if icon.aside == root.row-mark && icon.has-icon: Image {
                     width: 28px;
                     height: 28px;
@@ -1067,6 +1076,7 @@ component AliasCard inherits Rectangle {
                 }
                 if icon.aside == root.row-mark: Text {
                     horizontal-stretch: 1;
+                    min-width: 0px;
                     text: icon.title;
                     font-size: 13px;
                     color: DesktopTheme.text;
@@ -1107,7 +1117,7 @@ component AliasCard inherits Rectangle {
                     padding-left: 8px;
                     padding-right: 8px;
                     spacing: 8px;
-                    alignment: start;
+                    alignment: root.full-mode ? stretch : start;
                     cross-axis-alignment: center;
                     height: 100%;
                     Rectangle {
@@ -1131,6 +1141,7 @@ component AliasCard inherits Rectangle {
                     }
                     Text {
                         horizontal-stretch: 1;
+                        min-width: 0px;
                         text: hit.title;
                         font-size: 13px;
                         color: DesktopTheme.text;
@@ -1205,6 +1216,7 @@ component DockSortRow inherits Rectangle {
     callback grip-pressed(length);
     callback grip-moved(length);
     callback grip-released();
+    callback grip-cancelled();
     height: 44px;
     border-radius: 8px;
     background: lifted ? DesktopTheme.raised : (marked ? DesktopTheme.selection-low : DesktopTheme.surface);
@@ -1281,6 +1293,9 @@ component DockSortRow inherits Rectangle {
                     if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
                         root.grip-released();
                     }
+                    if (event.kind == PointerEventKind.cancel) {
+                        root.grip-cancelled();
+                    }
                 }
                 moved => {
                     if (self.pressed) {
@@ -1315,29 +1330,26 @@ component DockSortRow inherits Rectangle {
 component KeyLine inherits Rectangle {
     in property <string> keys;
     in property <string> action;
-    height: 28px;
+    in property <bool> wrap-action: false;
+    property <length> key-width: wrap-action ? 96px : 188px;
+    height: wrap-action ? max(28px, action-copy.preferred-height + 8px) : 28px;
     HorizontalLayout {
-        spacing: 16px;
+        width: 100%; height: 100%; spacing: 16px;
         key-box := Rectangle {
-            width: 188px;
+            width: root.key-width;
             clip: true;
             Text {
-                width: parent.width;
-                height: 100%;
-                text: root.keys;
-                font-size: 13px;
-                font-weight: 600;
-                color: DesktopTheme.accent;
-                vertical-alignment: center;
-                overflow: elide;
+                width: parent.width; height: 100%;
+                text: root.keys; font-size: 13px; font-weight: 600;
+                color: DesktopTheme.accent; vertical-alignment: center; overflow: elide;
             }
         }
-        Text {
+        action-copy := Text {
+            width: max(root.width - root.key-width - 16px, 40px);
             horizontal-stretch: 1;
-            text: root.action;
-            font-size: 13px;
-            color: DesktopTheme.secondary;
+            text: root.action; font-size: 13px; color: DesktopTheme.secondary;
             vertical-alignment: center;
+            wrap: root.wrap-action ? word-wrap : no-wrap;
             overflow: elide;
         }
     }
@@ -3764,10 +3776,14 @@ export component App inherits Window {
     in-out property <bool> dock-editing: false;
     property <bool> nav-dragging: false;
     in-out property <int> settings-tab: 0;
+    property <bool> dock-sort-dragging: false;
     property <length> settings-scroll-y: 0px;
     property <length> settings-scroll-span: 0px;
+    changed settings-scroll-span => {
+        root.settings-scroll-y = max(-root.settings-scroll-span, min(root.settings-scroll-y, 0px));
+    }
     property <length> settings-page-height: max(root.height - 42px - root.foot - 96px, 0px);
-    changed settings-tab => { root.settings-scroll-y = 0px; }
+    changed settings-tab => { root.settings-scroll-y = 0px; root.dock-sort-dragging = false; }
     in-out property <bool> arranging: false;
     in-out property <int> hotkey-nth: 0;
     property <length> home-pad: 16px;
@@ -4077,6 +4093,7 @@ export component App inherits Window {
     }
 
     function close-settings() {
+        root.dock-sort-dragging = false;
         if (root.dock-editing) {
             root.dock-order-cancel();
             root.dock-editing = false;
@@ -4935,7 +4952,7 @@ export component App inherits Window {
             return reject;
         }
         if (root.settings-open) {
-            if (root.settings-tab == 4 && (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.PageUp || event.text == Key.PageDown)) {
+            if ((root.settings-tab == 4 || root.settings-tab == 1) && (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.PageUp || event.text == Key.PageDown)) {
                 let step = event.text == Key.PageUp || event.text == Key.PageDown ? max(root.settings-page-height - 32px, 48px) : 48px;
                 let direction = event.text == Key.UpArrow || event.text == Key.PageUp ? 1 : -1;
                 root.settings-scroll-y = max(-root.settings-scroll-span, min(0px, root.settings-scroll-y + direction * step));
@@ -7888,14 +7905,14 @@ export component App inherits Window {
                 x: 24px;
                 y: 16px;
                 text: root.lang == "en-zh" ? "Settings" : "設定";
-                font-size: 18px;
+                font-size: 21px;
                 font-weight: 600;
                 color: DesktopTheme.text;
             }
             Rectangle {
-                x: 16px;
+                x: root.full-mode ? 24px : 16px;
                 y: 52px;
-                width: min(parent.width - 32px, root.full-mode ? 640px : 300px);
+                width: root.full-mode ? parent.width - 48px : min(parent.width - 32px, 300px);
                 height: 32px;
                 border-radius: 8px;
                 clip: true;
@@ -7934,116 +7951,22 @@ export component App inherits Window {
                     }
                 }
             }
-            if root.settings-tab == 1: VerticalLayout {
-                x: 16px;
-                y: 96px;
-                width: min(parent.width - 32px, root.full-mode ? 640px : 300px);
-                height: parent.height - 112px;
-                spacing: 8px;
-                alignment: start;
-                Text {
-                    text: root.lang == "en-zh" ? "Direction" : "方向";
-                    font-size: 12px;
-                    color: DesktopTheme.secondary;
-                }
-                if root.full-mode: ChoiceBar {
-                    first: root.lang == "en-zh" ? "Row" : "橫向";
-                    second: root.lang == "en-zh" ? "Column" : "直向";
-                    picked: root.dock-vertical ? 1 : 0;
-                    pick(index) => {
-                        root.dock-vertical = index == 1;
-                        root.publish-dock();
-                    }
-                }
-                if !root.full-mode: HorizontalLayout {
-                    spacing: 8px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Row" : "橫向";
-                        active: !root.dock-vertical;
-                        clicked => {
-                            if (root.dock-vertical) {
-                                root.dock-vertical = false;
-                                root.publish-dock();
-                            }
-                        }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Column" : "直向";
-                        active: root.dock-vertical;
-                        clicked => {
-                            if (!root.dock-vertical) {
-                                root.dock-vertical = true;
-                                root.publish-dock();
-                            }
-                        }
-                    }
-                }
-                Text {
-                    text: root.lang == "en-zh" ? "Drag a row to change the order." : "按住一列拖曳，就能調整順序。";
-                    font-size: 13px;
-                    color: DesktopTheme.muted;
-                    wrap: word-wrap;
-                }
-                order-list := Rectangle {
-                    height: root.dock-draft.length * 48px;
-                    property <int> from-row: -1;
-                    property <int> over-row: -1;
-                    property <length> grab: 0px;
-                    property <length> nudge: 0px;
-                    for slot[i] in root.dock-draft: DockSortRow {
-                        x: order-list.from-row == i ? 8px : 0px;
-                        y: order-list.from-row == i ? max(0px, i * 48px + order-list.nudge) : i * 48px;
-                        width: order-list.from-row == i ? parent.width - 8px : parent.width;
-                        horizontal-stretch: 1;
-                        label: root.category-short(slot);
-                        logo: root.category-logo(slot);
-                        glyph: root.category-glyph(slot);
-                        badge: root.dock-on(slot) ? ("F" + root.visible-index(slot)) : "–";
-                        on: root.dock-on(slot);
-                        lifted: order-list.from-row == i;
-                        marked: order-list.over-row == i && order-list.from-row != i;
-                        toggled => { root.toggle-dock(slot); }
-                        grip-pressed(py) => {
-                            order-list.from-row = i;
-                            order-list.over-row = i;
-                            order-list.grab = py;
-                            order-list.nudge = 0px;
-                        }
-                        grip-moved(py) => {
-                            order-list.nudge = py - order-list.grab;
-                            let row = round((i * 48px + order-list.nudge) / 48px - 0.5);
-                            if (row < 0) {
-                                order-list.over-row = 0;
-                            } else if (row >= root.dock-draft.length) {
-                                order-list.over-row = root.dock-draft.length - 1;
-                            } else {
-                                order-list.over-row = row;
-                            }
-                        }
-                        grip-released => {
-                            if (order-list.from-row >= 0 && order-list.over-row >= 0 && order-list.from-row != order-list.over-row) {
-                                root.dock-moved(order-list.from-row, order-list.over-row);
-                            }
-                            order-list.from-row = -1;
-                            order-list.over-row = -1;
-                            order-list.nudge = 0px;
-                        }
-                    }
-                }
-            }
+
             settings-sheet := Flickable {
+                interactive: !root.dock-sort-dragging;
+                // Wheel and keyboard scroll the Bar; dragging its rows sorts them.
+                mouse-drag-pan-enabled: root.settings-tab != 1;
                 x: 0px;
                 y: 96px;
                 width: parent.width;
                 height: parent.height - 96px;
-                visible: root.settings-tab != 1;
-                content-width: settings-body.width;
+                content-width: self.width;
                 content-height: settings-body.height;
                 content-y <=> root.settings-scroll-y;
                 changed content-height => { root.settings-scroll-span = max(self.content-height - self.height, 0px); }
                 changed height => { root.settings-scroll-span = max(self.content-height - self.height, 0px); }
                 settings-body := Rectangle {
-                    width: root.full-mode ? min(parent.width - 16px, 688px) : parent.width;
+                    width: parent.width;
                     height: inner.preferred-height;
                     inner := VerticalLayout {
                 width: parent.width;
@@ -8051,156 +7974,298 @@ export component App inherits Window {
                 padding-bottom: 24px;
                 spacing: 16px;
                 alignment: start;
-                if root.settings-tab == 4: Text {
-                    text: root.lang == "en-zh" ? "App updates" : "程式更新";
-                    font-size: 18px;
-                    font-weight: 600;
-                    color: DesktopTheme.text;
-                }
-                if root.settings-tab == 4: Text {
-                    text: "Gersang v" + root.app-version;
-                    font-size: 14px;
-                    color: DesktopTheme.text;
-                }
-                if root.settings-tab == 4: Text {
-                    text: (root.lang == "en-zh" ? "Game data: " : "遊戲資料版本：") + root.client-version;
-                    font-size: 12px;
-                    color: DesktopTheme.secondary;
-                }
-                if root.settings-tab == 4: Text {
-                    text: root.update-status;
-                    font-size: 14px;
-                    color: DesktopTheme.text;
-                    wrap: word-wrap;
-                }
-                if root.settings-tab == 4 && root.update-state == 4: Rectangle {
-                    height: 4px;
-                    background: DesktopTheme.border;
-                    Rectangle {
-                        width: parent.width * root.update-progress / 100;
-                        height: parent.height;
-                        background: DesktopTheme.accent;
+                if root.settings-tab == 1: bar-layout := Rectangle {
+                    property <bool> split: root.full-mode && self.width >= 720px;
+                    property <length> column-w: self.split ? min(280px, self.width * 0.34) : self.width;
+                    height: self.split ? max(bar-left.preferred-height, bar-right.preferred-height) : bar-left.preferred-height + 24px + bar-right.preferred-height;
+                    bar-left := VerticalLayout {
+                        x: 0px; y: 0px; width: parent.column-w; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
+                        Text {
+                            text: root.lang == "en-zh" ? "Direction" : "方向";
+                            font-size: 12px;
+                            color: DesktopTheme.secondary;
+                        }
+                        if root.full-mode: ChoiceBar {
+                            first: root.lang == "en-zh" ? "Row" : "橫向";
+                            second: root.lang == "en-zh" ? "Column" : "直向";
+                            picked: root.dock-vertical ? 1 : 0;
+                            pick(index) => {
+                                root.dock-vertical = index == 1;
+                                root.publish-dock();
+                            }
+                        }
+                        if !root.full-mode: HorizontalLayout {
+                            spacing: 8px;
+                            LangChip {
+                                label: root.lang == "en-zh" ? "Row" : "橫向";
+                                active: !root.dock-vertical;
+                                clicked => {
+                                    if (root.dock-vertical) {
+                                        root.dock-vertical = false;
+                                        root.publish-dock();
+                                    }
+                                }
+                            }
+                            LangChip {
+                                label: root.lang == "en-zh" ? "Column" : "直向";
+                                active: root.dock-vertical;
+                                clicked => {
+                                    if (!root.dock-vertical) {
+                                        root.dock-vertical = true;
+                                        root.publish-dock();
+                                    }
+                                }
+                            }
+                        }
+                        Text {
+                            text: root.lang == "en-zh" ? "Drag a row to change the order." : "按住一列拖曳，就能調整順序。";
+                            font-size: 13px;
+                            color: DesktopTheme.muted;
+                            wrap: word-wrap;
+                        }
+                    }
+                    bar-right := VerticalLayout {
+                        x: parent.split ? parent.column-w + 24px : 0px;
+                        y: parent.split ? 0px : bar-left.preferred-height + 24px;
+                        width: parent.width - self.x; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
+                        order-list := Rectangle {
+                            height: root.dock-draft.length * 48px;
+                            property <int> from-row: -1;
+                            property <int> over-row: -1;
+                            property <length> grab: 0px;
+                            property <length> nudge: 0px;
+                            for slot[i] in root.dock-draft: DockSortRow {
+                                x: order-list.from-row == i ? 8px : 0px;
+                                y: order-list.from-row == i ? max(0px, i * 48px + order-list.nudge) : i * 48px;
+                                width: order-list.from-row == i ? parent.width - 8px : parent.width;
+                                horizontal-stretch: 1;
+                                label: root.category-short(slot);
+                                logo: root.category-logo(slot);
+                                glyph: root.category-glyph(slot);
+                                badge: root.dock-on(slot) ? ("F" + root.visible-index(slot)) : "–";
+                                on: root.dock-on(slot);
+                                lifted: order-list.from-row == i;
+                                marked: order-list.over-row == i && order-list.from-row != i;
+                                toggled => { root.toggle-dock(slot); }
+                                grip-pressed(py) => {
+                                    root.dock-sort-dragging = true;
+                                    order-list.from-row = i;
+                                    order-list.over-row = i;
+                                    order-list.grab = py;
+                                    order-list.nudge = 0px;
+                                }
+                                grip-moved(py) => {
+                                    order-list.nudge = py - order-list.grab;
+                                    let row = round((i * 48px + order-list.nudge) / 48px - 0.5);
+                                    if (row < 0) {
+                                        order-list.over-row = 0;
+                                    } else if (row >= root.dock-draft.length) {
+                                        order-list.over-row = root.dock-draft.length - 1;
+                                    } else {
+                                        order-list.over-row = row;
+                                    }
+                                }
+                                grip-released => {
+                                    root.dock-sort-dragging = false;
+                                    if (order-list.from-row >= 0 && order-list.over-row >= 0 && order-list.from-row != order-list.over-row) {
+                                        root.dock-moved(order-list.from-row, order-list.over-row);
+                                    }
+                                    order-list.from-row = -1;
+                                    order-list.over-row = -1;
+                                    order-list.nudge = 0px;
+                                }
+                                grip-cancelled => {
+                                    root.dock-sort-dragging = false;
+                                    order-list.from-row = -1;
+                                    order-list.over-row = -1;
+                                    order-list.nudge = 0px;
+                                }
+                            }
+                        }
                     }
                 }
-                if root.settings-tab == 4 && root.update-error != "": Text {
-                    text: root.update-error;
-                    color: DesktopTheme.secondary;
-                    font-size: 12px;
-                    wrap: word-wrap;
-                }
-                if root.settings-tab == 4 && root.updates-supported: Button {
-                    text: root.update-busy ? (root.lang == "en-zh" ? "Please wait…" : "請稍候…") : root.update-action;
-                    enabled: !root.update-busy;
-                    min-height: 36px;
-                    clicked => { root.request-update(); }
-                }
-                if root.settings-tab == 4 && root.updates-supported: Text {
-                    text: root.lang == "en-zh" ? "Your favourites, aliases and settings are kept when you update. You can keep browsing while the download runs." : "更新會保留收藏、別名和設定。下載期間可繼續使用圖鑑。";
-                    font-size: 12px;
-                    color: DesktopTheme.secondary;
-                    wrap: word-wrap;
-                }
-                if root.settings-tab == 4: ChangelogHistory {
-                    releases: root.changelog-releases;
-                    installed-version: root.app-version;
-                    english: root.lang == "en-zh";
-                }
-                if root.full-mode && root.settings-tab == 0: FormBlock {
-                    title: root.lang == "en-zh" ? "Window" : "視窗";
-                    HorizontalLayout {
-                        alignment: space-between;
+                if root.settings-tab == 4: app-layout := Rectangle {
+                    property <bool> split: root.full-mode && self.width >= 720px;
+                    property <length> column-w: self.split ? max(260px, self.width * 0.32) : self.width;
+                    height: self.split ? max(app-left.preferred-height, app-right.preferred-height) : app-left.preferred-height + (root.full-mode ? 24px : 16px) + app-right.preferred-height;
+                    app-left := VerticalLayout {
+                        x: 0px; y: 0px; width: parent.column-w; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
                         Text {
-                            text: root.lang == "en-zh" ? "Opacity" : "透明度";
-                            font-size: 13px;
+                            text: root.lang == "en-zh" ? "App updates" : "程式更新";
+                            font-size: 18px;
+                            font-weight: 600;
                             color: DesktopTheme.text;
-                            vertical-alignment: center;
                         }
                         Text {
-                            text: root.opacity-percent + "%";
-                            font-size: 13px;
-                            color: DesktopTheme.accent;
-                            vertical-alignment: center;
+                            text: "Gersang v" + root.app-version;
+                            font-size: 14px;
+                            color: DesktopTheme.text;
+                        }
+                        Text {
+                            text: (root.lang == "en-zh" ? "Game data: " : "遊戲資料版本：") + root.client-version;
+                            font-size: 12px;
+                            color: DesktopTheme.secondary;
+                        }
+                        Text {
+                            text: root.update-status;
+                            font-size: 14px;
+                            color: DesktopTheme.text;
+                            wrap: word-wrap;
+                        }
+                        if root.update-state == 4: Rectangle {
+                            height: 4px;
+                            background: DesktopTheme.border;
+                            Rectangle {
+                                width: parent.width * root.update-progress / 100;
+                                height: parent.height;
+                                background: DesktopTheme.accent;
+                            }
+                        }
+                        if root.update-error != "": Text {
+                            text: root.update-error;
+                            color: DesktopTheme.secondary;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                        if root.updates-supported: Button {
+                            text: root.update-busy ? (root.lang == "en-zh" ? "Please wait…" : "請稍候…") : root.update-action;
+                            enabled: !root.update-busy;
+                            min-height: 36px;
+                            clicked => { root.request-update(); }
+                        }
+                        if root.updates-supported: Text {
+                            text: root.lang == "en-zh" ? "Your favourites, aliases and settings are kept when you update. You can keep browsing while the download runs." : "更新會保留收藏、別名和設定。下載期間可繼續使用圖鑑。";
+                            font-size: 12px;
+                            color: DesktopTheme.secondary;
+                            wrap: word-wrap;
                         }
                     }
-                    OpacitySlider {
-                        value: root.window-opacity;
-                        edited(value) => {
-                            root.window-opacity = value;
-                            root.opacity-changed(value);
-                        }
-                    }
-                    Text {
-                        text: root.lang == "en-zh" ? "Stay on top" : "置頂";
-                        font-size: 13px;
-                        color: DesktopTheme.secondary;
-                    }
-                    ChoiceBar {
-                        first: root.lang == "en-zh" ? "Follow" : "跟隨";
-                        second: root.lang == "en-zh" ? "Always" : "置頂";
-                        third: root.lang == "en-zh" ? "Never" : "不置頂";
-                        picked: root.pin-top;
-                        pick(index) => { root.choose-pin(index); }
-                    }
-                    Text {
-                        text: root.lang == "en-zh" ? "Follow keeps only the small window above other programs." : "跟隨時，只有小窗會留在其他程式前面。";
-                        font-size: 12px;
-                        color: DesktopTheme.muted;
-                        wrap: word-wrap;
-                    }
-                }
-                if root.full-mode && root.settings-tab == 0: FormBlock {
-                    title: root.lang == "en-zh" ? "Widget monster layout" : "小窗怪物排列";
-                    ChoiceBar {
-                        first: root.lang == "en-zh" ? "List" : "清單";
-                        second: root.lang == "en-zh" ? "Gallery" : "圖鑑";
-                        picked: root.monster-gallery ? 1 : 0;
-                        pick(index) => { root.choose-gallery(index == 1); }
-                    }
-                    Text {
-                        text: root.lang == "en-zh" ? "List and gallery only change the small window." : "清單和圖鑑只影響小窗。";
-                        font-size: 12px;
-                        color: DesktopTheme.muted;
-                        wrap: word-wrap;
-                    }
-                }
-                if root.full-mode && root.settings-tab == 0: FormBlock {
-                    title: root.lang == "en-zh" ? "Names" : "名稱";
-                    ChoiceBar {
-                        first: root.lang == "en-zh" ? "Chinese first" : "中文在前";
-                        second: root.lang == "en-zh" ? "English first" : "英文在前";
-                        picked: root.lang == "en-zh" ? 1 : 0;
-                        pick(index) => { root.choose-lang(index == 1 ? "en-zh" : "zh-en"); }
-                    }
-                }
-                if root.full-mode && root.settings-tab == 0: FormBlock {
-                    title: root.lang == "en-zh" ? "Icons" : "圖示";
-                    ChoiceBar {
-                        first: root.lang == "en-zh" ? "Small" : "小";
-                        second: root.lang == "en-zh" ? "Medium" : "中";
-                        third: root.lang == "en-zh" ? "Large" : "大";
-                        picked: root.icon-size;
-                        pick(index) => {
-                            root.icon-size = index;
-                            root.icon-size-set(index);
+                    app-right := VerticalLayout {
+                        x: parent.split ? parent.column-w + 24px : 0px;
+                        y: parent.split ? 0px : app-left.preferred-height + (root.full-mode ? 24px : 16px);
+                        width: parent.width - self.x; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
+                        ChangelogHistory {
+                            releases: root.changelog-releases;
+                            installed-version: root.app-version;
+                            english: root.lang == "en-zh";
                         }
                     }
                 }
-                if root.full-mode && root.settings-tab == 0: FormBlock {
-                    title: root.lang == "en-zh" ? "Sets" : "套裝";
-                    ChoiceBar {
-                        first: root.lang == "en-zh" ? "Hide extras" : "隱藏期限";
-                        second: root.lang == "en-zh" ? "Show extras" : "顯示期限";
-                        picked: root.show-set-extra ? 1 : 0;
-                        pick(index) => {
-                            root.show-set-extra = index == 1;
-                            root.show-set-extra-changed(root.show-set-extra);
+                if root.settings-tab == 0 && root.full-mode: look-layout := Rectangle {
+                    property <bool> split: root.full-mode && self.width >= 720px;
+                    property <length> column-w: self.split ? (self.width - 24px) / 2 : self.width;
+                    height: self.split ? max(look-left.preferred-height, look-right.preferred-height) : look-left.preferred-height + 24px + look-right.preferred-height;
+                    look-left := VerticalLayout {
+                        x: 0px; y: 0px; width: parent.column-w; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
+                        FormBlock {
+                            title: root.lang == "en-zh" ? "Window" : "視窗";
+                            HorizontalLayout {
+                                alignment: space-between;
+                                Text {
+                                    text: root.lang == "en-zh" ? "Opacity" : "透明度";
+                                    font-size: 13px;
+                                    color: DesktopTheme.text;
+                                    vertical-alignment: center;
+                                }
+                                Text {
+                                    text: root.opacity-percent + "%";
+                                    font-size: 13px;
+                                    color: DesktopTheme.accent;
+                                    vertical-alignment: center;
+                                }
+                            }
+                            OpacitySlider {
+                                value: root.window-opacity;
+                                edited(value) => {
+                                    root.window-opacity = value;
+                                    root.opacity-changed(value);
+                                }
+                            }
+                            Text {
+                                text: root.lang == "en-zh" ? "Stay on top" : "置頂";
+                                font-size: 13px;
+                                color: DesktopTheme.secondary;
+                            }
+                            ChoiceBar {
+                                first: root.lang == "en-zh" ? "Follow" : "跟隨";
+                                second: root.lang == "en-zh" ? "Always" : "置頂";
+                                third: root.lang == "en-zh" ? "Never" : "不置頂";
+                                picked: root.pin-top;
+                                pick(index) => { root.choose-pin(index); }
+                            }
+                            Text {
+                                text: root.lang == "en-zh" ? "Follow keeps only the small window above other programs." : "跟隨時，只有小窗會留在其他程式前面。";
+                                font-size: 12px;
+                                color: DesktopTheme.muted;
+                                wrap: word-wrap;
+                            }
+                        }
+                        FormBlock {
+                            title: root.lang == "en-zh" ? "Widget monster layout" : "小窗怪物排列";
+                            ChoiceBar {
+                                first: root.lang == "en-zh" ? "List" : "清單";
+                                second: root.lang == "en-zh" ? "Gallery" : "圖鑑";
+                                picked: root.monster-gallery ? 1 : 0;
+                                pick(index) => { root.choose-gallery(index == 1); }
+                            }
+                            Text {
+                                text: root.lang == "en-zh" ? "List and gallery only change the small window." : "清單和圖鑑只影響小窗。";
+                                font-size: 12px;
+                                color: DesktopTheme.muted;
+                                wrap: word-wrap;
+                            }
                         }
                     }
-                    Text {
-                        text: root.lang == "en-zh" ? "Extras are the timed and event copies." : "期限和活動版可以一起隱藏。";
-                        font-size: 12px;
-                        color: DesktopTheme.muted;
-                        wrap: word-wrap;
+                    look-right := VerticalLayout {
+                        x: parent.split ? parent.column-w + 24px : 0px;
+                        y: parent.split ? 0px : look-left.preferred-height + 24px;
+                        width: parent.width - self.x; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
+                        FormBlock {
+                            title: root.lang == "en-zh" ? "Names" : "名稱";
+                            ChoiceBar {
+                                first: root.lang == "en-zh" ? "Chinese first" : "中文在前";
+                                second: root.lang == "en-zh" ? "English first" : "英文在前";
+                                picked: root.lang == "en-zh" ? 1 : 0;
+                                pick(index) => { root.choose-lang(index == 1 ? "en-zh" : "zh-en"); }
+                            }
+                        }
+                        FormBlock {
+                            title: root.lang == "en-zh" ? "Icons" : "圖示";
+                            ChoiceBar {
+                                first: root.lang == "en-zh" ? "Small" : "小";
+                                second: root.lang == "en-zh" ? "Medium" : "中";
+                                third: root.lang == "en-zh" ? "Large" : "大";
+                                picked: root.icon-size;
+                                pick(index) => {
+                                    root.icon-size = index;
+                                    root.icon-size-set(index);
+                                }
+                            }
+                        }
+                        FormBlock {
+                            title: root.lang == "en-zh" ? "Sets" : "套裝";
+                            ChoiceBar {
+                                first: root.lang == "en-zh" ? "Hide extras" : "隱藏期限";
+                                second: root.lang == "en-zh" ? "Show extras" : "顯示期限";
+                                picked: root.show-set-extra ? 1 : 0;
+                                pick(index) => {
+                                    root.show-set-extra = index == 1;
+                                    root.show-set-extra-changed(root.show-set-extra);
+                                }
+                            }
+                            Text {
+                                text: root.lang == "en-zh" ? "Extras are the timed and event copies." : "期限和活動版可以一起隱藏。";
+                                font-size: 12px;
+                                color: DesktopTheme.muted;
+                                wrap: word-wrap;
+                            }
+                        }
                     }
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
@@ -8395,6 +8460,7 @@ export component App inherits Window {
                 if root.settings-tab == 2: VerticalLayout {
                     spacing: 6px;
                     for row[i] in root.alias-rows: AliasCard {
+                        full-mode: root.full-mode;
                         name: row.name;
                         codes: row.codes;
                         detail: row.detail;
@@ -8439,11 +8505,14 @@ export component App inherits Window {
                 }
                 if root.settings-tab == 2: HorizontalLayout {
                     spacing: 8px;
+                    alignment: start;
                     Button {
+                        horizontal-stretch: root.full-mode ? 0 : 1;
                         text: root.lang == "en-zh" ? "Add" : "新增";
                         clicked => { root.alias-add(); }
                     }
                     Button {
+                        horizontal-stretch: root.full-mode ? 0 : 1;
                         text: root.lang == "en-zh" ? "Save all" : "全部儲存";
                         clicked => {
                             if (root.alias-edit >= 0) { root.alias-finish(root.alias-edit); }
@@ -8454,6 +8523,7 @@ export component App inherits Window {
                         }
                     }
                     Button {
+                        horizontal-stretch: root.full-mode ? 0 : 1;
                         text: root.lang == "en-zh" ? "Discard" : "取消修改";
                         clicked => {
                             root.alias-cancel();
@@ -8463,89 +8533,120 @@ export component App inherits Window {
                         }
                     }
                 }
-                if root.settings-tab == 3: Text {
-                    text: root.lang == "en-zh" ? "Global keys" : "全域快捷鍵";
-                    font-size: 13px;
-                    color: DesktopTheme.text;
-                }
-                if root.settings-tab == 3 && root.full-mode: ChoiceBar {
-                    first: root.lang == "en-zh" ? "On" : "開啟";
-                    second: root.lang == "en-zh" ? "Off" : "關閉";
-                    picked: root.hotkeys-on ? 0 : 1;
-                    pick(index) => { root.choose-hotkeys(index == 0); }
-                }
-                if root.settings-tab == 3 && !root.full-mode: HorizontalLayout {
-                    spacing: 6px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "On" : "開啟";
-                        active: root.hotkeys-on;
-                        clicked => { root.choose-hotkeys(true); }
+                if root.settings-tab == 3: keys-layout := Rectangle {
+                    property <bool> split: root.full-mode && self.width >= 720px;
+                    property <length> column-w: self.split ? (self.width - 24px) / 2 : self.width;
+                    height: self.split ? max(keys-left.preferred-height, keys-right.preferred-height) : keys-left.preferred-height + 16px + keys-right.preferred-height;
+                    keys-left := VerticalLayout {
+                        x: 0px; y: 0px; width: parent.column-w; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
+                        Text {
+                            text: root.lang == "en-zh" ? "Global keys" : "全域快捷鍵";
+                            font-size: 13px;
+                            color: DesktopTheme.text;
+                        }
+                        if root.full-mode: ChoiceBar {
+                            first: root.lang == "en-zh" ? "On" : "開啟";
+                            second: root.lang == "en-zh" ? "Off" : "關閉";
+                            picked: root.hotkeys-on ? 0 : 1;
+                            pick(index) => { root.choose-hotkeys(index == 0); }
+                        }
+                        if !root.full-mode: HorizontalLayout {
+                            spacing: 6px;
+                            LangChip {
+                                label: root.lang == "en-zh" ? "On" : "開啟";
+                                active: root.hotkeys-on;
+                                clicked => { root.choose-hotkeys(true); }
+                            }
+                            LangChip {
+                                label: root.lang == "en-zh" ? "Off" : "關閉";
+                                active: !root.hotkeys-on;
+                                clicked => { root.choose-hotkeys(false); }
+                            }
+                        }
+                        Text {
+                            text: root.lang == "en-zh" ? "Off gives F1–F9 back to the game. Keys inside this window stay the same." : "關閉後，F1–F9 還給遊戲。這個視窗裡的按鍵不變。";
+                            font-size: 12px;
+                            color: DesktopTheme.muted;
+                            wrap: word-wrap;
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "F1–F9";
+                            action: root.lang == "en-zh" ? "Open that bar item" : "開啟浮動列對應項目";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Ctrl+-";
+                            action: root.lang == "en-zh" ? "Shrink to the bar. Press again to open the window" : "把介面收成浮動列，再按一次展開";
+                        }
+                        Text {
+                            text: root.lang == "en-zh" ? "While this window is open, F1–F9 open the bar." : "視窗開著時，F1–F9 用來開浮動列。";
+                            font-size: 11px;
+                            color: DesktopTheme.muted;
+                            wrap: word-wrap;
+                        }
                     }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Off" : "關閉";
-                        active: !root.hotkeys-on;
-                        clicked => { root.choose-hotkeys(false); }
+                    keys-right := VerticalLayout {
+                        x: parent.split ? parent.column-w + 24px : 0px;
+                        y: parent.split ? 0px : keys-left.preferred-height + 16px;
+                        width: parent.width - self.x; height: self.preferred-height;
+                        spacing: 16px; alignment: start;
+                        if root.full-mode: Text {
+                            text: root.lang == "en-zh" ? "Inside this window" : "視窗內操作";
+                            font-size: 13px; font-weight: 600; color: DesktopTheme.text;
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Ctrl+F";
+                            action: root.lang == "en-zh" ? "Search" : "搜尋";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Esc";
+                            action: root.lang == "en-zh" ? "Back, or close search and settings" : "返回，或關閉搜尋和設定";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Backspace";
+                            action: root.lang == "en-zh" ? "Back" : "返回";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Home";
+                            action: root.lang == "en-zh" ? "Go to the home page" : "回到主目錄";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "↑  ↓";
+                            action: root.lang == "en-zh" ? "Move in the list. On a set, move between Item, Set, and Total" : "移動清單；套裝資料是在道具、套裝、合計之間";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "←  →";
+                            action: root.lang == "en-zh" ? "Home grid, bar, scroll a set, or the previous and next quest" : "主目錄、浮動列、套裝資料捲動，或任務的上一個和下一個";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Enter";
+                            action: root.lang == "en-zh" ? "Open. Expand a related heading, or save a monster" : "開啟；相關分類是展開或收合，怪物是收藏";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Space";
+                            action: root.lang == "en-zh" ? "Open. Expand a heading or a set section" : "開啟；相關分類和套裝分類是展開或收合";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Tab";
+                            action: root.lang == "en-zh" ? "Switch the filter, or the settings tabs" : "切換本頁篩選，或設定頁的分頁";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Ctrl+C";
+                            action: root.lang == "en-zh" ? "Copy an update note" : "複製更新內文";
+                        }
                     }
-                }
-                if root.settings-tab == 3: Text {
-                    text: root.lang == "en-zh" ? "Off gives F1–F9 back to the game. Keys inside this window stay the same." : "關閉後，F1–F9 還給遊戲。這個視窗裡的按鍵不變。";
-                    font-size: 12px;
-                    color: DesktopTheme.muted;
-                    wrap: word-wrap;
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "F1–F9";
-                    action: root.lang == "en-zh" ? "Open that bar item" : "開啟浮動列對應項目";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Ctrl+-";
-                    action: root.lang == "en-zh" ? "Shrink to the bar. Press again to open the window" : "把介面收成浮動列，再按一次展開";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Ctrl+F";
-                    action: root.lang == "en-zh" ? "Search" : "搜尋";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Esc";
-                    action: root.lang == "en-zh" ? "Back, or close search and settings" : "返回，或關閉搜尋和設定";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Backspace";
-                    action: root.lang == "en-zh" ? "Back" : "返回";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Home";
-                    action: root.lang == "en-zh" ? "Go to the home page" : "回到主目錄";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "↑  ↓";
-                    action: root.lang == "en-zh" ? "Move in the list. On a set, move between Item, Set, and Total" : "移動清單；套裝資料是在道具、套裝、合計之間";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "←  →";
-                    action: root.lang == "en-zh" ? "Home grid, bar, scroll a set, or the previous and next quest" : "主目錄、浮動列、套裝資料捲動，或任務的上一個和下一個";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Enter";
-                    action: root.lang == "en-zh" ? "Open. Expand a related heading, or save a monster" : "開啟；相關分類是展開或收合，怪物是收藏";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Space";
-                    action: root.lang == "en-zh" ? "Open. Expand a heading or a set section" : "開啟；相關分類和套裝分類是展開或收合";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Tab";
-                    action: root.lang == "en-zh" ? "Switch the filter, or the settings tabs" : "切換本頁篩選，或設定頁的分頁";
-                }
-                if root.settings-tab == 3: KeyLine {
-                    keys: "Ctrl+C";
-                    action: root.lang == "en-zh" ? "Copy an update note" : "複製更新內文";
-                }
-                if root.settings-tab == 3: Text {
-                    text: root.lang == "en-zh" ? "While this window is open, F1–F9 open the bar." : "視窗開著時，F1–F9 用來開浮動列。";
-                    font-size: 11px;
-                    color: DesktopTheme.muted;
-                    wrap: word-wrap;
                 }
                 }
                 }
