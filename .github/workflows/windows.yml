@@ -80,6 +80,11 @@ jobs:
           }
           Get-Content "$smoke/stdout.txt", "$smoke/stderr.txt"
           if ($process.ExitCode -ne 0) { throw "Packaged app installation check failed: $($process.ExitCode)" }
+      - name: Verify MCP stdio in the packaged Windows GUI binary
+        run: |
+          $smoke = Join-Path $env:RUNNER_TEMP "gs-widget-smoke"
+          python scripts/smoke_mcp.py --exe "$smoke/app/gersang-widget.exe" --database "$smoke/app/data/gersang.db" --packaged
+          if ($LASTEXITCODE -ne 0) { throw "Packaged MCP smoke test failed" }
       - name: Verify the packaged GUI stays usable with the network unavailable
         run: |
           $smoke = Join-Path $env:RUNNER_TEMP "gs-widget-smoke"

@@ -8,6 +8,7 @@ mod alias;
 mod hero;
 mod item;
 mod load;
+pub(crate) mod mcp;
 mod monster;
 mod names;
 mod npc;
@@ -91,7 +92,8 @@ impl Catalog {
         let client_root = locate_client(stored, db.parent().unwrap_or(Path::new(".")));
         let characters = characters_dir(&client_root, db.parent().unwrap_or(Path::new(".")));
         let pictures = choose_pictures(&client_root, &load_sprites(&conn), &load_portraits(&conn));
-        let index = Index::load(&conn, &client_root, &pictures, &user_data::preferences_dir())?;
+        let aliases = alias::alias_editor_text_in(&user_data::preferences_dir());
+        let index = Index::load(&conn, &client_root, &pictures, &aliases)?;
         Ok(Self {
             conn,
             client_root,

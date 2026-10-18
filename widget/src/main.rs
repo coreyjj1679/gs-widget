@@ -8,6 +8,8 @@ mod hotkey;
 mod icons;
 mod quest_icons;
 mod list;
+mod mcp;
+mod mcp_ui;
 mod perf;
 mod calculator_ui;
 mod calculator_export;
@@ -262,6 +264,14 @@ fn check_installation() -> Result<(), String> {
 }
 
 fn main() {
+    // MCP must never enter GUI initialization, preference migration or update checks.
+    if std::env::args().any(|arg| arg == "--mcp") {
+        if let Err(message) = mcp::run() {
+            eprintln!("Gersang MCP: {message}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let args: Vec<_> = std::env::args_os().collect();
     if let Some(index) = args.iter().position(|arg| arg == "--profile-ui") {
         let result = args.get(index + 1).ok_or_else(|| "Usage: --profile-ui <report.json>".to_string())
@@ -311,6 +321,7 @@ fn main() {
 
     drop(catalog_timer);
     let app = App::new().expect("視窗建立失敗");
+    mcp_ui::install(&app);
     let _performance_timer = perf::install(&app);
     changelog::install(&app);
     let _update_ui = update_ui::install(&app);

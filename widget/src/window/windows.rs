@@ -172,6 +172,10 @@ extern "system" {
 }
 
 pub(crate) fn copy_to_clipboard(text: &str) {
+    let _ = try_copy_to_clipboard(text);
+}
+
+pub(crate) fn try_copy_to_clipboard(text: &str) -> bool {
     let mut wide: Vec<u16> = text.encode_utf16().collect();
     wide.push(0);
     let bytes = wide.len() * std::mem::size_of::<u16>();
@@ -180,13 +184,14 @@ pub(crate) fn copy_to_clipboard(text: &str) {
         // subsequent SetClipboardData fail according to the Win32 contract.
         let hwnd = widget_handle();
         if hwnd == 0 || OpenClipboard(hwnd) == 0 {
-            return;
+            return false;
         }
         if EmptyClipboard() == 0 {
             CloseClipboard();
-            return;
+            return false;
         }
         let mem = GlobalAlloc(0x0002, bytes);
+        let mut copied = false;
         if mem != 0 {
             let ptr = GlobalLock(mem);
             if !ptr.is_null() {
@@ -194,11 +199,14 @@ pub(crate) fn copy_to_clipboard(text: &str) {
                 GlobalUnlock(mem);
                 if SetClipboardData(13, mem) == 0 {
                     GlobalFree(mem);
+                } else {
+                    copied = true;
                 }
             } else {
                 GlobalFree(mem);
             }
         }
         CloseClipboard();
+        copied
     }
 }
