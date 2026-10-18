@@ -1527,7 +1527,7 @@ dependencies = [
 
 [[package]]
 name = "gersang-widget"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "flate2",
  "global-hotkey",
