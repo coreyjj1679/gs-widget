@@ -168,6 +168,61 @@ export struct Hit {
     chip: string,
 }
 
+// The compact rows elide visually; the same complete text is available to
+// hover tooltips, keyboard help and accessibility without another catalog query.
+global RecordText {
+    public pure function alternate(hit: Hit) -> string {
+        return hit.alternate-name != hit.title ? hit.alternate-name : "";
+    }
+    public pure function metadata(hit: Hit) -> string {
+        return hit.subtitle != hit.title && hit.subtitle != hit.alternate-name ? hit.subtitle : "";
+    }
+    public pure function secondary(hit: Hit) -> string {
+        return RecordText.alternate(hit) + (RecordText.alternate(hit) != "" && RecordText.metadata(hit) != "" ? " · " : "") + RecordText.metadata(hit);
+    }
+    public pure function description(hit: Hit) -> string {
+        let alternate = RecordText.alternate(hit);
+        let subtitle = RecordText.metadata(hit);
+        let detail = hit.detail != hit.title && hit.detail != hit.alternate-name && hit.detail != hit.subtitle ? hit.detail : "";
+        let places = hit.spawn-places != hit.title && hit.spawn-places != hit.alternate-name && hit.spawn-places != hit.subtitle && hit.spawn-places != hit.detail ? hit.spawn-places : "";
+        let aside = hit.chip != "section" && hit.aside != hit.title && hit.aside != hit.alternate-name && hit.aside != hit.subtitle && hit.aside != hit.detail && hit.aside != hit.spawn-places ? hit.aside : "";
+        return alternate
+            + (subtitle != "" ? (alternate != "" ? "\n" : "") + subtitle : "")
+            + (detail != "" ? (alternate != "" || subtitle != "" ? "\n" : "") + detail : "")
+            + (places != "" ? (alternate != "" || subtitle != "" || detail != "" ? "\n" : "") + places : "")
+            + (aside != "" ? (alternate != "" || subtitle != "" || detail != "" || places != "" ? "\n" : "") + aside : "");
+    }
+    public pure function full(hit: Hit) -> string {
+        return hit.title + (RecordText.description(hit) != "" ? "\n" + RecordText.description(hit) : "");
+    }
+}
+
+// One shared, non-modal information surface also serves deeply nested rows.
+global RecordInfo {
+    in-out property <string> text: "";
+    public function show(hit: Hit) {
+        root.text = RecordText.full(hit);
+    }
+}
+
+component RecordTooltip inherits Rectangle {
+    in property <string> text;
+    width: min(420px, max(200px, label.preferred-width + 24px));
+    height: label.preferred-height + 20px;
+    background: DesktopTheme.raised;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: DesktopTheme.border;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+    label := Text {
+        x: 12px; y: 10px; width: parent.width - 24px;
+        height: self.preferred-height;
+        text: root.text; font-size: 13px; color: DesktopTheme.text;
+        wrap: word-wrap;
+    }
+}
+
 export struct Fact {
     label: string,
     value: string,
@@ -566,75 +621,140 @@ component DockMenuButton inherits Rectangle {
 }
 
 component ChoiceBar inherits Rectangle {
+    in property <string> label;
     in property <string> first;
     in property <string> second;
     in property <string> third: "";
     in property <int> picked: 0;
+    out property <length> focus-y: self.absolute-position.y;
+    out property <bool> has-focus: choice-focus.has-focus;
     callback pick(int);
+    callback focus-changed(bool);
     height: 32px;
     border-radius: 6px;
-    clip: true;
     background: DesktopTheme.sidebar;
     border-width: 1px;
     border-color: DesktopTheme.border;
-    HorizontalLayout {
-        spacing: 1px;
-        Rectangle {
-            horizontal-stretch: 1;
-            background: root.picked == 0 ? DesktopTheme.raised : transparent;
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.first;
-                font-size: 13px;
-                color: root.picked == 0 ? DesktopTheme.text : DesktopTheme.secondary;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+    forward-focus: choice-focus;
+    accessible-role: radio-group;
+    accessible-label: root.label;
+    accessible-orientation: horizontal;
+    accessible-item-count: root.third == "" ? 2 : 3;
+    accessible-value: root.picked == 0 ? root.first : root.picked == 1 ? root.second : root.third;
+    // Keep the keyboard target outside the visual clip so Slint can Tab to
+    // controls below the Flickable viewport and scroll them into view.
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.border-radius;
+        clip: true;
+        HorizontalLayout {
+            spacing: 1px;
+            Rectangle {
+                horizontal-stretch: 1;
+                background: root.picked == 0 ? DesktopTheme.raised : transparent;
+                accessible-role: radio-button;
+                accessible-label: root.first;
+                accessible-checkable: true;
+                accessible-checked: root.picked == 0;
+                accessible-item-index: 0;
+                accessible-action-default => { choice-focus.focus(); root.pick(0); }
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: root.first;
+                    accessible-role: none;
+                    font-size: 13px;
+                    color: root.picked == 0 ? DesktopTheme.text : DesktopTheme.secondary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    clicked => { choice-focus.focus(); root.pick(0); }
+                    mouse-cursor: pointer;
+                }
             }
-            TouchArea {
-                width: 100%;
-                height: 100%;
-                clicked => { root.pick(0); }
-                mouse-cursor: pointer;
+            Rectangle {
+                horizontal-stretch: 1;
+                background: root.picked == 1 ? DesktopTheme.raised : transparent;
+                accessible-role: radio-button;
+                accessible-label: root.second;
+                accessible-checkable: true;
+                accessible-checked: root.picked == 1;
+                accessible-item-index: 1;
+                accessible-action-default => { choice-focus.focus(); root.pick(1); }
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: root.second;
+                    accessible-role: none;
+                    font-size: 13px;
+                    color: root.picked == 1 ? DesktopTheme.text : DesktopTheme.secondary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    clicked => { choice-focus.focus(); root.pick(1); }
+                    mouse-cursor: pointer;
+                }
+            }
+            if root.third != "": Rectangle {
+                horizontal-stretch: 1;
+                background: root.picked == 2 ? DesktopTheme.raised : transparent;
+                accessible-role: radio-button;
+                accessible-label: root.third;
+                accessible-checkable: true;
+                accessible-checked: root.picked == 2;
+                accessible-item-index: 2;
+                accessible-action-default => { choice-focus.focus(); root.pick(2); }
+                Text {
+                    width: 100%;
+                    height: 100%;
+                    text: root.third;
+                    accessible-role: none;
+                    font-size: 13px;
+                    color: root.picked == 2 ? DesktopTheme.text : DesktopTheme.secondary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    clicked => { choice-focus.focus(); root.pick(2); }
+                    mouse-cursor: pointer;
+                }
             }
         }
-        Rectangle {
-            horizontal-stretch: 1;
-            background: root.picked == 1 ? DesktopTheme.raised : transparent;
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.second;
-                font-size: 13px;
-                color: root.picked == 1 ? DesktopTheme.text : DesktopTheme.secondary;
-                horizontal-alignment: center;
-                vertical-alignment: center;
+    }
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: root.border-radius;
+        border-width: 1px;
+        border-color: choice-focus.has-focus ? DesktopTheme.accent : transparent;
+        background: transparent;
+    }
+    choice-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-click: false;
+        focus-gained => { root.focus-changed(true); }
+        focus-lost => { root.focus-changed(false); }
+        key-pressed(event) => {
+            let last = root.third == "" ? 1 : 2;
+            if (event.text == Key.Return || event.text == Key.Space) { root.pick(root.picked); return accept; }
+            if (event.text == Key.RightArrow || event.text == Key.DownArrow) {
+                root.pick(root.picked >= last ? 0 : root.picked + 1);
+                return accept;
             }
-            TouchArea {
-                width: 100%;
-                height: 100%;
-                clicked => { root.pick(1); }
-                mouse-cursor: pointer;
+            if (event.text == Key.LeftArrow || event.text == Key.UpArrow) {
+                root.pick(root.picked <= 0 ? last : root.picked - 1);
+                return accept;
             }
-        }
-        if root.third != "": Rectangle {
-            horizontal-stretch: 1;
-            background: root.picked == 2 ? DesktopTheme.raised : transparent;
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.third;
-                font-size: 13px;
-                color: root.picked == 2 ? DesktopTheme.text : DesktopTheme.secondary;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-            TouchArea {
-                width: 100%;
-                height: 100%;
-                clicked => { root.pick(2); }
-                mouse-cursor: pointer;
-            }
+            if (event.text == Key.Home) { root.pick(0); return accept; }
+            if (event.text == Key.End) { root.pick(last); return accept; }
+            return reject;
         }
     }
 }
@@ -776,25 +896,46 @@ component FormBlock inherits Rectangle {
 component LangChip inherits Rectangle {
     in property <string> label;
     in property <bool> active;
+    in property <bool> checkable: false;
+    out property <length> focus-y: self.absolute-position.y;
+    out property <bool> has-focus: chip-focus.has-focus;
     callback clicked();
+    callback focus-changed(bool);
     height: 30px;
     horizontal-stretch: 1;
     border-radius: 6px;
     background: active ? DesktopTheme.raised : (tap.has-hover ? DesktopTheme.hover : DesktopTheme.sidebar);
     border-width: 1px;
-    border-color: DesktopTheme.border;
+    border-color: chip-focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    forward-focus: chip-focus;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-checkable: root.checkable;
+    accessible-checked: root.active;
+    accessible-action-default => { chip-focus.focus(); root.clicked(); }
     Text {
         text: root.label;
+        accessible-role: none;
         color: active ? DesktopTheme.text : DesktopTheme.secondary;
         font-size: 13px;
         font-weight: root.active ? 600 : 400;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
+    chip-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-click: false;
+        focus-gained => { root.focus-changed(true); }
+        focus-lost => { root.focus-changed(false); }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
     tap := TouchArea {
         width: 100%;
         height: 100%;
-        clicked => { root.clicked(); }
+        clicked => { chip-focus.focus(); root.clicked(); }
         mouse-cursor: pointer;
     }
 }
@@ -802,25 +943,59 @@ component LangChip inherits Rectangle {
 component PatchTab inherits Rectangle {
     in property <string> label;
     in property <bool> active;
+    in property <bool> arrow-navigation: false;
+    in property <bool> tab-stop: true;
+    out property <length> focus-y: self.absolute-position.y;
+    out property <bool> has-focus: tab-focus.has-focus;
     callback clicked();
-    accessible-role: button;
+    callback navigate(int);
+    callback focus-changed(bool);
+    accessible-role: tab;
     accessible-label: root.label;
-    accessible-description: root.active ? "已選取 / Selected" : "";
-    accessible-action-default => { root.clicked(); }
+    accessible-item-selectable: true;
+    accessible-item-selected: root.active;
+    accessible-action-default => { tab-focus.focus(); root.clicked(); }
+    forward-focus: tab-focus;
     horizontal-stretch: 1;
     background: active ? DesktopTheme.accent : (tap.has-hover ? DesktopTheme.hover : transparent);
     Text {
         text: root.label;
+        accessible-role: none;
         color: active ? DesktopTheme.on-accent : DesktopTheme.text;
         font-size: 12px;
         font-weight: 600;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
+    Rectangle {
+        x: 2px; y: 2px;
+        width: max(0px, parent.width - 4px); height: max(0px, parent.height - 4px);
+        border-radius: 3px;
+        border-width: 1px;
+        border-color: tab-focus.has-focus ? (root.active ? DesktopTheme.on-accent : DesktopTheme.accent) : transparent;
+        background: transparent;
+    }
+    tab-focus := FocusScope {
+        focus-on-tab-navigation: root.tab-stop;
+        width: 100%; height: 100%;
+        focus-on-click: false;
+        focus-gained => { root.focus-changed(true); }
+        focus-lost => { root.focus-changed(false); }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            if root.arrow-navigation {
+                if (event.text == Key.LeftArrow) { root.navigate(-1); return accept; }
+                if (event.text == Key.RightArrow) { root.navigate(1); return accept; }
+                if (event.text == Key.Home) { root.navigate(-2); return accept; }
+                if (event.text == Key.End) { root.navigate(2); return accept; }
+            }
+            return reject;
+        }
+    }
     tap := TouchArea {
         width: 100%;
         height: 100%;
-        clicked => { root.clicked(); }
+        clicked => { tab-focus.focus(); root.clicked(); }
         mouse-cursor: pointer;
     }
 }
@@ -853,10 +1028,31 @@ component PatchPill inherits Rectangle {
 }
 
 component OpacitySlider inherits Rectangle {
+    in property <string> label;
     in property <float> value: 1;
+    out property <length> focus-y: self.absolute-position.y;
+    out property <bool> has-focus: slider-focus.has-focus;
+    callback focus-changed(bool);
     callback edited(float);
     height: 22px;
+    forward-focus: slider-focus;
+    accessible-role: slider;
+    accessible-label: root.label;
+    accessible-orientation: horizontal;
+    accessible-value: round(root.value * 100);
+    accessible-value-minimum: 25;
+    accessible-value-maximum: 100;
+    accessible-value-step: 1;
+    accessible-action-set-value(value) => {
+        if value.is-float() { root.edited(max(0.25, min(1, value.to-float() / 100))); }
+    }
+    accessible-action-increment => { root.adjust(0.01); }
+    accessible-action-decrement => { root.adjust(-0.01); }
     property <float> ratio: max(0, min(1, (root.value - 0.25) / 0.75));
+
+    function adjust(step: float) {
+        root.edited(max(0.25, min(1, round(root.value * 100) / 100 + step)));
+    }
 
     function pick(x: length) {
         if (track.width <= 1px) {
@@ -895,6 +1091,7 @@ component OpacitySlider inherits Rectangle {
             mouse-cursor: pointer;
             pointer-event(event) => {
                 if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                    slider-focus.focus();
                     root.pick(self.mouse-x);
                 }
             }
@@ -905,6 +1102,28 @@ component OpacitySlider inherits Rectangle {
             }
         }
     }
+    Rectangle {
+        width: 100%; height: 100%;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: slider-focus.has-focus ? DesktopTheme.accent : transparent;
+        background: transparent;
+    }
+    slider-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-click: false;
+        focus-gained => { root.focus-changed(true); }
+        focus-lost => { root.focus-changed(false); }
+        key-pressed(event) => {
+            if (event.text == Key.LeftArrow || event.text == Key.DownArrow) { root.adjust(-0.01); return accept; }
+            if (event.text == Key.RightArrow || event.text == Key.UpArrow) { root.adjust(0.01); return accept; }
+            if (event.text == Key.PageDown) { root.adjust(-0.10); return accept; }
+            if (event.text == Key.PageUp) { root.adjust(0.10); return accept; }
+            if (event.text == Key.Home) { root.edited(0.25); return accept; }
+            if (event.text == Key.End) { root.edited(1); return accept; }
+            return reject;
+        }
+    }
 }
 
 component AliasCard inherits Rectangle {
@@ -913,6 +1132,9 @@ component AliasCard inherits Rectangle {
     in property <string> detail;
     in property <bool> editing;
     in property <bool> full-mode: false;
+    out property <length> focus-y: self.absolute-position.y;
+    callback focus-changed(bool);
+    callback reveal-focus(length, length);
     in-out property <string> name-draft;
     in-out property <string> codes-draft;
     callback name-edited(string);
@@ -947,7 +1169,6 @@ component AliasCard inherits Rectangle {
     background: DesktopTheme.surface;
     border-width: 1px;
     border-color: DesktopTheme.border;
-    clip: true;
     VerticalLayout {
         padding: 8px;
         spacing: 8px;
@@ -984,27 +1205,19 @@ component AliasCard inherits Rectangle {
                     }
                 }
             }
-            Rectangle {
+            LangChip {
                 horizontal-stretch: 0;
                 width: 52px;
                 height: 28px;
                 border-radius: 7px;
-                background: edit-tap.has-hover ? DesktopTheme.hover-strong : DesktopTheme.control;
-                Text {
-                    width: 100%;
-                    height: 100%;
-                    text: root.edit-label;
-                    font-size: 12px;
-                    color: DesktopTheme.text;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+                label: root.edit-label;
+                active: false;
+                accessible-label: root.edit-label + ": " + root.name;
+                focus-changed(focused) => {
+                    root.focus-changed(focused);
+                    if (focused) { root.reveal-focus(self.absolute-position.y, self.height); }
                 }
-                edit-tap := TouchArea {
-                    width: 100%;
-                    height: 100%;
-                    clicked => { root.begin-edit(); }
-                    mouse-cursor: pointer;
-                }
+                clicked => { root.begin-edit(); }
             }
         }
         if editing: HorizontalLayout {
@@ -1021,7 +1234,13 @@ component AliasCard inherits Rectangle {
                     height: 100%;
                     font-size: 13px;
                     placeholder-text: "ALIAS";
+                    accessible-label: "ALIAS";
                     text <=> root.name-draft;
+                    init => { self.focus(); }
+                    changed has-focus => {
+                        root.focus-changed(self.has-focus);
+                        if (self.has-focus) { root.reveal-focus(self.absolute-position.y, self.height); }
+                    }
                     edited => { root.name-edited(self.text); }
                 }
             }
@@ -1035,7 +1254,12 @@ component AliasCard inherits Rectangle {
                     height: 100%;
                     font-size: 13px;
                     placeholder-text: root.find-hint;
+                    accessible-label: root.find-hint;
                     text <=> root.find-draft;
+                    changed has-focus => {
+                        root.focus-changed(self.has-focus);
+                        if (self.has-focus) { root.reveal-focus(self.absolute-position.y, self.height); }
+                    }
                     edited => { root.find-edited(self.text); }
                     accepted => { root.find-accepted(); }
                 }
@@ -1047,11 +1271,19 @@ component AliasCard inherits Rectangle {
             LangChip {
                 label: root.save-label;
                 active: true;
+                focus-changed(focused) => {
+                    root.focus-changed(focused);
+                    if (focused) { root.reveal-focus(self.absolute-position.y, self.height); }
+                }
                 clicked => { root.save(); }
             }
             LangChip {
                 label: root.delete-label;
                 active: false;
+                focus-changed(focused) => {
+                    root.focus-changed(focused);
+                    if (focused) { root.reveal-focus(self.absolute-position.y, self.height); }
+                }
                 clicked => { root.remove(); }
             }
         }
@@ -1084,24 +1316,18 @@ component AliasCard inherits Rectangle {
                     vertical-alignment: center;
                     overflow: elide;
                 }
-                if icon.aside == root.row-mark: Rectangle {
+                if icon.aside == root.row-mark: LangChip {
+                    horizontal-stretch: 0;
                     width: 24px;
                     height: 24px;
-                    Text {
-                        width: 100%;
-                        height: 100%;
-                        text: "×";
-                        font-size: 14px;
-                        color: DesktopTheme.secondary;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
+                    label: "×";
+                    active: false;
+                    accessible-label: root.delete-label + ": " + icon.title;
+                    focus-changed(focused) => {
+                        root.focus-changed(focused);
+                        if (focused) { root.reveal-focus(self.absolute-position.y, self.height); }
                     }
-                    TouchArea {
-                        width: 100%;
-                        height: 100%;
-                        clicked => { root.drop-code(icon.key); }
-                        mouse-cursor: pointer;
-                    }
+                    clicked => { root.drop-code(icon.key); }
                 }
             }
         }
@@ -1213,6 +1439,12 @@ component DockSortRow inherits Rectangle {
     in property <bool> on;
     in property <bool> lifted;
     in property <bool> marked;
+    in property <bool> english: false;
+    in property <bool> focus-requested: false;
+    out property <length> focus-y: self.absolute-position.y;
+    out property <bool> has-focus: row-focus.has-focus;
+    callback focus-changed(bool);
+    callback move-step(int);
     callback toggled();
     callback grip-pressed(length);
     callback grip-moved(length);
@@ -1222,7 +1454,37 @@ component DockSortRow inherits Rectangle {
     border-radius: 8px;
     background: lifted ? DesktopTheme.raised : (marked ? DesktopTheme.selection-low : DesktopTheme.surface);
     border-width: 1px;
-    border-color: marked || lifted ? DesktopTheme.accent : DesktopTheme.border;
+    border-color: row-focus.has-focus || marked || lifted ? DesktopTheme.accent : DesktopTheme.border;
+    forward-focus: row-focus;
+    accessible-role: checkbox;
+    accessible-label: root.label;
+    accessible-checkable: true;
+    accessible-checked: root.on;
+    accessible-description: (root.badge != "–" ? root.badge + ". " : "") + (root.english ? "Space: show or hide. Alt + Up / Down: move." : "空白鍵：顯示或隱藏。Alt + 上／下：調整順序。");
+    accessible-action-default => { row-focus.focus(); root.toggled(); }
+    init => { if (root.focus-requested) { row-focus.focus(); } }
+    changed focus-requested => { if (root.focus-requested) { row-focus.focus(); } }
+    row-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-click: false;
+        focus-gained => { root.focus-changed(true); }
+        focus-lost => { root.focus-changed(false); }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.toggled();
+                return accept;
+            }
+            if (event.modifiers.alt && event.text == Key.UpArrow) {
+                root.move-step(-1);
+                return accept;
+            }
+            if (event.modifiers.alt && event.text == Key.DownArrow) {
+                root.move-step(1);
+                return accept;
+            }
+            return reject;
+        }
+    }
     HorizontalLayout {
         width: 100%;
         padding-left: 4px;
@@ -1289,6 +1551,7 @@ component DockSortRow inherits Rectangle {
                 mouse-cursor: grab;
                 pointer-event(event) => {
                     if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                        row-focus.focus();
                         root.grip-pressed(self.mouse-y);
                     }
                     if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
@@ -1321,7 +1584,7 @@ component DockSortRow inherits Rectangle {
             TouchArea {
                 width: 100%;
                 height: 100%;
-                clicked => { root.toggled(); }
+                clicked => { row-focus.focus(); root.toggled(); }
                 mouse-cursor: pointer;
             }
         }
@@ -1477,14 +1740,22 @@ component HitRow inherits Rectangle {
     in property <Hit> hit;
     in property <color> title-color: DesktopTheme.text;
     in property <bool> selected: false;
+    in property <bool> keyboard-focused: false;
     in property <bool> compact: false;
     in property <string> no-image-label: "沒有圖片";
     callback clicked();
     callback favourite-clicked();
+    callback focus-changed(bool);
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-enabled: !root.heading;
+    accessible-label: root.hit.title;
+    accessible-description: RecordText.description(root.hit) + "\nCtrl+I: 完整名稱與來源 / Full names and source";
+    accessible-action-default => { if (!root.heading) { root.clicked(); } }
     height: compact ? 36px : 52px;
     border-radius: 8px;
     border-width: 1px;
-    border-color: selected ? DesktopTheme.accent : transparent;
+    border-color: focus.has-focus || root.keyboard-focused ? DesktopTheme.accent : root.selected ? DesktopTheme.border : transparent;
     property <bool> heading: hit.chip == "label";
     background: selected ? DesktopTheme.selected : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? DesktopTheme.hover : DesktopTheme.surface-alt) : (area.has-hover ? DesktopTheme.hover : transparent);
     property <bool> marked: hit.can-favourite || hit.favourite;
@@ -1495,11 +1766,22 @@ component HitRow inherits Rectangle {
     property <bool> show-aside: !root.show-chip && !root.disclosure && hit.aside != "";
     property <length> chip-w: 68px;
     property <length> aside-box: root.show-chip ? root.chip-w : 108px;
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        enabled: !root.heading && (root.hit.key != "" || root.disclosure);
+        focus-gained => { root.focus-changed(true); }
+        focus-lost => { root.focus-changed(false); }
+        key-pressed(event) => {
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { RecordInfo.show(root.hit); return accept; }
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
     area := TouchArea {
         x: 0px;
         width: parent.width - root.tail;
         height: 100%;
-        clicked => { root.clicked(); }
+        clicked => { focus.focus(); root.clicked(); }
         mouse-cursor: root.hit.key == "" && !root.disclosure ? default : pointer;
         HorizontalLayout {
             width: 100%;
@@ -1534,10 +1816,10 @@ component HitRow inherits Rectangle {
                     vertical-alignment: center;
                     color: root.hit.chip == "section" || root.heading ? DesktopTheme.accent : root.hit.solo ? #e24b4b : root.title-color;
                 }
-                if root.hit.alternate-name != "" || root.hit.subtitle != "": Text {
+                if RecordText.secondary(root.hit) != "": Text {
                     horizontal-stretch: 1;
                     min-width: 0px;
-                    text: root.hit.alternate-name == "" ? root.hit.subtitle : root.hit.alternate-name + (root.hit.subtitle == "" ? "" : " · " + root.hit.subtitle);
+                    text: RecordText.secondary(root.hit);
                     overflow: elide;
                     font-size: root.compact ? 11px : 12px;
                     horizontal-alignment: left;
@@ -1606,6 +1888,9 @@ component HitRow inherits Rectangle {
                 root.clicked();
             }
         }
+    }
+    Tooltip {
+        RecordTooltip { text: RecordText.full(root.hit); }
     }
 }
 
@@ -3133,18 +3418,40 @@ component SectionPick inherits Rectangle {
 component CatalogRow inherits Rectangle {
     in property <Hit> hit;
     in property <bool> selected: false;
+    in property <bool> keyboard-focused: false;
+    in property <bool> focus-requested: false;
+    out property <bool> has-focus: focus.has-focus;
     callback clicked();
+    callback focus-changed(bool);
+    callback move-focus(int);
+    forward-focus: focus;
+    init => { if (root.focus-requested) { focus.focus(); } }
+    changed focus-requested => { if (root.focus-requested) { focus.focus(); } }
     accessible-role: button;
     accessible-label: hit.title;
-    accessible-description: hit.alternate-name + " " + hit.subtitle;
+    accessible-description: RecordText.description(root.hit) + "\nCtrl+I: 完整名稱與來源 / Full names and source";
     accessible-action-default => { root.clicked(); }
     height: 58px;
     border-radius: 6px;
+    border-width: 1px;
+    border-color: focus.has-focus || root.keyboard-focused ? DesktopTheme.accent : transparent;
     background: selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        focus-gained => { root.focus-changed(true); }
+        focus-lost => { root.focus-changed(false); }
+        key-pressed(event) => {
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { RecordInfo.show(root.hit); return accept; }
+            if (event.text == Key.UpArrow) { root.move-focus(-1); return accept; }
+            if (event.text == Key.DownArrow) { root.move-focus(1); return accept; }
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
     area := TouchArea {
         width: 100%;
         height: 100%;
-        clicked => { root.clicked(); }
+        clicked => { focus.focus(); root.clicked(); }
         mouse-cursor: pointer;
         HorizontalLayout {
             width: 100%;
@@ -3170,8 +3477,8 @@ component CatalogRow inherits Rectangle {
                     color: DesktopTheme.text;
                     overflow: elide;
                 }
-                if root.hit.alternate-name != "" || root.hit.subtitle != "": Text {
-                    text: root.hit.alternate-name == "" ? root.hit.subtitle : root.hit.alternate-name + (root.hit.subtitle == "" ? "" : " · " + root.hit.subtitle);
+                if RecordText.secondary(root.hit) != "": Text {
+                    text: RecordText.secondary(root.hit);
                     font-size: 12px;
                     color: DesktopTheme.secondary;
                     overflow: elide;
@@ -3190,6 +3497,9 @@ component CatalogRow inherits Rectangle {
         width: 100%;
         height: 1px;
         background: DesktopTheme.border;
+    }
+    Tooltip {
+        RecordTooltip { text: RecordText.full(root.hit); }
     }
 }
 
@@ -3870,7 +4180,13 @@ export component App inherits Window {
         root.settings-scroll-y = max(-root.settings-scroll-span, min(root.settings-scroll-y, 0px));
     }
     property <length> settings-page-height: max(root.height - 42px - root.foot - 96px, 0px);
-    changed settings-tab => { root.settings-scroll-y = 0px; root.dock-sort-dragging = false; }
+    property <int> dock-focus-slot: -1;
+    property <int> catalog-keyboard-index: -1;
+    changed category => { RecordInfo.text = ""; root.catalog-keyboard-index = -1; }
+    changed query => { RecordInfo.text = ""; root.catalog-keyboard-index = -1; }
+    changed settings-open => { RecordInfo.text = ""; }
+
+    changed settings-tab => { root.settings-scroll-y = 0px; root.dock-sort-dragging = false; root.dock-focus-slot = -1; }
     in-out property <bool> arranging: false;
     in-out property <int> hotkey-nth: 0;
     property <length> home-pad: 16px;
@@ -4186,23 +4502,37 @@ export component App inherits Window {
             root.dock-editing = false;
         }
         root.settings-open = false;
+        keys.focus();
     }
 
-    function cycle-settings(delta: int) {
-        if (root.settings-tab == 2) {
+    function select-settings(index: int) {
+        if (root.settings-tab == 2 && index != 2) {
             root.alias-edit = -1;
             root.alias-hits = [];
             root.alias-target = -1;
         }
-        root.settings-tab = root.settings-tab + delta;
-        if (root.settings-tab > 4) {
-            root.settings-tab = 0;
-        }
-        if (root.settings-tab < 0) {
-            root.settings-tab = 4;
-        }
-        if (root.settings-tab == 2) {
-            root.alias-refresh();
+        root.settings-tab = index;
+        if (index == 2) { root.alias-refresh(); }
+    }
+
+    function cycle-settings(delta: int) {
+        root.select-settings(mod(root.settings-tab + delta + 5, 5));
+    }
+
+    function navigate-settings(delta: int) {
+        if (delta == -2) { root.select-settings(0); }
+        else if (delta == 2) { root.select-settings(4); }
+        else { root.cycle-settings(delta); }
+    }
+
+    function reveal-setting(y: length, height: length) {
+        // The settings viewport begins below the 42px title bar and 96px header.
+        let top = 138px;
+        let bottom = top + root.settings-page-height;
+        if (y < top + 8px) {
+            root.settings-scroll-y = min(0px, root.settings-scroll-y + top + 8px - y);
+        } else if (y + height > bottom - 8px) {
+            root.settings-scroll-y = max(-root.settings-scroll-span, root.settings-scroll-y - (y + min(height, root.settings-page-height - 16px) - bottom + 8px));
         }
     }
 
@@ -5006,6 +5336,21 @@ export component App inherits Window {
     }
 
     function handle-key(event: KeyEvent) -> EventResult {
+        if (RecordInfo.text != "" && event.text == Key.Escape) {
+            RecordInfo.text = "";
+            return accept;
+        }
+        if (!root.settings-open && !root.collapsed && (event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) {
+            if (root.viewing == "" && root.cursor >= 0 && root.cursor < root.hits.length) {
+                RecordInfo.show(root.hits[root.cursor]);
+            } else if (root.viewing-monster && root.related-open && root.cursor >= 0 && root.cursor < root.related.length) {
+                RecordInfo.show(root.related[root.cursor]);
+            } else if (root.viewing != "" && root.cursor >= 0 && root.cursor < root.links.length) {
+                RecordInfo.show(root.links[root.cursor]);
+            }
+            return accept;
+        }
+
         if (root.monster-page-settings-open && event.text == Key.Escape) {
             root.monster-page-settings-open = false;
             return accept;
@@ -5018,7 +5363,7 @@ export component App inherits Window {
             root.shrink-window();
             return accept;
         }
-        if (event.text == Key.Home) {
+        if (event.text == Key.Home && !root.settings-open && keys.has-focus) {
             root.go-home();
             return accept;
         }
@@ -5042,14 +5387,15 @@ export component App inherits Window {
             return reject;
         }
         if (root.settings-open) {
-            if ((root.settings-tab == 4 || root.settings-tab == 1) && (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.PageUp || event.text == Key.PageDown)) {
+            if (((root.settings-tab == 4 || root.settings-tab == 1) && (event.text == Key.UpArrow || event.text == Key.DownArrow)) || event.text == Key.PageUp || event.text == Key.PageDown) {
                 let step = event.text == Key.PageUp || event.text == Key.PageDown ? max(root.settings-page-height - 32px, 48px) : 48px;
                 let direction = event.text == Key.UpArrow || event.text == Key.PageUp ? 1 : -1;
                 root.settings-scroll-y = max(-root.settings-scroll-span, min(0px, root.settings-scroll-y + direction * step));
                 return accept;
             }
-            if (event.text == Key.Tab || event.text == Key.Backtab) {
-                root.cycle-settings(event.text == Key.Tab ? 1 : -1);
+            // Slint maps macOS Control to meta; allow physical Ctrl+Tab there too.
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == Key.Tab || event.text == Key.Backtab)) {
+                root.cycle-settings(event.text == Key.Backtab || event.modifiers.shift ? -1 : 1);
                 return accept;
             }
             if (event.text == Key.Escape) {
@@ -5099,6 +5445,7 @@ export component App inherits Window {
         }
         if ((event.text == Key.Tab || event.text == Key.Backtab) && root.viewing-item && root.viewing != "") {
             root.set-item-tab(root.item-tab == "links" ? "" : "links");
+            keys.focus();
             return accept;
         }
         if ((event.text == Key.Tab || event.text == Key.Backtab) && root.category == "monster") {
@@ -5109,10 +5456,12 @@ export component App inherits Window {
         if (root.category == "" && root.full-mode && root.hits.length > 0) {
             if (event.text == Key.UpArrow) {
                 root.cursor = max(root.cursor - 1, 0);
+                keys.focus();
                 return accept;
             }
             if (event.text == Key.DownArrow) {
                 root.cursor = min(root.cursor + 1, root.hits.length - 1);
+                keys.focus();
                 return accept;
             }
             if (event.text == Key.Space || event.text == Key.Return) {
@@ -5211,10 +5560,12 @@ export component App inherits Window {
         }
         if (event.text == Key.UpArrow) {
             root.move-list(-1);
+            keys.focus();
             return accept;
         }
         if (event.text == Key.DownArrow) {
             root.move-list(1);
+            keys.focus();
             return accept;
         }
         if (event.text == Key.Space) {
@@ -5237,6 +5588,7 @@ export component App inherits Window {
     }
 
     changed hits => {
+        RecordInfo.text = "";
         if (!root.full-board) { root.directory-offset = 0px; }
         if (root.stick-cursor) {
             root.stick-cursor = false;
@@ -5251,6 +5603,7 @@ export component App inherits Window {
     }
 
     changed cursor => {
+        RecordInfo.text = "";
         if (root.item-links) {
             root.reveal-drops(root.cursor);
         }
@@ -5271,6 +5624,8 @@ export component App inherits Window {
     }
 
     changed viewing => {
+        RecordInfo.text = "";
+        root.catalog-keyboard-index = -1;
         root.next-focus = -1;
         root.task-focus = -1;
         root.task-offset = 0px;
@@ -5694,6 +6049,7 @@ export component App inherits Window {
     }
 
     keys := FocusScope {
+        focus-on-tab-navigation: false;
         width: 100%;
         height: 100%;
         focus-on-click: true;
@@ -6285,7 +6641,10 @@ export component App inherits Window {
                                 y: i * 56px; width: parent.width; height: 54px;
                                 if root.cursor == i || (favourite-slot.y + favourite-slot.height >= -home-favourites.content-y - 112px && favourite-slot.y <= -home-favourites.content-y + home-favourites.height + 112px): HitRow {
                                     x: 0px; y: 0px; width: parent.width; height: 54px;
-                                    hit: row; selected: root.cursor == i;
+                                    hit: row;
+                                    keyboard-focused: keys.has-focus && self.selected;
+                                    focus-changed(focused) => { if (focused) { RecordInfo.text = ""; root.cursor = i; } }
+                                    selected: root.cursor == i;
                                     no-image-label: root.no-image-label;
                                     clicked => { root.home-open(row.key); }
                                     favourite-clicked => { root.toggle-favourite(row.key); }
@@ -6615,8 +6974,8 @@ export component App inherits Window {
                                 root.close-search();
                                 return accept;
                             }
-                            if (event.text == Key.Home) {
-                                root.go-home();
+                            if (event.text == Key.Home && !event.modifiers.shift) {
+                                self.set-selection-offsets(0, 0);
                                 return accept;
                             }
                             if (event.text == Key.Escape || (event.text == Key.Backspace && root.query == "")) {
@@ -7024,12 +7383,29 @@ export component App inherits Window {
                                     content-y <=> root.list-offset;
                                     for rec[i] in root.catalog-results: record-slot := Rectangle {
                                         x: 0px; y: i * 60px; width: parent.width; height: 58px;
-                                        if root.detail-key == rec.key || (root.catalog-result-list && root.cursor == i) || (record-slot.y + record-slot.height >= -records.content-y - 120px && record-slot.y <= -records.content-y + records.height + 120px): CatalogRow {
+                                        if root.catalog-keyboard-index == i || root.detail-key == rec.key || (root.catalog-result-list && root.cursor == i) || (record-slot.y + record-slot.height >= -records.content-y - 120px && record-slot.y <= -records.content-y + records.height + 120px): CatalogRow {
                                             x: 0px; y: 0px; width: parent.width;
                                             hit: rec; selected: root.detail-key == rec.key || (root.catalog-result-list && root.cursor == i);
+                                            focus-requested: root.catalog-keyboard-index == i;
+                                            keyboard-focused: keys.has-focus && root.catalog-result-list && root.cursor == i;
+                                            focus-changed(focused) => {
+                                                if (focused) {
+                                                    RecordInfo.text = "";
+                                                    root.catalog-keyboard-index = i;
+                                                    if (root.catalog-result-list) { root.cursor = i; }
+                                                    let top = i * 60px;
+                                                    if (top < -records.content-y) { root.list-offset = -top; }
+                                                    else if (top + 58px > -records.content-y + records.height) { root.list-offset = records.height - top - 58px; }
+                                                } else if (root.catalog-keyboard-index == i) { root.catalog-keyboard-index = -1; }
+                                            }
+                                            move-focus(delta) => {
+                                                RecordInfo.text = "";
+                                                root.catalog-keyboard-index = clamp(i + delta, 0, root.catalog-results.length - 1);
+                                            }
+
                                             clicked => {
                                                 if (root.catalog-result-list) { root.cursor = i; }
-                                                root.open-catalog-record(rec.key, i); keys.focus();
+                                                root.open-catalog-record(rec.key, i);
                                             }
                                         }
                                     }
@@ -7084,6 +7460,8 @@ export component App inherits Window {
                                 x: 0px; y: 0px; width: parent.width;
                                 selected: root.cursor == i;
                                 hit: row;
+                                keyboard-focused: keys.has-focus && self.selected;
+                                focus-changed(focused) => { if (focused) { RecordInfo.text = ""; root.cursor = i; } }
                                 no-image-label: root.no-image-label;
                                 clicked => {
                                     root.cursor = i;
@@ -7729,6 +8107,8 @@ export component App inherits Window {
                                 width: max(reward-box.width - 8px, 40px);
                                 selected: root.cursor == i && root.next-focus < 0 && root.task-focus < 0;
                                 hit: row;
+                                keyboard-focused: keys.has-focus && self.selected;
+                                focus-changed(focused) => { if (focused) { RecordInfo.text = ""; root.focus-reward(i); } }
                                 no-image-label: root.no-image-label;
                                 clicked => {
                                     root.cursor = i;
@@ -7817,6 +8197,8 @@ export component App inherits Window {
                                     x: 0px; y: 0px; width: parent.width;
                                     selected: root.cursor == i && (!root.full-item-sheet || root.item-links);
                                     hit: row;
+                                    keyboard-focused: keys.has-focus && self.selected;
+                                    focus-changed(focused) => { if (focused) { RecordInfo.text = ""; if (root.full-item-sheet) { root.item-tab = "links"; } root.cursor = i; } }
                                     no-image-label: root.no-image-label;
                                     clicked => {
                                         if (root.full-item-sheet) { root.item-tab = "links"; keys.focus(); }
@@ -7850,6 +8232,8 @@ export component App inherits Window {
                                 x: 0px; y: 0px; width: parent.width;
                                 selected: root.cursor == i;
                                 hit: row;
+                                keyboard-focused: keys.has-focus && self.selected;
+                                focus-changed(focused) => { if (focused) { RecordInfo.text = ""; root.cursor = i; } }
                                 no-image-label: root.no-image-label;
                                 clicked => {
                                     root.cursor = i;
@@ -7878,6 +8262,8 @@ export component App inherits Window {
                                 compact: true;
                                 selected: root.cursor == i;
                                 hit: row;
+                                keyboard-focused: keys.has-focus && self.selected;
+                                focus-changed(focused) => { if (focused) { RecordInfo.text = ""; root.cursor = i; } }
                                 no-image-label: root.no-image-label;
                                 title-color: DesktopTheme.accent;
                                 clicked => {
@@ -8050,33 +8436,55 @@ export component App inherits Window {
                 border-color: DesktopTheme.border;
                 HorizontalLayout {
                     spacing: 1px;
-                    PatchTab {
+                    settings-tab-0 := PatchTab {
                         label: root.lang == "en-zh" ? "Look" : "外觀";
                         active: root.settings-tab == 0;
-                        clicked => { root.settings-tab = 0; }
+                        tab-stop: self.active;
+                        arrow-navigation: true;
+                        init => { if (self.active) { self.focus(); } }
+                        changed active => { if (self.active) { self.focus(); } }
+                        clicked => { root.select-settings(0); self.focus(); }
+                        navigate(delta) => { root.navigate-settings(delta); }
                     }
-                    PatchTab {
+                    settings-tab-1 := PatchTab {
                         label: root.lang == "en-zh" ? "Bar" : "浮動列";
                         active: root.settings-tab == 1;
-                        clicked => { root.settings-tab = 1; }
+                        tab-stop: self.active;
+                        arrow-navigation: true;
+                        init => { if (self.active) { self.focus(); } }
+                        changed active => { if (self.active) { self.focus(); } }
+                        clicked => { root.select-settings(1); self.focus(); }
+                        navigate(delta) => { root.navigate-settings(delta); }
                     }
-                    PatchTab {
+                    settings-tab-2 := PatchTab {
                         label: root.lang == "en-zh" ? "Aliases" : "別名";
                         active: root.settings-tab == 2;
-                        clicked => {
-                            root.settings-tab = 2;
-                            root.alias-refresh();
-                        }
+                        tab-stop: self.active;
+                        arrow-navigation: true;
+                        init => { if (self.active) { self.focus(); } }
+                        changed active => { if (self.active) { self.focus(); } }
+                        clicked => { root.select-settings(2); self.focus(); }
+                        navigate(delta) => { root.navigate-settings(delta); }
                     }
-                    PatchTab {
+                    settings-tab-3 := PatchTab {
                         label: root.lang == "en-zh" ? "Keys" : "快捷鍵";
                         active: root.settings-tab == 3;
-                        clicked => { root.settings-tab = 3; }
+                        tab-stop: self.active;
+                        arrow-navigation: true;
+                        init => { if (self.active) { self.focus(); } }
+                        changed active => { if (self.active) { self.focus(); } }
+                        clicked => { root.select-settings(3); self.focus(); }
+                        navigate(delta) => { root.navigate-settings(delta); }
                     }
-                    PatchTab {
+                    settings-tab-4 := PatchTab {
                         label: root.lang == "en-zh" ? "App" : "程式";
                         active: root.settings-tab == 4;
-                        clicked => { root.settings-tab = 4; }
+                        tab-stop: self.active;
+                        arrow-navigation: true;
+                        init => { if (self.active) { self.focus(); } }
+                        changed active => { if (self.active) { self.focus(); } }
+                        clicked => { root.select-settings(4); self.focus(); }
+                        navigate(delta) => { root.navigate-settings(delta); }
                     }
                 }
             }
@@ -8115,7 +8523,9 @@ export component App inherits Window {
                             font-size: 12px;
                             color: DesktopTheme.secondary;
                         }
-                        if root.full-mode: ChoiceBar {
+                        ChoiceBar {
+                            label: root.lang == "en-zh" ? "Direction" : "方向";
+                            focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                             first: root.lang == "en-zh" ? "Row" : "橫向";
                             second: root.lang == "en-zh" ? "Column" : "直向";
                             picked: root.dock-vertical ? 1 : 0;
@@ -8124,31 +8534,9 @@ export component App inherits Window {
                                 root.publish-dock();
                             }
                         }
-                        if !root.full-mode: HorizontalLayout {
-                            spacing: 8px;
-                            LangChip {
-                                label: root.lang == "en-zh" ? "Row" : "橫向";
-                                active: !root.dock-vertical;
-                                clicked => {
-                                    if (root.dock-vertical) {
-                                        root.dock-vertical = false;
-                                        root.publish-dock();
-                                    }
-                                }
-                            }
-                            LangChip {
-                                label: root.lang == "en-zh" ? "Column" : "直向";
-                                active: root.dock-vertical;
-                                clicked => {
-                                    if (!root.dock-vertical) {
-                                        root.dock-vertical = true;
-                                        root.publish-dock();
-                                    }
-                                }
-                            }
-                        }
+
                         Text {
-                            text: root.lang == "en-zh" ? "Drag a row to change the order." : "按住一列拖曳，就能調整順序。";
+                            text: root.lang == "en-zh" ? "Drag to reorder, or focus a row and press Alt+↑/↓. Space shows or hides it." : "拖曳可排序；鍵盤選中後按 Alt+↑/↓ 調整，空白鍵切換顯示。";
                             font-size: 13px;
                             color: DesktopTheme.muted;
                             wrap: word-wrap;
@@ -8177,7 +8565,16 @@ export component App inherits Window {
                                 on: root.dock-on(slot);
                                 lifted: order-list.from-row == i;
                                 marked: order-list.over-row == i && order-list.from-row != i;
-                                toggled => { root.toggle-dock(slot); }
+                                english: root.lang == "en-zh";
+                                focus-requested: root.dock-focus-slot == slot;
+                                focus-changed(focused) => {
+                                    if (focused) { root.dock-focus-slot = slot; root.reveal-setting(self.focus-y, self.height); }
+                                }
+                                move-step(delta) => {
+                                    root.dock-focus-slot = slot;
+                                    root.dock-moved(i, clamp(i + delta, 0, root.dock-draft.length - 1));
+                                }
+                                toggled => { root.dock-focus-slot = slot; root.toggle-dock(slot); }
                                 grip-pressed(py) => {
                                     root.dock-sort-dragging = true;
                                     order-list.from-row = i;
@@ -8309,6 +8706,8 @@ export component App inherits Window {
                                 }
                             }
                             OpacitySlider {
+                                label: root.lang == "en-zh" ? "Opacity" : "透明度";
+                                focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                                 value: root.window-opacity;
                                 edited(value) => {
                                     root.window-opacity = value;
@@ -8321,6 +8720,8 @@ export component App inherits Window {
                                 color: DesktopTheme.secondary;
                             }
                             ChoiceBar {
+                                label: root.lang == "en-zh" ? "Stay on top" : "置頂";
+                                focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                                 first: root.lang == "en-zh" ? "Follow" : "跟隨";
                                 second: root.lang == "en-zh" ? "Always" : "置頂";
                                 third: root.lang == "en-zh" ? "Never" : "不置頂";
@@ -8337,6 +8738,8 @@ export component App inherits Window {
                         FormBlock {
                             title: root.lang == "en-zh" ? "Widget monster layout" : "小窗怪物排列";
                             ChoiceBar {
+                                label: root.lang == "en-zh" ? "Monster layout" : "小窗排列";
+                                focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                                 first: root.lang == "en-zh" ? "List" : "清單";
                                 second: root.lang == "en-zh" ? "Gallery" : "圖鑑";
                                 picked: root.monster-gallery ? 1 : 0;
@@ -8358,6 +8761,8 @@ export component App inherits Window {
                         FormBlock {
                             title: root.lang == "en-zh" ? "Names" : "名稱";
                             ChoiceBar {
+                                label: root.lang == "en-zh" ? "Name order" : "名稱順序";
+                                focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                                 first: root.lang == "en-zh" ? "Chinese first" : "中文在前";
                                 second: root.lang == "en-zh" ? "English first" : "英文在前";
                                 picked: root.lang == "en-zh" ? 1 : 0;
@@ -8367,6 +8772,8 @@ export component App inherits Window {
                         FormBlock {
                             title: root.lang == "en-zh" ? "Icons" : "圖示";
                             ChoiceBar {
+                                label: root.lang == "en-zh" ? "Icon size" : "圖示大小";
+                                focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                                 first: root.lang == "en-zh" ? "Small" : "小";
                                 second: root.lang == "en-zh" ? "Medium" : "中";
                                 third: root.lang == "en-zh" ? "Large" : "大";
@@ -8380,6 +8787,8 @@ export component App inherits Window {
                         FormBlock {
                             title: root.lang == "en-zh" ? "Sets" : "套裝";
                             ChoiceBar {
+                                label: root.lang == "en-zh" ? "Set pieces" : "套裝部件";
+                                focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                                 first: root.lang == "en-zh" ? "Hide extras" : "隱藏期限";
                                 second: root.lang == "en-zh" ? "Show extras" : "顯示期限";
                                 picked: root.show-set-extra ? 1 : 0;
@@ -8414,6 +8823,8 @@ export component App inherits Window {
                     }
                 }
                 if root.settings-tab == 0 && !root.full-mode: OpacitySlider {
+                    label: root.lang == "en-zh" ? "Opacity" : "透明度";
+                    focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                     value: root.window-opacity;
                     edited(value) => {
                         root.window-opacity = value;
@@ -8425,23 +8836,13 @@ export component App inherits Window {
                     font-size: 11px;
                     color: DesktopTheme.secondary;
                 }
-                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
-                    spacing: 6px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Chinese first" : "中文在前";
-                        active: root.lang != "en-zh";
-                        clicked => { root.choose-lang("zh-en"); }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "English first" : "英文在前";
-                        active: root.lang == "en-zh";
-                        clicked => { root.choose-lang("en-zh"); }
-                    }
-                }
-                if root.settings-tab == 0 && !root.full-mode: Text {
-                    text: root.lang == "en-zh" ? "Icon size" : "圖示大小";
-                    font-size: 11px;
-                    color: DesktopTheme.secondary;
+                if root.settings-tab == 0 && !root.full-mode: ChoiceBar {
+                    focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
+                    label: root.lang == "en-zh" ? "Name order" : "名稱順序";
+                    first: root.lang == "en-zh" ? "Chinese first" : "中文在前";
+                    second: root.lang == "en-zh" ? "English first" : "英文在前";
+                    picked: root.lang == "en-zh" ? 1 : 0;
+                    pick(index) => { root.choose-lang(index == 1 ? "en-zh" : "zh-en"); }
                 }
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Set pieces" : "套裝部件";
@@ -8452,6 +8853,8 @@ export component App inherits Window {
                     spacing: 6px;
                     LangChip {
                         label: root.lang == "en-zh" ? "Timed and event" : "期限與活動";
+                        checkable: true;
+                        focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                         active: root.show-set-extra;
                         clicked => {
                             root.show-set-extra = !root.show-set-extra;
@@ -8465,55 +8868,33 @@ export component App inherits Window {
                     color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
-                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
-                    spacing: 6px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Small" : "小";
-                        active: root.icon-size == 0;
-                        clicked => {
-                            root.icon-size = 0;
-                            root.icon-size-set(0);
-                        }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Medium" : "中";
-                        active: root.icon-size == 1;
-                        clicked => {
-                            root.icon-size = 1;
-                            root.icon-size-set(1);
-                        }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Large" : "大";
-                        active: root.icon-size == 2;
-                        clicked => {
-                            root.icon-size = 2;
-                            root.icon-size-set(2);
-                        }
-                    }
+                if root.settings-tab == 0 && !root.full-mode: Text {
+                    text: root.lang == "en-zh" ? "Icon size" : "圖示大小";
+                    font-size: 11px;
+                    color: DesktopTheme.secondary;
+                }
+                if root.settings-tab == 0 && !root.full-mode: ChoiceBar {
+                    focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
+                    label: root.lang == "en-zh" ? "Icon size" : "圖示大小";
+                    first: root.lang == "en-zh" ? "Small" : "小";
+                    second: root.lang == "en-zh" ? "Medium" : "中";
+                    third: root.lang == "en-zh" ? "Large" : "大";
+                    picked: root.icon-size;
+                    pick(index) => { root.icon-size = index; root.icon-size-set(index); }
                 }
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Stay on top" : "置頂";
                     font-size: 11px;
                     color: DesktopTheme.secondary;
                 }
-                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
-                    spacing: 6px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Follow" : "跟隨";
-                        active: root.pin-top == 0;
-                        clicked => { root.choose-pin(0); }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Always" : "置頂";
-                        active: root.pin-top == 1;
-                        clicked => { root.choose-pin(1); }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Never" : "不置頂";
-                        active: root.pin-top == 2;
-                        clicked => { root.choose-pin(2); }
-                    }
+                if root.settings-tab == 0 && !root.full-mode: ChoiceBar {
+                    focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
+                    label: root.lang == "en-zh" ? "Stay on top" : "置頂";
+                    first: root.lang == "en-zh" ? "Follow" : "跟隨";
+                    second: root.lang == "en-zh" ? "Always" : "置頂";
+                    third: root.lang == "en-zh" ? "Never" : "不置頂";
+                    picked: root.pin-top;
+                    pick(index) => { root.choose-pin(index); }
                 }
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Follow keeps only the small window on top." : "跟隨時，只有小窗會留在最前面。";
@@ -8526,54 +8907,39 @@ export component App inherits Window {
                     font-size: 11px;
                     color: DesktopTheme.secondary;
                 }
-                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
-                    spacing: 6px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Face" : "頭像";
-                        active: !root.battle-view;
-                        clicked => { root.choose-battle(false); }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Battle" : "戰鬥";
-                        active: root.battle-view;
-                        clicked => { root.choose-battle(true); }
-                    }
+                if root.settings-tab == 0 && !root.full-mode: ChoiceBar {
+                    focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
+                    label: root.lang == "en-zh" ? "Monster picture" : "怪物圖";
+                    first: root.lang == "en-zh" ? "Face" : "頭像";
+                    second: root.lang == "en-zh" ? "Battle" : "戰鬥";
+                    picked: root.battle-view ? 1 : 0;
+                    pick(index) => { root.choose-battle(index == 1); }
                 }
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Battle motion" : "戰鬥動畫";
                     font-size: 11px;
                     color: DesktopTheme.secondary;
                 }
-                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
-                    spacing: 6px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Play" : "播放";
-                        active: root.animate-battle;
-                        clicked => { root.choose-animate(true); }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Still" : "靜止";
-                        active: !root.animate-battle;
-                        clicked => { root.choose-animate(false); }
-                    }
+                if root.settings-tab == 0 && !root.full-mode: ChoiceBar {
+                    focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
+                    label: root.lang == "en-zh" ? "Battle motion" : "戰鬥動畫";
+                    first: root.lang == "en-zh" ? "Play" : "播放";
+                    second: root.lang == "en-zh" ? "Still" : "靜止";
+                    picked: root.animate-battle ? 0 : 1;
+                    pick(index) => { root.choose-animate(index == 0); }
                 }
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Monster layout" : "小窗排列";
                     font-size: 11px;
                     color: DesktopTheme.secondary;
                 }
-                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
-                    spacing: 6px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "List" : "清單";
-                        active: !root.monster-gallery;
-                        clicked => { root.choose-gallery(false); }
-                    }
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Gallery" : "圖鑑";
-                        active: root.monster-gallery;
-                        clicked => { root.choose-gallery(true); }
-                    }
+                if root.settings-tab == 0 && !root.full-mode: ChoiceBar {
+                    focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
+                    label: root.lang == "en-zh" ? "Monster layout" : "小窗排列";
+                    first: root.lang == "en-zh" ? "List" : "清單";
+                    second: root.lang == "en-zh" ? "Gallery" : "圖鑑";
+                    picked: root.monster-gallery ? 1 : 0;
+                    pick(index) => { root.choose-gallery(index == 1); }
                 }
                 if root.settings-tab == 2: Text {
                     text: root.lang == "en-zh" ? "Search aliases" : "搜尋別名";
@@ -8590,6 +8956,7 @@ export component App inherits Window {
                     spacing: 6px;
                     for row[i] in root.alias-rows: AliasCard {
                         full-mode: root.full-mode;
+                        reveal-focus(y, height) => { root.reveal-setting(y, height); }
                         name: row.name;
                         codes: row.codes;
                         detail: row.detail;
@@ -8636,11 +9003,13 @@ export component App inherits Window {
                     spacing: 8px;
                     alignment: start;
                     Button {
+                        changed has-focus => { if (self.has-focus) { root.reveal-setting(self.absolute-position.y, self.height); } }
                         horizontal-stretch: root.full-mode ? 0 : 1;
                         text: root.lang == "en-zh" ? "Add" : "新增";
                         clicked => { root.alias-add(); }
                     }
                     Button {
+                        changed has-focus => { if (self.has-focus) { root.reveal-setting(self.absolute-position.y, self.height); } }
                         horizontal-stretch: root.full-mode ? 0 : 1;
                         text: root.lang == "en-zh" ? "Save all" : "全部儲存";
                         clicked => {
@@ -8652,6 +9021,7 @@ export component App inherits Window {
                         }
                     }
                     Button {
+                        changed has-focus => { if (self.has-focus) { root.reveal-setting(self.absolute-position.y, self.height); } }
                         horizontal-stretch: root.full-mode ? 0 : 1;
                         text: root.lang == "en-zh" ? "Discard" : "取消修改";
                         clicked => {
@@ -8674,25 +9044,15 @@ export component App inherits Window {
                             font-size: 13px;
                             color: DesktopTheme.text;
                         }
-                        if root.full-mode: ChoiceBar {
+                        ChoiceBar {
+                            label: root.lang == "en-zh" ? "Global keys" : "全域快捷鍵";
+                            focus-changed(focused) => { if (focused) { root.reveal-setting(self.focus-y, self.height); } }
                             first: root.lang == "en-zh" ? "On" : "開啟";
                             second: root.lang == "en-zh" ? "Off" : "關閉";
                             picked: root.hotkeys-on ? 0 : 1;
                             pick(index) => { root.choose-hotkeys(index == 0); }
                         }
-                        if !root.full-mode: HorizontalLayout {
-                            spacing: 6px;
-                            LangChip {
-                                label: root.lang == "en-zh" ? "On" : "開啟";
-                                active: root.hotkeys-on;
-                                clicked => { root.choose-hotkeys(true); }
-                            }
-                            LangChip {
-                                label: root.lang == "en-zh" ? "Off" : "關閉";
-                                active: !root.hotkeys-on;
-                                clicked => { root.choose-hotkeys(false); }
-                            }
-                        }
+
                         Text {
                             text: root.lang == "en-zh" ? "Off gives F1–F9 back to the game. Keys inside this window stay the same." : "關閉後，F1–F9 還給遊戲。這個視窗裡的按鍵不變。";
                             font-size: 12px;
@@ -8743,7 +9103,7 @@ export component App inherits Window {
                         KeyLine {
                             wrap-action: root.full-mode;
                             keys: "Home";
-                            action: root.lang == "en-zh" ? "Go to the home page" : "回到主目錄";
+                            action: root.lang == "en-zh" ? "Home page; in a text field, move to the start" : "回主目錄；輸入框內則移至行首";
                         }
                         KeyLine {
                             wrap-action: root.full-mode;
@@ -8768,7 +9128,17 @@ export component App inherits Window {
                         KeyLine {
                             wrap-action: root.full-mode;
                             keys: "Tab";
-                            action: root.lang == "en-zh" ? "Switch the filter, or the settings tabs" : "切換本頁篩選，或設定頁的分頁";
+                            action: root.lang == "en-zh" ? "Switch the page filter; in settings, move between controls" : "切換本頁篩選；設定頁內移動控制焦點";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Ctrl+Tab";
+                            action: root.lang == "en-zh" ? "Next settings tab; add Shift for previous" : "切換設定分頁；加 Shift 返回上一頁";
+                        }
+                        KeyLine {
+                            wrap-action: root.full-mode;
+                            keys: "Ctrl+I";
+                            action: root.lang == "en-zh" ? "Show the focused row's full names and source; Esc closes" : "查看所選列的完整名稱與來源；Esc 關閉";
                         }
                         KeyLine {
                             wrap-action: root.full-mode;
@@ -8778,6 +9148,39 @@ export component App inherits Window {
                     }
                 }
                 }
+                }
+            }
+        }
+
+        if RecordInfo.text != "" && !root.settings-open && !root.collapsed: Rectangle {
+            x: root.width - self.width - 16px;
+            y: 58px;
+            width: min(440px, root.pane-w - 32px);
+            height: min(info-text.preferred-height + 64px, root.height - 116px);
+            background: DesktopTheme.raised;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: DesktopTheme.accent;
+            Text {
+                x: 14px; y: 12px; width: parent.width - 66px; height: 22px;
+                text: root.lang == "en-zh" ? "Full names and source · Esc to close" : "完整名稱與來源 · Esc 關閉";
+                font-size: 12px; color: DesktopTheme.secondary;
+            }
+            WinButton {
+                x: parent.width - 40px; y: 8px;
+                glyph: "×";
+                clicked => { RecordInfo.text = ""; }
+            }
+            Flickable {
+                x: 14px; y: 44px; width: parent.width - 28px; height: parent.height - 58px;
+                content-width: self.width;
+                content-height: info-text.preferred-height;
+                info-text := Text {
+                    width: parent.width; height: self.preferred-height;
+                    text: RecordInfo.text;
+                    font-size: 14px; color: DesktopTheme.text;
+                    wrap: word-wrap;
+                    accessible-label: RecordInfo.text;
                 }
             }
         }

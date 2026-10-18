@@ -177,3 +177,9 @@ Full mode 與 compact widget 的展開視窗外框都使用 12px 圓角；視窗
 ## Controls
 
 Full mode 側欄分類可直接拖曳重排，保留排序儲存和鍵盤替代操作。設定入口使用使用者要求的 ⚙️ 加文字標籤；小窗／完整模式以雙選項滑塊標示目前模式。兩個桌面平台共用 Slint 實作。
+
+## Keyboard and long record names
+
+設定頁以 Tab／Shift+Tab 走訪控制，選取中的頁籤是頁籤列唯一的 Tab 停靠點；方向鍵、Home／End 切換頁籤，Ctrl+Tab／Ctrl+Shift+Tab 可從內容切換分頁。ChoiceBar 是單一焦點的選項群組，按鈕支援 Enter／Space。透明度每次方向鍵增減 1%，Page Up／Down 增減 10%，Home／End 到 25%／100%。焦點沿用 accent 框，控制移到可視範圍；浮動列支援 Space 顯示切換及 Alt+上下排序，排序後焦點跟隨分類身份。搜尋框的 Home 保留文字游標行首行為。
+
+CatalogRow／HitRow 保留既有列高與虛擬化；hover 提示完整主名稱、第二語言與來源資訊，去除重複內容。Ctrl+I 開啟單一、不搶焦點的完整文字浮層，長內容可捲動，Esc 關閉。目錄記錄列的原生焦點與預覽選取分開，上下鍵移動列，Enter／Space 開啟預覽。完整文字也提供給無障礙描述。

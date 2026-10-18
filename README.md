@@ -67,6 +67,10 @@ In full mode, open an item or set to see its picture and bilingual name in a hor
 
 Full-mode settings expand with the window. Look, Bar, Keys and App use grouped columns when space allows, then stack at narrower widths; alias rows use the available width with the same editor. The App page places update controls beside the changelog. All nine bar entries remain reachable by scrolling at 960 × 640. Resizing keeps the scroll position within the new content bounds, while widget settings keep their compact layout.
 
+Settings support **Tab / Shift+Tab** to move between controls and **Ctrl+Tab / Ctrl+Shift+Tab** to switch pages. On the selected settings tab, arrow keys and Home/End select a page. Choice bars use arrow keys and Home/End; buttons use Enter or Space. The opacity slider uses arrow keys for 1%, Page Up/Down for 10%, and Home/End for 25%/100%. Focused controls scroll into view. In Bar settings, Space toggles an entry and **Alt+↑/↓** reorders it. Home in a search field keeps its text-editing behavior.
+
+Catalog and related-result rows keep their compact heights. Hover to read complete bilingual names and source information, or focus a row and press **Ctrl+I** (also **⌘I** on macOS); **Esc** closes the information panel without leaving the page. Catalog rows support Tab focus, ↑/↓ navigation and Enter/Space to open the preview.
+
 ## Data
 
 The first source build downloads dependencies and can take a few minutes. Keep the repository's `data` folder in place: the program locates the catalog from the executable or working directory. You can also set `GERSANG_DB` to the catalog file's path. Windows preferences are stored under `%LOCALAPPDATA%\gs-widget`; macOS preferences remain beside the active database.
