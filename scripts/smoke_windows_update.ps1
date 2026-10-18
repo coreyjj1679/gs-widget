@@ -13,6 +13,7 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 if (-not $IsWindows) { throw "Dummy update smoke requires PowerShell 7 on Windows" }
+. (Join-Path $PSScriptRoot "windows_gui_test_helpers.ps1")
 $baselineArchive = (Resolve-Path -LiteralPath $BaselineZip).Path
 $candidateArchive = (Resolve-Path -LiteralPath $CandidateZip).Path
 $root = [System.IO.Path]::GetFullPath($TestRoot)
@@ -80,43 +81,6 @@ function Assert-Installation {
     if (-not $output.Contains("Gersang ${Expected}: installation OK")) {
         throw "Installation check did not identify expected version ${Expected}: $output"
     }
-}
-
-function Wait-Gui {
-    param([System.Diagnostics.Process]$AppProcess, [int]$Seconds = 30)
-    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        $AppProcess.Refresh()
-        if ($AppProcess.HasExited) { throw "GUI exited during startup: $($AppProcess.Id), exit $($AppProcess.ExitCode)" }
-        if ($AppProcess.MainWindowHandle -ne [IntPtr]::Zero -and $AppProcess.Responding) {
-            if ($AppProcess.MainWindowTitle -ne "巨商") {
-                throw "Expected the main application window, found '$($AppProcess.MainWindowTitle)'"
-            }
-            return
-        }
-        Start-Sleep -Milliseconds 200
-    }
-    throw "GUI did not become responsive within $Seconds seconds"
-}
-
-function Assert-GuiResponsive {
-    param([System.Diagnostics.Process]$AppProcess, [int]$Seconds)
-    $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-    while ([DateTime]::UtcNow -lt $deadline) {
-        $AppProcess.Refresh()
-        if ($AppProcess.HasExited -or $AppProcess.MainWindowHandle -eq [IntPtr]::Zero -or $AppProcess.MainWindowTitle -ne "巨商" -or -not $AppProcess.Responding) {
-            throw "GUI stopped responding during observation: $($AppProcess.Id)"
-        }
-        Start-Sleep -Milliseconds 200
-    }
-}
-
-function Close-Gui {
-    param([System.Diagnostics.Process]$AppProcess)
-    $AppProcess.Refresh()
-    if (-not $AppProcess.CloseMainWindow()) { throw "Could not request normal GUI shutdown: $($AppProcess.Id)" }
-    if (-not $AppProcess.WaitForExit(10000)) { throw "GUI did not close normally within 10 seconds" }
-    if ($AppProcess.ExitCode -ne 0) { throw "GUI closed with error: $($AppProcess.ExitCode)" }
 }
 
 function Wait-Marker {
