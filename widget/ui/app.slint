@@ -14,8 +14,8 @@ export struct QuestItemRow {
     other-objectives: string,
 }
 
-import { CalculatorPane, CalcChoice, CalcMaterial, CalcSaved } from "calculator.slint";
-export { CalcChoice, CalcMaterial, CalcSaved }
+import { CalculatorPane, CalcChoice, CalcMaterial, CalcNestedOption, CalcSaved } from "calculator.slint";
+export { CalcChoice, CalcMaterial, CalcNestedOption, CalcSaved }
 
 export struct ChangelogItem {
     text-en: string,
@@ -4326,6 +4326,8 @@ export component App inherits Window {
     in-out property <bool> calculator-open: false;
     in-out property <[CalcChoice]> calculator-candidates;
     in-out property <[CalcMaterial]> calculator-materials;
+    in-out property <[CalcNestedOption]> calculator-nested-options;
+    in-out property <bool> calculator-has-nested;
     in-out property <[string]> calculator-recipes;
     in-out property <int> calculator-recipe-index;
     in-out property <string> calculator-selected-name;
@@ -4368,6 +4370,9 @@ export component App inherits Window {
     callback calculator-select-recipe(int);
     callback calculator-quantity-changed(string);
     callback calculator-price-changed(string, string);
+    callback calculator-request-nested-options(string, bool);
+    callback calculator-select-nested(string, string);
+    callback calculator-clear-nested(string);
     callback calculator-export-card();
     callback calculator-copy-code();
     callback calculator-import-code(string);
@@ -6871,6 +6876,8 @@ export component App inherits Window {
                     english: root.lang == "en-zh";
                     candidates: root.calculator-candidates;
                     materials: root.calculator-materials;
+                    nested-options: root.calculator-nested-options;
+                    has-nested: root.calculator-has-nested;
                     recipes: root.calculator-recipes;
                     recipe-index <=> root.calculator-recipe-index;
                     selected-name: root.calculator-selected-name;
@@ -6912,6 +6919,9 @@ export component App inherits Window {
                     select-recipe(index) => { root.calculator-select-recipe(index); }
                     quantity-changed(q) => { root.calculator-quantity-changed(q); }
                     price-changed(key, q) => { root.calculator-price-changed(key, q); }
+                    request-nested-options(key, reuse) => { root.calculator-request-nested-options(key, reuse); }
+                    select-nested(key, id) => { root.calculator-select-nested(key, id); }
+                    clear-nested(key) => { root.calculator-clear-nested(key); }
                     export-card => { root.calculator-export-card(); }
                     copy-code => { root.calculator-copy-code(); }
                     import-code(code) => { root.calculator-import-code(code); }
