@@ -273,30 +273,17 @@ impl Catalog {
     }
 
     pub fn quest_chain(&self, id: i64, lang: &str) -> (Option<Hit>, Vec<Hit>) {
-        let Some((source, code, _title, _detail, _kind, _repeat, prev, next)) = self.quest_chain_row(id) else {
-            return (None, Vec::new());
-        };
-        let prev_hit = self
-            .quest_id_by_code(&source, &prev)
-            .and_then(|prev_id| self.quest_link_hit(prev_id, lang, ""));
-        let mut nexts = Vec::new();
-        let mut seen = HashSet::new();
-        if let Some(next_id) = self.quest_id_by_code(&source, &next) {
-            if next_id != id {
-                if let Some(hit) = self.quest_link_hit(next_id, lang, "") {
-                    seen.insert(next_id);
-                    nexts.push(hit);
-                }
-            }
-        }
-        for follow_id in self.follower_ids(&source, &code, id) {
-            if follow_id != id && seen.insert(follow_id) {
-                if let Some(hit) = self.quest_link_hit(follow_id, lang, "") {
-                    nexts.push(hit);
-                }
-            }
-        }
-        (prev_hit, nexts)
+        let (parents, children) = self.quest_immediate_dependencies(id);
+        // Preserve this older single-parent API for existing callers. The full
+        // dependency view exposes all prerequisites and branching relationships.
+        let explicit_previous = self.quest_chain_row(id)
+            .and_then(|row| self.quest_id_by_code(&row.0, &row.6));
+        let previous = explicit_previous.or_else(|| parents.into_iter().find(|parent| *parent != id));
+        (
+            previous.filter(|parent| *parent != id).and_then(|parent| self.quest_link_hit(parent, lang, "")),
+            children.into_iter().filter(|child| *child != id)
+                .filter_map(|child| self.quest_link_hit(child, lang, "")).collect(),
+        )
     }
 
     pub fn quest_giver(&self, id: i64) -> String {
@@ -353,13 +340,22 @@ impl Catalog {
 
     pub(in crate::db) fn quest_facts(&self, id: i64, lang: &str, kind: &str, repeat: &str) -> Vec<(String, String, String)> {
         let mut facts = Vec::new();
+        let source = self.quest_source(id);
         if !kind.is_empty() && !kind.chars().all(|ch| ch.is_ascii_digit()) {
             facts.push((phrase("kind", lang), kind.to_string(), String::new()));
         }
-        if !repeat.is_empty() && repeat != "0" {
+        if source == "main" && matches!(repeat, "1" | "2") {
+            let english = lang.starts_with("en");
+            facts.push((
+                if english { "Repeat cycle" } else { "重複週期" }.into(),
+                match (english, repeat) {
+                    (true, "1") => "Daily", (true, _) => "Weekly",
+                    (false, "1") => "每日", (false, _) => "每週",
+                }.into(), String::new(),
+            ));
+        } else if !repeat.is_empty() && repeat != "0" {
             facts.push((phrase("repeat", lang), commas_text(repeat), String::new()));
         }
-        let source = self.quest_source(id);
         let prev = self
             .quest_chain_row(id)
             .map(|row| row.6)
@@ -426,9 +422,16 @@ impl Catalog {
             _ if kind.starts_with("level") => numbered(kind_name(&step.kind, lang), &step.qty),
             _ if kind.starts_with("credit") => numbered(kind_name(&step.kind, lang), &step.qty),
             _ if kind == "quest" => {
-                let quest_id = self.quest_id_by_code(source, &step.code)?;
-                let hit = self.quest_link_hit(quest_id, lang, "")?;
-                Some((hit.title, format!("quest:{quest_id}")))
+                if let Some(quest_id) = self.quest_id_by_code(source, &step.code) {
+                    let hit = self.quest_link_hit(quest_id, lang, "")?;
+                    Some((hit.title, format!("quest:{quest_id}")))
+                } else if !step.code.is_empty() && step.code != "0" {
+                    // Retain missing requirements as visible text instead of
+                    // silently presenting an incomplete set of conditions.
+                    Some((format!("{} {}", kind_name(&step.kind, lang), step.code), String::new()))
+                } else {
+                    None
+                }
             }
             _ => {
                 let named = kind_name(&step.kind, lang);
@@ -607,28 +610,7 @@ impl Catalog {
     }
 
     pub(in crate::db) fn quest_id_by_code(&self, source: &str, code: &str) -> Option<i64> {
-        if code.is_empty() || code == "0" {
-            return None;
-        }
-        self.conn
-            .query_row(
-                "SELECT id FROM quests WHERE source = ?1 AND code = ?2",
-                (source, code),
-                |row| row.get(0),
-            )
-            .ok()
-    }
-
-    pub(in crate::db) fn follower_ids(&self, source: &str, code: &str, self_id: i64) -> Vec<i64> {
-        let mut stmt = match self.conn.prepare(
-            "SELECT id FROM quests WHERE source = ?1 AND prev_code = ?2 AND id != ?3 ORDER BY CAST(code AS INTEGER), code",
-        ) {
-            Ok(stmt) => stmt,
-            Err(_) => return Vec::new(),
-        };
-        stmt.query_map((source, code, self_id), |row| row.get(0))
-            .map(|rows| rows.filter_map(Result::ok).collect())
-            .unwrap_or_default()
+        super::quest_graph::resolve_quest_id(&self.conn, source, code)
     }
 
     pub(in crate::db) fn quest_steps(&self, id: i64) -> Vec<QuestStep> {

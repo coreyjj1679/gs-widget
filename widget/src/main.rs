@@ -6,6 +6,7 @@ mod changelog;
 mod db;
 mod hotkey;
 mod icons;
+mod quest_icons;
 mod list;
 mod perf;
 mod calculator_ui;
@@ -1065,6 +1066,19 @@ fn main() {
         }
     });
 
+    let quest_groups_app = app.as_weak();
+    let quest_groups_catalog = Rc::clone(&catalog);
+    app.on_quest_groups_requested(move |grouping, query| {
+        let Some(app) = quest_groups_app.upgrade() else { return };
+        app.set_quest_summary(true);
+        app.set_quest_map_open(false);
+        app.set_quest_category("qcat:all".into());
+        app.set_quest_grouping(grouping.clone());
+        app.set_quest_group_query(query.clone());
+        app.set_query("".into());
+        list::publish_quest_groups(&app, &quest_groups_catalog, &grouping, &query);
+    });
+
     let lang_app = app.as_weak();
     let lang_catalog = Rc::clone(&catalog);
     let lang_current = Rc::clone(&current);
@@ -1090,8 +1104,16 @@ fn main() {
             app.set_place_name(lang_catalog.region_name(&place, &lang).into());
         }
         let category = app.get_category();
+        let quest_map_open = app.get_quest_map_open();
+        let inline_quest = if app.get_full_mode() && category == "quest" {
+            app.get_detail_key().to_string()
+        } else { String::new() };
         if !category.is_empty() {
             publish(&app, &lang_catalog, &lang_session, &lang_favs.borrow(), &category, &app.get_query());
+        }
+        if !inline_quest.is_empty() {
+            app.set_detail_key(inline_quest.clone().into());
+            app.set_detail_index(list::row_index(&app, &inline_quest));
         }
         let key = lang_current.borrow().clone();
         if !key.is_empty() {
@@ -1107,6 +1129,7 @@ fn main() {
                 app.set_detail_title(app.get_sheet_title());
             }
         }
+        app.set_quest_map_open(quest_map_open);
         show_alias_rows(&app, &lang_catalog, &lang_aliases.borrow());
         app.invoke_calculator_refresh();
         if app.get_full_mode() && app.get_category().is_empty() {
@@ -1352,6 +1375,30 @@ fn main() {
         let Some(app) = open_app.upgrade() else { return };
         let mut key = key.to_string();
         if key.is_empty() || key.starts_with("section:") {
+            return;
+        }
+        if key.starts_with("qcat:") || key.starts_with("qgroup:") {
+            let query = if app.get_category() == "quest" && app.get_viewing().is_empty() && !app.get_quest_summary() {
+                app.get_query().to_string()
+            } else { String::new() };
+            app.set_category("quest".into());
+            let grouping = key.strip_prefix("qgroup:").and_then(|tail| tail.split(':').next()).unwrap_or_default();
+            app.set_quest_grouping(grouping.into());
+            app.set_quest_category(key.into());
+            app.set_quest_summary(false);
+            app.set_place("".into());
+            app.set_area("".into());
+            open_scope(&app, &open_catalog, &open_session, &open_favs.borrow(), &open_current, &open_history, "quest");
+            if !query.is_empty() {
+                app.set_query(query.clone().into());
+                publish(&app, &open_catalog, &open_session, &open_favs.borrow(), "quest", &query);
+            }
+            return;
+        }
+        if key.starts_with("quest:") && app.get_full_mode() && app.get_category() == "quest" && app.get_viewing().is_empty() {
+            app.set_detail_key(key.clone().into());
+            app.set_detail_index(list::row_index(&app, &key));
+            show_key(&app, &open_catalog, &open_session, &key, false);
             return;
         }
         if let Some(rest) = key.strip_prefix("jump:").map(str::to_string) {

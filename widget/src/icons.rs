@@ -11,7 +11,7 @@ use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, 
 
 use super::agf;
 use super::list::picture_key;
-use super::{App, Hit, ICON_CACHE, IconJob, MonsterDrop};
+use super::{App, Hit, ICON_CACHE, IconJob, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
 
 struct IconTarget {
     generation: u64,
@@ -162,6 +162,11 @@ pub(crate) fn show_battle_frame(app: &App, key: &str, image: Image) {
 }
 
 pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, links: bool) {
+    if let Some(item_key) = row_key.strip_prefix("#quest-item:") {
+        paint_quest_item_rows(&app.get_quest_item_rows(), item_key, icon.clone(), has_icon);
+        paint_quest_map_items(&app.get_quest_map_nodes(), item_key, icon, has_icon);
+        return;
+    }
     if let Some((key, target)) = row_key.rsplit_once("#monster-drop:") {
         if let Some((slot, item_key)) = target.split_once(':') {
             if let Ok(slot) = slot.parse::<usize>() {
@@ -196,6 +201,62 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
     } else {
         paint_model(&app.get_board_monsters(), row_key, icon, has_icon);
     }
+}
+
+fn painted_quest_chips(
+    chips: &ModelRc<QuestItemChip>,
+    item_key: &str,
+    icon: &Image,
+    has_icon: bool,
+) -> Option<ModelRc<QuestItemChip>> {
+    if !chips.iter().any(|chip| chip.key.as_str() == item_key) {
+        return None;
+    }
+    // Keep every occurrence and its quantity, including missing-image placeholders.
+    // A fresh nested model identity makes the outer row's Slint bindings refresh.
+    Some(ModelRc::new(VecModel::from(chips.iter().map(|mut chip| {
+        if chip.key.as_str() == item_key {
+            chip.icon = icon.clone();
+            chip.has_icon = has_icon;
+        }
+        chip
+    }).collect::<Vec<_>>())))
+}
+
+fn paint_quest_item_rows(rows: &ModelRc<QuestItemRow>, item_key: &str, icon: Image, has_icon: bool) -> bool {
+    let Some(model) = rows.as_any().downcast_ref::<VecModel<QuestItemRow>>() else { return false };
+    let mut painted = false;
+    for index in 0..model.row_count() {
+        let Some(mut row) = model.row_data(index) else { continue };
+        let required = painted_quest_chips(&row.required_items, item_key, &icon, has_icon);
+        let rewards = painted_quest_chips(&row.reward_icons, item_key, &icon, has_icon);
+        if required.is_none() && rewards.is_none() {
+            continue;
+        }
+        if let Some(items) = required { row.required_items = items; }
+        if let Some(items) = rewards { row.reward_icons = items; }
+        model.set_row_data(index, row);
+        painted = true;
+    }
+    painted
+}
+
+fn paint_quest_map_items(rows: &ModelRc<QuestMapNode>, item_key: &str, icon: Image, has_icon: bool) -> bool {
+    let Some(model) = rows.as_any().downcast_ref::<VecModel<QuestMapNode>>() else { return false };
+    let mut painted = false;
+    for index in 0..model.row_count() {
+        let Some(mut row) = model.row_data(index) else { continue };
+        let required = painted_quest_chips(&row.required_items, item_key, &icon, has_icon);
+        let rewards = painted_quest_chips(&row.reward_icons, item_key, &icon, has_icon);
+        if required.is_none() && rewards.is_none() {
+            continue;
+        }
+        if let Some(items) = required { row.required_items = items; }
+        if let Some(items) = rewards { row.reward_icons = items; }
+        model.set_row_data(index, row);
+        painted = true;
+    }
+    painted
 }
 
 fn paint_battle(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) -> bool {
@@ -269,8 +330,8 @@ pub(crate) fn image_from_icon(icon: agf::Icon) -> Image {
 
 #[cfg(test)]
 mod tests {
-    use super::{discard_stale_targets, indexed_row, note_lines, paint_model, paint_monster_drop, IconTarget};
-    use crate::{Hit, MonsterDrop};
+    use super::{discard_stale_targets, indexed_row, note_lines, paint_model, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items, IconTarget};
+    use crate::{Hit, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
     use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
     fn drop_model(count: usize) -> (ModelRc<Hit>, ModelRc<MonsterDrop>) {
@@ -343,6 +404,133 @@ mod tests {
             assert_eq!(current.has_icon, previous.has_icon);
             assert_eq!(current.icon.size(), previous.icon.size());
         }
+    }
+
+    fn quest_chips(items: &[(&str, &str)]) -> ModelRc<QuestItemChip> {
+        ModelRc::new(VecModel::from(items.iter().map(|(key, quantity)| QuestItemChip {
+            key: (*key).into(),
+            title: format!("Name {key}").into(),
+            alternate: format!("別名 {key}").into(),
+            quantity: (*quantity).into(),
+            ..Default::default()
+        }).collect::<Vec<_>>()))
+    }
+
+    #[test]
+    fn quest_item_loading_updates_all_occurrences_and_preserves_quantities() {
+        let rows = ModelRc::new(VecModel::from(vec![
+            QuestItemRow {
+                required_items: quest_chips(&[("item:7", "30"), ("item:8", "2"), ("item:7", "5")]),
+                reward_icons: quest_chips(&[("item:7", "1,000")]),
+                other_objectives: "Defeat 4 enemies".into(),
+            },
+            QuestItemRow {
+                required_items: quest_chips(&[("item:7", "9")]),
+                ..Default::default()
+            },
+        ]));
+        let before = rows.row_data(0).unwrap();
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(paint_quest_item_rows(&rows, "item:7", image, true));
+        let after = rows.row_data(0).unwrap();
+        assert_ne!(before.required_items, after.required_items);
+        assert_ne!(before.reward_icons, after.reward_icons);
+        assert!(!before.required_items.row_data(0).unwrap().has_icon);
+        assert_eq!(after.other_objectives, before.other_objectives);
+        for (slot, quantity) in [(0, "30"), (2, "5")] {
+            let chip = after.required_items.row_data(slot).unwrap();
+            assert!(chip.has_icon);
+            assert_eq!(chip.key.as_str(), "item:7");
+            assert_eq!(chip.quantity.as_str(), quantity);
+            assert_eq!(chip.title.as_str(), "Name item:7");
+            assert_eq!(chip.alternate.as_str(), "別名 item:7");
+            assert_eq!(chip.icon.size().width, 1);
+        }
+        assert!(!after.required_items.row_data(1).unwrap().has_icon);
+        assert_eq!(after.required_items.row_data(1).unwrap().key.as_str(), "item:8");
+        let reward = after.reward_icons.row_data(0).unwrap();
+        assert!(reward.has_icon);
+        assert_eq!(reward.quantity.as_str(), "1,000");
+        let other_quest = rows.row_data(1).unwrap().required_items.row_data(0).unwrap();
+        assert!(other_quest.has_icon);
+        assert_eq!(other_quest.quantity.as_str(), "9");
+    }
+
+    #[test]
+    fn missing_quest_item_keeps_its_slot_and_exact_item_identity() {
+        let rows = ModelRc::new(VecModel::from(vec![QuestItemRow {
+            required_items: quest_chips(&[("item:7", "30"), ("item:70", "8")]),
+            ..Default::default()
+        }]));
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(paint_quest_item_rows(&rows, "item:70", image, true));
+        assert!(paint_quest_item_rows(&rows, "item:7", Image::default(), false));
+        let chips = rows.row_data(0).unwrap().required_items;
+        assert_eq!(chips.row_count(), 2);
+        let missing = chips.row_data(0).unwrap();
+        assert_eq!(missing.key.as_str(), "item:7");
+        assert_eq!(missing.quantity.as_str(), "30");
+        assert!(!missing.has_icon);
+        assert!(chips.row_data(1).unwrap().has_icon);
+        assert!(!paint_quest_item_rows(&rows, "item:700", Image::default(), false));
+        assert_eq!(chips, rows.row_data(0).unwrap().required_items);
+    }
+
+    #[test]
+    fn mixed_quest_objective_icons_keep_monster_and_item_namespaces_separate() {
+        let rows = ModelRc::new(VecModel::from(vec![QuestItemRow {
+            required_items: quest_chips(&[("item:7", "30"), ("monster:7", "1,000"), ("monster:7", "5")]),
+            reward_icons: quest_chips(&[("item:7", "2")]),
+            ..Default::default()
+        }]));
+        let monster_icon = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(2, 2));
+        assert!(paint_quest_item_rows(&rows, "monster:7", monster_icon, true));
+        let after = rows.row_data(0).unwrap();
+        assert!(!after.required_items.row_data(0).unwrap().has_icon);
+        assert!(!after.reward_icons.row_data(0).unwrap().has_icon);
+        for (slot, quantity) in [(1, "1,000"), (2, "5")] {
+            let chip = after.required_items.row_data(slot).unwrap();
+            assert_eq!(chip.key.as_str(), "monster:7");
+            assert_eq!(chip.quantity.as_str(), quantity);
+            assert_eq!(chip.icon.size().width, 2);
+        }
+        let item_icon = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(paint_quest_item_rows(&rows, "item:7", item_icon, true));
+        let after = rows.row_data(0).unwrap();
+        assert_eq!(after.required_items.row_data(0).unwrap().icon.size().width, 1);
+        assert_eq!(after.reward_icons.row_data(0).unwrap().icon.size().width, 1);
+        assert_eq!(after.required_items.row_data(1).unwrap().icon.size().width, 2);
+    }
+
+    #[test]
+    fn quest_map_item_loading_replaces_models_without_changing_graph_metadata() {
+        let rows = ModelRc::new(VecModel::from(vec![
+            QuestMapNode {
+                key: "quest:1".into(), x: 48.0, y: 288.0, state: 2,
+                required_items: quest_chips(&[("item:7", "4")]),
+                reward_icons: quest_chips(&[("item:8", "1")]),
+                other_objectives: "Speak to the elder".into(),
+                ..Default::default()
+            },
+            QuestMapNode {
+                key: "quest:2".into(),
+                reward_icons: quest_chips(&[("item:7", "2")]),
+                ..Default::default()
+            },
+        ]));
+        let before = rows.row_data(0).unwrap();
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(paint_quest_map_items(&rows, "item:7", image, true));
+        let after = rows.row_data(0).unwrap();
+        assert_ne!(before.required_items, after.required_items);
+        assert_eq!(before.reward_icons, after.reward_icons);
+        assert_eq!(after.key, before.key);
+        assert_eq!(after.x, before.x);
+        assert_eq!(after.y, before.y);
+        assert_eq!(after.state, before.state);
+        assert_eq!(after.other_objectives, before.other_objectives);
+        assert!(after.required_items.row_data(0).unwrap().has_icon);
+        assert!(rows.row_data(1).unwrap().reward_icons.row_data(0).unwrap().has_icon);
     }
 
     #[test]

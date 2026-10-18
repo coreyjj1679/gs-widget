@@ -1,0 +1,483 @@
+import { DesktopTheme } from "desktop.slint";
+import { QuestItemChip, QuestItemStrip, QuestSummaryBadge } from "quest-item-strip.slint";
+
+export struct QuestMapNode {
+    key: string,
+    title: string,
+    alternate: string,
+    subtitle: string,
+    relation: string,
+    summary: string,
+    reward-items: string,
+    reward-stats: string,
+    required-items: [QuestItemChip],
+    reward-icons: [QuestItemChip],
+    other-objectives: string,
+    objectives: string,
+    rewards: string,
+    brief: string,
+    x: float,
+    y: float,
+    state: int,
+    cyclic: bool,
+}
+
+export struct QuestMapSegment {
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    cyclic: bool,
+    unresolved: bool,
+    highlighted: bool,
+    arrow: bool,
+}
+
+component MapControl inherits Rectangle {
+    in property <string> label;
+    in property <string> icon-path;
+    in property <bool> enabled: true;
+    callback clicked();
+    height: 32px;
+    min-width: icon-path == "" ? caption.preferred-width + 22px : 32px;
+    horizontal-stretch: 0;
+    border-radius: 5px;
+    background: tap.has-hover && enabled ? DesktopTheme.hover-strong : DesktopTheme.control;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    opacity: enabled ? 1 : 0.45;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: label;
+    accessible-enabled: enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+    caption := Text {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        text: root.icon-path == "" ? root.label : "";
+        font-size: 12px; color: DesktopTheme.text;
+        horizontal-alignment: center; vertical-alignment: center;
+    }
+    if root.icon-path != "": Path {
+        x: (parent.width - 16px) / 2; y: 8px; width: 16px; height: 16px;
+        viewbox-width: 24; viewbox-height: 24;
+        commands: root.icon-path;
+        fill: transparent; stroke: DesktopTheme.text; stroke-width: 1.8px;
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%; enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+}
+
+component MapTask inherits Rectangle {
+    in property <QuestMapNode> node;
+    in property <bool> english;
+    in property <float> zoom: 1;
+    in property <bool> preview-visible;
+    callback clicked();
+    callback focused();
+    callback hover-changed(bool);
+    callback focus-changed(bool);
+    callback scroll-preview(int);
+    callback dismiss-preview();
+    property <bool> pointer-focused: false;
+    property <bool> item-active: required.item-active || rewards.item-active || goal-badge.hint-active;
+    width: 232px * zoom;
+    height: 160px * zoom;
+    border-radius: 6px * zoom;
+    background: node.state == 2 ? DesktopTheme.selected : tap.has-hover && node.key != "" && node.state != 4 ? DesktopTheme.hover : node.state == 4 ? DesktopTheme.inset : DesktopTheme.surface;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-enabled: node.key != "" && node.state != 4;
+    accessible-label: node.title;
+    accessible-description: node.alternate + ". " + node.relation + ". " + node.subtitle + ". " + node.brief + ". " + node.objectives + ". " + node.rewards;
+    accessible-action-default => { if (root.node.key != "" && root.node.state != 4) { root.clicked(); } }
+    changed item-active => {
+        if (root.item-active) { root.dismiss-preview(); }
+        else {
+            root.hover-changed(tap.has-hover);
+            root.focus-changed(focus.has-focus && !root.pointer-focused);
+        }
+    }
+    // Item strips sit above this target, preserving per-item hover and clicks.
+    tap := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        mouse-cursor: root.node.key != "" && root.node.state != 4 ? pointer : default;
+        changed has-hover => { root.hover-changed(self.has-hover && !root.item-active); }
+        clicked => {
+            if (root.node.key != "" && root.node.state != 4) {
+                root.pointer-focused = true;
+                focus.focus(); root.clicked();
+            }
+        }
+    }
+    if root.node.state == 2: Rectangle {
+        x: 0px; y: 8px * root.zoom; width: 1px; height: parent.height - 16px * root.zoom;
+        background: DesktopTheme.accent;
+    }
+    Text {
+        x: 12px * root.zoom; y: 10px * root.zoom;
+        width: parent.width - 24px * root.zoom; height: 16px * root.zoom;
+        text: root.node.relation;
+        font-size: 11px * root.zoom; font-weight: root.node.state == 2 ? 600 : 400;
+        color: root.node.state == 2 ? DesktopTheme.accent : DesktopTheme.secondary;
+        overflow: elide;
+    }
+    Text {
+        x: 12px * root.zoom; y: 30px * root.zoom;
+        width: parent.width - 24px * root.zoom; height: (root.node.alternate == "" ? 38px : 19px) * root.zoom;
+        text: root.node.title; font-size: 13px * root.zoom; font-weight: 600;
+        color: DesktopTheme.text; wrap: root.node.alternate == "" ? word-wrap : no-wrap; overflow: elide;
+    }
+    if root.node.alternate != "": Text {
+        x: 12px * root.zoom; y: 51px * root.zoom;
+        width: parent.width - 24px * root.zoom; height: 17px * root.zoom;
+        text: root.node.alternate; font-size: 11px * root.zoom;
+        color: DesktopTheme.secondary; overflow: elide;
+    }
+    if root.node.state == 4: Text {
+        x: 12px * root.zoom; y: 74px * root.zoom;
+        width: parent.width - 24px * root.zoom; height: 68px * root.zoom;
+        text: root.node.summary != "" ? root.node.summary : root.node.subtitle;
+        font-size: 11px * root.zoom; color: DesktopTheme.secondary; wrap: word-wrap; overflow: elide;
+    }
+    goal-badge := QuestSummaryBadge {
+        x: 12px * root.zoom; y: 78px * root.zoom;
+        visible: root.node.state != 4; zoom: root.zoom;
+        label: (root.english ? "Goal" : "目標") + (root.node.required-items.length > 0 && root.node.other-objectives != "" ? " +" : "");
+        hint: root.node.required-items.length > 0 ? root.node.other-objectives : "";
+        activated => { root.pointer-focused = true; focus.focus(); root.clicked(); }
+    }
+    required := QuestItemStrip {
+        x: 62px * root.zoom; y: 74px * root.zoom;
+        width: parent.width - 74px * root.zoom;
+        visible: root.node.state != 4;
+        items: root.node.required-items; english: root.english; zoom: root.zoom;
+        activated => { root.pointer-focused = true; focus.focus(); root.clicked(); }
+    }
+    if root.node.state != 4 && root.node.required-items.length == 0: Text {
+        x: 62px * root.zoom; y: 79px * root.zoom;
+        width: parent.width - 74px * root.zoom; height: 17px * root.zoom;
+        text: root.node.other-objectives != "" ? root.node.other-objectives : root.node.summary != "" ? root.node.summary : (root.english ? "Not listed" : "未記錄");
+        font-size: 11px * root.zoom; color: DesktopTheme.secondary; overflow: elide;
+    }
+    QuestSummaryBadge {
+        x: 12px * root.zoom; y: 108px * root.zoom;
+        visible: root.node.state != 4; zoom: root.zoom;
+        label: root.english ? "Reward" : "獎勵";
+        activated => { root.pointer-focused = true; focus.focus(); root.clicked(); }
+    }
+    rewards := QuestItemStrip {
+        x: 62px * root.zoom; y: 104px * root.zoom;
+        width: parent.width - 74px * root.zoom;
+        visible: root.node.state != 4;
+        items: root.node.reward-icons; english: root.english; zoom: root.zoom;
+        activated => { root.pointer-focused = true; focus.focus(); root.clicked(); }
+    }
+    if root.node.state != 4 && root.node.reward-icons.length == 0: Text {
+        x: 62px * root.zoom; y: 109px * root.zoom;
+        width: parent.width - 74px * root.zoom; height: 17px * root.zoom;
+        text: root.node.reward-items != "" ? root.node.reward-items : (root.english ? "Not listed" : "未記錄");
+        font-size: 11px * root.zoom; color: DesktopTheme.text; overflow: elide;
+    }
+    if root.node.state != 4: Text {
+        x: 12px * root.zoom; y: 137px * root.zoom;
+        width: parent.width - 24px * root.zoom; height: 16px * root.zoom;
+        text: root.node.reward-stats != "" ? root.node.reward-stats : (root.english ? "XP / credit / money not listed" : "經驗／信用／金錢未記錄");
+        font-size: 11px * root.zoom; color: DesktopTheme.secondary; overflow: elide;
+    }
+    if root.node.state == 4: Rectangle {
+        x: 12px * root.zoom; y: parent.height - 3px;
+        width: parent.width - 24px * root.zoom; height: 1px;
+        for dash in 12: Rectangle {
+            x: dash * parent.width / 12; y: 0px;
+            width: parent.width / 24; height: 1px;
+            background: DesktopTheme.muted;
+        }
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%; enabled: root.node.key != "" && root.node.state != 4;
+        focus-on-click: false;
+        changed has-focus => {
+            if (self.has-focus) { root.focused(); }
+            else { root.pointer-focused = false; }
+            root.focus-changed(self.has-focus && !root.pointer-focused && !root.item-active);
+        }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            if (root.preview-visible && (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.PageUp || event.text == Key.PageDown)) {
+                root.scroll-preview(event.text == Key.UpArrow ? -1 : event.text == Key.DownArrow ? 1 : event.text == Key.PageUp ? -4 : 4);
+                return accept;
+            }
+            if (root.preview-visible && event.text == Key.Escape) { root.dismiss-preview(); return accept; }
+            return reject;
+        }
+    }
+}
+
+export component QuestRoadmap inherits Rectangle {
+    in property <bool> english;
+    in property <[QuestMapNode]> nodes;
+    in property <[QuestMapSegment]> segments;
+    in property <float> graph-width;
+    in property <float> graph-height;
+    in property <float> focus-x;
+    in property <float> focus-y;
+    in property <string> selected-key;
+    in property <string> selected-title;
+    in property <string> note;
+    callback open-key(string);
+    callback show-details();
+    property <int> zoom-step: 2;
+    property <float> zoom: 0.6 + zoom-step * 0.2;
+    property <bool> initial-center: true;
+    property <int> hovered-node: -1;
+    property <int> focused-node: -1;
+    property <int> latched-node: -1;
+    property <bool> preview-hover: false;
+    property <int> preview-index: hovered-node >= 0 ? hovered-node : focused-node >= 0 ? focused-node : latched-node;
+    property <QuestMapNode> preview-node: preview-index >= 0 && preview-index < nodes.length ? nodes[preview-index] : {};
+    property <bool> preview-open: preview-index >= 0 && preview-index < nodes.length;
+    property <length> preview-node-left: graph-inset-x + preview-node.x * zoom * 1px + map.content-x;
+    property <length> preview-node-top: graph-inset-y + preview-node.y * zoom * 1px + map.content-y;
+    property <length> preview-left-space: preview-node-left;
+    property <length> preview-right-space: map.width - preview-node-left - 232px * zoom;
+    property <length> preview-width: min(344px, max(160px, max(preview-left-space, preview-right-space) - 20px));
+    property <length> graph-inset-x: max(0px, (map.width - root.graph-width * root.zoom * 1px) / 2);
+    property <length> graph-inset-y: max(0px, (map.height - root.graph-height * root.zoom * 1px) / 2);
+
+    public function center-current() {
+        map.content-x = -max(0px, min(root.focus-x * root.zoom * 1px - map.width / 2, map.content-width - map.width));
+        map.content-y = -max(0px, min(root.focus-y * root.zoom * 1px - map.height / 2, map.content-height - map.height));
+    }
+    function reveal-node(node-x: float, node-y: float) {
+        let left = root.graph-inset-x + node-x * root.zoom * 1px;
+        let top = root.graph-inset-y + node-y * root.zoom * 1px;
+        if (left < -map.content-x) { map.content-x = -max(0px, left - 12px); }
+        else if (left + 232px * root.zoom > -map.content-x + map.width) { map.content-x = min(0px, map.width - left - 232px * root.zoom - 12px); }
+        if (top < -map.content-y) { map.content-y = -max(0px, top - 12px); }
+        else if (top + 160px * root.zoom > -map.content-y + map.height) { map.content-y = min(0px, map.height - top - 160px * root.zoom - 12px); }
+    }
+    // Keep the selected node's position on screen when changing scale.
+    function change-zoom(step: int) {
+        root.dismiss-preview();
+        root.zoom-step = max(0, min(3, step));
+        root.center-current();
+    }
+    function dismiss-preview() {
+        root.hovered-node = -1; root.focused-node = -1; root.latched-node = -1;
+    }
+    function hide-pointer-preview() { root.hovered-node = -1; root.latched-node = -1; }
+    function scroll-preview(step: int) {
+        let amount = abs(step) > 1 ? max(preview-scroll.height - 24px, 48px) : 40px;
+        preview-scroll.content-y = clamp(preview-scroll.content-y - (step > 0 ? amount : -amount), min(0px, preview-scroll.height - preview-scroll.content-height), 0px);
+    }
+    changed nodes => { root.dismiss-preview(); }
+    changed preview-index => { preview-scroll.content-y = 0px; }
+    Timer {
+        interval: 180ms;
+        running: root.latched-node >= 0 && root.hovered-node < 0 && root.focused-node < 0 && !root.preview-hover;
+        triggered => { root.latched-node = -1; }
+    }
+    init => { root.center-current(); }
+    changed focus-x => { if (root.initial-center) { root.center-current(); } }
+    changed focus-y => { if (root.initial-center) { root.center-current(); } }
+    changed graph-width => { root.initial-center = true; root.center-current(); }
+    changed graph-height => { root.initial-center = true; root.center-current(); }
+
+    VerticalLayout {
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+        spacing: 10px;
+        HorizontalLayout {
+            height: 32px; spacing: 6px;
+            Text {
+                horizontal-stretch: 1; min-width: 0px;
+                text: root.selected-title; font-size: 15px; font-weight: 600;
+                color: DesktopTheme.text; vertical-alignment: center; overflow: elide;
+            }
+            MapControl {
+                width: 32px; label: root.english ? "Zoom out" : "縮小"; icon-path: "M 5 12 H 19";
+                enabled: root.zoom-step > 0;
+                clicked => { root.change-zoom(root.zoom-step - 1); }
+            }
+            Text {
+                width: 42px; text: round(root.zoom * 100) + "%";
+                font-size: 12px; color: DesktopTheme.secondary;
+                horizontal-alignment: center; vertical-alignment: center;
+            }
+            MapControl {
+                width: 32px; label: root.english ? "Zoom in" : "放大"; icon-path: "M 5 12 H 19 M 12 5 V 19";
+                enabled: root.zoom-step < 3;
+                clicked => { root.change-zoom(root.zoom-step + 1); }
+            }
+            Rectangle { width: 4px; }
+            MapControl { label: root.english ? "Center selected" : "置中目前任務"; clicked => { root.center-current(); } }
+            MapControl { label: root.english ? "Details" : "任務內容"; clicked => { root.show-details(); } }
+        }
+        HorizontalLayout {
+            height: 18px; spacing: 16px; alignment: start;
+            Text { text: root.english ? "Prerequisites above · Follow-ups below" : "上方是前置 · 下方是後續"; font-size: 12px; color: DesktopTheme.secondary; }
+            HorizontalLayout {
+                spacing: 6px;
+                Rectangle { y: 3px; width: 12px; height: 12px; background: DesktopTheme.selected; border-width: 1px; border-color: DesktopTheme.accent; border-radius: 2px; }
+                Text { text: root.english ? "Selected" : "目前任務"; font-size: 12px; color: DesktopTheme.secondary; }
+            }
+            Text { text: root.english ? "Hover / focus for preview" : "懸停或聚焦查看摘要"; font-size: 12px; color: DesktopTheme.muted; }
+        }
+        if root.note != "": note-text := Text {
+            text: root.note; font-size: 12px; color: DesktopTheme.secondary;
+            wrap: word-wrap;
+            accessible-role: text; accessible-label: root.note;
+        }
+        map-frame := Rectangle {
+            vertical-stretch: 1; min-height: 160px;
+            background: DesktopTheme.inset; border-radius: 7px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            clip: true;
+            map := Flickable {
+                x: 1px; y: 1px; width: parent.width - 2px; height: parent.height - 2px;
+                content-width: max(self.width, root.graph-width * root.zoom * 1px);
+                content-height: max(self.height, root.graph-height * root.zoom * 1px);
+                changed width => { if (root.initial-center) { root.center-current(); } }
+                changed height => { if (root.initial-center) { root.center-current(); } }
+                changed content-x => { root.hide-pointer-preview(); }
+                changed content-y => { root.hide-pointer-preview(); }
+                for segment in root.segments: Rectangle {
+                    x: root.graph-inset-x + min(segment.x1, segment.x2) * root.zoom * 1px;
+                    y: root.graph-inset-y + min(segment.y1, segment.y2) * root.zoom * 1px;
+                    z: segment.highlighted ? 1 : 0;
+                    width: max(1.5px, abs(segment.x2 - segment.x1) * root.zoom * 1px);
+                    height: max(1.5px, abs(segment.y2 - segment.y1) * root.zoom * 1px);
+                    background: segment.highlighted ? DesktopTheme.accent : DesktopTheme.muted;
+                    // Break the connector consistently for unresolved prerequisites.
+                    for gap in (segment.unresolved ? 12 : 0): Rectangle {
+                        x: parent.width > parent.height ? gap * parent.width / 12 : 0px;
+                        y: parent.height >= parent.width ? gap * parent.height / 12 : 0px;
+                        width: parent.width > parent.height ? parent.width / 24 : parent.width;
+                        height: parent.height >= parent.width ? parent.height / 24 : parent.height;
+                        background: DesktopTheme.inset;
+                    }
+                }
+                for segment in root.segments: Path {
+                    x: root.graph-inset-x + segment.x2 * root.zoom * 1px - 4px;
+                    y: root.graph-inset-y + segment.y2 * root.zoom * 1px - 6px;
+                    z: 1;
+                    width: 8px; height: 6px;
+                    viewbox-width: 8; viewbox-height: 6;
+                    visible: segment.arrow;
+                    commands: "M 0 0 L 4 6 L 8 0 Z";
+                    fill: segment.highlighted ? DesktopTheme.accent : DesktopTheme.muted;
+                }
+                for node[i] in root.nodes: MapTask {
+                    x: root.graph-inset-x + node.x * root.zoom * 1px; y: root.graph-inset-y + node.y * root.zoom * 1px;
+                    z: 2;
+                    node: node; zoom: root.zoom; english: root.english;
+                    preview-visible: root.preview-open && root.preview-index == i;
+                    focused => { root.reveal-node(node.x, node.y); }
+                    hover-changed(hovered) => {
+                        if (hovered) { root.hovered-node = i; root.latched-node = i; }
+                        else if (root.hovered-node == i) { root.hovered-node = -1; }
+                    }
+                    focus-changed(focused) => {
+                        if (focused) { root.focused-node = i; }
+                        else if (root.focused-node == i) { root.focused-node = -1; }
+                    }
+                    scroll-preview(step) => { root.scroll-preview(step); }
+                    dismiss-preview => { root.dismiss-preview(); }
+                    clicked => { root.dismiss-preview(); root.initial-center = false; root.open-key(node.key); }
+                }
+                if root.nodes.length == 0: Text {
+                    x: 24px; y: 24px; width: parent.width - 48px;
+                    text: root.english ? "No dependency data for this quest." : "這個任務暫無依賴資料。";
+                    wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary;
+                }
+            }
+            // This preview stays in the map viewport and outside the task box.
+            // Its text does not scale with the graph, so zooming out remains useful.
+            preview := Rectangle {
+                visible: root.preview-open;
+                x: clamp(root.preview-right-space >= root.preview-width + 20px || root.preview-right-space >= root.preview-left-space
+                    ? root.preview-node-left + 232px * root.zoom + 12px
+                    : root.preview-node-left - self.width - 12px, 8px, max(8px, parent.width - self.width - 8px));
+                y: clamp(root.preview-node-top, 8px, max(8px, parent.height - self.height - 8px));
+                width: root.preview-width;
+                height: min(max(160px, preview-body.preferred-height + 44px), max(160px, parent.height - 16px));
+                background: DesktopTheme.raised;
+                border-radius: 7px;
+                border-width: 1px; border-color: DesktopTheme.secondary;
+                clip: true;
+                z: 3;
+                preview-scroll := Flickable {
+                    x: 14px; y: 12px;
+                    width: parent.width - 28px; height: max(24px, parent.height - 42px);
+                    content-width: self.width; content-height: max(self.height, preview-body.preferred-height);
+                    preview-body := VerticalLayout {
+                        x: 0px; y: 0px; width: parent.width; height: self.preferred-height;
+                        spacing: 8px; alignment: start;
+                        Text {
+                            width: preview-scroll.width; height: self.preferred-height;
+                            text: root.preview-node.title; font-size: 14px; font-weight: 600;
+                            color: DesktopTheme.text; wrap: word-wrap;
+                        }
+                        if root.preview-node.alternate != "": Text {
+                            width: preview-scroll.width; height: self.preferred-height;
+                            text: root.preview-node.alternate; font-size: 12px;
+                            color: DesktopTheme.secondary; wrap: word-wrap;
+                        }
+                        Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.subtitle; font-size: 11px; color: DesktopTheme.secondary; wrap: word-wrap; }
+                        Rectangle { height: 1px; background: DesktopTheme.border; }
+                        if root.preview-node.state == 4 && root.preview-node.brief != "": Text {
+                            width: preview-scroll.width; height: self.preferred-height;
+                            text: root.preview-node.brief; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap;
+                        }
+                        if root.preview-node.state == 4 && root.preview-node.brief == "": Text {
+                            width: preview-scroll.width; height: self.preferred-height;
+                            text: root.preview-node.subtitle; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap;
+                        }
+                        if root.preview-node.state != 4: VerticalLayout {
+                            width: preview-scroll.width; height: self.preferred-height;
+                            spacing: 4px;
+                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.english ? "Goals & requirements" : "目標與條件"; font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
+                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.objectives != "" ? root.preview-node.objectives : (root.english ? "No structured objective data." : "未提供結構化目標。"); font-size: 12px; color: root.preview-node.objectives == "" ? DesktopTheme.secondary : DesktopTheme.text; wrap: word-wrap; }
+                        }
+                        if root.preview-node.state != 4: VerticalLayout {
+                            width: preview-scroll.width; height: self.preferred-height;
+                            spacing: 4px;
+                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.english ? "Rewards" : "任務獎勵"; font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
+                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.rewards != "" ? root.preview-node.rewards : (root.english ? "No reward data." : "未提供獎勵資料。"); font-size: 12px; color: root.preview-node.rewards == "" ? DesktopTheme.secondary : DesktopTheme.text; wrap: word-wrap; }
+                        }
+                        if root.preview-node.state != 4 && root.preview-node.brief != "": VerticalLayout {
+                            width: preview-scroll.width; height: self.preferred-height;
+                            spacing: 4px;
+                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.english ? "Description" : "任務說明"; font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
+                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.brief; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap; }
+                        }
+                    }
+                }
+                Text {
+                    x: 14px; y: parent.height - 22px; width: parent.width - 28px; height: 16px;
+                    text: preview-scroll.content-height > preview-scroll.height ? (root.english ? "Scroll preview · ↑↓ / PgUp / PgDn" : "捲動預覽 · ↑↓ / PgUp / PgDn") : (root.english ? "Select a quest to view details" : "點選任務可切換內容");
+                    font-size: 10px; color: DesktopTheme.secondary; overflow: elide;
+                }
+                TouchArea {
+                    x: 0px; y: 0px; width: parent.width; height: parent.height;
+                    changed has-hover => { root.preview-hover = self.has-hover; }
+                    scroll-event(event) => {
+                        preview-scroll.content-y = clamp(preview-scroll.content-y + event.delta-y, min(0px, preview-scroll.height - preview-scroll.content-height), 0px);
+                        return accept;
+                    }
+                }
+            }
+        }
+    }
+}
