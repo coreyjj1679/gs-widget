@@ -82,6 +82,20 @@ To run the offline GUI check locally with PowerShell 7, use a temporary profile 
 
 The script temporarily sets `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY` to `http://127.0.0.1:1`, clears `NO_PROXY`, and selects Slint's `winit-software` backend. It waits up to 30 seconds for the normal window and `aliases.txt`, verifies the app remains alive and responsive for another 35 seconds (covering the update check's 30-second timeout), then requests a normal close. Every wait is bounded; cleanup kills a stuck process and restores the caller's environment. This is an offline startup/responsiveness check, not a visual layout or complete update-installation test. A Windows desktop session is required for local execution.
 
+## Isolated dummy update test: v1.0.0 → v1.0.1
+
+`.github/workflows/windows-update-smoke.yml` is a separate, non-publishing Windows test. It runs only for pushes to `codex/test-windows-update`, or manual dispatch once the workflow is available on the default branch. The production `windows.yml` release trigger is unchanged. The test downloads the published v1.0.0 ZIP and checks its pinned SHA-256, changes the application version to 1.0.1 only in the disposable CI checkout, then builds and packages that candidate. It creates no tag, Release or public update asset; existing users continue to see the real published version.
+
+The smoke script uses the **published v1.0.0 executable** as the update helper, an actual running v1.0.0 GUI as its parent, a complete staged payload manifest, and an isolated `LOCALAPPDATA` profile. It checks tampered-payload rejection, normal app shutdown, managed-file replacement, backup contents, actual v1.0.1 GUI restart, and preservation of personal files. Test installation paths contain spaces. Both GUIs use a refused network proxy and software rendering. The Actions evidence artifact records the results and hashes; the dummy ZIP is not published.
+
+To repeat locally in a Windows PowerShell 7 desktop session, supply a downloaded baseline and a separately built dummy candidate. The test root must be a new disposable directory:
+
+```powershell
+.\scripts\smoke_windows_update.ps1 -BaselineZip C:\Temp\gs-widget-v1.0.0-windows-x64.zip -CandidateZip C:\Temp\gs-widget-v1.0.1-windows-x64.zip -TestRoot "C:\Temp\gs widget dummy update"
+```
+
+This exercises the released helper and real process restart. It stages the candidate directly, so it does **not** test discovery of a newer public Release or the GUI download/restart buttons. Release selection, archive validation, rollback and locking also run in the Rust test suite. Complete the following acceptance test against the next genuine published version to verify the full public-feed and button flow.
+
 ## Update acceptance test: v1.0.0 → v1.1.0
 
 Use a Windows x64 test account or VM with a backed-up profile. Successful local or hosted compilation does not replace this runtime test.
