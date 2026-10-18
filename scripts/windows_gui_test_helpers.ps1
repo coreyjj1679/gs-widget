@@ -30,6 +30,21 @@ public static class GersangSmokeWindow
     private static extern bool PostMessageW(IntPtr window, uint message,
         UIntPtr wParam, IntPtr lParam);
 
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint access,
+        [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
+
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetExitCodeProcess(IntPtr process, out uint exitCode);
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
+
     public static IntPtr Find(uint processId)
     {
         IntPtr window = IntPtr.Zero;
@@ -54,9 +69,27 @@ public static class GersangSmokeWindow
             0x0001 | 0x0002, 1000, out result) != IntPtr.Zero;
     }
 
-    public static bool RequestClose(IntPtr window)
+    public static uint CloseAndWait(uint processId, IntPtr window)
     {
-        return PostMessageW(window, 0x0010, UIntPtr.Zero, IntPtr.Zero); // WM_CLOSE
+        // The restarted GUI is discovered with Get-Process, not Start-Process.
+        // Retain our own query/synchronize handle BEFORE closing it so its exit
+        // status remains available after Windows removes the process ID.
+        IntPtr process = OpenProcess(0x00100000 | 0x00001000, false, processId);
+        if (process == IntPtr.Zero)
+            throw new InvalidOperationException("Cannot open GUI process: " + Marshal.GetLastWin32Error());
+        try
+        {
+            if (!PostMessageW(window, 0x0010, UIntPtr.Zero, IntPtr.Zero)) // WM_CLOSE
+                throw new InvalidOperationException("Cannot request GUI shutdown: " + Marshal.GetLastWin32Error());
+            uint wait = WaitForSingleObject(process, 10000);
+            if (wait != 0)
+                throw new InvalidOperationException("GUI did not close normally within 10 seconds (wait result " + wait + ")");
+            uint exitCode;
+            if (!GetExitCodeProcess(process, out exitCode))
+                throw new InvalidOperationException("Cannot query GUI exit status: " + Marshal.GetLastWin32Error());
+            return exitCode;
+        }
+        finally { CloseHandle(process); }
     }
 }
 '@
@@ -94,9 +127,9 @@ function Close-Gui {
     $AppProcess.Refresh()
     if ($AppProcess.HasExited) { throw "GUI exited before normal shutdown was requested: $($AppProcess.Id)" }
     $window = [GersangSmokeWindow]::Find([uint32]$AppProcess.Id)
-    if ($window -eq [IntPtr]::Zero -or -not [GersangSmokeWindow]::RequestClose($window)) {
+    if ($window -eq [IntPtr]::Zero) {
         throw "Could not request normal 巨商 window shutdown: $($AppProcess.Id)"
     }
-    if (-not $AppProcess.WaitForExit(10000)) { throw "GUI did not close normally within 10 seconds" }
-    if ($AppProcess.ExitCode -ne 0) { throw "GUI closed with error: $($AppProcess.ExitCode)" }
+    $exitCode = [GersangSmokeWindow]::CloseAndWait([uint32]$AppProcess.Id, $window)
+    if ($exitCode -ne 0) { throw "GUI closed with error: $exitCode" }
 }
