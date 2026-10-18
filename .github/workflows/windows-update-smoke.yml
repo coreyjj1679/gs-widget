@@ -39,7 +39,7 @@ jobs:
         run: |
           $tokens = $null
           $parseErrors = $null
-          foreach ($script in @("smoke_windows_update.ps1", "windows_gui_test_helpers.ps1")) {
+          foreach ($script in @("smoke_windows_update.ps1", "windows_gui_test_helpers.ps1", "probe_windows_full_mode.ps1")) {
             $null = [System.Management.Automation.Language.Parser]::ParseFile("$env:GITHUB_WORKSPACE/scripts/$script", [ref]$tokens, [ref]$parseErrors)
             if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
           }
@@ -180,6 +180,9 @@ jobs:
       - name: Exercise the released helper and real GUI restart in an isolated profile
         run: |
           ./scripts/smoke_windows_update.ps1 -BaselineZip "$env:RUNNER_TEMP/dummy-input/gs-widget-v1.0.0-windows-x64.zip" -CandidateZip "$env:RUNNER_TEMP/dummy-candidate/gs-widget-v1.0.1-windows-x64.zip" -TestRoot "$env:RUNNER_TEMP/gs widget dummy update"
+      - name: Diagnose saved full-mode startup on the published baseline
+        run: |
+          ./scripts/probe_windows_full_mode.ps1 -BaselineZip "$env:RUNNER_TEMP/dummy-input/gs-widget-v1.0.0-windows-x64.zip" -TestRoot "$env:RUNNER_TEMP/gs widget full mode"
       - name: Save test evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -190,6 +193,8 @@ jobs:
             ${{ runner.temp }}/gs widget dummy update/**/*.log
             ${{ runner.temp }}/gs widget dummy update/**/error.txt
             ${{ runner.temp }}/gs widget dummy update/**/completed
+            ${{ runner.temp }}/gs widget full mode/**/*.json
+            ${{ runner.temp }}/gs widget full mode/**/*.log
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
