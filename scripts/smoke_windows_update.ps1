@@ -88,7 +88,12 @@ function Wait-Gui {
     while ([DateTime]::UtcNow -lt $deadline) {
         $AppProcess.Refresh()
         if ($AppProcess.HasExited) { throw "GUI exited during startup: $($AppProcess.Id), exit $($AppProcess.ExitCode)" }
-        if ($AppProcess.MainWindowHandle -ne [IntPtr]::Zero -and $AppProcess.Responding) { return }
+        if ($AppProcess.MainWindowHandle -ne [IntPtr]::Zero -and $AppProcess.Responding) {
+            if ($AppProcess.MainWindowTitle -ne "巨商") {
+                throw "Expected the main application window, found '$($AppProcess.MainWindowTitle)'"
+            }
+            return
+        }
         Start-Sleep -Milliseconds 200
     }
     throw "GUI did not become responsive within $Seconds seconds"
@@ -99,7 +104,7 @@ function Assert-GuiResponsive {
     $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
     while ([DateTime]::UtcNow -lt $deadline) {
         $AppProcess.Refresh()
-        if ($AppProcess.HasExited -or $AppProcess.MainWindowHandle -eq [IntPtr]::Zero -or -not $AppProcess.Responding) {
+        if ($AppProcess.HasExited -or $AppProcess.MainWindowHandle -eq [IntPtr]::Zero -or $AppProcess.MainWindowTitle -ne "巨商" -or -not $AppProcess.Responding) {
             throw "GUI stopped responding during observation: $($AppProcess.Id)"
         }
         Start-Sleep -Milliseconds 200
