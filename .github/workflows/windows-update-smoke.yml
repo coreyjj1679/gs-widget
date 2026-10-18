@@ -1,0 +1,202 @@
+name: Windows dummy update test
+
+# This isolated test never creates a tag or publishes a Release. The production
+# Windows build and release workflow remains restricted to version tags on main.
+on:
+  push:
+    branches: ["codex/test-windows-update"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: windows-dummy-update-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: 1.92.0
+  WINDOWS_TARGET: x86_64-pc-windows-msvc
+
+jobs:
+  build-dummy:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Validate the test harness before building
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          foreach ($script in @("smoke_windows_update.ps1", "windows_gui_test_helpers.ps1", "probe_windows_full_mode.ps1")) {
+            $null = [System.Management.Automation.Language.Parser]::ParseFile("$env:GITHUB_WORKSPACE/scripts/$script", [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
+          }
+          python -m py_compile scripts/windows_update_fixture.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify exact GUI window detection before the long build
+        run: |
+          . ./scripts/windows_gui_test_helpers.ps1
+          $probeRoot = Join-Path $env:RUNNER_TEMP "baseline gui probe"
+          New-Item -ItemType Directory -Force $probeRoot | Out-Null
+          $archive = Join-Path $probeRoot "baseline.zip"
+          Invoke-WebRequest -Uri "https://github.com/coreyjj1679/gs-widget/releases/download/v1.0.0/gs-widget-v1.0.0-windows-x64.zip" -OutFile $archive
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne "5e036aad294b60cab04f4ca22271f28bedd5b47e281cced5a463561f88230098") {
+            throw "Published baseline digest mismatch"
+          }
+          Expand-Archive -LiteralPath $archive -DestinationPath "$probeRoot/app"
+          $env:LOCALAPPDATA = "$probeRoot/profile"
+          $env:GERSANG_DB = $null
+          $env:GERSANG_CLIENT = $null
+          $env:HTTPS_PROXY = "http://127.0.0.1:1"
+          $env:HTTP_PROXY = "http://127.0.0.1:1"
+          $env:ALL_PROXY = "http://127.0.0.1:1"
+          $env:NO_PROXY = ""
+          $env:SLINT_BACKEND = "winit-software"
+          $env:SLINT_RENDERER = "software"
+          $probe = Start-Process -FilePath "$probeRoot/app/gersang-widget.exe" -WorkingDirectory $probeRoot -PassThru -RedirectStandardOutput "$probeRoot/stdout.log" -RedirectStandardError "$probeRoot/stderr.log"
+          try {
+            Wait-Gui -AppProcess $probe
+            Assert-GuiResponsive -AppProcess $probe -Seconds 3
+            Close-Gui -AppProcess $probe
+            Write-Output "Exact title/PID detection, responsiveness and normal close passed on published v1.0.0"
+          }
+          finally {
+            $probe.Refresh()
+            if (-not $probe.HasExited) { $probe.Kill(); $null = $probe.WaitForExit(5000) }
+            $probe.Dispose()
+            Get-Content -LiteralPath "$probeRoot/stdout.log", "$probeRoot/stderr.log"
+          }
+      - name: Reuse the verified dummy build only while application source is identical
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A pinned, test-only artifact from our completed build job. Expiry or
+          # any app/data/packager change falls back to a fresh build below.
+          $reuse = $false
+          git diff --quiet 9dff494e69168033a3319410016efdc109f9c8e1 HEAD -- widget .cargo data scripts/package_windows.py
+          if ($LASTEXITCODE -eq 0) {
+            try {
+              $artifact = Invoke-RestMethod -Uri "https://api.github.com/repos/coreyjj1679/gs-widget/actions/artifacts/12131981705" -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
+              $reuse = -not $artifact.expired -and $artifact.workflow_run.head_sha -eq "9dff494e69168033a3319410016efdc109f9c8e1" -and $artifact.digest -eq "sha256:fdf028594006526dc33042380892677f914b7c4eb12d695ba6e344960a632f55"
+            }
+            catch { Write-Output "Saved test artifact is unavailable; building a fresh candidate." }
+          }
+          "reuse=$($reuse.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Output "Reuse the pinned, source-identical dummy build: $reuse"
+          exit 0
+      - name: Retrieve the verified test-only candidate
+        if: steps.reuse.outputs.reuse == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-dummy-v1.0.1-test-only-do-not-release
+          run-id: 39113361544
+          github-token: ${{ github.token }}
+          path: dist
+      - name: Set a dummy version only inside this disposable checkout
+        if: steps.reuse.outputs.reuse != 'true'
+        run: |
+          @'
+          import re
+          from pathlib import Path
+
+          manifest = Path("widget/Cargo.toml")
+          text = manifest.read_text(encoding="utf-8")
+          text, count = re.subn(r'(?m)^version = "1\.0\.0"$', 'version = "1.0.1"', text, count=1)
+          if count != 1:
+              raise SystemExit("Dummy test expects the v1.0.0 source manifest")
+          manifest.write_text(text, encoding="utf-8")
+          lock = Path("widget/Cargo.lock")
+          text = lock.read_text(encoding="utf-8")
+          text, count = re.subn(r'(\[\[package\]\]\nname = "gersang-widget"\nversion = )"1\.0\.0"', r'\g<1>"1.0.1"', text)
+          if count != 1:
+              raise SystemExit("Dummy test expects exactly one v1.0.0 application lock entry")
+          lock.write_text(text, encoding="utf-8")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install pinned Rust toolchain
+        if: steps.reuse.outputs.reuse != 'true'
+        run: rustup toolchain install $env:RUST_TOOLCHAIN --profile minimal --target $env:WINDOWS_TARGET --no-self-update
+      - name: Verify release metadata, archive validation, rollback and Windows locking
+        if: steps.reuse.outputs.reuse != 'true'
+        run: cargo +$env:RUST_TOOLCHAIN test --release --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET -- --skip battle_frames_skip_blanks_and_reuse_the_decoded_frame
+      - name: Build the dummy v1.0.1 Windows app
+        if: steps.reuse.outputs.reuse != 'true'
+        run: cargo +$env:RUST_TOOLCHAIN build --release --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET
+      - name: Package the dummy candidate without publishing
+        if: steps.reuse.outputs.reuse != 'true'
+        run: python scripts/package_windows.py --expected-tag v1.0.1
+      # Retain this test-only handoff for one day so rerunning a failed smoke
+      # job can reuse the exact build. This asset never becomes a GitHub Release.
+      - name: Save the dummy candidate for the smoke job only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-dummy-v1.0.1-test-only-do-not-release
+          path: dist/gs-widget-v1.0.1-windows-x64.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  update-smoke:
+    needs: build-dummy
+    runs-on: windows-2022
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Download the dummy candidate from this run's build job
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-dummy-v1.0.1-test-only-do-not-release
+          path: ${{ runner.temp }}/dummy-candidate
+      - name: Download and verify the exact published v1.0.0 ZIP
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/dummy-input" | Out-Null
+          $archive = "$env:RUNNER_TEMP/dummy-input/gs-widget-v1.0.0-windows-x64.zip"
+          Invoke-WebRequest -Uri "https://github.com/coreyjj1679/gs-widget/releases/download/v1.0.0/gs-widget-v1.0.0-windows-x64.zip" -OutFile $archive
+          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($digest -ne "5e036aad294b60cab04f4ca22271f28bedd5b47e281cced5a463561f88230098") {
+            throw "Published baseline does not match the verified v1.0.0 Release"
+          }
+      - name: Exercise the released helper and real GUI restart in an isolated profile
+        run: |
+          ./scripts/smoke_windows_update.ps1 -BaselineZip "$env:RUNNER_TEMP/dummy-input/gs-widget-v1.0.0-windows-x64.zip" -CandidateZip "$env:RUNNER_TEMP/dummy-candidate/gs-widget-v1.0.1-windows-x64.zip" -TestRoot "$env:RUNNER_TEMP/gs widget dummy update"
+      - name: Verify saved full-mode startup and dimensions on the candidate
+        run: |
+          $candidate = "$env:RUNNER_TEMP/dummy-candidate/gs-widget-v1.0.1-windows-x64.zip"
+          $digest = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+          ./scripts/probe_windows_full_mode.ps1 -AppZip $candidate -ExpectedVersion "1.0.1" -ExpectedSha256 $digest -TestRoot "$env:RUNNER_TEMP/gs widget full mode"
+      - name: Save test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-dummy-update-evidence
+          path: |
+            ${{ runner.temp }}/gs widget dummy update/**/*.json
+            ${{ runner.temp }}/gs widget dummy update/**/*.log
+            ${{ runner.temp }}/gs widget dummy update/**/error.txt
+            ${{ runner.temp }}/gs widget dummy update/**/completed
+            ${{ runner.temp }}/gs widget full mode/**/*.json
+            ${{ runner.temp }}/gs widget full mode/**/*.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
