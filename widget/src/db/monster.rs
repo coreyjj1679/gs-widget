@@ -141,6 +141,18 @@ pub struct MonsterBrief {
     pub battle: Option<(PathBuf, i32)>,
 }
 
+fn like_contains(text: &str) -> String {
+    let mut pattern = String::from("%");
+    for ch in text.chars() {
+        if matches!(ch, '%' | '_' | '\\') {
+            pattern.push('\\');
+        }
+        pattern.push(ch);
+    }
+    pattern.push('%');
+    pattern
+}
+
 impl Catalog {
     pub(in crate::db) fn monster_text(&self, code: &str, lang: &str) -> String {
         let row = self.conn.query_row(
@@ -339,10 +351,8 @@ impl Catalog {
                 for (code, item) in rows.flatten() {
                     let Some(card) = cards.get_mut(&code) else { continue };
                     card.drop_total += 1;
-                    if card.drops.len() < 4 {
-                        if let Some(icon) = self.item_icon(item) {
-                            card.drops.push(icon);
-                        }
+                    if let Some(icon) = self.item_icon(item) {
+                        card.drops.push(icon);
                     }
                 }
             }
@@ -534,6 +544,68 @@ impl Catalog {
                     .and_then(|quest| self.index.npc_face(quest.npc));
                 Some(hit)
             })
+            .collect()
+    }
+
+    pub(in crate::db) fn narrow_monsters(&self, hits: Vec<super::Hit>, element: i64, ela_min: i64, ela_max: i64, drop: &str) -> Vec<super::Hit> {
+        let drop = drop.trim();
+        if element < 0 && ela_min < 0 && ela_max < 0 && drop.is_empty() {
+            return hits;
+        }
+        let codes: Vec<String> = hits
+            .iter()
+            .filter_map(|hit| hit.key.strip_prefix("monster:").map(str::to_string))
+            .collect();
+        if codes.is_empty() {
+            return hits;
+        }
+        let marks = std::iter::repeat("?").take(codes.len()).collect::<Vec<_>>().join(",");
+        let mut sql = format!("SELECT m.code FROM monsters m WHERE m.code IN ({marks})");
+        let mut extra: Vec<String> = Vec::new();
+        if element >= 0 {
+            sql.push_str(&format!(" AND m.element = ?{}", codes.len() + extra.len() + 1));
+            extra.push(element.to_string());
+        }
+        if ela_min >= 0 {
+            sql.push_str(&format!(" AND m.element_gts >= ?{}", codes.len() + extra.len() + 1));
+            extra.push(ela_min.to_string());
+        }
+        if ela_max >= 0 {
+            sql.push_str(&format!(" AND m.element_gts <= ?{}", codes.len() + extra.len() + 1));
+            extra.push(ela_max.to_string());
+        }
+        if !drop.is_empty() {
+            let raw = codes.len() + extra.len() + 1;
+            let folded = raw + 1;
+            sql.push_str(&format!(
+                " AND EXISTS (
+                    SELECT 1 FROM monster_drops d
+                    JOIN items i ON i.code = d.item_code
+                    LEFT JOIN strings se ON se.object = 'OnlineText.dat' AND se.lang = 'en'
+                        AND i.name_gts > 0 AND se.id = printf('%08d', i.name_gts)
+                    LEFT JOIN strings sz ON sz.object = 'OnlineText.dat' AND sz.lang = 'zh'
+                        AND i.name_gts > 0 AND sz.id = printf('%08d', i.name_gts)
+                    WHERE d.monster_code = m.code
+                      AND (i.name_ko LIKE ?{raw} ESCAPE '\\' OR IFNULL(se.text, '') LIKE ?{raw} ESCAPE '\\' OR IFNULL(sz.text, '') LIKE ?{raw} ESCAPE '\\'
+                        OR lower(i.name_ko) LIKE ?{folded} ESCAPE '\\' OR lower(IFNULL(se.text, '')) LIKE ?{folded} ESCAPE '\\' OR lower(IFNULL(sz.text, '')) LIKE ?{folded} ESCAPE '\\')
+                )"
+            ));
+            extra.push(like_contains(drop));
+            extra.push(like_contains(&drop.to_lowercase()));
+        }
+        let mut params: Vec<String> = codes;
+        params.extend(extra);
+        let mut stmt = match self.conn.prepare(&sql) {
+            Ok(stmt) => stmt,
+            Err(_) => return hits,
+        };
+        let rows = match stmt.query_map(rusqlite::params_from_iter(params.iter()), |row| row.get::<_, String>(0)) {
+            Ok(rows) => rows,
+            Err(_) => return hits,
+        };
+        let keep: HashSet<String> = rows.flatten().collect();
+        hits.into_iter()
+            .filter(|hit| hit.key.strip_prefix("monster:").is_some_and(|code| keep.contains(code)))
             .collect()
     }
 

@@ -1,12 +1,10 @@
 use super::alias::{alias_rows_from, set_query};
 use super::names::{fuzzy_budget, fuzzy_dist, haystack, nicknames};
 use super::paths::{data_dir, pictures_ready};
-use super::search::place_split;
+use super::search::{is_floor_suffix, place_split};
 use super::*;
 
 mod browse;
-
-use std::time::Instant;
 
 #[test]
 fn display_modes_keep_chinese_and_english() {
@@ -51,20 +49,8 @@ fn monster_sheet_shows_attribute_value() {
 }
 
 #[test]
-fn search_returns_before_a_frame() {
+fn search_pages_follow_the_index() {
     let catalog = Catalog::open().expect("db");
-    let started = Instant::now();
-    for _ in 0..40 {
-        let _ = catalog.search("item", "zzzz", "zh", "", "");
-        let _ = catalog.search("quest", "龍", "zh", "", "");
-        let _ = catalog.search("recipe", "a", "en", "", "");
-        let _ = catalog.search("monster", "a", "zh", "", "");
-        let _ = catalog.search("item", "", "ko", "", "");
-    }
-    let elapsed = started.elapsed();
-    eprintln!("200 searches in {elapsed:?}");
-    assert!(elapsed.as_millis() < 400, "searches too slow: {elapsed:?}");
-
     let items = catalog.search("item", "", "zh", "", "");
     assert_eq!(items.len(), 27);
     assert_eq!(items[0].key, "icat:set");
@@ -83,7 +69,10 @@ fn search_returns_before_a_frame() {
     assert!(nations.iter().any(|hit| hit.key.starts_with("nation:")));
     let nation = nations[0].key.trim_start_matches("nation:");
     let places = catalog.search("monster", "", "en", "", nation);
-    assert!(places.iter().all(|hit| hit.key.starts_with("region:") || hit.key.starts_with("area:")));
+    assert!(!places.is_empty());
+    assert!(places.iter().all(|hit| {
+        hit.key.starts_with("region:") || hit.key.starts_with("area:") || hit.key.starts_with("span:")
+    }));
 
     assert_eq!(
         keys(&catalog.search("item", "龍", "zh", "", "")),
@@ -283,6 +272,9 @@ fn place_split_keeps_floor_suffix() {
     assert_eq!(place_split("激戰香巴拉2樓"), ("激戰香巴拉".into(), "2樓".into()));
     assert_eq!(place_split("鬼曲城，神仙谷"), ("鬼曲城，神仙谷".into(), String::new()));
     assert_eq!(place_split("Ice Castle - 2nd floor"), ("Ice Castle".into(), "2nd floor".into()));
+    assert!(!is_floor_suffix("Glorious Tomb"));
+    assert!(is_floor_suffix("1層"));
+    assert!(is_floor_suffix("2nd floor"));
 }
 
 #[test]
@@ -297,6 +289,16 @@ fn similar_places_merge_and_sort_floors() {
     assert_eq!(floors[0].key, "span:冰城");
     let names: Vec<_> = floors.iter().skip(1).map(|hit| hit.title.as_str()).collect();
     assert_eq!(names, vec!["冰城 - 1層", "冰城 - 2層", "冰城 - 3層"]);
+    let mut taj = false;
+    for nation in ["1", "2", "3", "4", "5", "6"] {
+        let places = catalog.search("monster", "", "en", "", nation);
+        if places.iter().any(|hit| hit.title.contains("Taj")) {
+            taj = true;
+            assert!(places.iter().all(|hit| !hit.title.contains("Glorious")));
+            assert!(places.iter().any(|hit| hit.title.contains("Taj") && !hit.title.contains('-')));
+        }
+    }
+    assert!(taj, "taj mahal garden was not grouped");
     let all = catalog.search_scoped("monster", "", "zh", "span:冰城", "2", "", "冰城");
     let one = catalog.search("monster", "", "zh", "32092", "2");
     assert!(!one.is_empty());

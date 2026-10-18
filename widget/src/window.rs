@@ -28,6 +28,24 @@ mod tests {
         let (x, y) = fit_on_screen(100, 100, 80, 80, 2000, 2000, (0, 0, 1920, 1080));
         assert_eq!((x, y), (0, 0));
     }
+
+    #[test]
+    fn full_span_is_1280_by_800_unless_the_work_area_is_smaller() {
+        assert_eq!(super::full_span(1920.0, 1080.0), (1280.0, 800.0));
+        assert_eq!(super::full_span(1100.0, 700.0), (1100.0, 700.0));
+        assert_eq!(super::full_span(900.0, 600.0), (900.0, 600.0));
+    }
+
+    #[test]
+    fn resizing_crosses_between_widget_and_full_with_a_gap() {
+        assert!(!super::enters_full(900.0, 800.0));
+        assert!(!super::enters_full(1200.0, 680.0));
+        assert!(super::enters_full(1080.0, 700.0));
+        assert!(!super::leaves_full(1080.0, 700.0));
+        assert!(!super::leaves_full(1000.0, 660.0));
+        assert!(super::leaves_full(959.0, 800.0));
+        assert!(super::leaves_full(1200.0, 639.0));
+    }
 }
 
 pub(crate) fn place_window(window: &slint::Window, width: f32, height: f32, at: Option<(i32, i32)>) {
@@ -63,12 +81,52 @@ pub(crate) fn remember_window(window: &slint::Window) {
         return;
     }
     let pos = window.position();
-    db::save_window(&db::WindowPref {
-        width,
-        height,
-        x: pos.x,
-        y: pos.y,
-    });
+    let mut pref = db::load_window().unwrap_or(db::WindowPref::widget(width, height, pos.x, pos.y));
+    pref.width = width;
+    pref.height = height;
+    pref.x = pos.x;
+    pref.y = pos.y;
+    db::save_window(&pref);
+}
+
+pub(crate) fn full_span(avail_w: f32, avail_h: f32) -> (f32, f32) {
+    (1280.0_f32.min(avail_w.max(1.0)), 800.0_f32.min(avail_h.max(1.0)))
+}
+
+/// A widget this large should open as the full window.
+pub(crate) fn enters_full(width: f32, height: f32) -> bool {
+    width >= 1080.0 && height >= 700.0
+}
+
+/// A full window this small should drop back to the widget.
+pub(crate) fn leaves_full(width: f32, height: f32) -> bool {
+    width < 960.0 || height < 640.0
+}
+
+pub(crate) fn full_window_size(scale: f32) -> (f32, f32) {
+    let scale = scale.max(1.0);
+    let (left, top, right, bottom) = work_area_at(0, 0, 1, 1);
+    let logical_w = (right - left).max(1) as f32 / scale;
+    let logical_h = (bottom - top).max(1) as f32 / scale;
+    full_span((logical_w - 48.0).max(1.0), (logical_h - 48.0).max(1.0))
+}
+
+pub(crate) fn place_fitted(window: &slint::Window, width: f32, height: f32, prefer: Option<(i32, i32)>) -> (i32, i32) {
+    let pos = window.position();
+    let size = window.size();
+    let scale = window.scale_factor().max(1.0);
+    let new_w = (width * scale).round() as i32;
+    let new_h = (height * scale).round() as i32;
+    let old_w = (size.width as i32).max(1);
+    let old_h = (size.height as i32).max(1);
+    let work = work_area_at(pos.x, pos.y, old_w, old_h);
+    let (x, y) = match prefer {
+        Some((px, py)) => fit_on_screen(px, py, new_w, new_h, new_w, new_h, work),
+        None => fit_on_screen(pos.x, pos.y, old_w, old_h, new_w, new_h, work),
+    };
+    window.set_position(slint::PhysicalPosition::new(x, y));
+    window.set_size(slint::LogicalSize::new(width, height));
+    (x, y)
 }
 
 pub(crate) fn focus_window() {

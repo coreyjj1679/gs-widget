@@ -53,14 +53,23 @@ pub(crate) fn remember_icon(cache_key: &str, image: Image) {
     });
 }
 
+pub(crate) fn show_battle_frame(app: &App, key: &str, image: Image) {
+    paint_battle(&app.get_hits(), key, image.clone(), true);
+    paint_battle(&app.get_board_monsters(), key, image, true);
+}
+
 pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, links: bool) {
     if let Some(key) = row_key.strip_suffix("#battle") {
-        paint_battle(&app.get_hits(), key, icon, has_icon);
+        if !paint_battle(&app.get_hits(), key, icon.clone(), has_icon) {
+            paint_battle(&app.get_board_monsters(), key, icon, has_icon);
+        }
         return;
     }
     if let Some((key, slot)) = row_key.rsplit_once("#drop") {
         if let Ok(slot) = slot.parse::<usize>() {
-            paint_drop(&app.get_hits(), key, slot, icon, has_icon);
+            if !paint_drop(&app.get_hits(), key, slot, icon.clone(), has_icon) {
+                paint_drop(&app.get_board_monsters(), key, slot, icon, has_icon);
+            }
         }
         return;
     }
@@ -71,14 +80,16 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
     if links {
         let related = app.get_related();
         paint_model(&related, row_key, icon, has_icon);
+    } else {
+        paint_model(&app.get_board_monsters(), row_key, icon, has_icon);
     }
 }
 
-fn paint_battle(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) {
+fn paint_battle(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) -> bool {
     if !has_icon {
-        return;
+        return false;
     }
-    let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return };
+    let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return false };
     for index in 0..model.row_count() {
         let Some(mut row) = model.row_data(index) else { continue };
         if row.key.as_str() != row_key {
@@ -87,15 +98,16 @@ fn paint_battle(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool)
         row.battle = icon;
         row.has_battle = true;
         model.set_row_data(index, row);
-        return;
+        return true;
     }
+    false
 }
 
-fn paint_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, icon: Image, has_icon: bool) {
-    if !has_icon || slot > 3 {
-        return;
+fn paint_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, icon: Image, has_icon: bool) -> bool {
+    if !has_icon || slot > 9 {
+        return false;
     }
-    let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return };
+    let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return false };
     for index in 0..model.row_count() {
         let Some(mut row) = model.row_data(index) else { continue };
         if row.key.as_str() != row_key {
@@ -105,11 +117,18 @@ fn paint_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, icon: Image, has_
             0 => row.drop1 = icon,
             1 => row.drop2 = icon,
             2 => row.drop3 = icon,
-            _ => row.drop4 = icon,
+            3 => row.drop4 = icon,
+            4 => row.drop5 = icon,
+            5 => row.drop6 = icon,
+            6 => row.drop7 = icon,
+            7 => row.drop8 = icon,
+            8 => row.drop9 = icon,
+            _ => row.drop10 = icon,
         }
         model.set_row_data(index, row);
-        return;
+        return true;
     }
+    false
 }
 
 pub(crate) fn paint_model(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) -> bool {

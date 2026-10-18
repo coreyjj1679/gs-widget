@@ -1,0 +1,5 @@
+pin=auto
+battle=0
+gallery=0
+animate=1
+hotkeys=1

@@ -546,6 +546,17 @@ impl Index {
         }
     }
 
+    pub(in crate::db) fn work_building_goods(&self, building: &str, lang: &str) -> Vec<Hit> {
+        let Some(row) = self.works.iter().find(|row| row.code == building) else {
+            return Vec::new();
+        };
+        let mut hits = Vec::new();
+        for facility in &row.facilities {
+            hits.extend(self.work_products(facility, "", "", lang));
+        }
+        hits
+    }
+
     pub(in crate::db) fn work_products(&self, facility: &str, query: &str, folded: &str, lang: &str) -> Vec<Hit> {
         if !self.listed_facility(facility) {
             return Vec::new();

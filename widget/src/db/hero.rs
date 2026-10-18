@@ -608,10 +608,9 @@ impl Index {
             .collect()
     }
 
-    pub(in crate::db) fn hero_hits(&self, query: &str, folded: &str, lang: &str, rank: &str, nation: &str) -> Vec<Hit> {
+    pub(in crate::db) fn hero_hits(&self, query: &str, folded: &str, lang: &str, rank: &str, nation: &str, limit: usize) -> Vec<Hit> {
         let wanted = rank.parse::<i64>().ok();
         let land = nation.parse::<i64>().ok();
-        let limit = if query.is_empty() { 80 } else { 40 };
         let listed = |hero: &HeroRow| {
             wanted.is_none_or(|rank| hero.rank == rank) && land.is_none_or(|nation| hero.nation == nation)
         };

@@ -16,6 +16,12 @@ export struct Hit {
     drop2: image,
     drop3: image,
     drop4: image,
+    drop5: image,
+    drop6: image,
+    drop7: image,
+    drop8: image,
+    drop9: image,
+    drop10: image,
     drop-total: int,
     battle: image,
     has-battle: bool,
@@ -78,7 +84,7 @@ component WinButton inherits Rectangle {
     in property <string> glyph;
     in property <bool> danger: false;
     callback clicked();
-    width: glyph == "設定" ? 48px : glyph == "Setting" ? 64px : glyph == "EN" ? 34px : 30px;
+    width: glyph == "Setting" || glyph == "Widget" ? 64px : glyph == "設定" || glyph == "完整" || glyph == "小窗" ? 48px : glyph == "Full" ? 44px : glyph == "EN" ? 34px : 30px;
     height: 24px;
     border-radius: 6px;
     background: tap.has-hover ? (danger ? #7f1d1d : #5c4e3a) : (danger ? #4a3030 : #3f362c);
@@ -191,6 +197,99 @@ component DockMenuButton inherits Rectangle {
         height: 100%;
         clicked => { root.clicked(); }
         mouse-cursor: pointer;
+    }
+}
+
+component ChoiceBar inherits Rectangle {
+    in property <string> first;
+    in property <string> second;
+    in property <string> third: "";
+    in property <int> picked: 0;
+    callback pick(int);
+    height: 32px;
+    border-radius: 6px;
+    clip: true;
+    background: #100e0c;
+    border-width: 1px;
+    border-color: #3a342c;
+    HorizontalLayout {
+        spacing: 1px;
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.picked == 0 ? #3a3228 : transparent;
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.first;
+                font-size: 13px;
+                color: root.picked == 0 ? #f3efe8 : #a3988c;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => { root.pick(0); }
+                mouse-cursor: pointer;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.picked == 1 ? #3a3228 : transparent;
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.second;
+                font-size: 13px;
+                color: root.picked == 1 ? #f3efe8 : #a3988c;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => { root.pick(1); }
+                mouse-cursor: pointer;
+            }
+        }
+        if root.third != "": Rectangle {
+            horizontal-stretch: 1;
+            background: root.picked == 2 ? #3a3228 : transparent;
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.third;
+                font-size: 13px;
+                color: root.picked == 2 ? #f3efe8 : #a3988c;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => { root.pick(2); }
+                mouse-cursor: pointer;
+            }
+        }
+    }
+}
+
+component FormBlock inherits Rectangle {
+    in property <string> title;
+    background: #1c1916;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #3a342c;
+    VerticalLayout {
+        padding: 14px;
+        spacing: 10px;
+        if root.title != "": Text {
+            text: root.title;
+            font-size: 13px;
+            font-weight: 600;
+            color: #d4b483;
+        }
+        @children
     }
 }
 
@@ -628,11 +727,7 @@ component DockSortRow inherits Rectangle {
     callback grip-pressed(length);
     callback grip-moved(length);
     callback grip-released();
-    callback up();
-    callback down();
-    in property <bool> can-up: false;
-    in property <bool> can-down: false;
-    height: 52px;
+    height: 44px;
     border-radius: 8px;
     background: lifted ? #2c261f : (marked ? #241c14 : #1c1916);
     border-width: 1px;
@@ -644,11 +739,19 @@ component DockSortRow inherits Rectangle {
         spacing: 8px;
         cross-axis-alignment: center;
         Rectangle {
-            height: 44px;
+            horizontal-stretch: 1;
+            height: 40px;
             HorizontalLayout {
                 spacing: 8px;
                 alignment: start;
                 cross-axis-alignment: center;
+                Text {
+                    width: 16px;
+                    text: "⋮⋮";
+                    font-size: 14px;
+                    color: #8a8076;
+                    vertical-alignment: center;
+                }
                 Rectangle {
                     width: 36px;
                     height: 36px;
@@ -690,73 +793,6 @@ component DockSortRow inherits Rectangle {
                 }
             }
             grip := TouchArea {
-                width: 100%;
-                height: 100%;
-                mouse-cursor: grab;
-                pointer-event(event) => {
-                    if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
-                        root.grip-pressed(self.mouse-y);
-                    }
-                    if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
-                        root.grip-released();
-                    }
-                }
-                moved => {
-                    if (self.pressed) {
-                        root.grip-moved(self.mouse-y);
-                    }
-                }
-            }
-        }
-        Rectangle {
-            width: 26px;
-            height: 26px;
-            border-radius: 6px;
-            background: root.can-up ? (up-tap.has-hover ? #5c4e3a : #3f362c) : #241f1b;
-            Text {
-                width: 100%;
-                height: 100%;
-                text: "↑";
-                font-size: 13px;
-                color: root.can-up ? #f3efe8 : #5c534c;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-            up-tap := TouchArea {
-                width: 100%;
-                height: 100%;
-                enabled: root.can-up;
-                clicked => { root.up(); }
-                mouse-cursor: root.can-up ? pointer : default;
-            }
-        }
-        Rectangle {
-            width: 26px;
-            height: 26px;
-            border-radius: 6px;
-            background: root.can-down ? (down-tap.has-hover ? #5c4e3a : #3f362c) : #241f1b;
-            Text {
-                width: 100%;
-                height: 100%;
-                text: "↓";
-                font-size: 13px;
-                color: root.can-down ? #f3efe8 : #5c534c;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-            down-tap := TouchArea {
-                width: 100%;
-                height: 100%;
-                enabled: root.can-down;
-                clicked => { root.down(); }
-                mouse-cursor: root.can-down ? pointer : default;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            min-width: 8px;
-            height: 44px;
-            TouchArea {
                 width: 100%;
                 height: 100%;
                 mouse-cursor: grab;
@@ -1191,6 +1227,7 @@ component MonsterCard inherits Rectangle {
     in property <bool> selected: false;
     in property <string> no-image-label: "沒有圖片";
     in property <bool> english: false;
+    in property <bool> portrait: false;
     callback clicked();
     callback favourite-clicked();
     height: 214px;
@@ -1209,33 +1246,33 @@ component MonsterCard inherits Rectangle {
             padding-left: 8px;
             padding-right: 4px;
             spacing: 8px;
-            Rectangle {
-                width: root.hit.has-battle ? 168px : 88px;
-                height: 100%;
-                HorizontalLayout {
-                    width: 100%;
+                Rectangle {
+                    width: root.hit.has-battle ? 128px : 88px;
                     height: 100%;
-                    alignment: center;
-                    spacing: 6px;
-                    cross-axis-alignment: center;
-                    if root.hit.has-icon: Image {
-                        source: root.hit.icon;
-                        width: 72px;
-                        height: 72px;
-                        image-fit: contain;
-                    }
-                    if root.hit.no-image && !root.hit.has-battle: NoImage {
-                        side: 72px;
-                        label: root.no-image-label;
-                    }
-                    if root.hit.has-battle: Image {
-                        source: root.hit.battle;
-                        width: 84px;
-                        height: 120px;
-                        image-fit: contain;
+                    HorizontalLayout {
+                        width: 100%;
+                        height: 100%;
+                        alignment: center;
+                        spacing: 6px;
+                        cross-axis-alignment: center;
+                        if root.hit.has-icon && (!root.hit.has-battle || root.portrait): Image {
+                            source: root.hit.icon;
+                            width: 72px;
+                            height: 72px;
+                            image-fit: contain;
+                        }
+                        if root.hit.no-image && !root.hit.has-battle && !root.portrait: NoImage {
+                            side: 72px;
+                            label: root.no-image-label;
+                        }
+                        if root.hit.has-battle && !root.portrait: Image {
+                            source: root.hit.battle;
+                            width: 108px;
+                            height: 156px;
+                            image-fit: contain;
+                        }
                     }
                 }
-            }
             VerticalLayout {
                 horizontal-stretch: 1;
                 min-width: 0px;
@@ -1295,6 +1332,469 @@ component MonsterCard inherits Rectangle {
         clicked => { root.favourite-clicked(); }
     }
 }
+
+component NavRow inherits Rectangle {
+    in property <image> logo;
+    in property <bool> show-logo: false;
+    in property <string> glyph: "";
+    in property <string> label;
+    in property <bool> selected: false;
+    callback clicked();
+    height: 40px;
+    border-radius: 8px;
+    background: selected ? #2a241e : (area.has-hover ? #241f1b : transparent);
+    area := TouchArea {
+        width: parent.width;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+        HorizontalLayout {
+            width: 100%;
+            height: 100%;
+            padding-left: 10px;
+            padding-right: 8px;
+            spacing: 8px;
+            alignment: start;
+            if root.show-logo || root.glyph != "": VerticalLayout {
+                width: 22px;
+                alignment: center;
+                if root.show-logo: Image {
+                    source: root.logo;
+                    width: 22px;
+                    height: 22px;
+                    image-fit: contain;
+                }
+                if !root.show-logo && root.glyph != "": Text {
+                    width: 22px;
+                    height: 22px;
+                    text: root.glyph;
+                    font-size: 14px;
+                    color: #d4b483;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                Text {
+                    text: root.label;
+                    font-size: 14px;
+                    font-weight: root.selected ? 600 : 400;
+                    color: root.selected ? #f3efe8 : #d4b483;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}
+
+component BoardFilter inherits Rectangle {
+    in property <bool> open;
+    in property <bool> menu-open: true;
+    in property <bool> active;
+    in property <int> element: -1;
+    in property <string> ela-min;
+    in property <string> ela-max;
+    in property <string> drop;
+    in property <bool> english;
+    callback toggle();
+    callback toggle-menu();
+    in property <bool> battle-view: true;
+    in property <bool> pictures: false;
+    callback pick-view(bool);
+    callback clear();
+    callback pick(int);
+    callback edit-min(string);
+    callback edit-max(string);
+    callback edit-drop(string);
+    height: open ? 112px : 32px;
+    VerticalLayout {
+        width: 100%;
+        spacing: 6px;
+        HorizontalLayout {
+            height: 28px;
+            spacing: 6px;
+            alignment: start;
+            FilterChip {
+                horizontal-stretch: 0;
+                width: 64px;
+                label: root.english ? "Menu" : "目錄";
+                active: root.menu-open;
+                clicked => { root.toggle-menu(); }
+            }
+            if root.pictures: FilterChip {
+                horizontal-stretch: 0;
+                width: 64px;
+                label: root.english ? "Filter" : "篩選";
+                active: root.open || root.active;
+                clicked => { root.toggle(); }
+            }
+            if root.pictures && root.active: FilterChip {
+                horizontal-stretch: 0;
+                width: 64px;
+                label: root.english ? "Clear" : "清除";
+                active: false;
+                clicked => { root.clear(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            if root.pictures: FilterChip {
+                horizontal-stretch: 0;
+                width: 52px;
+                label: root.english ? "Face" : "頭像";
+                active: !root.battle-view;
+                clicked => { root.pick-view(false); }
+            }
+            if root.pictures: FilterChip {
+                horizontal-stretch: 0;
+                width: 52px;
+                label: root.english ? "Battle" : "戰鬥";
+                active: root.battle-view;
+                clicked => { root.pick-view(true); }
+            }
+        }
+        if root.open: HorizontalLayout {
+            height: 28px;
+            spacing: 6px;
+            alignment: start;
+            FilterChip { horizontal-stretch: 0; width: 52px; label: root.english ? "All" : "全部"; active: root.element < 0; clicked => { root.pick(-1); } }
+            FilterChip { horizontal-stretch: 0; width: 44px; label: root.english ? "None" : "無"; active: root.element == 0; clicked => { root.pick(0); } }
+            FilterChip { horizontal-stretch: 0; width: 44px; label: root.english ? "Fire" : "火"; active: root.element == 1; clicked => { root.pick(1); } }
+            FilterChip { horizontal-stretch: 0; width: 52px; label: root.english ? "Water" : "水"; active: root.element == 2; clicked => { root.pick(2); } }
+            FilterChip { horizontal-stretch: 0; width: 52px; label: root.english ? "Wind" : "風"; active: root.element == 3; clicked => { root.pick(3); } }
+            FilterChip { horizontal-stretch: 0; width: 72px; label: root.english ? "Thunder" : "雷"; active: root.element == 4; clicked => { root.pick(4); } }
+            FilterChip { horizontal-stretch: 0; width: 56px; label: root.english ? "Earth" : "地"; active: root.element == 5; clicked => { root.pick(5); } }
+        }
+        if root.open: HorizontalLayout {
+            height: 28px;
+            spacing: 8px;
+            alignment: start;
+            LineEdit {
+                width: 180px;
+                placeholder-text: root.english ? "Drop" : "掉落物";
+                text: root.drop;
+                edited => { root.edit-drop(self.text); }
+            }
+            Text {
+                text: root.english ? "ELA" : "屬性值";
+                color: #a3988c;
+                vertical-alignment: center;
+            }
+            LineEdit {
+                width: 72px;
+                placeholder-text: root.english ? "Min" : "最小";
+                text: root.ela-min;
+                edited => { root.edit-min(self.text); }
+            }
+            Text {
+                text: "–";
+                color: #a3988c;
+                vertical-alignment: center;
+            }
+            LineEdit {
+                width: 72px;
+                placeholder-text: root.english ? "Max" : "最大";
+                text: root.ela-max;
+                edited => { root.edit-max(self.text); }
+            }
+        }
+    }
+}
+
+component PlaceLink inherits Rectangle {
+    in property <string> title;
+    in property <bool> heading: false;
+    in property <bool> open: false;
+    in property <bool> selected: false;
+    in property <length> chip-w: 80px;
+    callback clicked();
+    width: chip-w;
+    height: 28px;
+    border-radius: 6px;
+    background: heading ? (open ? #241f1b : transparent) : selected ? #2a241e : area.has-hover ? #241f1b : transparent;
+    area := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+        Text {
+            x: heading ? 0px : 8px;
+            width: max(parent.width - (heading ? 0px : 16px), 8px);
+            height: 100%;
+            text: root.title;
+            font-size: heading ? 16px : 14px;
+            font-weight: heading ? 700 : 500;
+            color: heading ? #d4b483 : selected ? #f3efe8 : #e6d7bc;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+component TableStat inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    height: 16px;
+    HorizontalLayout {
+        width: 100%;
+        height: 100%;
+        spacing: 8px;
+        Text {
+            width: 52px;
+            text: root.label;
+            font-size: 12px;
+            color: #8a8076;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.value;
+            font-size: 12px;
+            color: #f3efe8;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+}
+
+component MonsterTableRow inherits Rectangle {
+    in property <Hit> hit;
+    in property <bool> selected: false;
+    in property <string> no-image-label: "沒有圖片";
+    in property <bool> english: false;
+    in property <bool> portrait: false;
+    callback clicked();
+    callback favourite-clicked();
+    height: 104px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: selected ? #d4b483 : #3a342c;
+    background: selected ? #2a241e : (area.has-hover ? #241f1b : #1c1914);
+    area := TouchArea {
+        width: parent.width - 40px;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+        HorizontalLayout {
+            width: 100%;
+            height: 100%;
+            padding-left: 10px;
+            padding-right: 8px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+            spacing: 12px;
+            alignment: start;
+            Rectangle {
+                width: 88px;
+                height: 88px;
+                if root.hit.has-icon && (!root.hit.has-battle || root.portrait): Image {
+                    x: (parent.width - 64px) / 2;
+                    y: (parent.height - 64px) / 2;
+                    width: 64px;
+                    height: 64px;
+                    source: root.hit.icon;
+                    image-fit: contain;
+                }
+                if root.hit.no-image && !root.hit.has-battle: NoImage {
+                    x: (parent.width - 64px) / 2;
+                    y: (parent.height - 64px) / 2;
+                    side: 64px;
+                    label: root.no-image-label;
+                }
+                if root.hit.has-battle && !root.portrait: Image {
+                    x: (parent.width - 72px) / 2;
+                    y: (parent.height - 80px) / 2;
+                    width: 72px;
+                    height: 80px;
+                    source: root.hit.battle;
+                    image-fit: contain;
+                }
+            }
+            VerticalLayout {
+                width: 210px;
+                alignment: start;
+                spacing: 2px;
+                Text {
+                    text: root.hit.title;
+                    font-size: 15px;
+                    font-weight: 600;
+                    color: #f3efe8;
+                    overflow: elide;
+                }
+                if root.hit.subtitle != "": Text {
+                    text: root.hit.subtitle;
+                    font-size: 13px;
+                    color: #d4b483;
+                    overflow: elide;
+                }
+                if root.hit.stat-kind != "": Text {
+                    text: root.hit.stat-kind;
+                    font-size: 12px;
+                    color: #a3988c;
+                    overflow: elide;
+                }
+                if root.hit.stat-element != "": Text {
+                    text: root.hit.stat-element;
+                    font-size: 12px;
+                    color: #a3988c;
+                    overflow: elide;
+                }
+            }
+            VerticalLayout {
+                width: 188px;
+                alignment: start;
+                spacing: 0px;
+                TableStat { label: root.english ? "HP" : "體力"; value: root.hit.stat-hp; }
+                TableStat { label: root.english ? "Hit" : "打擊"; value: root.hit.stat-hit; }
+                TableStat { label: root.english ? "Magic" : "魔法"; value: root.hit.stat-magic; }
+                TableStat { label: root.english ? "Attack" : "攻擊"; value: root.hit.stat-atk; }
+                TableStat { label: root.english ? "Exp" : "經驗"; value: root.hit.stat-exp; }
+            }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: start;
+                spacing: 4px;
+                Text {
+                    height: 16px;
+                    text: root.english ? "Drops" : "掉落";
+                    font-size: 12px;
+                    color: #8a8076;
+                    vertical-alignment: center;
+                }
+                HorizontalLayout {
+                    height: 28px;
+                    spacing: 4px;
+                    alignment: start;
+                    if root.hit.drop1.width > 0: Image { source: root.hit.drop1; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop2.width > 0: Image { source: root.hit.drop2; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop3.width > 0: Image { source: root.hit.drop3; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop4.width > 0: Image { source: root.hit.drop4; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop5.width > 0: Image { source: root.hit.drop5; width: 28px; height: 28px; image-fit: contain; }
+                }
+                if root.hit.drop6.width > 0: HorizontalLayout {
+                    height: 28px;
+                    spacing: 4px;
+                    alignment: start;
+                    if root.hit.drop6.width > 0: Image { source: root.hit.drop6; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop7.width > 0: Image { source: root.hit.drop7; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop8.width > 0: Image { source: root.hit.drop8; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop9.width > 0: Image { source: root.hit.drop9; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop10.width > 0: Image { source: root.hit.drop10; width: 28px; height: 28px; image-fit: contain; }
+                }
+                if root.hit.drop-total == 0: Text {
+                    text: "—";
+                    font-size: 12px;
+                    color: #8a8076;
+                }
+            }
+        }
+    }
+    StarMark {
+        x: parent.width - 36px;
+        y: 8px;
+        filled: root.hit.favourite;
+        clicked => { root.favourite-clicked(); }
+    }
+}
+
+component SectionPick inherits Rectangle {
+    in property <string> title;
+    in property <string> count;
+    in property <bool> selected: false;
+    callback clicked();
+    height: 36px;
+    border-radius: 6px;
+    background: selected ? #2a241e : area.has-hover ? #241f1b : transparent;
+    area := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+        HorizontalLayout {
+            width: 100%;
+            height: 100%;
+            padding-left: 10px;
+            padding-right: 8px;
+            spacing: 8px;
+            alignment: start;
+            Text {
+                horizontal-stretch: 1;
+                text: root.title;
+                font-size: 14px;
+                font-weight: root.selected ? 600 : 400;
+                color: root.selected ? #f3efe8 : #e6d7bc;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            if root.count != "": Text {
+                text: root.count;
+                font-size: 12px;
+                color: #8a8076;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+component CatalogRow inherits Rectangle {
+    in property <Hit> hit;
+    in property <bool> selected: false;
+    callback clicked();
+    height: 46px;
+    background: selected ? #2a241e : area.has-hover ? #241f1b : transparent;
+    area := TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(); }
+        mouse-cursor: pointer;
+        HorizontalLayout {
+            width: 100%;
+            height: 100%;
+            padding-left: 10px;
+            padding-right: 12px;
+            spacing: 10px;
+            alignment: center;
+            if root.hit.has-icon: Image {
+                source: root.hit.icon;
+                width: 32px;
+                height: 32px;
+                image-fit: contain;
+            }
+            VerticalLayout {
+                horizontal-stretch: 1;
+                alignment: center;
+                spacing: 1px;
+                Text {
+                    text: root.hit.title;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: #f3efe8;
+                    overflow: elide;
+                }
+                if root.hit.subtitle != "": Text {
+                    text: root.hit.subtitle;
+                    font-size: 12px;
+                    color: #a3988c;
+                    overflow: elide;
+                }
+            }
+            if root.hit.aside != "": Text {
+                text: root.hit.aside;
+                font-size: 12px;
+                color: #d4b483;
+                vertical-alignment: center;
+            }
+        }
+    }
+    Rectangle {
+        y: parent.height - 1px;
+        width: 100%;
+        height: 1px;
+        background: #2a241e;
+    }
+}
+
 
 component DockChip inherits Rectangle {
     in property <image> logo;
@@ -1424,6 +1924,312 @@ component FactLine inherits Rectangle {
     }
 }
 
+component RecordDetail inherits Rectangle {
+    in property <[Fact]> facts;
+    in property <[Hit]> links;
+    in property <string> note: "";
+    in property <string> body: "";
+    in property <string> link-label;
+    in property <string> no-image-label;
+    callback open-key(string);
+    background: #161310;
+    Flickable {
+        width: 100%;
+        height: 100%;
+        content-width: self.width;
+        content-height: max(column.preferred-height + 8px, 1px);
+        column := VerticalLayout {
+            width: parent.width;
+            padding: 12px;
+            spacing: 4px;
+            if root.note != "": Text {
+                width: parent.width - 24px;
+                text: root.note;
+                wrap: word-wrap;
+                font-size: 13px;
+                color: #f3efe8;
+            }
+            if root.body != "" && root.facts.length == 0: Text {
+                width: parent.width - 24px;
+                text: root.body;
+                wrap: word-wrap;
+                font-size: 13px;
+                color: #f3efe8;
+            }
+            for fact in root.facts: FactLine {
+                width: parent.width - 24px;
+                label: fact.label;
+                value: fact.value;
+                key: fact.key;
+                icon: fact.icon;
+                has-icon: fact.has-icon;
+                last: true;
+                open => {
+                    if (fact.key != "") {
+                        root.open-key(fact.key);
+                    }
+                }
+            }
+            if root.links.length > 0: Text {
+                text: root.link-label;
+                font-size: 12px;
+                color: #a3988c;
+            }
+            if root.links.length > 0: VerticalLayout {
+                spacing: 0px;
+                for row in root.links: HitRow {
+                    compact: true;
+                    hit: row;
+                    no-image-label: root.no-image-label;
+                    title-color: #d4b483;
+                    clicked => {
+                        if (row.key != "" && row.chip != "section") {
+                            root.open-key(row.key);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component FullMonsterSheet inherits Flickable {
+    in property <bool> english: false;
+    in property <string> title;
+    in property <string> alt;
+    in property <string> code;
+    in property <image> icon;
+    in property <bool> show-icon: false;
+    in property <image> battle;
+    in property <bool> show-battle: false;
+    in property <image> element-icon;
+    in property <bool> show-element: false;
+    in property <[Fact]> facts;
+    in property <[Hit]> drops;
+    in property <[Hit]> related;
+    in property <int> cursor: 0;
+    in property <string> no-image-label;
+    callback open-fact(string);
+    callback open-drop(int);
+    callback open-related(int);
+    property <length> stage-h: 210px;
+    property <int> fact-rows: floor((max(facts.length, 1) + 1) / 2);
+    property <length> fact-top: stage-h + 12px;
+    property <length> fact-h: fact-rows * 32px;
+    property <length> lists-top: fact-top + fact-h + 12px;
+    property <bool> split: drops.length > 0 && related.length > 0;
+    property <length> list-h: max(drops.length * 36px, related.length * 52px);
+    property <length> block-h: drops.length > 0 || related.length > 0 ? 26px + list-h : 0px;
+    property <length> text-x: 16px + (show-icon ? 156px : 0px) + (show-battle ? 132px : 0px);
+    content-width: self.width;
+    content-height: max(lists-top + block-h + 8px, 1px);
+    Rectangle {
+        y: 0px;
+        width: parent.width;
+        height: root.stage-h;
+        border-radius: 12px;
+        background: #1c1916;
+        border-width: 1px;
+        border-color: #3a342c;
+        if root.show-icon: Image {
+            x: 16px;
+            y: (root.stage-h - 148px) / 2;
+            width: 140px;
+            height: 140px;
+            source: root.icon;
+            image-fit: contain;
+        }
+        if root.show-battle: Image {
+            x: root.show-icon ? 164px : 16px;
+            y: 12px;
+            width: 116px;
+            height: root.stage-h - 24px;
+            source: root.battle;
+            image-fit: contain;
+        }
+        if root.show-element: Image {
+            x: 124px;
+            y: root.stage-h - 52px;
+            width: 32px;
+            height: 32px;
+            source: root.element-icon;
+            image-fit: contain;
+        }
+        Text {
+            x: root.text-x;
+            y: (root.stage-h - (root.alt == "" ? 48px : 70px)) / 2;
+            width: max(parent.width - root.text-x - 16px, 48px);
+            text: root.title;
+            font-size: 22px;
+            font-weight: 600;
+            color: #f3efe8;
+            overflow: elide;
+        }
+        if root.alt != "": Text {
+            x: root.text-x;
+            y: (root.stage-h - 70px) / 2 + 28px;
+            width: max(parent.width - root.text-x - 16px, 48px);
+            text: root.alt;
+            font-size: 15px;
+            color: #d4b483;
+            overflow: elide;
+        }
+        Text {
+            x: root.text-x;
+            y: (root.stage-h - (root.alt == "" ? 48px : 70px)) / 2 + (root.alt == "" ? 28px : 50px);
+            width: max(parent.width - root.text-x - 16px, 48px);
+            text: root.code;
+            font-size: 13px;
+            color: #a3988c;
+            overflow: elide;
+        }
+    }
+    Rectangle {
+        y: root.fact-top;
+        width: parent.width;
+        height: root.fact-h;
+        background: #1c1916;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: #3a342c;
+        for fact[i] in root.facts: FactLine {
+            x: mod(i, 2) == 0 ? 4px : parent.width / 2;
+            y: floor(i / 2) * 32px;
+            width: parent.width / 2 - 8px;
+            label: fact.label;
+            value: fact.value;
+            key: fact.key;
+            last: true;
+            open => { root.open-fact(fact.key); }
+        }
+    }
+    if root.drops.length > 0: Text {
+        x: 4px;
+        y: root.lists-top;
+        text: root.english ? "Drops" : "掉落";
+        font-size: 13px;
+        color: #a3988c;
+    }
+    if root.related.length > 0: Text {
+        x: root.split ? parent.width / 2 + 8px : 4px;
+        y: root.lists-top;
+        text: root.english ? "Related" : "相關";
+        font-size: 13px;
+        color: #a3988c;
+    }
+    if root.drops.length > 0: Rectangle {
+        x: 0px;
+        y: root.lists-top + 24px;
+        width: root.split ? parent.width / 2 - 6px : parent.width;
+        height: root.drops.length * 36px;
+        for row[i] in root.drops: HitRow {
+            y: i * 36px;
+            width: parent.width;
+            compact: true;
+            selected: root.cursor == i;
+            hit: row;
+            no-image-label: root.no-image-label;
+            title-color: #d4b483;
+            clicked => { root.open-drop(i); }
+        }
+    }
+    if root.related.length > 0: Rectangle {
+        x: root.split ? parent.width / 2 + 6px : 0px;
+        y: root.lists-top + 24px;
+        width: root.split ? parent.width / 2 - 6px : parent.width;
+        height: root.related.length * 52px;
+        for row[i] in root.related: HitRow {
+            y: i * 52px;
+            width: parent.width;
+            selected: root.cursor == i;
+            hit: row;
+            no-image-label: root.no-image-label;
+            clicked => { root.open-related(i); }
+        }
+    }
+}
+
+component InlineMonster inherits Rectangle {
+    in property <[Fact]> facts;
+    in property <[Hit]> drops;
+    in property <[Hit]> related;
+    in property <bool> english;
+    in property <string> no-image-label;
+    in property <string> note: "";
+    callback open-key(string);
+    property <int> fact-rows: facts.length == 0 ? 0 : floor((facts.length + 1) / 2);
+    property <length> list-top: 8px + fact-rows * 30px + (fact-rows > 0 ? 8px : 0px);
+    background: #1c1916;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: #3a342c;
+    if root.facts.length == 0 && root.note != "": Text {
+        x: 12px;
+        y: 10px;
+        width: parent.width - 24px;
+        text: root.note;
+        wrap: word-wrap;
+        font-size: 13px;
+        color: #f3efe8;
+    }
+    for fact[i] in root.facts: FactLine {
+        x: mod(i, 2) == 0 ? 8px : parent.width / 2;
+        y: 6px + floor(i / 2) * 30px;
+        width: parent.width / 2 - 12px;
+        label: fact.label;
+        value: fact.value;
+        key: fact.key;
+        last: true;
+        open => {
+            if (fact.key != "") {
+                root.open-key(fact.key);
+            }
+        }
+    }
+    if root.drops.length > 0: Text {
+        x: 10px;
+        y: root.list-top;
+        text: root.english ? "Drops" : "掉落";
+        font-size: 12px;
+        color: #a3988c;
+    }
+    if root.related.length > 0: Text {
+        x: root.drops.length > 0 ? parent.width / 2 + 8px : 10px;
+        y: root.list-top;
+        text: root.english ? "Related" : "相關";
+        font-size: 12px;
+        color: #a3988c;
+    }
+    if root.drops.length > 0: Rectangle {
+        x: 6px;
+        y: root.list-top + 20px;
+        width: root.related.length > 0 ? parent.width / 2 - 10px : parent.width - 12px;
+        height: root.drops.length * 36px;
+        for row[i] in root.drops: HitRow {
+            y: i * 36px;
+            width: parent.width;
+            compact: true;
+            hit: row;
+            no-image-label: root.no-image-label;
+            title-color: #d4b483;
+            clicked => { root.open-key(row.key); }
+        }
+    }
+    if root.related.length > 0: Rectangle {
+        x: root.drops.length > 0 ? parent.width / 2 + 4px : 6px;
+        y: root.list-top + 20px;
+        width: root.drops.length > 0 ? parent.width / 2 - 10px : parent.width - 12px;
+        height: root.related.length * 52px;
+        for row[i] in root.related: HitRow {
+            y: i * 52px;
+            width: parent.width;
+            hit: row;
+            no-image-label: root.no-image-label;
+            clicked => { root.open-key(row.key); }
+        }
+    }
+}
+
 component ChainButton inherits Rectangle {
     in property <string> caption;
     in property <string> name;
@@ -1478,6 +2284,10 @@ export component App inherits Window {
     in-out property <string> viewing;
     in-out property <string> lang: "zh-en";
     in-out property <bool> collapsed: false;
+    in-out property <bool> full-mode: false;
+    callback mode-changed(bool);
+    property <length> nav-w: 188px;
+    property <length> pane-w: full-mode && !collapsed ? max(root.width - nav-w, 280px) : root.width;
     in-out property <bool> dock-menu: false;
     callback dock-drag(length, length);
     in-out property <bool> settings-open: false;
@@ -1532,13 +2342,14 @@ export component App inherits Window {
     in-out property <[int]> dock-draft: [0, 1, 2, 3, 4, 5, 6, 7, 8];
     in-out property <[int]> dock-shown: [0, 1, 2, 3, 4, 5, 6, 7, 8];
     in-out property <bool> dock-editing: false;
+    in-out property <bool> nav-editing: false;
     in-out property <int> settings-tab: 0;
     in-out property <bool> arranging: false;
     in-out property <int> hotkey-nth: 0;
     property <length> home-pad: 16px;
     property <length> home-gap: 12px;
     property <length> icon-base: icon-size == 0 ? 72px : icon-size == 2 ? 168px : 96px;
-    property <int> home-span: max(1, min(root.home-order.length, max(1, round(max(root.width - 16px, 40px) / (root.icon-base + root.home-gap) - 0.5))));
+    property <int> home-span: max(1, min(root.home-order.length, max(1, round(max(root.pane-w - 16px, 40px) / (root.icon-base + root.home-gap) - 0.5))));
     in-out property <int> saved-cursor: 0;
     in-out property <length> list-offset: 0px;
     in-out property <length> drop-offset: 0px;
@@ -1564,6 +2375,7 @@ export component App inherits Window {
     callback forget-view();
     callback request-close();
     callback went-home();
+    callback home-open(string);
     callback lang-changed(string);
     callback collapse-changed(bool);
     callback copy-note();
@@ -1578,6 +2390,11 @@ export component App inherits Window {
     callback dock-order-cancel();
     callback opacity-changed(float);
     callback show-set-extra-changed(bool);
+    callback pin-changed(int);
+    callback battle-changed(bool);
+    callback gallery-changed(bool);
+    callback animate-changed(bool);
+    callback hotkeys-changed(bool);
     callback alias-save();
     callback alias-cancel();
     callback alias-add();
@@ -1615,7 +2432,7 @@ export component App inherits Window {
 
     title: "巨商";
     no-frame: true;
-    always-on-top: true;
+    always-on-top: pin-top == 1 || (pin-top == 0 && !full-mode);
     icon: @image-url("app-icon.png");
     default-font-family: "Microsoft JhengHei UI";
     default-font-size: 14px;
@@ -1900,6 +2717,47 @@ export component App inherits Window {
         root.lang-changed(code);
     }
 
+    function choose-pin(mode: int) {
+        root.pin-top = mode;
+        root.pin-changed(mode);
+    }
+
+    function choose-battle(battle: bool) {
+        if (root.battle-view == battle) {
+            return;
+        }
+        root.battle-view = battle;
+        root.battle-changed(battle);
+    }
+
+    function choose-gallery(on: bool) {
+        if (root.monster-gallery == on) {
+            return;
+        }
+        root.monster-gallery = on;
+        root.gallery-changed(on);
+        if (root.category == "monster" && root.viewing == "" && !root.full-mode) {
+            root.list-offset = 0px;
+            root.query-changed(root.category, root.query);
+        }
+    }
+
+    function choose-animate(on: bool) {
+        if (root.animate-battle == on) {
+            return;
+        }
+        root.animate-battle = on;
+        root.animate-changed(on);
+    }
+
+    function choose-hotkeys(on: bool) {
+        if (root.hotkeys-on == on) {
+            return;
+        }
+        root.hotkeys-on = on;
+        root.hotkeys-changed(on);
+    }
+
     function go-back() {
         if (root.viewing != "") {
             if (root.restore-view()) {
@@ -2085,6 +2943,24 @@ export component App inherits Window {
 
     function reveal-list(index: int) {
         if (root.hits.length == 0) {
+            return;
+        }
+        if (root.monster-board && index < root.flow-y.length) {
+            let row = root.flow-y[index] * 1px;
+            let view = root.list-view;
+            let top = -root.list-offset;
+            if (row < top) {
+                root.list-offset = -row;
+            } else if (row + 32px > top + view) {
+                root.list-offset = view - row - 32px;
+            }
+            let floor = min(0px, view - root.flow-h * 1px);
+            if (root.list-offset < floor) {
+                root.list-offset = floor;
+            }
+            if (root.list-offset > 0px) {
+                root.list-offset = 0px;
+            }
             return;
         }
         let row = index * root.list-row;
@@ -2481,7 +3357,13 @@ export component App inherits Window {
         }
         if (root.viewing == "") {
             if (root.cursor >= 0 && root.cursor < root.hits.length) {
-                root.open-hit(root.hits[root.cursor].key);
+                if (root.monster-board || (root.full-board && root.hits[root.cursor].chip == "label")) {
+                    root.toggle-board(root.hits[root.cursor].key);
+                } else if (root.full-board) {
+                    root.toggle-detail(root.hits[root.cursor].key, root.cursor);
+                } else {
+                    root.open-hit(root.hits[root.cursor].key);
+                }
             }
             return;
         }
@@ -2618,6 +3500,21 @@ export component App inherits Window {
         if ((event.text == Key.Tab || event.text == Key.Backtab) && root.category == "monster") {
             root.toggle-saved();
             return accept;
+        }
+        if (root.category == "" && root.full-mode && root.hits.length > 0) {
+            if (event.text == Key.UpArrow) {
+                root.cursor = max(root.cursor - 1, 0);
+                return accept;
+            }
+            if (event.text == Key.DownArrow) {
+                root.cursor = min(root.cursor + 1, root.hits.length - 1);
+                return accept;
+            }
+            if (event.text == Key.Space || event.text == Key.Return) {
+                root.home-open(root.hits[root.cursor].key);
+                return accept;
+            }
+            return reject;
         }
         if (root.category == "" && root.arranging && event.text == Key.Escape) {
             root.arranging = false;
@@ -2874,9 +3771,42 @@ export component App inherits Window {
     in-out property <bool> search-open: false;
     property <bool> set-browser: category == "item" && place == "set" && viewing == "";
     property <bool> monster-cards: category == "monster" && viewing == "" && (place != "" || favourites-only || (hits.length > 0 && hits[0].key.starts-with("monster:")));
-    property <length> list-row: monster-gallery && monster-cards ? 220px : 52px;
-    property <length> search-y: category == "patch" ? 128px : set-browser || category == "monster" || category == "hero" || (category == "quest" && place == "main") ? 86px : 50px;
-    property <length> list-y: search-open ? (category == "patch" ? 176px : set-browser || category == "monster" || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
+    property <bool> monster-board: full-mode && category == "monster" && viewing == "" && place == "" && area == "" && !favourites-only && query == "";
+    property <bool> full-board: full-mode && category != "" && category != "monster" && viewing == "" && query == "" && place == "" && area == "";
+    property <bool> full-flat: full-board && hits.length > 0 && hits[0].chip != "label";
+    property <length> record-row: 72px;
+    in-out property <length> board-span: 960px;
+    in-out property <[int]> flow-x;
+    in-out property <[int]> flow-y;
+    in-out property <[int]> flow-w;
+    in-out property <int> flow-h: 0;
+    callback reflow(length);
+    in-out property <bool> menu-open: true;
+    in-out property <int> pin-top: 0;
+    in-out property <bool> battle-view: true;
+    in-out property <bool> animate-battle: true;
+    in-out property <bool> hotkeys-on: true;
+    in-out property <string> expanded: "";
+    in-out property <string> detail-key: "";
+    in-out property <int> detail-index: -1;
+    in-out property <bool> filter-open: false;
+    in-out property <int> filter-element: -1;
+    in-out property <string> filter-ela-min: "";
+    in-out property <string> filter-ela-max: "";
+    in-out property <string> filter-drop: "";
+    callback toggle-detail(string, int);
+    callback apply-filter(bool);
+    in-out property <[Hit]> board-monsters;
+    callback toggle-board(string);
+    property <length> monster-row: 108px;
+    property <int> inline-fact-rows: facts.length == 0 ? 0 : floor((facts.length + 1) / 2);
+    property <length> detail-h: detail-index < 0 ? 0px : (facts.length == 0 && links.length == 0 && related.length == 0 ? 180px : 8px + (facts.length > 0 ? inline-fact-rows * 30px + 8px : 0px) + (links.length > 0 || related.length > 0 ? 24px + max(links.length * 36px, related.length * 52px) : 0px));
+    property <length> filter-h: filter-open ? 112px : 32px;
+    property <bool> filter-active: filter-element >= 0 || filter-ela-min != "" || filter-ela-max != "" || filter-drop != "";
+    property <length> board-monsters-h: board-monsters.length * monster-row + detail-h;
+    property <length> list-row: full-mode && monster-cards ? 108px : monster-gallery && monster-cards ? 220px : 52px;
+    property <length> search-y: category == "patch" ? 128px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 86px : 50px;
+    property <length> list-y: search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
     property <length> foot: 26px;
     property <length> list-view: max(root.height - list-y - 68px, 80px);
     in-out property <bool> form-open: false;
@@ -2906,7 +3836,7 @@ export component App inherits Window {
     property <length> quest-note-h: sheet-note == "" ? 0px : 96px;
     property <bool> quest-has-reward: quest-sheet && (reward-facts.length > 0 || links.length > 0);
     property <length> quest-chain-h: !quest-sheet || (chain-prev.length == 0 && chain-next.length == 0) ? 0px : chain-next.length > 1 ? min(chain-next.length * 44px, 132px) : 52px;
-    property <length> chain-w: max((root.width - 36px) / 2, 96px);
+    property <length> chain-w: max((root.pane-w - 36px) / 2, 96px);
     property <length> quest-ask-y: quest-note-y + quest-note-h + 8px;
     property <length> quest-ask-h: facts.length == 0 ? 0px : 20px;
     property <length> quest-form-y: quest-ask-y + quest-ask-h;
@@ -2926,10 +3856,11 @@ export component App inherits Window {
     property <length> portrait-y: 58px;
     property <length> portrait-side: 120px;
     property <length> stage-h: 168px;
-    property <length> face-side: show-battle ? 96px : portrait-side;
-    property <length> face-x: show-battle ? side-gap + 8px : side-gap;
-    property <length> face-y: show-battle ? portrait-y + (stage-h - face-side) / 2 : portrait-y;
-    property <length> toggle-y: show-battle ? portrait-y + stage-h + 10px : portrait-y + portrait-side + (sheet-alt == "" ? 62px : 78px);
+    property <bool> battle-picture: show-battle && battle-view;
+    property <length> face-side: battle-picture ? 96px : portrait-side;
+    property <length> face-x: battle-picture ? side-gap + 8px : side-gap;
+    property <length> face-y: battle-picture ? portrait-y + (stage-h - face-side) / 2 : portrait-y;
+    property <length> toggle-y: battle-picture ? portrait-y + stage-h + 10px : portrait-y + portrait-side + (sheet-alt == "" ? 62px : 78px);
     property <length> body-room: max(root.height - foot - 42px - toggle-y - 16px, 120px);
     property <length> form-h: min(facts.length * 30px + 2px, body-room - (links.length > 0 ? 52px : 0px) - (related.length > 0 ? 44px : 0px));
     property <length> drops-header-y: form-open ? toggle-y + 52px + form-h : toggle-y + 44px;
@@ -3107,28 +4038,170 @@ export component App inherits Window {
             }
         }
 
-        if !root.collapsed: VerticalLayout {
+        if !root.collapsed: HorizontalLayout {
             spacing: 0;
-
-            Rectangle {
-                height: 42px;
-                background: #100e0ce8;
-                WindowMoveArea {
-                    HorizontalLayout {
-                        padding-left: 16px;
-                        padding-right: 8px;
-                        spacing: 4px;
-                        Text {
-                            text: root.lang == "en-zh" ? "GERSANG" : "巨商";
-                            font-size: 13px;
-                            font-weight: 600;
-                            color: #d4b483;
-                            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+            if root.full-mode: Rectangle {
+                min-width: root.nav-w;
+                max-width: root.nav-w;
+                horizontal-stretch: 0;
+                height: 100%;
+                clip: true;
+                background: #100e0c;
+                Rectangle {
+                    y: 0px;
+                    width: root.nav-w;
+                    height: max(root.height - 96px, 80px);
+                    clip: true;
+                nav-scroll := Flickable {
+                    width: 100%;
+                    height: 100%;
+                        content-width: self.width;
+                        content-height: max(nav-col.preferred-height + 8px, 1px);
+                        nav-col := VerticalLayout {
+                            width: parent.width;
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            padding-top: 8px;
+                            spacing: 4px;
+                            NavRow {
+                                width: root.nav-w - 16px;
+                                label: root.lang == "en-zh" ? "Home" : "首頁";
+                                selected: root.category == "" && !root.settings-open;
+                                clicked => { root.go-home(); }
+                            }
+                            if !root.nav-editing: VerticalLayout {
+                                spacing: 4px;
+                                width: root.nav-w - 16px;
+                                for slot in root.dock-shown: NavRow {
+                                    width: root.nav-w - 16px;
+                                    logo: root.category-logo(slot);
+                                    glyph: root.category-glyph(slot);
+                                    show-logo: root.category-glyph(slot) == "";
+                                    label: root.category-short(slot);
+                                    selected: !root.settings-open && root.category == root.categories[slot].id;
+                                    clicked => { root.open-dock(slot); }
+                                }
+                            }
+                            if root.nav-editing: nav-drag := Rectangle {
+                                height: root.dock-shown.length * 44px;
+                                width: 100%;
+                                property <int> from-row: -1;
+                                property <int> over-row: -1;
+                                property <length> grab-y: 0px;
+                                property <length> nudge: 0px;
+                                for slot[i] in root.dock-shown: Rectangle {
+                                    y: nav-drag.from-row == i ? max(0px, i * 44px + nav-drag.nudge) : i * 44px;
+                                    width: parent.width;
+                                    height: 40px;
+                                    border-radius: 8px;
+                                    background: nav-drag.from-row == i ? #3a3228 : nav-drag.over-row == i && nav-drag.from-row != i ? #241c14 : #1c1916;
+                                    border-width: 1px;
+                                    border-color: nav-drag.from-row == i || nav-drag.over-row == i ? #d4b483 : #3a342c;
+                                    HorizontalLayout {
+                                        width: 100%;
+                                        height: 100%;
+                                        padding-left: 8px;
+                                        padding-right: 8px;
+                                        spacing: 8px;
+                                        alignment: start;
+                                        Text {
+                                            width: 16px;
+                                            text: "⋮⋮";
+                                            font-size: 14px;
+                                            color: #8a8076;
+                                            vertical-alignment: center;
+                                        }
+                                        if root.category-glyph(slot) == "": Image {
+                                            source: root.category-logo(slot);
+                                            width: 22px;
+                                            height: 22px;
+                                            image-fit: contain;
+                                        }
+                                        if root.category-glyph(slot) != "": Text {
+                                            width: 22px;
+                                            text: root.category-glyph(slot);
+                                            font-size: 14px;
+                                            color: #d4b483;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                        Text {
+                                            horizontal-stretch: 1;
+                                            text: root.category-short(slot);
+                                            font-size: 14px;
+                                            color: #f3efe8;
+                                            vertical-alignment: center;
+                                            overflow: elide;
+                                        }
+                                    }
+                                    TouchArea {
+                                        width: 100%;
+                                        height: 100%;
+                                        mouse-cursor: grab;
+                                        pointer-event(event) => {
+                                            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                                                nav-drag.from-row = i;
+                                                nav-drag.over-row = i;
+                                                nav-drag.grab-y = self.mouse-y;
+                                                nav-drag.nudge = 0px;
+                                            }
+                                            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
+                                                if (nav-drag.from-row >= 0 && nav-drag.over-row >= 0 && nav-drag.from-row != nav-drag.over-row) {
+                                                    root.dock-moved(nav-drag.from-row, nav-drag.over-row);
+                                                }
+                                                nav-drag.from-row = -1;
+                                                nav-drag.over-row = -1;
+                                                nav-drag.nudge = 0px;
+                                            }
+                                        }
+                                        moved => {
+                                            if (!self.pressed || nav-drag.from-row != i) {
+                                                return;
+                                            }
+                                            nav-drag.nudge = self.mouse-y - nav-drag.grab-y;
+                                            let row = round((i * 44px + nav-drag.nudge) / 44px - 0.5);
+                                            if (row < 0) {
+                                                nav-drag.over-row = 0;
+                                            } else if (row >= root.dock-shown.length) {
+                                                nav-drag.over-row = root.dock-shown.length - 1;
+                                            } else {
+                                                nav-drag.over-row = row;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        Rectangle { horizontal-stretch: 1; min-width: 1px; }
-                        WinButton {
-                            glyph: root.lang == "en-zh" ? "Setting" : "設定";
+                    }
+                    }
+                    Rectangle {
+                        y: root.height - 96px;
+                        height: 96px;
+                        width: root.nav-w;
+                        background: #100e0c;
+                        Rectangle {
+                            width: 100%;
+                            height: 1px;
+                            background: #3a342c;
+                        }
+                        NavRow {
+                            x: 8px;
+                            y: 8px;
+                            width: root.nav-w - 16px;
+                            label: root.nav-editing ? (root.lang == "en-zh" ? "Done" : "完成") : (root.lang == "en-zh" ? "Order" : "順序");
+                            selected: root.nav-editing;
+                            clicked => { root.nav-editing = !root.nav-editing; }
+                        }
+                        NavRow {
+                            x: 8px;
+                            y: 52px;
+                            width: root.nav-w - 16px;
+                            label: root.lang == "en-zh" ? "Settings" : "設定";
+                            selected: root.settings-open;
                             clicked => {
+                                root.nav-editing = false;
                                 if (root.settings-open) {
                                     root.close-settings();
                                 } else {
@@ -3136,23 +4209,86 @@ export component App inherits Window {
                                 }
                             }
                         }
-                        WinButton {
-                            glyph: "–";
-                            clicked => { root.collapsed = true; }
-                        }
-                        WinButton {
-                            glyph: "×";
-                            danger: true;
-                            clicked => { root.request-close(); }
+                    }
+                    Rectangle {
+                        x: parent.width - 1px;
+                        width: 1px;
+                        height: 100%;
+                        background: #3a342c;
+                    }
+                }
+            VerticalLayout {
+            spacing: 0;
+            horizontal-stretch: 1;
+            min-width: 0px;
+
+            Rectangle {
+                width: root.pane-w;
+                height: 42px;
+                background: #100e0ce8;
+                HorizontalLayout {
+                    width: 100%;
+                    height: 100%;
+                    padding-left: 16px;
+                    padding-right: 8px;
+                    spacing: 4px;
+                    Text {
+                        text: root.lang == "en-zh" ? "GERSANG" : "巨商";
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: #d4b483;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        WindowMoveArea {
+                            width: 100%;
+                            height: 100%;
                         }
                     }
+                }
+                WinButton {
+                    x: 96px;
+                    y: 9px;
+                    glyph: root.lang == "en-zh" ? "Setting" : "設定";
+                    clicked => {
+                        if (root.settings-open) {
+                            root.close-settings();
+                        } else {
+                            root.settings-open = true;
+                        }
+                    }
+                }
+                WinButton {
+                    x: parent.width - 156px;
+                    y: 9px;
+                    glyph: root.full-mode ? (root.lang == "en-zh" ? "Widget" : "小窗") : (root.lang == "en-zh" ? "Full" : "完整");
+                    clicked => {
+                        root.nav-editing = false;
+                        root.full-mode = !root.full-mode;
+                        root.mode-changed(root.full-mode);
+                    }
+                }
+                WinButton {
+                    x: parent.width - 78px;
+                    y: 9px;
+                    glyph: "–";
+                    clicked => { root.collapsed = true; }
+                }
+                WinButton {
+                    x: parent.width - 40px;
+                    y: 9px;
+                    glyph: "×";
+                    danger: true;
+                    clicked => { root.request-close(); }
                 }
             }
 
             body := Rectangle {
                 vertical-stretch: 1;
 
-                if root.category == "" && !root.settings-open: home := Rectangle {
+                if root.category == "" && !root.settings-open && !root.full-mode: home := Rectangle {
                     width: parent.width;
                     height: 100%;
                     property <length> board-w: max(self.width - 16px, 40px);
@@ -3177,7 +4313,7 @@ export component App inherits Window {
                     Text {
                         x: root.home-pad;
                         y: 14px;
-                        width: root.arranging ? max(root.width - 96px, 40px) : max(root.width - 32px, 40px);
+                        width: root.arranging ? max(root.pane-w - 96px, 40px) : max(root.pane-w - 32px, 40px);
                         overflow: elide;
                         text: root.arranging ? (root.lang == "en-zh" ? "Drag to move. Tap empty space when done." : "拖曳換位，點空白處完成") : (root.lang == "en-zh" ? "Browse" : "分類");
                         font-size: 12px;
@@ -3262,15 +4398,109 @@ export component App inherits Window {
                     if root.detail != "": Text {
                         x: root.home-pad;
                         y: 48px;
-                        width: max(root.width - 2 * root.home-pad, 40px);
+                        width: max(root.pane-w - 2 * root.home-pad, 40px);
                         text: root.detail;
                         wrap: word-wrap;
                         color: #e7c7c7;
                     }
                 }
 
+                if root.category == "" && !root.settings-open && root.full-mode: Rectangle {
+                    width: 100%;
+                    height: 100%;
+                    Text {
+                        x: 28px;
+                        y: 18px;
+                        text: root.lang == "en-zh" ? "Home" : "首頁";
+                        font-size: 22px;
+                        font-weight: 600;
+                        color: #f3efe8;
+                    }
+                    Rectangle {
+                        x: 28px;
+                        y: 64px;
+                        width: 300px;
+                        height: parent.height - 88px;
+                        background: #1c1916;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        clip: true;
+                        Text {
+                            x: 14px;
+                            y: 12px;
+                            text: root.lang == "en-zh" ? "Categories" : "分類";
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: #d4b483;
+                        }
+                        Flickable {
+                            x: 8px;
+                            y: 40px;
+                            width: parent.width - 16px;
+                            height: parent.height - 52px;
+                            content-width: self.width;
+                            content-height: max(root.dock-shown.length * 44px, 1px);
+                            for slot[i] in root.dock-shown: NavRow {
+                                y: i * 44px;
+                                width: parent.width;
+                                logo: root.category-logo(slot);
+                                glyph: root.category-glyph(slot);
+                                show-logo: root.category-glyph(slot) == "";
+                                label: root.category-short(slot);
+                                clicked => { root.open-dock(slot); }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        x: 344px;
+                        y: 64px;
+                        width: parent.width - 372px;
+                        height: parent.height - 88px;
+                        background: #1c1916;
+                        border-radius: 8px;
+                        border-width: 1px;
+                        border-color: #3a342c;
+                        clip: true;
+                        Text {
+                            x: 14px;
+                            y: 12px;
+                            text: root.hits.length == 0 ? (root.lang == "en-zh" ? "Favourites" : "收藏") : (root.lang == "en-zh" ? "Favourites  " : "收藏  ") + root.hits.length;
+                            font-size: 13px;
+                            font-weight: 600;
+                            color: #d4b483;
+                        }
+                        if root.hits.length == 0: Text {
+                            x: 14px;
+                            y: 44px;
+                            width: parent.width - 28px;
+                            text: root.lang == "en-zh" ? "No favourites yet. Open a monster and click the star." : "還沒有收藏。打開怪物，點星號就會出現在這裡。";
+                            wrap: word-wrap;
+                            font-size: 13px;
+                            color: #8a8076;
+                        }
+                        if root.hits.length > 0: Flickable {
+                            x: 8px;
+                            y: 40px;
+                            width: parent.width - 16px;
+                            height: parent.height - 52px;
+                            content-width: self.width;
+                            content-height: max(root.hits.length * 48px, 1px);
+                            for row[i] in root.hits: HitRow {
+                                y: i * 48px;
+                                width: parent.width;
+                                hit: row;
+                                selected: root.cursor == i;
+                                no-image-label: root.no-image-label;
+                                clicked => { root.home-open(row.key); }
+                                favourite-clicked => { root.toggle-favourite(row.key); }
+                            }
+                        }
+                    }
+                }
+
                 if root.category != "" && !root.settings-open: Rectangle {
-                    width: root.width;
+                    width: root.pane-w;
                     height: 100%;
 
                     WinButton {
@@ -3282,7 +4512,7 @@ export component App inherits Window {
                     Text {
                         x: 52px;
                         y: 16px;
-                        width: root.category == "patch" && root.viewing != "" ? max(root.width - 150px, 40px) : root.viewing == "" ? max(root.width - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.width - 70px, 40px);
+                        width: root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px);
                         overflow: elide;
                         text: root.favourites-only && root.category == "monster" ? (root.lang == "en-zh" ? "Favourites" : "收藏") : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.categories[3].name;
                         font-size: 16px;
@@ -3290,14 +4520,14 @@ export component App inherits Window {
                         color: #f3efe8;
                     }
                     if root.viewing == "": SearchToggle {
-                        x: root.width - self.width - 14px;
+                        x: root.pane-w - self.width - 14px;
                         y: 12px;
                         open: root.search-open;
                         label: root.lang == "en-zh" ? "Search" : "搜尋";
                         clicked => { root.toggle-search(); }
                     }
                     if root.category == "patch" && root.viewing != "": LangChip {
-                        x: root.width - 78px;
+                        x: root.pane-w - 78px;
                         y: 12px;
                         width: 60px;
                         horizontal-stretch: 0;
@@ -3308,7 +4538,7 @@ export component App inherits Window {
                     if root.category == "patch" && root.viewing == "": Rectangle {
                         x: 14px;
                         y: 48px;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
                         height: 32px;
                         border-radius: 8px;
                         clip: true;
@@ -3354,7 +4584,7 @@ export component App inherits Window {
                     if root.category == "patch" && root.viewing == "": HorizontalLayout {
                         x: 14px;
                         y: 88px;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
                         spacing: 6px;
                         alignment: start;
                         PatchPill {
@@ -3386,7 +4616,7 @@ export component App inherits Window {
                     if root.category == "hero" && root.viewing == "": Rectangle {
                         x: 14px;
                         y: 48px;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
                         height: 32px;
                         border-radius: 8px;
                         clip: true;
@@ -3456,10 +4686,10 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.category == "monster" && root.viewing == "": HorizontalLayout {
+                    if root.category == "monster" && root.viewing == "" && !root.full-mode: HorizontalLayout {
                         x: 14px;
                         y: 48px;
-                        width: max(root.width - 28px, 160px);
+                        width: max(root.pane-w - 28px, 160px);
                         height: 28px;
                         spacing: 6px;
                         FilterChip {
@@ -3482,31 +4712,54 @@ export component App inherits Window {
                                 }
                             }
                         }
-                        if root.monster-cards: ModeButton {
+                        if root.monster-cards && !root.full-mode: ModeButton {
                             gallery: false;
                             active: !root.monster-gallery;
-                            clicked => {
-                                if (root.monster-gallery) {
-                                    root.monster-gallery = false;
-                                    root.list-offset = 0px;
-                                    root.query-changed(root.category, root.query);
-                                }
-                            }
+                            clicked => { root.choose-gallery(false); }
                         }
-                        if root.monster-cards: ModeButton {
+                        if root.monster-cards && !root.full-mode: ModeButton {
                             gallery: true;
                             active: root.monster-gallery;
-                            clicked => {
-                                if (!root.monster-gallery) {
-                                    root.monster-gallery = true;
-                                    root.list-offset = 0px;
-                                    root.query-changed(root.category, root.query);
-                                }
-                            }
+                            clicked => { root.choose-gallery(true); }
+                        }
+                        if root.monster-cards && !root.full-mode: FilterChip {
+                            horizontal-stretch: 0;
+                            width: 52px;
+                            label: root.lang == "en-zh" ? "Face" : "頭像";
+                            active: !root.battle-view;
+                            clicked => { root.choose-battle(false); }
+                        }
+                        if root.monster-cards && !root.full-mode: FilterChip {
+                            horizontal-stretch: 0;
+                            width: 52px;
+                            label: root.lang == "en-zh" ? "Battle" : "戰鬥";
+                            active: root.battle-view;
+                            clicked => { root.choose-battle(true); }
+                        }
+                    }
+                    if root.viewing-monster && root.show-battle && root.show-icon: HorizontalLayout {
+                        x: root.pane-w - 176px;
+                        y: 8px;
+                        width: 112px;
+                        height: 28px;
+                        spacing: 4px;
+                        FilterChip {
+                            horizontal-stretch: 0;
+                            width: 52px;
+                            label: root.lang == "en-zh" ? "Face" : "頭像";
+                            active: !root.battle-view;
+                            clicked => { root.choose-battle(false); }
+                        }
+                        FilterChip {
+                            horizontal-stretch: 0;
+                            width: 52px;
+                            label: root.lang == "en-zh" ? "Battle" : "戰鬥";
+                            active: root.battle-view;
+                            clicked => { root.choose-battle(true); }
                         }
                     }
                     if root.viewing-monster: StarMark {
-                        x: root.width - 48px;
+                        x: root.pane-w - 48px;
                         y: 10px;
                         filled: root.viewing-favourite;
                         clicked => { root.toggle-favourite(root.viewing); }
@@ -3514,7 +4767,7 @@ export component App inherits Window {
                     if root.set-browser: Rectangle {
                         x: 14px;
                         y: 48px;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
                         height: 32px;
                         border-radius: 8px;
                         clip: true;
@@ -3543,7 +4796,7 @@ export component App inherits Window {
                     if root.viewing == "" && root.search-open: search := LineEdit {
                         x: 14px;
                         y: root.search-y;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
                         placeholder-text: root.lang == "en-zh" ? "Search" : "搜尋";
                         text <=> root.query;
                         init => { self.focus(); }
@@ -3578,10 +4831,242 @@ export component App inherits Window {
                             return reject;
                         }
                     }
-                    if root.viewing == "" && !(root.monster-gallery && root.monster-cards): list := Flickable {
+                    if root.viewing == "" && root.monster-board: board := Flickable {
                         x: 14px;
                         y: root.list-y;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
+                        height: root.list-view;
+                        content-width: self.width;
+                        content-height: max(root.filter-h + (root.menu-open ? root.flow-h * 1px : 0px) + root.board-monsters-h + 16px, 1px);
+                        content-y <=> root.list-offset;
+                        changed width => {
+                            if (self.width > 40px) {
+                                root.reflow(self.width);
+                            }
+                        }
+                        BoardFilter {
+                            x: 0px;
+                            y: 0px;
+                            width: parent.width;
+                            open: root.filter-open;
+                            menu-open: root.menu-open;
+                            active: root.filter-active;
+                            battle-view: root.battle-view;
+                            pictures: true;
+                            element: root.filter-element;
+                            ela-min: root.filter-ela-min;
+                            ela-max: root.filter-ela-max;
+                            drop: root.filter-drop;
+                            english: root.lang == "en-zh";
+                            toggle => { root.filter-open = !root.filter-open; }
+                            toggle-menu => { root.menu-open = !root.menu-open; }
+                            pick-view(battle) => { root.choose-battle(battle); }
+                            clear => {
+                                root.filter-element = -1;
+                                root.filter-ela-min = "";
+                                root.filter-ela-max = "";
+                                root.filter-drop = "";
+                                root.apply-filter(true);
+                            }
+                            pick(kind) => {
+                                root.filter-element = kind;
+                                root.apply-filter(true);
+                            }
+                            edit-min(text) => {
+                                root.filter-ela-min = text;
+                                root.apply-filter(false);
+                            }
+                            edit-max(text) => {
+                                root.filter-ela-max = text;
+                                root.apply-filter(false);
+                            }
+                            edit-drop(text) => {
+                                root.filter-drop = text;
+                                root.apply-filter(false);
+                            }
+                        }
+                        if root.menu-open: Rectangle {
+                            y: root.filter-h;
+                            width: parent.width;
+                            height: max(root.flow-h * 1px, 1px);
+                            for row[i] in root.hits: PlaceLink {
+                                x: i < root.flow-x.length ? root.flow-x[i] * 1px : 0px;
+                                y: i < root.flow-y.length ? root.flow-y[i] * 1px : 0px;
+                                chip-w: i < root.flow-w.length ? max(root.flow-w[i] * 1px, 24px) : 80px;
+                                heading: row.chip == "label";
+                                open: root.expanded == row.key;
+                                selected: root.expanded == row.key && row.chip != "label";
+                                title: row.title;
+                                clicked => {
+                                    root.cursor = i;
+                                    if (row.key == "") {
+                                        return;
+                                    }
+                                    if (root.expanded != row.key && i < root.flow-y.length) {
+                                        root.list-offset = -(root.filter-h + root.flow-y[i] * 1px);
+                                    }
+                                    root.toggle-board(row.key);
+                                }
+                            }
+                        }
+                        if root.expanded == "saved:" && root.board-monsters.length == 0: Text {
+                            x: 4px;
+                            y: root.filter-h + (root.menu-open ? root.flow-h * 1px + 16px : 12px);
+                            text: root.lang == "en-zh" ? "No saved monsters yet." : "還沒有收藏。";
+                            color: #a3988c;
+                        }
+                        if root.expanded != "": Rectangle {
+                            y: root.filter-h + (root.menu-open ? root.flow-h * 1px + 12px : 8px);
+                            width: parent.width;
+                            height: root.board-monsters-h;
+                            for mon[i] in root.board-monsters: MonsterTableRow {
+                                y: i * root.monster-row + (root.detail-index >= 0 && i > root.detail-index ? root.detail-h : 0px);
+                                width: parent.width;
+                                hit: mon;
+                                english: root.lang == "en-zh";
+                                no-image-label: root.no-image-label;
+                                selected: root.detail-key == mon.key;
+                                portrait: !root.battle-view;
+                                clicked => {
+                                    if (root.detail-key != mon.key) {
+                                        root.list-offset = -(root.filter-h + (root.menu-open ? root.flow-h * 1px + 12px : 8px) + i * root.monster-row);
+                                    }
+                                    root.toggle-detail(mon.key, i);
+                                }
+                                favourite-clicked => { root.toggle-favourite(mon.key); }
+                            }
+                            if root.detail-index >= 0: InlineMonster {
+                                y: root.detail-index * root.monster-row + root.monster-row;
+                                width: parent.width;
+                                height: max(root.detail-h - 6px, 0px);
+                                facts: root.facts;
+                                drops: root.links;
+                                related: root.related;
+                                english: root.lang == "en-zh";
+                                no-image-label: root.no-image-label;
+                                note: root.detail;
+                                open-key(key) => {
+                                    if (key.starts-with("monster:")) {
+                                        root.toggle-detail(key, root.detail-index);
+                                    } else if (key != "") {
+                                        root.open-hit(key);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if root.full-board: Rectangle {
+                        x: 8px;
+                        y: root.list-y;
+                        width: max(root.pane-w - 16px, 40px);
+                        height: root.list-view;
+                        HorizontalLayout {
+                            width: 100%;
+                            height: 100%;
+                            spacing: 0px;
+                            if !root.full-flat: Rectangle {
+                                width: 220px;
+                                height: 100%;
+                                background: #100e0c;
+                                section-scroll := Flickable {
+                                    x: 8px;
+                                    y: 8px;
+                                    width: parent.width - 16px;
+                                    height: parent.height - 16px;
+                                    content-width: self.width;
+                                    content-height: max(section-col.preferred-height, 1px);
+                                    section-col := VerticalLayout {
+                                        width: parent.width;
+                                        spacing: 2px;
+                                        for row[i] in root.hits: SectionPick {
+                                            title: row.title;
+                                            count: row.subtitle;
+                                            selected: root.expanded == row.key;
+                                            clicked => {
+                                                root.cursor = i;
+                                                root.list-offset = 0px;
+                                                root.toggle-board(row.key);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !root.full-flat: Rectangle {
+                                width: 1px;
+                                height: 100%;
+                                background: #3a342c;
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                padding-left: 4px;
+                                if !root.full-flat && root.expanded == "": Text {
+                                    text: root.lang == "en-zh" ? "Choose a category." : "先選左邊的分類。";
+                                    font-size: 13px;
+                                    color: #8a8076;
+                                }
+                                if !root.full-flat && root.expanded != "" && root.board-monsters.length == 0: Text {
+                                    text: root.lang == "en-zh" ? "Nothing in this category." : "這個分類是空的。";
+                                    font-size: 13px;
+                                    color: #8a8076;
+                                }
+                                if root.full-flat && root.hits.length == 0: Text {
+                                    text: root.lang == "en-zh" ? "Nothing to show." : "沒有資料。";
+                                    font-size: 13px;
+                                    color: #8a8076;
+                                }
+                                if !root.full-flat && root.board-monsters.length > 0: record-scroll := Flickable {
+                                    vertical-stretch: 1;
+                                    width: 100%;
+                                    content-width: self.width;
+                                    content-height: max(record-col.preferred-height, 1px);
+                                    record-col := VerticalLayout {
+                                        width: parent.width;
+                                        for rec[i] in root.board-monsters: CatalogRow {
+                                            hit: rec;
+                                            selected: root.detail-key == rec.key;
+                                            clicked => { root.toggle-detail(rec.key, i); }
+                                        }
+                                    }
+                                }
+                                if root.full-flat && root.hits.length > 0: flat-scroll := Flickable {
+                                    vertical-stretch: 1;
+                                    width: 100%;
+                                    content-width: self.width;
+                                    content-height: max(flat-col.preferred-height, 1px);
+                                    flat-col := VerticalLayout {
+                                        width: parent.width;
+                                        for rec[i] in root.hits: CatalogRow {
+                                            hit: rec;
+                                            selected: root.detail-key == rec.key;
+                                            clicked => { root.toggle-detail(rec.key, i); }
+                                        }
+                                    }
+                                }
+                                if root.detail-index >= 0: Rectangle {
+                                    height: 1px;
+                                    background: #3a342c;
+                                }
+                                if root.detail-index >= 0: RecordDetail {
+                                    height: 260px;
+                                    facts: root.facts;
+                                    links: root.links;
+                                    note: root.sheet-note;
+                                    body: root.detail;
+                                    link-label: root.category == "recipe" ? (root.lang == "en-zh" ? "Materials" : "材料") : (root.lang == "en-zh" ? "Related" : "相關");
+                                    no-image-label: root.no-image-label;
+                                    open-key(key) => {
+                                        if (key != "") {
+                                            root.open-hit(key);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if root.viewing == "" && !root.monster-board && !root.full-board && !(root.monster-gallery && root.monster-cards) && !(root.full-mode && root.monster-cards): list := Flickable {
+                        x: 14px;
+                        y: root.list-y;
+                        width: max(root.pane-w - 28px, 40px);
                         height: root.list-view;
                         content-width: self.width;
                         content-height: max(root.hits.length * root.list-row, 1px);
@@ -3589,7 +5074,7 @@ export component App inherits Window {
                         for row[i] in root.hits: HitRow {
                             x: 0px;
                             y: i * root.list-row;
-                            width: max(root.width - 28px, 40px);
+                            width: max(root.pane-w - 28px, 40px);
                             selected: root.cursor == i;
                             hit: row;
                             no-image-label: root.no-image-label;
@@ -3600,10 +5085,10 @@ export component App inherits Window {
                             favourite-clicked => { root.toggle-favourite(row.key); }
                         }
                     }
-                    if root.viewing == "" && root.monster-gallery && root.monster-cards: gallery := Flickable {
+                    if root.viewing == "" && root.monster-gallery && root.monster-cards && !root.full-mode: gallery := Flickable {
                         x: 14px;
                         y: root.list-y;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
                         height: root.list-view;
                         content-width: self.width;
                         content-height: max(root.hits.length * root.list-row, 1px);
@@ -3611,10 +5096,35 @@ export component App inherits Window {
                         for row[i] in root.hits: MonsterCard {
                             x: 0px;
                             y: i * root.list-row;
-                            width: max(root.width - 28px, 40px);
+                            width: max(root.pane-w - 28px, 40px);
                             selected: root.cursor == i;
                             hit: row;
                             english: root.lang == "en-zh";
+                            portrait: !root.battle-view;
+                            no-image-label: root.no-image-label;
+                            clicked => {
+                                root.cursor = i;
+                                root.open-hit(row.key);
+                            }
+                            favourite-clicked => { root.toggle-favourite(row.key); }
+                        }
+                    }
+                    if root.viewing == "" && root.full-mode && root.monster-cards: table := Flickable {
+                        x: 14px;
+                        y: root.list-y;
+                        width: max(root.pane-w - 28px, 40px);
+                        height: root.list-view;
+                        content-width: self.width;
+                        content-height: max(root.hits.length * root.list-row, 1px);
+                        content-y <=> root.list-offset;
+                        for row[i] in root.hits: MonsterTableRow {
+                            x: 0px;
+                            y: i * root.list-row;
+                            width: max(root.pane-w - 28px, 40px);
+                            selected: root.cursor == i;
+                            hit: row;
+                            english: root.lang == "en-zh";
+                            portrait: !root.battle-view;
                             no-image-label: root.no-image-label;
                             clicked => {
                                 root.cursor = i;
@@ -3629,7 +5139,45 @@ export component App inherits Window {
                         text: root.query == "" ? (root.lang == "en-zh" ? "No favourites yet. Press Enter on a monster." : "還沒有收藏。在怪物上按 Enter。") : (root.lang == "en-zh" ? "No matches" : "沒有符合的收藏");
                         color: #a3988c;
                     }
-                    if root.viewing-monster && root.show-battle: Rectangle {
+                    if root.full-mode && root.monster-sheet: FullMonsterSheet {
+                        x: root.side-gap;
+                        y: 52px;
+                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        height: max(parent.height - 60px, 80px);
+                        english: root.lang == "en-zh";
+                        title: root.sheet-title;
+                        alt: root.sheet-alt;
+                        code: root.sheet-code;
+                        icon: root.item-icon;
+                        battle: root.battle-icon;
+                        show-icon: root.show-icon && !root.battle-picture;
+                        show-battle: root.battle-picture;
+                        element-icon: root.element-icon;
+                        show-element: root.show-element;
+                        facts: root.facts;
+                        drops: root.links;
+                        related: root.related;
+                        cursor: root.cursor;
+                        no-image-label: root.no-image-label;
+                        open-fact(key) => {
+                            if (key != "") {
+                                root.open-hit(key);
+                            }
+                        }
+                        open-drop(index) => {
+                            root.cursor = index;
+                            if (index >= 0 && index < root.links.length && root.links[index].key != "") {
+                                root.open-hit(root.links[index].key);
+                            }
+                        }
+                        open-related(index) => {
+                            root.cursor = index;
+                            if (index >= 0 && index < root.related.length && root.related[index].key != "") {
+                                root.open-hit(root.related[index].key);
+                            }
+                        }
+                    }
+                    if root.viewing-monster && !root.full-mode && root.show-battle && root.battle-view: Rectangle {
                         x: root.side-gap;
                         y: root.portrait-y;
                         width: max(parent.width - 2 * root.side-gap, 80px);
@@ -3639,7 +5187,7 @@ export component App inherits Window {
                         border-width: 1px;
                         border-color: #3a342c;
                     }
-                    if root.viewing-monster && root.show-icon: Image {
+                    if root.viewing-monster && !root.full-mode && root.show-icon && !root.battle-picture: Image {
                         x: root.face-x;
                         y: root.face-y;
                         width: root.face-side;
@@ -3647,7 +5195,7 @@ export component App inherits Window {
                         source: root.item-icon;
                         image-fit: contain;
                     }
-                    if root.viewing-monster && root.show-battle: Image {
+                    if root.viewing-monster && !root.full-mode && root.battle-picture: Image {
                         x: parent.width - root.side-gap - 116px;
                         y: root.portrait-y + 6px;
                         width: 108px;
@@ -3699,7 +5247,7 @@ export component App inherits Window {
                         color: #a3988c;
                         overflow: elide;
                     }
-                    if root.viewing-monster && root.show-element: Image {
+                    if root.viewing-monster && !root.full-mode && root.show-element: Image {
                         x: root.face-x + root.face-side - 22px;
                         y: root.face-y + root.face-side - 22px;
                         width: 28px;
@@ -3715,7 +5263,7 @@ export component App inherits Window {
                         source: root.element-icon;
                         image-fit: contain;
                     }
-                    if root.monster-sheet && !root.show-battle: Text {
+                    if root.monster-sheet && !root.full-mode && !root.battle-picture: Text {
                         x: root.side-gap;
                         y: root.portrait-y + root.portrait-side + 10px;
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -3726,7 +5274,7 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet && !root.show-battle && root.sheet-alt != "": Text {
+                    if root.monster-sheet && !root.full-mode && !root.battle-picture && root.sheet-alt != "": Text {
                         x: root.side-gap;
                         y: root.portrait-y + root.portrait-side + 32px;
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -3736,7 +5284,7 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet && !root.show-battle: Text {
+                    if root.monster-sheet && !root.full-mode && !root.battle-picture: Text {
                         x: root.side-gap;
                         y: root.portrait-y + root.portrait-side + (root.sheet-alt == "" ? 34px : 50px);
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -3746,7 +5294,7 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet && root.show-battle: Text {
+                    if root.monster-sheet && !root.full-mode && root.battle-picture: Text {
                         x: root.face-x + root.face-side + 12px;
                         y: root.portrait-y + (root.stage-h - (root.sheet-alt == "" ? 42px : 60px)) / 2;
                         width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
@@ -3757,7 +5305,7 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet && root.show-battle && root.sheet-alt != "": Text {
+                    if root.monster-sheet && !root.full-mode && root.battle-picture && root.sheet-alt != "": Text {
                         x: root.face-x + root.face-side + 12px;
                         y: root.portrait-y + (root.stage-h - 60px) / 2 + 22px;
                         width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
@@ -3767,7 +5315,7 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet && root.show-battle: Text {
+                    if root.monster-sheet && !root.full-mode && root.battle-picture: Text {
                         x: root.face-x + root.face-side + 12px;
                         y: root.portrait-y + (root.stage-h - (root.sheet-alt == "" ? 42px : 60px)) / 2 + (root.sheet-alt == "" ? 22px : 42px);
                         width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
@@ -3777,7 +5325,7 @@ export component App inherits Window {
                         horizontal-alignment: left;
                         overflow: elide;
                     }
-                    if root.monster-sheet: SectionToggle {
+                    if root.monster-sheet && !root.full-mode: SectionToggle {
                         x: root.side-gap;
                         y: root.toggle-y;
                         width: max(parent.width - 2 * root.side-gap, 80px);
@@ -3794,7 +5342,7 @@ export component App inherits Window {
                             keys.focus();
                         }
                     }
-                    if root.monster-sheet && root.links.length > 0: SectionToggle {
+                    if root.monster-sheet && !root.full-mode && root.links.length > 0: SectionToggle {
                         x: root.side-gap;
                         y: root.drops-header-y;
                         width: max(parent.width - 2 * root.side-gap, 80px);
@@ -3813,7 +5361,7 @@ export component App inherits Window {
                             keys.focus();
                         }
                     }
-                    if root.monster-sheet && root.related.length > 0: SectionToggle {
+                    if root.monster-sheet && !root.full-mode && root.related.length > 0: SectionToggle {
                         x: root.side-gap;
                         y: root.related-header-y;
                         width: max(parent.width - 2 * root.side-gap, 80px);
@@ -3832,7 +5380,7 @@ export component App inherits Window {
                             keys.focus();
                         }
                     }
-                    if root.monster-sheet && root.form-open: Rectangle {
+                    if root.monster-sheet && !root.full-mode && root.form-open: Rectangle {
                         x: root.side-gap;
                         y: root.toggle-y + 44px;
                         width: max(parent.width - 2 * root.side-gap, 80px);
@@ -4175,7 +5723,7 @@ export component App inherits Window {
                     if root.viewing != "" && !root.viewing-hero && root.category != "patch" && !root.monster-sheet && !root.record-sheet && !root.quest-sheet: stats := Flickable {
                         x: 0px;
                         y: 120px;
-                        width: max(root.width - 28px, 80px);
+                        width: max(root.pane-w - 28px, 80px);
                         height: root.links.length > 0 ? 112px : max(root.height - foot - 200px, 80px);
                         content-width: self.width;
                         content-height: max(stats-text.preferred-height, 1px);
@@ -4233,7 +5781,7 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.monster-sheet && root.related-open: related-list := Flickable {
+                    if root.monster-sheet && !root.full-mode && root.related-open: related-list := Flickable {
                         x: root.side-gap;
                         y: root.related-list-y;
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -4256,10 +5804,10 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.viewing != "" && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.links.length > 0 && (!root.monster-sheet || root.drops-open) && !root.related-open: drops := Flickable {
+                    if root.viewing != "" && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.links.length > 0 && (!root.monster-sheet || (root.drops-open && !root.full-mode)) && !root.related-open: drops := Flickable {
                         x: root.monster-sheet ? root.side-gap : 0px;
                         y: root.monster-sheet ? root.drops-list-y : (root.viewing-hero ? 124px : 240px);
-                        width: root.monster-sheet ? max(parent.width - 2 * root.side-gap, 40px) : max(root.width - 28px, 40px);
+                        width: root.monster-sheet ? max(parent.width - 2 * root.side-gap, 40px) : max(root.pane-w - 28px, 40px);
                         height: root.monster-sheet ? root.drops-list-h : (root.viewing-hero ? max(root.height - foot - 136px, 180px) : max(root.height - foot - 310px, 120px));
                         content-width: self.width;
                         content-height: max(root.links.length * 36px, 1px);
@@ -4328,7 +5876,7 @@ export component App inherits Window {
                     if root.category == "patch" && root.viewing != "": Rectangle {
                         x: 14px;
                         y: 54px;
-                        width: max(root.width - 28px, 40px);
+                        width: max(root.pane-w - 28px, 40px);
                         height: max(parent.height - 70px, 80px);
                         background: #1c1916;
                         border-radius: 10px;
@@ -4365,22 +5913,23 @@ export component App inherits Window {
                     vertical-alignment: center;
                 }
             }
+            }
         }
     }
 
         if root.settings-open && !root.collapsed: Rectangle {
-            x: 0px;
+            x: root.full-mode ? root.nav-w : 0px;
             y: 42px;
-            width: parent.width;
+            width: root.full-mode ? root.pane-w : parent.width;
             height: parent.height - 42px - root.foot;
             background: #141210;
-            WinButton {
+            if !root.full-mode: WinButton {
                 x: 14px;
                 y: 14px;
                 glyph: "←";
                 clicked => { root.close-settings(); }
             }
-            Text {
+            if !root.full-mode: Text {
                 x: 52px;
                 y: 16px;
                 text: root.lang == "en-zh" ? "Settings" : "設定";
@@ -4388,10 +5937,18 @@ export component App inherits Window {
                 font-weight: 600;
                 color: #f3efe8;
             }
+            if root.full-mode: Text {
+                x: 24px;
+                y: 16px;
+                text: root.lang == "en-zh" ? "Settings" : "設定";
+                font-size: 18px;
+                font-weight: 600;
+                color: #f3efe8;
+            }
             Rectangle {
                 x: 16px;
                 y: 52px;
-                width: parent.width - 32px;
+                width: min(parent.width - 32px, 300px);
                 height: 32px;
                 border-radius: 8px;
                 clip: true;
@@ -4428,8 +5985,8 @@ export component App inherits Window {
             if root.settings-tab == 1: VerticalLayout {
                 x: 16px;
                 y: 96px;
-                width: parent.width - 32px;
-                height: parent.height - 96px;
+                width: min(parent.width - 32px, 300px);
+                height: parent.height - 112px;
                 spacing: 8px;
                 alignment: start;
                 Text {
@@ -4437,7 +5994,16 @@ export component App inherits Window {
                     font-size: 12px;
                     color: #a3988c;
                 }
-                HorizontalLayout {
+                if root.full-mode: ChoiceBar {
+                    first: root.lang == "en-zh" ? "Row" : "橫向";
+                    second: root.lang == "en-zh" ? "Column" : "直向";
+                    picked: root.dock-vertical ? 1 : 0;
+                    pick(index) => {
+                        root.dock-vertical = index == 1;
+                        root.publish-dock();
+                    }
+                }
+                if !root.full-mode: HorizontalLayout {
                     spacing: 8px;
                     LangChip {
                         label: root.lang == "en-zh" ? "Row" : "橫向";
@@ -4461,21 +6027,21 @@ export component App inherits Window {
                     }
                 }
                 Text {
-                    text: root.lang == "en-zh" ? "Drag the middle of a row. Arrows work too." : "拖中間換順序，也可以用上下箭頭。";
-                    font-size: 12px;
+                    text: root.lang == "en-zh" ? "Drag a row to change the order." : "按住一列拖曳，就能調整順序。";
+                    font-size: 13px;
                     color: #8a8076;
                     wrap: word-wrap;
                 }
                 order-list := Rectangle {
-                    height: root.dock-draft.length * 56px;
+                    height: root.dock-draft.length * 48px;
                     property <int> from-row: -1;
                     property <int> over-row: -1;
                     property <length> grab: 0px;
                     property <length> nudge: 0px;
                     for slot[i] in root.dock-draft: DockSortRow {
-                        x: order-list.from-row == i ? 10px : 0px;
-                        y: order-list.from-row == i ? max(0px, i * 56px + order-list.nudge) : i * 56px;
-                        width: order-list.from-row == i ? parent.width - 10px : parent.width;
+                        x: order-list.from-row == i ? 8px : 0px;
+                        y: order-list.from-row == i ? max(0px, i * 48px + order-list.nudge) : i * 48px;
+                        width: order-list.from-row == i ? parent.width - 8px : parent.width;
                         horizontal-stretch: 1;
                         label: root.category-short(slot);
                         logo: root.category-logo(slot);
@@ -4485,10 +6051,6 @@ export component App inherits Window {
                         lifted: order-list.from-row == i;
                         marked: order-list.over-row == i && order-list.from-row != i;
                         toggled => { root.toggle-dock(slot); }
-                        can-up: i > 0 && (root.dock-on(slot) || !root.dock-on(root.dock-draft[i - 1]));
-                        can-down: i + 1 < root.dock-draft.length && (!root.dock-on(slot) || root.dock-on(root.dock-draft[i + 1]));
-                        up => { root.dock-moved(i, i - 1); }
-                        down => { root.dock-moved(i, i + 1); }
                         grip-pressed(py) => {
                             order-list.from-row = i;
                             order-list.over-row = i;
@@ -4497,7 +6059,7 @@ export component App inherits Window {
                         }
                         grip-moved(py) => {
                             order-list.nudge = py - order-list.grab;
-                            let row = round((i * 56px + order-list.nudge) / 56px - 0.5);
+                            let row = round((i * 48px + order-list.nudge) / 48px - 0.5);
                             if (row < 0) {
                                 order-list.over-row = 0;
                             } else if (row >= root.dock-draft.length) {
@@ -4518,19 +6080,148 @@ export component App inherits Window {
                 }
             }
             settings-sheet := Flickable {
+                x: 0px;
                 y: 96px;
-                width: 100%;
+                width: parent.width;
                 height: parent.height - 96px;
                 visible: root.settings-tab != 1;
-                content-width: self.width;
-                content-height: panel.preferred-height;
-                panel := VerticalLayout {
+                content-width: settings-body.width;
+                content-height: settings-body.height;
+                settings-body := Rectangle {
+                    width: root.full-mode ? min(parent.width - 32px, 300px) : parent.width;
+                    height: inner.preferred-height;
+                    inner := VerticalLayout {
                 width: parent.width;
-                padding: 16px;
+                padding: root.full-mode ? 24px : 16px;
                 padding-bottom: 24px;
                 spacing: 16px;
                 alignment: start;
-                if root.settings-tab == 0: HorizontalLayout {
+                if root.full-mode && root.settings-tab == 0: FormBlock {
+                    title: root.lang == "en-zh" ? "Window" : "視窗";
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text {
+                            text: root.lang == "en-zh" ? "Opacity" : "透明度";
+                            font-size: 13px;
+                            color: #f3efe8;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: root.opacity-percent + "%";
+                            font-size: 13px;
+                            color: #d4b483;
+                            vertical-alignment: center;
+                        }
+                    }
+                    OpacitySlider {
+                        value: root.window-opacity;
+                        edited(value) => {
+                            root.window-opacity = value;
+                            root.opacity-changed(value);
+                        }
+                    }
+                    Text {
+                        text: root.lang == "en-zh" ? "Stay on top" : "置頂";
+                        font-size: 13px;
+                        color: #a3988c;
+                    }
+                    ChoiceBar {
+                        first: root.lang == "en-zh" ? "Follow" : "跟隨";
+                        second: root.lang == "en-zh" ? "Always" : "置頂";
+                        third: root.lang == "en-zh" ? "Never" : "不置頂";
+                        picked: root.pin-top;
+                        pick(index) => { root.choose-pin(index); }
+                    }
+                    Text {
+                        text: root.lang == "en-zh" ? "Follow keeps only the small window above other programs." : "跟隨時，只有小窗會留在其他程式前面。";
+                        font-size: 12px;
+                        color: #8a8076;
+                        wrap: word-wrap;
+                    }
+                }
+                if root.full-mode && root.settings-tab == 0: FormBlock {
+                    title: root.lang == "en-zh" ? "Monsters" : "怪物";
+                    Text {
+                        text: root.lang == "en-zh" ? "Picture" : "圖片";
+                        font-size: 13px;
+                        color: #a3988c;
+                    }
+                    ChoiceBar {
+                        first: root.lang == "en-zh" ? "Face" : "頭像";
+                        second: root.lang == "en-zh" ? "Battle" : "戰鬥";
+                        picked: root.battle-view ? 1 : 0;
+                        pick(index) => { root.choose-battle(index == 1); }
+                    }
+                    Text {
+                        text: root.lang == "en-zh" ? "Battle motion" : "戰鬥動畫";
+                        font-size: 13px;
+                        color: #a3988c;
+                    }
+                    ChoiceBar {
+                        first: root.lang == "en-zh" ? "Play" : "播放";
+                        second: root.lang == "en-zh" ? "Still" : "靜止";
+                        picked: root.animate-battle ? 0 : 1;
+                        pick(index) => { root.choose-animate(index == 0); }
+                    }
+                    Text {
+                        text: root.lang == "en-zh" ? "Small window" : "小窗排列";
+                        font-size: 13px;
+                        color: #a3988c;
+                    }
+                    ChoiceBar {
+                        first: root.lang == "en-zh" ? "List" : "清單";
+                        second: root.lang == "en-zh" ? "Gallery" : "圖鑑";
+                        picked: root.monster-gallery ? 1 : 0;
+                        pick(index) => { root.choose-gallery(index == 1); }
+                    }
+                    Text {
+                        text: root.lang == "en-zh" ? "List and gallery only change the small window." : "清單和圖鑑只影響小窗。";
+                        font-size: 12px;
+                        color: #8a8076;
+                        wrap: word-wrap;
+                    }
+                }
+                if root.full-mode && root.settings-tab == 0: FormBlock {
+                    title: root.lang == "en-zh" ? "Names" : "名稱";
+                    ChoiceBar {
+                        first: root.lang == "en-zh" ? "Chinese first" : "中文在前";
+                        second: root.lang == "en-zh" ? "English first" : "英文在前";
+                        picked: root.lang == "en-zh" ? 1 : 0;
+                        pick(index) => { root.choose-lang(index == 1 ? "en-zh" : "zh-en"); }
+                    }
+                }
+                if root.full-mode && root.settings-tab == 0: FormBlock {
+                    title: root.lang == "en-zh" ? "Icons" : "圖示";
+                    ChoiceBar {
+                        first: root.lang == "en-zh" ? "Small" : "小";
+                        second: root.lang == "en-zh" ? "Medium" : "中";
+                        third: root.lang == "en-zh" ? "Large" : "大";
+                        picked: root.icon-size;
+                        pick(index) => {
+                            root.icon-size = index;
+                            root.icon-size-set(index);
+                        }
+                    }
+                }
+                if root.full-mode && root.settings-tab == 0: FormBlock {
+                    title: root.lang == "en-zh" ? "Sets" : "套裝";
+                    ChoiceBar {
+                        first: root.lang == "en-zh" ? "Hide extras" : "隱藏期限";
+                        second: root.lang == "en-zh" ? "Show extras" : "顯示期限";
+                        picked: root.show-set-extra ? 1 : 0;
+                        pick(index) => {
+                            root.show-set-extra = index == 1;
+                            root.show-set-extra-changed(root.show-set-extra);
+                        }
+                    }
+                    Text {
+                        text: root.lang == "en-zh" ? "Extras are the timed and event copies." : "期限和活動版可以一起隱藏。";
+                        font-size: 12px;
+                        color: #8a8076;
+                        wrap: word-wrap;
+                    }
+                }
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     alignment: space-between;
                     Text {
                         text: root.lang == "en-zh" ? "Opacity" : "透明度";
@@ -4546,19 +6237,19 @@ export component App inherits Window {
                         vertical-alignment: center;
                     }
                 }
-                if root.settings-tab == 0: OpacitySlider {
+                if root.settings-tab == 0 && !root.full-mode: OpacitySlider {
                     value: root.window-opacity;
                     edited(value) => {
                         root.window-opacity = value;
                         root.opacity-changed(value);
                     }
                 }
-                if root.settings-tab == 0: Text {
+                if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Name order" : "名稱順序";
                     font-size: 11px;
                     color: #a3988c;
                 }
-                if root.settings-tab == 0: HorizontalLayout {
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
                     LangChip {
                         label: root.lang == "en-zh" ? "Chinese first" : "中文在前";
@@ -4571,17 +6262,17 @@ export component App inherits Window {
                         clicked => { root.choose-lang("en-zh"); }
                     }
                 }
-                if root.settings-tab == 0: Text {
+                if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Icon size" : "圖示大小";
                     font-size: 11px;
                     color: #a3988c;
                 }
-                if root.settings-tab == 0: Text {
+                if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Set pieces" : "套裝部件";
                     font-size: 11px;
                     color: #a3988c;
                 }
-                if root.settings-tab == 0: HorizontalLayout {
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
                     LangChip {
                         label: root.lang == "en-zh" ? "Timed and event" : "期限與活動";
@@ -4592,13 +6283,13 @@ export component App inherits Window {
                         }
                     }
                 }
-                if root.settings-tab == 0: Text {
+                if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Off hides timed and event copies." : "關閉時不顯示期限和活動版。";
                     font-size: 11px;
                     color: #6f675e;
                     wrap: word-wrap;
                 }
-                if root.settings-tab == 0: HorizontalLayout {
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
                     LangChip {
                         label: root.lang == "en-zh" ? "Small" : "小";
@@ -4623,6 +6314,89 @@ export component App inherits Window {
                             root.icon-size = 2;
                             root.icon-size-set(2);
                         }
+                    }
+                }
+                if root.settings-tab == 0 && !root.full-mode: Text {
+                    text: root.lang == "en-zh" ? "Stay on top" : "置頂";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Follow" : "跟隨";
+                        active: root.pin-top == 0;
+                        clicked => { root.choose-pin(0); }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Always" : "置頂";
+                        active: root.pin-top == 1;
+                        clicked => { root.choose-pin(1); }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Never" : "不置頂";
+                        active: root.pin-top == 2;
+                        clicked => { root.choose-pin(2); }
+                    }
+                }
+                if root.settings-tab == 0 && !root.full-mode: Text {
+                    text: root.lang == "en-zh" ? "Follow keeps only the small window on top." : "跟隨時，只有小窗會留在最前面。";
+                    font-size: 11px;
+                    color: #6f675e;
+                    wrap: word-wrap;
+                }
+                if root.settings-tab == 0 && !root.full-mode: Text {
+                    text: root.lang == "en-zh" ? "Monster picture" : "怪物圖";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Face" : "頭像";
+                        active: !root.battle-view;
+                        clicked => { root.choose-battle(false); }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Battle" : "戰鬥";
+                        active: root.battle-view;
+                        clicked => { root.choose-battle(true); }
+                    }
+                }
+                if root.settings-tab == 0 && !root.full-mode: Text {
+                    text: root.lang == "en-zh" ? "Battle motion" : "戰鬥動畫";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Play" : "播放";
+                        active: root.animate-battle;
+                        clicked => { root.choose-animate(true); }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Still" : "靜止";
+                        active: !root.animate-battle;
+                        clicked => { root.choose-animate(false); }
+                    }
+                }
+                if root.settings-tab == 0 && !root.full-mode: Text {
+                    text: root.lang == "en-zh" ? "Monster layout" : "小窗排列";
+                    font-size: 11px;
+                    color: #a3988c;
+                }
+                if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "List" : "清單";
+                        active: !root.monster-gallery;
+                        clicked => { root.choose-gallery(false); }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Gallery" : "圖鑑";
+                        active: root.monster-gallery;
+                        clicked => { root.choose-gallery(true); }
                     }
                 }
                 if root.settings-tab == 2: Text {
@@ -4689,6 +6463,36 @@ export component App inherits Window {
                         clicked => { root.alias-add(); }
                     }
                 }
+                if root.settings-tab == 3: Text {
+                    text: root.lang == "en-zh" ? "Global keys" : "全域快捷鍵";
+                    font-size: 13px;
+                    color: #f3efe8;
+                }
+                if root.settings-tab == 3 && root.full-mode: ChoiceBar {
+                    first: root.lang == "en-zh" ? "On" : "開啟";
+                    second: root.lang == "en-zh" ? "Off" : "關閉";
+                    picked: root.hotkeys-on ? 0 : 1;
+                    pick(index) => { root.choose-hotkeys(index == 0); }
+                }
+                if root.settings-tab == 3 && !root.full-mode: HorizontalLayout {
+                    spacing: 6px;
+                    LangChip {
+                        label: root.lang == "en-zh" ? "On" : "開啟";
+                        active: root.hotkeys-on;
+                        clicked => { root.choose-hotkeys(true); }
+                    }
+                    LangChip {
+                        label: root.lang == "en-zh" ? "Off" : "關閉";
+                        active: !root.hotkeys-on;
+                        clicked => { root.choose-hotkeys(false); }
+                    }
+                }
+                if root.settings-tab == 3: Text {
+                    text: root.lang == "en-zh" ? "Off gives F1–F9 back to the game. Keys inside this window stay the same." : "關閉後，F1–F9 還給遊戲。這個視窗裡的按鍵不變。";
+                    font-size: 12px;
+                    color: #8a8076;
+                    wrap: word-wrap;
+                }
                 if root.settings-tab == 3: KeyLine {
                     keys: "F1–F9";
                     action: root.lang == "en-zh" ? "Open that bar item" : "開啟浮動列對應項目";
@@ -4742,6 +6546,7 @@ export component App inherits Window {
                     font-size: 11px;
                     color: #8a8076;
                     wrap: word-wrap;
+                }
                 }
                 }
             }

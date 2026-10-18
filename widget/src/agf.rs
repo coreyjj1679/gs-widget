@@ -16,6 +16,7 @@ struct Sheet {
     raw: Vec<u8>,
     offsets: Vec<usize>,
     frames: Vec<(i32, i32, usize, usize)>,
+    decoded: Vec<Option<Icon>>,
 }
 
 fn sheets() -> &'static Mutex<HashMap<PathBuf, Sheet>> {
@@ -23,12 +24,49 @@ fn sheets() -> &'static Mutex<HashMap<PathBuf, Sheet>> {
     SHEETS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-pub fn frame_rgba(path: &Path, frame: i32) -> Result<Icon, String> {
+pub fn playable_frames(path: &Path) -> Result<Vec<i32>, String> {
     let mut cache = sheets().lock().map_err(|_| "圖集快取無法使用".to_string())?;
     if !cache.contains_key(path) {
         cache.insert(path.to_path_buf(), load_sheet(path)?);
     }
     let sheet = cache.get(path).ok_or("圖集快取遺失")?;
+    let frames = sheet
+        .frames
+        .iter()
+        .enumerate()
+        .filter(|(_, frame)| frame.2 > 0 && frame.3 > 0)
+        .map(|(index, _)| index as i32)
+        .collect();
+    Ok(frames)
+}
+
+pub fn frame_rgba(path: &Path, frame: i32) -> Result<Icon, String> {
+    let mut cache = sheets().lock().map_err(|_| "圖集快取無法使用".to_string())?;
+    if !cache.contains_key(path) {
+        cache.insert(path.to_path_buf(), load_sheet(path)?);
+    }
+    let icon = {
+        let sheet = cache.get(path).ok_or("圖集快取遺失")?;
+        if let Some(icon) = sheet.decoded.get(frame as usize).and_then(|stored| stored.as_ref()) {
+            return Ok(copy_icon(icon));
+        }
+        decode_frame(sheet, frame)?
+    };
+    if let Some(slot) = cache.get_mut(path).and_then(|sheet| sheet.decoded.get_mut(frame as usize)) {
+        *slot = Some(copy_icon(&icon));
+    }
+    Ok(icon)
+}
+
+fn copy_icon(icon: &Icon) -> Icon {
+    Icon {
+        width: icon.width,
+        height: icon.height,
+        rgba: icon.rgba.clone(),
+    }
+}
+
+fn decode_frame(sheet: &Sheet, frame: i32) -> Result<Icon, String> {
     if frame < 0 || frame as usize >= sheet.frames.len() {
         return Err("圖格超出範圍".into());
     }
@@ -99,7 +137,12 @@ fn load_sheet(path: &Path) -> Result<Sheet, String> {
         offsets.push(u32_at(&data, 0x4C0 + frame * 4) as usize);
     }
     offsets.push(raw.len());
-    Ok(Sheet { raw, offsets, frames })
+    Ok(Sheet {
+        decoded: (0..frames.len()).map(|_| None).collect(),
+        raw,
+        offsets,
+        frames,
+    })
 }
 
 fn frame_info(data: &[u8], frame: usize) -> Result<(i32, i32, usize, usize), String> {

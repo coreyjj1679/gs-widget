@@ -24,7 +24,7 @@ mod work;
 
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
-pub use prefs::{DockPref, HomePref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_window, save_dock, save_favourites, save_home, save_lang, save_opacity, save_set_extra, save_window};
+pub use prefs::{DockPref, HomePref, ViewPref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_view, load_window, save_dock, save_favourites, save_full_geometry, save_home, save_lang, save_mode, save_opacity, save_set_extra, save_view, save_window};
 pub use text::{hero_land_label, hero_rank_label, hero_tier_label, item_category_label, nation_label, relation_label, source_label, weapon_family_label};
 
 use alias::parse_alias_book;
@@ -142,6 +142,48 @@ impl Catalog {
         self.search_scoped(category, query, lang, place, nation, "", "")
     }
 
+    pub fn directory_hits(&self, lang: &str) -> Vec<Hit> {
+        self.index.directory_hits(lang)
+    }
+
+    pub fn scope_monsters(&self, key: &str, query: &str, lang: &str, element: i64, ela_min: i64, ela_max: i64, drop: &str) -> Vec<Hit> {
+        let hits = self.index.scope_monsters(key, query, lang);
+        self.narrow_monsters(hits, element, ela_min, ela_max, drop)
+    }
+
+    pub fn section_records(&self, key: &str, lang: &str) -> Vec<Hit> {
+        if let Some(source) = key.strip_prefix("craft:") {
+            return self.index.recipe_hits("", "", lang, source, usize::MAX);
+        }
+        if let Some(rank) = key.strip_prefix("rank:") {
+            return self.index.hero_hits("", "", lang, rank, "", usize::MAX);
+        }
+        if let Some(land) = key.strip_prefix("land:") {
+            return self.index.hero_hits("", "", lang, "", land, usize::MAX);
+        }
+        if let Some(category) = key.strip_prefix("icat:") {
+            return if category == "set" {
+                self.index.set_hits("", "", lang, "")
+            } else {
+                self.index.item_hits("", "", lang, category, "", usize::MAX)
+            };
+        }
+        if let Some(source) = key.strip_prefix("qsrc:") {
+            return self.index.quest_hits("", "", lang, source, "", usize::MAX);
+        }
+        if let Some(building) = key.strip_prefix("yard:") {
+            return self.index.work_building_goods(building, lang);
+        }
+        if let Some(region) = key.strip_prefix("realm:") {
+            return self.index.realm_goods(region, lang);
+        }
+        Vec::new()
+    }
+
+    pub fn filter_monsters(&self, hits: Vec<Hit>, element: i64, ela_min: i64, ela_max: i64, drop: &str) -> Vec<Hit> {
+        self.narrow_monsters(hits, element, ela_min, ela_max, drop)
+    }
+
     pub fn search_scoped(
         &self,
         category: &str,
@@ -175,17 +217,17 @@ impl Catalog {
             "item" if place.is_empty() && query.is_empty() => self.index.item_category_hits(lang),
             "item" if place == "set" => self.index.set_hits(query, &folded, lang, area),
             "item" if area.is_empty() && query.is_empty() && self.index.item_has_subtypes(place) => self.index.item_subtype_hits(place, lang),
-            "item" => self.index.item_hits(query, &folded, lang, place, area),
+            "item" => self.index.item_hits(query, &folded, lang, place, area, if query.is_empty() { 80 } else { 40 }),
             "recipe" if place.is_empty() && query.is_empty() => self.index.source_hits(lang),
-            "recipe" => self.index.recipe_hits(query, &folded, lang, place),
+            "recipe" => self.index.recipe_hits(query, &folded, lang, place, if query.is_empty() { 80 } else { 40 }),
             "quest" if place.is_empty() && query.is_empty() => self.index.quest_source_hits(lang),
-            "quest" => self.index.quest_hits(query, &folded, lang, place, area),
-            "npc" => self.index.npc_hits(query, &folded, lang),
+            "quest" => self.index.quest_hits(query, &folded, lang, place, area, if query.is_empty() { 80 } else { 40 }),
+            "npc" => self.index.npc_hits(query, &folded, lang, if query.is_empty() { 80 } else { 40 }),
             "hero" if ship == "land" && place.is_empty() && area.is_empty() && query.is_empty() => self.index.hero_land_hits(lang),
             "hero" if ship == "land" && area.is_empty() && query.is_empty() => self.index.hero_tier_hits(place, lang),
-            "hero" if ship == "land" => self.index.hero_hits(query, &folded, lang, area, place),
+            "hero" if ship == "land" => self.index.hero_hits(query, &folded, lang, area, place, if query.is_empty() { 80 } else { 40 }),
             "hero" if place.is_empty() && query.is_empty() => self.index.hero_rank_hits(lang),
-            "hero" => self.index.hero_hits(query, &folded, lang, place, ""),
+            "hero" => self.index.hero_hits(query, &folded, lang, place, "", if query.is_empty() { 80 } else { 40 }),
             "works" => self.index.work_hits(query, &folded, lang, place, area),
             "atlas" => self.index.atlas_hits(query, &folded, lang, place, area),
             "patch" => self.search_patches(query, &format!("%{query}%"), lang, place, nation, ship),
