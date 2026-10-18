@@ -104,14 +104,17 @@ function Read-ChangelogUi {
     return Get-Content -Raw -LiteralPath $summary.json | ConvertFrom-Json
 }
 
-function Invoke-ObservedButton {
-    param([System.Diagnostics.Process]$AppProcess, $Tree, [string[]]$Names, [string]$Directory)
-    $buttons = @($Tree.nodes | Where-Object {
-        $_.PSObject.Properties.Name -contains "name" -and $_.controlType -eq "ControlType.Button" -and
+function Invoke-ObservedControl {
+    param(
+        [System.Diagnostics.Process]$AppProcess, $Tree, [string[]]$Names, [string]$Directory,
+        [ValidateSet("Button", "TabItem")][string]$ControlType = "Button"
+    )
+    $controls = @($Tree.nodes | Where-Object {
+        $_.PSObject.Properties.Name -contains "name" -and $_.controlType -eq "ControlType.$ControlType" -and
         $_.enabled -and -not $_.offscreen -and $Names -ccontains $_.name
     })
-    if ($buttons.Count -ne 1) { throw "Expected one observed button named $($Names -join ' / '), found $($buttons.Count)" }
-    $null = & (Join-Path $PSScriptRoot "windows_update_ui.ps1") -Mode Act -ProcessId $AppProcess.Id -OutputDirectory $Directory -ButtonName $buttons[0].name
+    if ($controls.Count -ne 1) { throw "Expected one observed $ControlType named $($Names -join ' / '), found $($controls.Count)" }
+    $null = & (Join-Path $PSScriptRoot "windows_update_ui.ps1") -Mode Act -ProcessId $AppProcess.Id -OutputDirectory $Directory -ControlName $controls[0].name -ControlType $ControlType
 }
 
 function Ui-Names {
@@ -130,18 +133,21 @@ function Assert-UiNames {
     }
 }
 
-function Assert-ModeButton {
-    param($Tree, [string]$Name, [bool]$Expected)
-    $modeButtons = @($Tree.nodes | Where-Object {
+function Assert-ModeControl {
+    param(
+        $Tree, [string]$Name, [bool]$Expected,
+        [ValidateSet("Button", "TabItem")][string]$ControlType = "Button"
+    )
+    $modeControls = @($Tree.nodes | Where-Object {
         $_.PSObject.Properties.Name -contains "name" -and
-        $_.controlType -eq "ControlType.Button" -and $_.name -ceq $Name
+        $_.controlType -eq "ControlType.$ControlType" -and $_.name -ceq $Name
     })
     if ($Expected) {
-        if ($modeButtons.Count -ne 1 -or -not $modeButtons[0].enabled -or $modeButtons[0].offscreen) {
-            throw "Expected one usable mode-specific button: $Name"
+        if ($modeControls.Count -ne 1 -or -not $modeControls[0].enabled -or $modeControls[0].offscreen) {
+            throw "Expected one usable mode-specific ${ControlType}: $Name"
         }
-    } elseif ($modeButtons.Count -ne 0) {
-        throw "Button should not exist in this window mode: $Name"
+    } elseif ($modeControls.Count -ne 0) {
+        throw "$ControlType should not exist in this window mode: $Name"
     }
 }
 
@@ -240,10 +246,10 @@ try {
                 $aliasesHeading = if ($english) { "Search aliases" } else { "搜尋別名" }
                 $appLabel = if ($english) { "App" } else { "程式" }
                 $initial = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "01-initial")
-                Assert-ModeButton -Tree $initial -Name $calculateLabel -Expected $fullMode
+                Assert-ModeControl -Tree $initial -Name $calculateLabel -Expected $fullMode
                 $caseResult["calculatorModeVisibility"] = $true
                 if ($fullMode) {
-                    Invoke-ObservedButton -AppProcess $appProcess -Tree $initial -Names @($calculateLabel) -Directory (Join-Path $directory "01a-open-calculator")
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $initial -Names @($calculateLabel) -Directory (Join-Path $directory "01a-open-calculator")
                     $initial = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "01b-calculator")
                     Assert-UiNames -Tree $initial -Required @($calculatorHeading) -Absent @($overviewHeading)
                     $pickers = @(Ui-Names -Tree $initial | Where-Object { $_.StartsWith($calculatorPickerPrefix, [StringComparison]::Ordinal) })
@@ -251,11 +257,11 @@ try {
                 }
                 # Opening settings from the calculator must retain working keyboard
                 # navigation and return to that calculator when settings is closed.
-                Invoke-ObservedButton -AppProcess $appProcess -Tree $initial -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "02-open-settings")
+                Invoke-ObservedControl -AppProcess $appProcess -Tree $initial -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "02-open-settings")
                 $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03-settings")
-                Assert-ModeButton -Tree $settings -Name $keysLabel -Expected (-not $fullMode)
+                Assert-ModeControl -Tree $settings -Name $keysLabel -Expected (-not $fullMode) -ControlType TabItem
                 $caseResult["keysModeVisibility"] = $true
-                Invoke-ObservedButton -AppProcess $appProcess -Tree $settings -Names @($aliasesLabel) -Directory (Join-Path $directory "03a-open-aliases")
+                Invoke-ObservedControl -AppProcess $appProcess -Tree $settings -Names @($aliasesLabel) -ControlType TabItem -Directory (Join-Path $directory "03a-open-aliases")
                 $aliases = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03b-aliases")
                 Assert-UiNames -Tree $aliases -Required @($aliasesHeading)
                 $nextHeading = if ($fullMode) { "Gersang v$currentVersion" } else { $keysHeading }
@@ -275,10 +281,10 @@ try {
                     $overview = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03h-close-calculator")
                     Assert-UiNames -Tree $overview -Required @($overviewHeading) -Absent @($calculatorHeading)
                     $caseResult["calculatorOpenAndEscape"] = $true
-                    Invoke-ObservedButton -AppProcess $appProcess -Tree $overview -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "03i-reopen-settings")
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $overview -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "03i-reopen-settings")
                     $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03j-settings")
                 }
-                Invoke-ObservedButton -AppProcess $appProcess -Tree $settings -Names @($appLabel) -Directory (Join-Path $directory "04-open-app")
+                Invoke-ObservedControl -AppProcess $appProcess -Tree $settings -Names @($appLabel) -ControlType TabItem -Directory (Join-Path $directory "04-open-app")
                 $appTree = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "05-app-top")
                 $expectedWidth = if ($mode -eq "full") { 960 } else { 560 }
                 $expectedHeight = if ($mode -eq "full") { 640 } else { 600 }
