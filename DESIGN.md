@@ -1,6 +1,6 @@
 ---
 name: Gersang desktop reference
-description: Slint 原生桌面全視窗圖鑑；深灰介面、bronze 重點色與原遊戲素材。
+description: Slint 原生桌面圖鑑；完整、小窗與浮動列共用深灰色票、bronze 重點色與原遊戲素材。
 colors:
   text: "#edf1f7"
   secondary: "#a8b2c1"
@@ -51,6 +51,7 @@ typography:
   shortcut:
     fontSize: "11px"
 rounded:
+  window: "12px"
   window-control: "5px"
   navigation: "7px"
   surface: "8px"
@@ -91,9 +92,9 @@ components:
 
 ## Overview
 
-這份文件從目前的 `widget/ui/desktop.slint`、`widget/ui/app.slint` 與 `PRODUCT.md` 抽取，記錄 Windows／macOS 共用的 Slint 原生桌面全視窗設計。介面以深灰底色、bronze 重點色及清楚的文字層級承載圖鑑資料；分類與內容辨識沿用原遊戲圖像。
+這份文件從目前的 `widget/ui/desktop.slint`、`widget/ui/app.slint` 與 `PRODUCT.md` 抽取，記錄 Windows／macOS 共用的 Slint 原生桌面介面設計。介面以深灰底色、bronze 重點色及清楚的文字層級承載圖鑑資料；分類與內容辨識沿用原遊戲圖像。
 
-適用範圍是 full mode。保留搜尋、收藏、分類排序、鍵盤操作、關聯連結及設定，也保留 compact widget 與收合分類列的現有外觀與互動。這裡的視覺描述來自實作，不代表額外取得的使用者品牌偏好。
+Full mode、compact widget 與收合分類列共用原 full mode 的深灰色票與 bronze 重點色。模式切換只改變版面與資訊密度；搜尋、收藏、分類排序、鍵盤操作、關聯連結及設定維持既有行為，小窗保留緊湊排列，浮動列保留半透明呈現。這裡記錄的是目前實作與本次統一樣式的決定。
 
 ## Colors
 
@@ -101,13 +102,13 @@ components:
 
 **Neutral：** `sidebar`、`canvas`、`surface-alt`、`surface`、`detail` 區分導覽、工作區、分類、列表與詳細資料。`text` 是主要內容，`secondary` 是說明，`muted` 是捷徑與次要資訊，`soft` 是較柔和的重點文字。`border` 用於分隔；`hover`、`control`、`hover-strong`、`raised` 表達互動狀態。
 
-**模式隔離：** YAML 色票只記錄 `DesktopTheme.active == true` 的值。啟用條件維持 `full-mode && !collapsed`；共用元件使用語意色票，inactive 分支保留 compact widget 的原暖棕色與透明背景。不要把 full mode 色碼直接灌入所有模式。
+**跨模式共用：** YAML 色票由 `DesktopTheme` 提供給所有模式，不隨 `full-mode` 或 `collapsed` 切換。Full mode 與 compact widget 使用相同的不透明 `chrome`／`canvas` 底色，整體透明度仍由使用者的 `window-opacity` 設定控制。收合分類列與圖示底板保留半透明，但使用相同深灰色系；圖示周圍仍為透明。各模式的 hover、選取、邊框與說明文字都使用共用語意色票；體力、抗性、元素及狀態色保留原本意義。
 
 ## Typography
 
 Windows 使用 Microsoft JhengHei UI，macOS 使用 PingFang TC，由 `ui-font` 控制；兩者是各平台選擇，不是混用的字體堆疊。預設內文為 14px／400，分類標題為 21px／600，入口標題為 15px／600，主要入口為 17px／600。導覽文字為 13px，選取時加粗至 600；說明與標籤多用 12px，捷徑用 11px。
 
-保持中英文切換可讀。導覽與單行列表使用省略；說明、空狀態與詳細內容按可用寬度換行。不要為了塞入更多資料縮小主要內容字級。
+保持中英文切換可讀。導覽與單行列表使用省略；說明、空狀態與詳細內容按可用寬度換行。小窗保留既有標題字級與緊湊密度，完整模式保留較大的標題與內距；共用同一套文字顏色與層級。不要為了塞入更多資料縮小主要內容字級。
 
 ## Layout
 
@@ -123,7 +124,7 @@ Windows 使用 Microsoft JhengHei UI，macOS 使用 PingFang TC，由 `ui-font` 
 
 ## Shapes
 
-視窗控制使用 5px 圓角，導覽使用 7px，入口及一般面板使用 8px，總覽收藏區使用 12px。分隔線與焦點邊框為 1px。`DesktopIcon` 使用共用 24 × 24 viewbox、1.6px 描邊與透明填色；功能符號沿用此筆畫，分類圖示仍用遊戲素材。
+Full mode 與 compact widget 的展開視窗外框都使用 12px 圓角；視窗控制統一為 26px 高、5px 圓角，平時透明、hover 時顯示底色。導覽使用 7px，入口及一般面板使用 8px，總覽收藏區使用 12px。收合分類列保留原本形狀。分隔線與焦點邊框為 1px。`DesktopIcon` 使用共用 24 × 24 viewbox、1.6px 描邊與透明填色；功能符號沿用此筆畫，分類圖示仍用遊戲素材。
 
 ## Components
 
@@ -131,7 +132,7 @@ Windows 使用 Microsoft JhengHei UI，macOS 使用 PingFang TC，由 `ui-font` 
 - **DesktopEntry：** 預設 80px 高、44px 遊戲圖像、文字與圖像間距 16px、細底線；hover 才出現面底色。總覽已使用 112px 主要入口與 88px 次要入口。標題與說明可省略，動作標籤只在元件寬度大於 380px 時顯示。
 - **MonsterTableRow／InlineMonster：** 僅限 full mode。一行一筆，列高 128px、列距 8px；搜尋與收藏沿用。52px 頭像旁顯示名稱、類型及元素，右方以三欄兩列排列體力、魔力、攻擊、兩種抗性及經驗；下方保留掉落圖示與實際數量。每個掉落圖示可直接開啟道具頁，滑鼠停留時顯示完整名稱；缺圖仍保留原位置的可點擊替代圖示，避免道具連結錯位。體力與打擊抗性為暖紅，魔力與魔法抗性為藍；元素沿用小窗的官方屬性圖示，並保留對應的文字及柔和色彩。各數值始終保留文字標籤。展開詳情直接插在所選列下方，以 12px 內距及約 30px 的連結列呈現，實際高度隨換行量測，不加入大段空白。
 - **列表／詳細資料：** 保留選取列與關聯記錄的上下文；資料、計數與圖片來自現有 catalog。未選取、收藏為空或沒有篩選結果時，說明下一個可執行動作。
-- **搜尋／設定：** 沿用 Slint 原生 `LineEdit`／`TextEdit` 與現有選項控制。常駐搜尋限定目前分類；分類排序仍以拖曳與可見捷徑標籤呈現。
+- **搜尋／設定：** 沿用 Slint 原生 `LineEdit`／`TextEdit` 與現有選項控制。`LangChip` 與 `ChoiceBar` 的選取狀態共用 `raised` 底色與主要文字色，讓小窗與完整模式的設定選項保持一致；各模式保留原本的控制排列與操作行為。常駐搜尋限定目前分類；分類排序仍以拖曳與可見捷徑標籤呈現。
 
 ## Do's and Don'ts
 
