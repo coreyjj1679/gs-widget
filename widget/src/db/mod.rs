@@ -12,6 +12,9 @@ mod monster;
 mod names;
 mod npc;
 mod paths;
+mod planner;
+mod calculator;
+mod calculator_library;
 mod prefs;
 mod quest;
 mod recipe;
@@ -25,6 +28,8 @@ mod work;
 
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
+pub use calculator::{CalcCatalog, CalcDocument, decode_calculator, encode_calculator, load_calculator, save_calculator, calculator_export_dir};
+pub use calculator_library::{CalcLibrary, load_calculator_library, save_calculator_library, encode_calculator_folder, decode_calculator_folder};
 pub use user_data::initialize_user_data;
 pub use monster::MonsterQuery;
 pub use prefs::{DockPref, HomePref, ViewPref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_view, load_window, save_dock, save_favourites, save_full_geometry, save_home, save_lang, save_mode, save_opacity, save_set_extra, save_view, save_window};
