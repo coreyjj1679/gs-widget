@@ -6,6 +6,7 @@ mod db;
 mod hotkey;
 mod icons;
 mod list;
+mod perf;
 mod sheet;
 mod update;
 mod update_ui;
@@ -74,6 +75,9 @@ fn reload_board(app: &App, catalog: &db::Catalog, session: &Session, favourites:
     if key.is_empty() {
         return;
     }
+    perf::begin_update();
+    perf::navigation(&app.get_category());
+    let _timer = perf::Span::new("list.reload_board", 0);
     let query = monster_query(app);
     let lang = app.get_lang().to_string();
     let hits = if key == "saved:" {
@@ -252,6 +256,19 @@ fn check_installation() -> Result<(), String> {
 }
 
 fn main() {
+    let args: Vec<_> = std::env::args_os().collect();
+    if let Some(index) = args.iter().position(|arg| arg == "--profile-ui") {
+        let result = args.get(index + 1).ok_or_else(|| "Usage: --profile-ui <report.json>".to_string())
+            .and_then(|path| perf::benchmark_ui(std::path::Path::new(path)));
+        if let Err(error) = result { eprintln!("UI performance profile failed: {error}"); std::process::exit(1); }
+        return;
+    }
+    if let Some(index) = args.iter().position(|arg| arg == "--profile-catalog") {
+        let result = args.get(index + 1).ok_or_else(|| "Usage: --profile-catalog <report.json>".to_string())
+            .and_then(|path| perf::benchmark(std::path::Path::new(path)));
+        if let Err(error) = result { eprintln!("Performance profile failed: {error}"); std::process::exit(1); }
+        return;
+    }
     if update::run_helper_if_requested() {
         return;
     }
@@ -269,6 +286,7 @@ fn main() {
     // obtains it exclusively before replacing files, including when another
     // copy of this portable app is still open.
     let running_guard = update::running_guard();
+    let catalog_timer = perf::Span::new("startup.catalog_initialize", 1);
     let initialization = match &running_guard {
         Ok(_) => db::initialize_user_data().and_then(|()| db::Catalog::open()),
         Err(message) => Err(message.clone()),
@@ -285,7 +303,9 @@ fn main() {
         }
     };
 
+    drop(catalog_timer);
     let app = App::new().expect("視窗建立失敗");
+    let _performance_timer = perf::install(&app);
     let _update_ui = update_ui::install(&app);
     app.on_open_source(window::open_source_repository);
     #[cfg(target_os = "macos")]

@@ -51,6 +51,7 @@ pub(in crate::db) struct PlaceRow {
 }
 
 pub(in crate::db) struct ItemRow {
+    pub(in crate::db) code: i64,
     pub(in crate::db) code_str: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,

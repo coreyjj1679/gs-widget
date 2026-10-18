@@ -18,6 +18,9 @@ fn section_key(key: &str) -> bool {
 }
 
 pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favourites: &HashSet<String>, category: &str, text: &str) {
+    super::perf::begin_update();
+    super::perf::navigation(category);
+    let _timer = super::perf::Span::new("list.publish", 0);
     let lang = app.get_lang().to_string();
     let nation = app.get_nation().to_string();
     let full_monsters = category == "monster" && app.get_full_mode();
@@ -41,6 +44,7 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
     let query = monster_query(app);
     let only = category == "monster" && (app.get_favourites_only()
         || (full_monsters && !board && !app.get_filter_global() && previous_scope == "saved:"));
+    let query_timer = super::perf::Span::new("list.query", 0);
     let hits = if board {
         catalog.directory_hits(&lang)
     } else if full_monsters {
@@ -62,6 +66,7 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
             &app.get_area(),
         )
     };
+    drop(query_timer);
     // The directory keeps All/Saved first and each country's habitats together.
     // Full-mode result rows have already applied their own favourite/sort policy above.
     let mut hits = if full_monsters { hits } else { prioritize(catalog, &nation, hits, favourites, only) };
@@ -362,6 +367,8 @@ pub(crate) fn show_board_monsters(app: &App, session: &Session, catalog: &db::Ca
 }
 
 fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, hits: Vec<db::Hit>, favourites: &HashSet<String>, board: bool) {
+    let _timer = super::perf::Span::new("list.rows", hits.len());
+    let cards_timer = super::perf::Span::new("list.monster_cards", hits.len());
     let codes: Vec<String> = hits
         .iter()
         .filter_map(|hit| hit.key.strip_prefix("monster:").map(str::to_string))
@@ -371,6 +378,7 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
     } else {
         std::collections::HashMap::new()
     };
+    drop(cards_timer);
     let gen = session.generation.fetch_add(1, Ordering::Relaxed) + 1;
     let flow_titles: Vec<String> = hits.iter().map(|hit| hit.title.clone()).collect();
     let flow_chips: Vec<String> = hits.iter().map(|hit| hit.chip.clone()).collect();
@@ -511,6 +519,7 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
             chip: SharedString::from(hit.chip),
         });
     }
+    let model_timer = super::perf::Span::new("list.model_set", rows.len());
     let model = ModelRc::new(VecModel::from(rows));
     if board {
         app.set_board_monsters(model);
@@ -518,6 +527,8 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
         app.set_hits(model);
         apply_flow(app, &flow_titles, &flow_chips);
     }
+    drop(model_timer);
+    super::perf::record("icons.queued", std::time::Duration::ZERO, jobs.len());
     for job in jobs {
         let _ = session.jobs.send(job);
     }

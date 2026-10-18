@@ -3181,7 +3181,7 @@ component RecordDetail inherits Rectangle {
     in property <string> no-image-label;
     callback open-key(string);
     background: DesktopTheme.detail;
-    Flickable {
+    detail-scroll := Flickable {
         width: 100%;
         height: 100%;
         content-width: self.width;
@@ -3225,16 +3225,20 @@ component RecordDetail inherits Rectangle {
                 font-size: 12px;
                 color: DesktopTheme.secondary;
             }
-            if root.links.length > 0: VerticalLayout {
-                spacing: 0px;
-                for row in root.links: HitRow {
-                    compact: true;
-                    hit: row;
-                    no-image-label: root.no-image-label;
-                    title-color: DesktopTheme.accent;
-                    clicked => {
-                        if (row.key != "" && row.chip != "section") {
-                            root.open-key(row.key);
+            if root.links.length > 0: detail-links := Rectangle {
+                height: root.links.length * 36px;
+                for row[i] in root.links: detail-link-slot := Rectangle {
+                    x: 0px; y: i * 36px; width: parent.width; height: 36px;
+                    if detail-links.y + detail-link-slot.y + detail-link-slot.height >= -detail-scroll.content-y - 72px && detail-links.y + detail-link-slot.y <= -detail-scroll.content-y + detail-scroll.height + 72px: HitRow {
+                        x: 0px; y: 0px; width: parent.width;
+                        compact: true;
+                        hit: row;
+                        no-image-label: root.no-image-label;
+                        title-color: DesktopTheme.accent;
+                        clicked => {
+                            if (row.key != "" && row.chip != "section") {
+                                root.open-key(row.key);
+                            }
                         }
                     }
                 }
@@ -5991,16 +5995,19 @@ export component App inherits Window {
                             Text { x: 28px; y: 108px; width: parent.width - 56px; text: root.lang == "en-zh" ? "Star a monster to return to its stats and drops in one click." : "在怪物旁點星號，下次直接查看能力與掉落物。"; horizontal-alignment: center; wrap: word-wrap; font-size: 12px; color: DesktopTheme.secondary; }
                             SearchToggle { x: (parent.width - self.width) / 2; y: 168px; label: root.lang == "en-zh" ? "Explore monsters" : "瀏覽怪物"; clicked => { root.open-category("monster"); keys.focus(); } }
                         }
-                        if root.hits.length > 0: Flickable {
+                        if root.hits.length > 0: home-favourites := Flickable {
                             x: 12px; y: 60px; width: parent.width - 24px; height: parent.height - 72px;
                             content-width: self.width;
                             content-height: max(root.hits.length * 56px, 1px);
-                            for row[i] in root.hits: HitRow {
+                            for row[i] in root.hits: favourite-slot := Rectangle {
                                 y: i * 56px; width: parent.width; height: 54px;
-                                hit: row; selected: root.cursor == i;
-                                no-image-label: root.no-image-label;
-                                clicked => { root.home-open(row.key); }
-                                favourite-clicked => { root.toggle-favourite(row.key); }
+                                if root.cursor == i || (favourite-slot.y + favourite-slot.height >= -home-favourites.content-y - 112px && favourite-slot.y <= -home-favourites.content-y + home-favourites.height + 112px): HitRow {
+                                    x: 0px; y: 0px; width: parent.width; height: 54px;
+                                    hit: row; selected: root.cursor == i;
+                                    no-image-label: root.no-image-label;
+                                    clicked => { root.home-open(row.key); }
+                                    favourite-clicked => { root.toggle-favourite(row.key); }
+                                }
                             }
                         }
                     }
@@ -6471,22 +6478,25 @@ export component App inherits Window {
                                         return reject;
                                     }
                                 }
-                                Flickable {
+                                regions := Flickable {
                                     x: 0px; y: 128px; width: parent.width - 16px; height: max(parent.height - 128px, 1px);
                                     content-width: self.width;
                                     content-height: max(root.region-rows.length * 36px, self.height);
                                     content-y <=> root.directory-offset;
-                                    for row[i] in root.region-rows: MonsterRegionLink {
-                                        x: 0px; y: i * 36px; width: parent.width;
-                                        heading: row.chip == "label";
-                                        selected: root.expanded == row.key && !root.filter-global;
-                                        keyboard-current: root.region-cursor == i + 2;
-                                        title: row.title;
-                                        clicked => {
-                                            root.region-cursor = i + 2;
-                                            root.choose-monster-place(row.key, row.title);
+                                    for row[i] in root.region-rows: region-slot := Rectangle {
+                                        x: 0px; y: i * 36px; width: parent.width; height: 34px;
+                                        if root.expanded == row.key || root.region-cursor == i + 2 || (region-slot.y + region-slot.height >= -regions.content-y - 72px && region-slot.y <= -regions.content-y + regions.height + 72px): MonsterRegionLink {
+                                            x: 0px; y: 0px; width: parent.width;
+                                            heading: row.chip == "label";
+                                            selected: root.expanded == row.key && !root.filter-global;
+                                            keyboard-current: root.region-cursor == i + 2;
+                                            title: row.title;
+                                            clicked => {
+                                                root.region-cursor = i + 2;
+                                                root.choose-monster-place(row.key, row.title);
+                                            }
+                                            step(delta) => { root.region-cursor = i + 2; root.move-region(delta); }
                                         }
-                                        step(delta) => { root.region-cursor = i + 2; root.move-region(delta); }
                                     }
                                     if root.region-rows.length == 0: VerticalLayout {
                                         x: 8px; y: 4px; width: parent.width - 16px; spacing: 8px;
@@ -6670,14 +6680,15 @@ export component App inherits Window {
                                 width: root.pane-w < 900px ? 150px : 180px;
                                 background: DesktopTheme.surface-alt;
                                 border-radius: 8px;
-                                Flickable {
+                                sections := Flickable {
                                     x: 6px; y: 8px; width: parent.width - 12px; height: parent.height - 16px;
                                     content-width: self.width;
-                                    content-height: max(section-col.preferred-height, 1px);
+                                    content-height: max(root.hits.length * 50px - 2px, 1px);
                                     content-y <=> root.directory-offset;
-                                    section-col := VerticalLayout {
-                                        width: parent.width; spacing: 2px;
-                                        for row[i] in root.hits: SectionPick {
+                                    for row[i] in root.hits: section-slot := Rectangle {
+                                        x: 0px; y: i * 50px; width: parent.width; height: 48px;
+                                        if root.expanded == row.key || root.cursor == i || (section-slot.y + section-slot.height >= -sections.content-y - 100px && section-slot.y <= -sections.content-y + sections.height + 100px): SectionPick {
+                                            x: 0px; y: 0px; width: parent.width;
                                             title: row.title; count: row.subtitle;
                                             selected: root.expanded == row.key || root.cursor == i;
                                             clicked => {
@@ -6715,25 +6726,27 @@ export component App inherits Window {
                                     text: root.lang == "en-zh" ? "No records in this category." : "這個分類暫時沒有資料。";
                                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
-                                if !root.full-flat && root.board-monsters.length > 0: Flickable {
+                                if !root.full-flat && root.board-monsters.length > 0: records := Flickable {
                                     x: 6px; y: 48px; width: parent.width - 12px; height: parent.height - 56px;
-                                    content-width: self.width; content-height: max(record-col.preferred-height, 1px);
+                                    content-width: self.width; content-height: max(root.board-monsters.length * 60px - 2px, 1px);
                                     content-y <=> root.list-offset;
-                                    record-col := VerticalLayout {
-                                        width: parent.width; spacing: 2px;
-                                        for rec[i] in root.board-monsters: CatalogRow {
+                                    for rec[i] in root.board-monsters: record-slot := Rectangle {
+                                        x: 0px; y: i * 60px; width: parent.width; height: 58px;
+                                        if root.detail-key == rec.key || (record-slot.y + record-slot.height >= -records.content-y - 120px && record-slot.y <= -records.content-y + records.height + 120px): CatalogRow {
+                                            x: 0px; y: 0px; width: parent.width;
                                             hit: rec; selected: root.detail-key == rec.key;
                                             clicked => { root.toggle-detail(rec.key, i); keys.focus(); }
                                         }
                                     }
                                 }
-                                if root.full-flat && root.hits.length > 0: Flickable {
+                                if root.full-flat && root.hits.length > 0: flat-records := Flickable {
                                     x: 6px; y: 48px; width: parent.width - 12px; height: parent.height - 56px;
-                                    content-width: self.width; content-height: max(flat-col.preferred-height, 1px);
+                                    content-width: self.width; content-height: max(root.hits.length * 60px - 2px, 1px);
                                     content-y <=> root.list-offset;
-                                    flat-col := VerticalLayout {
-                                        width: parent.width; spacing: 2px;
-                                        for rec[i] in root.hits: CatalogRow {
+                                    for rec[i] in root.hits: flat-record-slot := Rectangle {
+                                        x: 0px; y: i * 60px; width: parent.width; height: 58px;
+                                        if root.detail-key == rec.key || root.cursor == i || (flat-record-slot.y + flat-record-slot.height >= -flat-records.content-y - 120px && flat-record-slot.y <= -flat-records.content-y + flat-records.height + 120px): CatalogRow {
+                                            x: 0px; y: 0px; width: parent.width;
                                             hit: rec; selected: root.detail-key == rec.key || root.cursor == i;
                                             clicked => { root.cursor = i; root.toggle-detail(rec.key, i); keys.focus(); }
                                         }
@@ -6769,18 +6782,24 @@ export component App inherits Window {
                         content-width: self.width;
                         content-height: max(root.hits.length * root.list-row, 1px);
                         content-y <=> root.list-offset;
-                        for row[i] in root.hits: HitRow {
+                        // Match the full monster table: keep every row's geometry,
+                        // but instantiate text, images and controls near the viewport.
+                        for row[i] in root.hits: hit-slot := Rectangle {
                             x: 0px;
                             y: i * root.list-row;
                             width: max(root.pane-w - 2 * root.page-pad, 40px);
-                            selected: root.cursor == i;
-                            hit: row;
-                            no-image-label: root.no-image-label;
-                            clicked => {
-                                root.cursor = i;
-                                root.open-hit(row.key);
+                            height: 52px;
+                            if root.cursor == i || (hit-slot.y + hit-slot.height >= -list.content-y - 2 * root.list-row && hit-slot.y <= -list.content-y + list.height + 2 * root.list-row): HitRow {
+                                x: 0px; y: 0px; width: parent.width;
+                                selected: root.cursor == i;
+                                hit: row;
+                                no-image-label: root.no-image-label;
+                                clicked => {
+                                    root.cursor = i;
+                                    root.open-hit(row.key);
+                                }
+                                favourite-clicked => { root.toggle-favourite(row.key); }
                             }
-                            favourite-clicked => { root.toggle-favourite(row.key); }
                         }
                     }
                     if root.viewing == "" && root.monster-gallery && root.monster-cards && !root.full-mode: gallery := Flickable {
@@ -6791,20 +6810,24 @@ export component App inherits Window {
                         content-width: self.width;
                         content-height: max(root.hits.length * root.list-row, 1px);
                         content-y <=> root.list-offset;
-                        for row[i] in root.hits: MonsterCard {
+                        for row[i] in root.hits: card-slot := Rectangle {
                             x: 0px;
                             y: i * root.list-row;
                             width: max(root.pane-w - 2 * root.page-pad, 40px);
-                            selected: root.cursor == i;
-                            hit: row;
-                            english: root.lang == "en-zh";
-                            portrait: !root.battle-view;
-                            no-image-label: root.no-image-label;
-                            clicked => {
-                                root.cursor = i;
-                                root.open-hit(row.key);
+                            height: 214px;
+                            if root.cursor == i || (card-slot.y + card-slot.height >= -gallery.content-y - 2 * root.list-row && card-slot.y <= -gallery.content-y + gallery.height + 2 * root.list-row): MonsterCard {
+                                x: 0px; y: 0px; width: parent.width;
+                                selected: root.cursor == i;
+                                hit: row;
+                                english: root.lang == "en-zh";
+                                portrait: !root.battle-view;
+                                no-image-label: root.no-image-label;
+                                clicked => {
+                                    root.cursor = i;
+                                    root.open-hit(row.key);
+                                }
+                                favourite-clicked => { root.toggle-favourite(row.key); }
                             }
-                            favourite-clicked => { root.toggle-favourite(row.key); }
                         }
                     }
                     if root.viewing == "" && root.full-mode && root.monster-cards && !root.legacy-mode: table := Flickable {
@@ -7477,21 +7500,25 @@ export component App inherits Window {
                             content-width: self.width;
                             content-height: max(root.links.length * root.link-row, 1px);
                             content-y <=> root.drop-offset;
-                            for row[i] in root.links: HitRow {
+                            for row[i] in root.links: source-slot := Rectangle {
                                 x: 4px;
                                 y: i * root.link-row;
                                 width: max(item-drops.width - 8px, 40px);
-                                selected: root.cursor == i;
-                                hit: row;
-                                no-image-label: root.no-image-label;
-                                clicked => {
-                                    if (row.chip == "section") {
-                                        root.source-changed(row.key);
-                                        return;
-                                    }
-                                    root.cursor = i;
-                                    if (row.key != "") {
-                                        root.open-hit(row.key);
+                                height: 52px;
+                                if root.cursor == i || (source-slot.y + source-slot.height >= -item-drops.content-y - 2 * root.link-row && source-slot.y <= -item-drops.content-y + item-drops.height + 2 * root.link-row): HitRow {
+                                    x: 0px; y: 0px; width: parent.width;
+                                    selected: root.cursor == i;
+                                    hit: row;
+                                    no-image-label: root.no-image-label;
+                                    clicked => {
+                                        if (row.chip == "section") {
+                                            root.source-changed(row.key);
+                                            return;
+                                        }
+                                        root.cursor = i;
+                                        if (row.key != "") {
+                                            root.open-hit(row.key);
+                                        }
                                     }
                                 }
                             }
@@ -7505,17 +7532,21 @@ export component App inherits Window {
                         content-width: self.width;
                         content-height: max(root.related.length * 52px, 1px);
                         content-y <=> root.drop-offset;
-                        for row[i] in root.related: HitRow {
+                        for row[i] in root.related: related-slot := Rectangle {
                             x: 0px;
                             y: i * 52px;
                             width: related-list.width;
-                            selected: root.cursor == i;
-                            hit: row;
-                            no-image-label: root.no-image-label;
-                            clicked => {
-                                root.cursor = i;
-                                if (row.key != "") {
-                                    root.open-hit(row.key);
+                            height: 52px;
+                            if root.cursor == i || (related-slot.y + related-slot.height >= -related-list.content-y - 104px && related-slot.y <= -related-list.content-y + related-list.height + 104px): HitRow {
+                                x: 0px; y: 0px; width: parent.width;
+                                selected: root.cursor == i;
+                                hit: row;
+                                no-image-label: root.no-image-label;
+                                clicked => {
+                                    root.cursor = i;
+                                    if (row.key != "") {
+                                        root.open-hit(row.key);
+                                    }
                                 }
                             }
                         }
@@ -7528,26 +7559,30 @@ export component App inherits Window {
                         content-width: self.width;
                         content-height: max(root.links.length * 36px, 1px);
                         content-y <=> root.drop-offset;
-                        for row[i] in root.links: HitRow {
+                        for row[i] in root.links: drop-slot := Rectangle {
                             x: 0px;
                             y: i * 36px;
                             width: drops.width;
-                            compact: true;
-                            selected: root.cursor == i;
-                            hit: row;
-                            no-image-label: root.no-image-label;
-                            title-color: DesktopTheme.accent;
-                            clicked => {
-                                if (row.chip == "section") {
+                            height: 36px;
+                            if root.cursor == i || (drop-slot.y + drop-slot.height >= -drops.content-y - 72px && drop-slot.y <= -drops.content-y + drops.height + 72px): HitRow {
+                                x: 0px; y: 0px; width: parent.width;
+                                compact: true;
+                                selected: root.cursor == i;
+                                hit: row;
+                                no-image-label: root.no-image-label;
+                                title-color: DesktopTheme.accent;
+                                clicked => {
+                                    if (row.chip == "section") {
+                                        root.cursor = i;
+                                        root.source-changed(row.key);
+                                        return;
+                                    }
+                                    if (row.key == "") {
+                                        return;
+                                    }
                                     root.cursor = i;
-                                    root.source-changed(row.key);
-                                    return;
+                                    root.open-hit(row.key);
                                 }
-                                if (row.key == "") {
-                                    return;
-                                }
-                                root.cursor = i;
-                                root.open-hit(row.key);
                             }
                         }
                     }

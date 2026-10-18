@@ -58,3 +58,40 @@ The first source build downloads dependencies and can take a few minutes. Keep t
 Window positions are saved separately in `window.txt` on Windows and `window-macos.txt` on macOS, so Retina scaling does not affect the Windows layout. The app version (for example `1.0.0`) is separate from the catalog's game data version (for example `V3.4220`).
 
 The bundled pictures work without the game. Optional battle animations need additional client assets; set `GERSANG_CLIENT` to the client root or put that path in `%LOCALAPPDATA%\gs-widget\client.txt` on Windows, or `client.txt` beside the active database on macOS.
+
+## Performance diagnostics
+
+Run these with an optimized build (`cargo build --locked --release --manifest-path widget/Cargo.toml`) when investigating a user's machine. Compare the same catalog, renderer, window size, build profile, and hardware. Debug-build timings are useful for regression comparisons but are not release latency estimates.
+
+- `gersang-widget --profile-catalog catalog-profile.json` writes local JSON with catalog startup, every category and populated section, fuzzy search, monster-card preparation, and cold/warm image decoding timings. It runs without opening a window. Normal first-launch preference initialization/migration applies. The image sample is deterministically sorted and capped at 1,000 distinct frames; failed decodes are counted. “Cold” means a fresh process cache, not a cleared OS disk cache.
+- `gersang-widget --profile-ui ui-profile.json` opens a temporary native window using the Slint software renderer and benchmarks the actual Slint catalog with **synthetic** 50/500/5,000-row lists at 1280×800 and 960×640. It writes JSON plus adjacent PPM snapshots at the top/middle/end. It does not load or save personal settings. This measures model replacement, layout and CPU snapshot rasterization, **not** screen presentation, database work or asynchronous image loading.
+
+To time actual navigation, searches and scrolling, set `GERSANG_PROFILE` to a writable JSONL file and start the app normally. For example, in PowerShell from an extracted Windows package:
+
+```powershell
+$env:GERSANG_PROFILE = "$env:TEMP\gs-widget-performance.jsonl"
+Start-Process .\gersang-widget.exe -Wait
+Remove-Item Env:GERSANG_PROFILE
+```
+
+For the headless report on Windows, use `Start-Process .\gersang-widget.exe -ArgumentList '--profile-catalog', 'catalog-profile.json' -Wait` because the application is a GUI executable. On macOS, use `GERSANG_PROFILE=/tmp/gs-widget-performance.jsonl ./widget/target/release/gersang-widget`.
+
+Each JSONL entry contains `process_id`, `since_start_ms`, `stage`, `elapsed_ms`, and `count`. Reproduce the slow action, then close the app. Relevant stages are:
+
+- `navigation.<category>`: identifies the category associated with the following spans without recording the query.
+- `startup.catalog_initialize`: user-data initialization and catalog opening.
+- `list.query`, `list.monster_cards`, `list.rows`, `list.model_set`, `list.publish`, `list.reload_board`, `detail.open`: nested wall-time spans for data lookup, row preparation, model assignment and navigation. Do not add overlapping spans together.
+- `icons.queued`: pending-job count, with zero duration. `icon.decode`, `icon.queue_wait`, `icon.paint`: decoding batches, event-loop queue delay, and applying images to models. Count is jobs or targets, not unique files.
+- `ui.render_span`: wall time between the renderer's Before/AfterRendering callbacks. `ui.update_to_render`: earliest instrumented update through the next AfterRendering callback. Neither includes display presentation or guarantees that every icon has finished loading. A backend without notifier support emits `ui.render_notifier_unavailable` instead; no render timing is fabricated.
+- `ui.event_loop_delay`: excess delay over a 50 ms UI timer, recorded when at least 20 ms late. OS scheduling, app suspension and sleep also affect it, so keep the app visible and the machine awake while recording.
+
+Logging is opt-in, local and best effort; it records no search text, names or personal settings and sends nothing over the network. A bounded background writer avoids blocking the UI; a saturated queue or abrupt shutdown may drop diagnostics. Disable `GERSANG_PROFILE` after reproducing the issue to stop log growth. The headless catalog report excludes GUI costs, while the synthetic UI report excludes icons and real catalog work; use the runtime trace to diagnose actual interaction latency.
+
+For algorithm comparisons using the bundled assets:
+
+```sh
+cargo test --locked --manifest-path widget/Cargo.toml profile_icon_row_updates -- --ignored --nocapture
+cargo test --locked --manifest-path widget/Cargo.toml profile_item_frame_decode -- --ignored --nocapture
+```
+
+These manual benchmarks compare the previous and current algorithms in one process and check output equivalence. They are not end-to-end loading measurements.

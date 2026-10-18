@@ -104,7 +104,7 @@ impl Catalog {
             .filter(|code| !code.is_empty())
             .filter_map(|code| {
                 let id = code.trim_start_matches('#').parse::<i64>().ok()?;
-                let item = self.index.items.iter().find(|item| item.code_str == id.to_string())?;
+                let item = self.index.find_item(id)?;
                 let name = lead(lang, &item.en, &item.zh);
                 Some(Hit {
                     title: if name.is_empty() { format!("#{id}") } else { name },
