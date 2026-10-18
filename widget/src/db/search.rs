@@ -29,6 +29,60 @@ pub(in crate::db) fn place_hit(lang: &str, en: &str, zh: &str, count: i64, key: 
     }
 }
 
+pub(in crate::db) fn is_floor_suffix(floor: &str) -> bool {
+    let floor = floor.trim();
+    if floor.is_empty() {
+        return false;
+    }
+    if floor.chars().any(|ch| matches!(ch, '層' | '樓' | '层' | '층')) {
+        return true;
+    }
+    let lower = floor.to_lowercase();
+    lower.contains("floor") || lower.contains("basement")
+}
+
+fn norm_name(name: &str) -> String {
+    name.trim().to_lowercase()
+}
+
+fn standalone_names(places: &[&PlaceRow]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for place in places {
+        for name in [&place.en, &place.zh] {
+            let (base, floor) = place_split(name);
+            if floor.is_empty() && !base.is_empty() {
+                names.insert(norm_name(&base));
+            }
+        }
+    }
+    names
+}
+
+fn decorative(place: &PlaceRow, standalone: &HashSet<String>) -> bool {
+    let source = if place.zh.trim().is_empty() { place.en.as_str() } else { place.zh.as_str() };
+    let (_, floor) = place_split(source);
+    if floor.is_empty() || is_floor_suffix(&floor) {
+        return false;
+    }
+    let (_, en_floor) = place_split(&place.en);
+    if is_floor_suffix(&en_floor) {
+        return false;
+    }
+    !standalone.contains(&norm_name(&floor)) && !standalone.contains(&norm_name(&en_floor))
+}
+
+fn bucket_of(place: &PlaceRow, standalone: &HashSet<String>) -> String {
+    if decorative(place, standalone) {
+        return group_key(place);
+    }
+    let source = if place.zh.trim().is_empty() { place.en.as_str() } else { place.zh.as_str() };
+    let (_, floor) = place_split(source);
+    if !floor.is_empty() && standalone.contains(&norm_name(&floor)) {
+        return format!("keep:{}", place.gts);
+    }
+    group_key(place)
+}
+
 pub(in crate::db) fn group_key(place: &PlaceRow) -> String {
     let source = if place.zh.trim().is_empty() { place.en.as_str() } else { place.zh.as_str() };
     let base = place_split(source).0;
@@ -163,9 +217,11 @@ impl Index {
 
     pub(in crate::db) fn place_hits(&self, nation: &str, folded: &str, lang: &str) -> Vec<Hit> {
         let Ok(nation) = nation.parse::<i64>() else { return Vec::new() };
+        let nation_places: Vec<&PlaceRow> = self.places.iter().filter(|place| place.nation == nation).collect();
+        let standalone = standalone_names(&nation_places);
         let mut buckets: HashMap<String, Vec<&PlaceRow>> = HashMap::new();
-        for place in self.places.iter().filter(|place| place.nation == nation) {
-            buckets.entry(group_key(place)).or_default().push(place);
+        for place in nation_places {
+            buckets.entry(bucket_of(place, &standalone)).or_default().push(place);
         }
         let mut listed = Vec::new();
         for (key, members) in buckets {
@@ -175,6 +231,31 @@ impl Index {
                 || text_hit(folded, &base_names)
                 || members.iter().any(|place| text_hit(folded, &place.names));
             if !matched {
+                continue;
+            }
+            if members.iter().all(|place| decorative(place, &standalone)) {
+                let (en, zh) = if members.len() == 1 {
+                    let place = members[0];
+                    (place_split(&place.en).0, place_split(&place.zh).0)
+                } else {
+                    (en, zh)
+                };
+                let en = if en.is_empty() { zh.clone() } else { en };
+                let zh = if zh.is_empty() { en.clone() } else { zh };
+                let gts = member_gts(&members);
+                let count = self.count_at(&gts);
+                let sort = if zh.is_empty() { en.clone() } else { zh.clone() };
+                let id = if gts.len() == 1 {
+                    format!("region:{}", gts[0])
+                } else {
+                    format!("span:{key}")
+                };
+                listed.push(ListedPlace {
+                    count,
+                    sort,
+                    gts: gts.iter().copied().min().unwrap_or(0),
+                    hit: place_hit(lang, &en, &zh, count, id),
+                });
                 continue;
             }
             if members.len() < 2 {
@@ -201,14 +282,137 @@ impl Index {
         listed.into_iter().map(|row| row.hit).collect()
     }
 
+    pub(in crate::db) fn directory_hits(&self, lang: &str) -> Vec<Hit> {
+        let all = if lang == "en-zh" { "All monsters" } else { "所有怪物" };
+        let saved = if lang == "en-zh" { "Saved" } else { "收藏" };
+        let mut hits = vec![Hit {
+            title: all.into(),
+            subtitle: self.monsters.len().to_string(),
+            key: "all:".into(),
+            icon: None,
+            solo: false,
+            aside: String::new(),
+            badge: None,
+            chip: "label".into(),
+        }, Hit {
+            title: saved.into(),
+            subtitle: String::new(),
+            key: "saved:".into(),
+            icon: None,
+            solo: false,
+            aside: String::new(),
+            badge: None,
+            chip: "label".into(),
+        }];
+        let mut order = vec![1_i64, 3, 2, 4, 5, 6];
+        let mut present: Vec<i64> = self.nations.iter().map(|(id, _)| *id).collect();
+        present.sort_unstable();
+        for id in present {
+            if !order.contains(&id) {
+                order.push(id);
+            }
+        }
+        for nation in order {
+            if !self.nations.iter().any(|(id, _)| *id == nation) {
+                continue;
+            }
+            let (en, zh) = nation_pair(nation);
+            hits.push(Hit {
+                title: format!("{}:", lead(lang, en, zh)),
+                subtitle: String::new(),
+                key: format!("nation:{nation}"),
+                icon: None,
+                solo: false,
+                aside: String::new(),
+                badge: None,
+                chip: "label".into(),
+            });
+            let nation_id = nation.to_string();
+            for mut place in self.place_hits(&nation_id, "", lang) {
+                place.key = format!("jump:{nation}|{}", place.key);
+                hits.push(place);
+            }
+        }
+        hits
+    }
+
+    pub(in crate::db) fn region_rows(&self, query: &str, country: i32, lang: &str) -> Vec<Hit> {
+        let query = query.trim().to_lowercase();
+        // The picker lists China before Japan; the catalog IDs put Japan at 2 and China at 3.
+        let country = match country { 2 => 3, 3 => 2, other => other };
+        let directory = self.directory_hits(lang);
+        let alternate: HashMap<String, String> = if query.is_empty() {
+            HashMap::new()
+        } else {
+            let other_lang = if lang == "en-zh" { "zh-en" } else { "en-zh" };
+            self.directory_hits(other_lang).into_iter().map(|hit| (hit.key, hit.title.to_lowercase())).collect()
+        };
+        let matches_name = |hit: &Hit| query.is_empty() || hit.title.to_lowercase().contains(&query)
+            || alternate.get(&hit.key).is_some_and(|name| name.contains(&query));
+        let mut rows = Vec::new();
+        for heading in &directory {
+            let Some(nation) = heading.key.strip_prefix("nation:") else { continue };
+            if country != 0 && nation.parse::<i32>().ok() != Some(country) {
+                continue;
+            }
+            let heading_matches = matches_name(heading);
+            let prefix = format!("jump:{nation}|");
+            let children: Vec<Hit> = directory.iter()
+                .filter(|hit| hit.key.starts_with(&prefix) && (heading_matches || matches_name(hit)))
+                .cloned().collect();
+            if heading_matches || !children.is_empty() {
+                rows.push(heading.clone());
+                rows.extend(children);
+            }
+        }
+        rows
+    }
+
+    pub(in crate::db) fn scope_monsters(&self, key: &str, query: &str, lang: &str) -> Vec<Hit> {
+        let query = query.trim();
+        let folded = query.to_lowercase();
+        let (nation, tail) = if let Some(rest) = key.strip_prefix("jump:") {
+            let Some((nation, tail)) = rest.split_once('|') else {
+                return Vec::new();
+            };
+            (nation.to_string(), tail.to_string())
+        } else if let Some(id) = key.strip_prefix("nation:") {
+            (id.to_string(), String::new())
+        } else {
+            return Vec::new();
+        };
+        let places = if tail.is_empty() {
+            self.nation_gts(&nation)
+        } else if let Some(area) = tail.strip_prefix("area:").or_else(|| tail.strip_prefix("span:")) {
+            self.group_gts(&nation, area)
+        } else if let Some(id) = tail.strip_prefix("region:") {
+            id.parse::<i64>().ok().into_iter().collect()
+        } else {
+            return Vec::new();
+        };
+        self.monster_hits(query, &folded, lang, &places, None)
+    }
+
+    fn nation_gts(&self, nation: &str) -> Vec<i64> {
+        let Ok(nation) = nation.parse::<i64>() else {
+            return Vec::new();
+        };
+        self.places
+            .iter()
+            .filter(|place| place.nation == nation)
+            .map(|place| place.gts)
+            .collect()
+    }
+
     pub(in crate::db) fn floor_hits(&self, nation: &str, area: &str, folded: &str, lang: &str) -> Vec<Hit> {
         let members = self.group_members(nation, area);
         if members.is_empty() {
             return Vec::new();
         }
         let (en, zh) = bases_of(&members);
+        let plain = HashSet::new();
         let mut floors = Vec::new();
-        for place in &members {
+        for place in members.iter().copied().filter(|place| !decorative(place, &plain)) {
             if !folded.is_empty() && !text_hit(folded, &place.names) {
                 continue;
             }
@@ -442,15 +646,9 @@ impl Index {
         best.map(|(_, icon)| icon)
     }
 
-    pub(in crate::db) fn item_hits(&self, query: &str, folded: &str, lang: &str, category: &str, subtype: &str) -> Vec<Hit> {
+    pub(in crate::db) fn item_hits(&self, query: &str, folded: &str, lang: &str, category: &str, subtype: &str, limit: usize) -> Vec<Hit> {
         let set = set_query(query);
-        let limit = if set.is_some() {
-            usize::MAX
-        } else if query.is_empty() {
-            80
-        } else {
-            40
-        };
+        let limit = if set.is_some() { usize::MAX } else { limit };
         let kind = match category {
             "" => None,
             "other" => Some(""),
@@ -532,7 +730,7 @@ impl Index {
             .collect()
     }
 
-    pub(in crate::db) fn recipe_hits(&self, query: &str, folded: &str, lang: &str, source: &str) -> Vec<Hit> {
+    pub(in crate::db) fn recipe_hits(&self, query: &str, folded: &str, lang: &str, source: &str, limit: usize) -> Vec<Hit> {
         let listed = |recipe: &RecipeRow| source.is_empty() || recipe.source == source;
         let mut matched: Vec<&RecipeRow> = self
             .recipes
@@ -542,7 +740,6 @@ impl Index {
         if query.is_empty() {
             matched.sort_by_key(|recipe| (recipe.level_min.unwrap_or(i64::MAX), recipe.id));
         }
-        let limit = if query.is_empty() { 80 } else { 40 };
         if matched.len() > limit {
             matched.truncate(limit);
         } else if !query.is_empty() {
@@ -603,8 +800,7 @@ impl Index {
             .collect()
     }
 
-    pub(in crate::db) fn quest_hits(&self, query: &str, folded: &str, lang: &str, source: &str, kind: &str) -> Vec<Hit> {
-        let limit = if query.is_empty() { 80 } else { 40 };
+    pub(in crate::db) fn quest_hits(&self, query: &str, folded: &str, lang: &str, source: &str, kind: &str, limit: usize) -> Vec<Hit> {
         let listed = |quest: &QuestRow| {
             (source.is_empty() || quest.source == source) && (kind.is_empty() || quest.kind == kind)
         };

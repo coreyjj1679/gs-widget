@@ -17,6 +17,7 @@ data/favourites.txt
 data/dock.txt
 data/home.txt
 data/window.txt
+data/window-macos.txt
 data/opacity.txt
 data/ui-lang.txt
 data/set-extra.txt

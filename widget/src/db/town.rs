@@ -197,6 +197,14 @@ impl Index {
             .collect()
     }
 
+    pub(in crate::db) fn realm_goods(&self, region: &str, lang: &str) -> Vec<Hit> {
+        let mut hits = Vec::new();
+        for town in self.towns.iter().filter(|town| town.region == region) {
+            hits.extend(self.town_goods(&town.code, "", "", lang));
+        }
+        hits
+    }
+
     pub(in crate::db) fn town_goods(&self, code: &str, query: &str, folded: &str, lang: &str) -> Vec<Hit> {
         let Some(town) = self.towns.iter().find(|town| town.code == code) else {
             return Vec::new();

@@ -357,6 +357,38 @@ impl Catalog {
         hits
     }
 
+    pub(in crate::db) fn formulas_using(&self, code: i64, lang: &str) -> Vec<Hit> {
+        let mut products: Vec<(i64, i64)> = Vec::new();
+        for (product, formula) in &self.index.formulas {
+            if *product == code {
+                continue;
+            }
+            let qty = formula
+                .parts
+                .iter()
+                .filter(|part| part.kind == "mat" && part.item == code)
+                .map(|part| part.qty)
+                .sum::<i64>();
+            if qty > 0 {
+                products.push((*product, qty));
+            }
+        }
+        products.sort_by_key(|(product, _)| *product);
+        products
+            .into_iter()
+            .map(|(product, qty)| Hit {
+                title: self.item_name(product, lang),
+                subtitle: format!("× {}", commas(qty)),
+                key: format!("item:{product}"),
+                icon: self.item_icon(product),
+                solo: false,
+                aside: phrase("make", lang),
+                badge: None,
+                chip: String::new(),
+            })
+            .collect()
+    }
+
     pub(in crate::db) fn factory_places(&self, code: i64, lang: &str) -> Vec<MakePlace> {
         let mut places = Vec::new();
         for building in &self.index.works {
@@ -512,6 +544,17 @@ impl Index {
             badge: None,
             chip: String::new(),
         }
+    }
+
+    pub(in crate::db) fn work_building_goods(&self, building: &str, lang: &str) -> Vec<Hit> {
+        let Some(row) = self.works.iter().find(|row| row.code == building) else {
+            return Vec::new();
+        };
+        let mut hits = Vec::new();
+        for facility in &row.facilities {
+            hits.extend(self.work_products(facility, "", "", lang));
+        }
+        hits
     }
 
     pub(in crate::db) fn work_products(&self, facility: &str, query: &str, folded: &str, lang: &str) -> Vec<Hit> {

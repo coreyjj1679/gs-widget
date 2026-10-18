@@ -180,8 +180,7 @@ impl Index {
         self.npc(code).and_then(|npc| npc.icon.clone())
     }
 
-    pub(in crate::db) fn npc_hits(&self, query: &str, folded: &str, lang: &str) -> Vec<Hit> {
-        let limit = if query.is_empty() { 80 } else { 40 };
+    pub(in crate::db) fn npc_hits(&self, query: &str, folded: &str, lang: &str, limit: usize) -> Vec<Hit> {
         let mut picked = Vec::new();
         for npc in &self.npcs {
             if !self.name_hit(query, folded, &npc.code.to_string(), &npc.names) {

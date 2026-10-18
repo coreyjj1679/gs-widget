@@ -4,11 +4,12 @@ use std::path::{Path, PathBuf};
 use rusqlite::Connection;
 
 use super::{Catalog, Hit};
-use super::names::haystack;
+use super::alias::alias_codes;
+use super::names::{haystack, name_match};
 use super::quest::quest_source_rank;
 use super::rows::{MonsterRow, PlaceRow};
 use super::store::online;
-use super::text::{caption, commas, commas_text, element_file, element_name, lead, phrase, pick, pick_place, trail};
+use super::text::{caption, chrome_text, commas, commas_text, element_file, element_name, lead, phrase, pick, pick_place, trail};
 
 pub(in crate::db) fn load_locations(conn: &Connection) -> Result<HashMap<String, Vec<i64>>, String> {
     let mut stmt = conn
@@ -127,7 +128,430 @@ pub(in crate::db) fn load_places(conn: &Connection, texts: &HashMap<String, Stri
     Ok(places)
 }
 
+pub struct MonsterBrief {
+    pub alternate_name: String,
+    pub kind: String,
+    pub element: String,
+    pub hp: String,
+    pub mp: String,
+    pub hit: String,
+    pub magic: String,
+    pub atk: String,
+    pub exp: String,
+    pub summary: String,
+    pub spawn_places: String,
+    pub drop_items: Vec<MonsterDropBrief>,
+    pub drops: Vec<(PathBuf, i32)>,
+    pub drop_total: i32,
+    pub battle: Option<(PathBuf, i32)>,
+}
+
+pub struct MonsterDropBrief {
+    pub key: String,
+    pub title: String,
+    pub icon: Option<(PathBuf, i32)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MonsterQuery {
+    pub element: i64,
+    pub ela_min: i64,
+    pub ela_max: i64,
+    pub hit_min: i64,
+    pub hit_max: i64,
+    pub magic_min: i64,
+    pub magic_max: i64,
+    pub drop: String,
+    pub sort_key: i32,
+    pub sort_desc: bool,
+}
+
+impl Default for MonsterQuery {
+    fn default() -> Self {
+        Self {
+            element: -1, ela_min: -1, ela_max: -1,
+            hit_min: -1, hit_max: -1, magic_min: -1, magic_max: -1,
+            drop: String::new(), sort_key: 0, sort_desc: true,
+        }
+    }
+}
+
+impl MonsterQuery {
+    pub fn has_sort(&self) -> bool {
+        (1..=7).contains(&self.sort_key)
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.element >= 0 || self.ela_min >= 0 || self.ela_max >= 0
+            || self.hit_min >= 0 || self.hit_max >= 0 || self.magic_min >= 0 || self.magic_max >= 0
+            || !self.drop.trim().is_empty() || self.has_sort()
+    }
+}
+
+fn within_bounds(value: Option<i64>, min: i64, max: i64) -> bool {
+    if min < 0 && max < 0 {
+        return true;
+    }
+    value.is_some_and(|value| (min < 0 || value >= min) && (max < 0 || value <= max))
+}
+
+fn compare_optional_stat(a: Option<i64>, b: Option<i64>, descending: bool) -> std::cmp::Ordering {
+    match (a, b) {
+        (Some(a), Some(b)) => if descending { b.cmp(&a) } else { a.cmp(&b) },
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => std::cmp::Ordering::Equal,
+    }
+}
+
+fn monster_brief_names(values: &[String], lang: &str) -> String {
+    if values.is_empty() {
+        chrome_text(lang, "未記錄", "Not recorded")
+    } else {
+        values.join(&chrome_text(lang, "、", ", "))
+    }
+}
+
+fn monster_alternate_name(lang: &str, en: &str, zh: &str) -> String {
+    let en = en.trim();
+    let zh = zh.trim();
+    if en.is_empty() || zh.is_empty() || en.eq_ignore_ascii_case(zh) {
+        String::new()
+    } else if lang == "en-zh" {
+        zh.into()
+    } else {
+        en.into()
+    }
+}
+
+fn monster_brief_summary(drops: &[String], places: &[String], lang: &str) -> String {
+    let colon = chrome_text(lang, "：", ": ");
+    format!(
+        "{}{colon}{}\n{}{colon}{}",
+        phrase("drops", lang), monster_brief_names(drops, lang),
+        phrase("spawn-place", lang), monster_brief_names(places, lang)
+    )
+}
+
+#[cfg(test)]
+mod brief_tests {
+    use super::{monster_alternate_name, monster_brief_summary, Catalog, MonsterQuery};
+    use std::collections::HashSet;
+
+    #[test]
+    fn lightning_ranges_sort_real_ela_and_resistance_values_with_deterministic_ties() {
+        let catalog = Catalog::open().expect("db");
+        let all = catalog.monster_records("", "zh-en", "", "", "");
+        let keys = |rows: Vec<super::Hit>| rows.into_iter().map(|hit| hit.key.trim_start_matches("monster:").to_string()).collect::<Vec<_>>();
+        let mut ela = MonsterQuery { element: 4, ela_min: 300, ela_max: 320, sort_key: 1, sort_desc: false, ..Default::default() };
+        assert_eq!(keys(catalog.refine_monsters(all.clone(), &ela)), ["L253", "O21", "N200", "O151", "P100"]);
+        ela.sort_desc = true;
+        assert_eq!(keys(catalog.refine_monsters(all.clone(), &ela)), ["N200", "O151", "P100", "O21", "L253"]);
+        for sort_key in [2, 3] {
+            let mut resistance = MonsterQuery {
+                element: 4, hit_min: 300, hit_max: 315, magic_min: 300, magic_max: 315,
+                sort_key, sort_desc: false, ..Default::default()
+            };
+            assert_eq!(keys(catalog.refine_monsters(all.clone(), &resistance)), ["H08", "J133", "H115", "I134", "I135", "K67", "K66"]);
+            resistance.sort_desc = true;
+            assert_eq!(keys(catalog.refine_monsters(all.clone(), &resistance)), ["K66", "H115", "I134", "I135", "K67", "H08", "J133"]);
+        }
+        let combined = MonsterQuery {
+            element: 4, ela_min: 20, ela_max: 80, hit_min: 300, hit_max: 350, magic_min: 300, magic_max: 350,
+            drop: "item:4106".into(), sort_key: 2, ..Default::default()
+        };
+        assert_eq!(keys(catalog.refine_monsters(all, &combined)), ["I134"]);
+    }
+
+    #[test]
+    fn unknown_numeric_stats_stay_last_and_are_excluded_by_ranges_without_hiding_zero() {
+        let catalog = Catalog::open().expect("db");
+        let all = catalog.monster_records("", "zh-en", "", "", "");
+        let zero = all.iter().find(|hit| hit.key == "monster:I07").expect("valid zero ELA").clone();
+        let high = all.iter().find(|hit| hit.key == "monster:P54").expect("high ELA").clone();
+        let mut missing = zero.clone();
+        missing.key = "monster:__missing__".into();
+        let records = vec![missing.clone(), zero, high];
+        for descending in [false, true] {
+            let query = MonsterQuery { sort_key: 1, sort_desc: descending, ..Default::default() };
+            let sorted = catalog.refine_monsters(records.clone(), &query);
+            assert_eq!(sorted.last().unwrap().key, missing.key);
+            assert_eq!(sorted.first().unwrap().key, if descending { "monster:P54" } else { "monster:I07" });
+        }
+        let bounded = catalog.refine_monsters(records, &MonsterQuery { hit_min: 0, sort_key: 1, sort_desc: false, ..Default::default() });
+        assert_eq!(bounded.len(), 2);
+        assert_eq!(bounded[0].key, "monster:I07");
+        assert!(super::within_bounds(Some(0), 0, 0));
+        assert!(!super::within_bounds(None, 0, 0));
+        assert!(!super::within_bounds(Some(10), 20, 5));
+    }
+
+    #[test]
+    fn numeric_sort_keys_match_database_values_and_name_sort_uses_the_display_title() {
+        let catalog = Catalog::open().expect("db");
+        let all = catalog.monster_records("", "en-zh", "", "", "");
+        for (key, column) in [(4, "hp"), (5, "mp"), (6, "exp")] {
+            for descending in [false, true] {
+                let query = MonsterQuery { sort_key: key, sort_desc: descending, ..Default::default() };
+                let actual: Vec<String> = catalog.refine_monsters(all.clone(), &query).into_iter().map(|hit| hit.key).collect();
+                let direction = if descending { "DESC" } else { "ASC" };
+                let sql = format!("SELECT code FROM monsters ORDER BY {column} {direction}, code ASC");
+                let mut stmt = catalog.conn.prepare(&sql).expect("sort oracle");
+                let expected: Vec<String> = stmt.query_map([], |row| row.get::<_, String>(0)).expect("rows")
+                    .map(|row| format!("monster:{}", row.expect("code"))).collect();
+                assert_eq!(actual, expected);
+            }
+        }
+        let mut names = all.into_iter().take(4).collect::<Vec<_>>();
+        for (hit, title) in names.iter_mut().zip(["Zulu", "alpha", "Alpha", ""]) {
+            hit.title = title.into();
+        }
+        let tied: Vec<_> = names[1..3].iter().map(|hit| hit.key.clone()).collect();
+        for descending in [false, true] {
+            let sorted = catalog.refine_monsters(names.clone(), &MonsterQuery { sort_key: 7, sort_desc: descending, ..Default::default() });
+            assert!(sorted.last().unwrap().title.is_empty());
+            let actual_ties: Vec<_> = sorted.iter().filter(|hit| hit.title.eq_ignore_ascii_case("alpha")).map(|hit| hit.key.clone()).collect();
+            assert_eq!(actual_ties, tied);
+            assert_eq!(sorted[0].title, if descending { "Zulu" } else { "alpha" });
+        }
+    }
+
+    #[test]
+    fn alternate_monster_names_follow_language_and_omit_missing_or_duplicate_translations() {
+        assert_eq!(monster_alternate_name("zh-en", "Witch", "魔女"), "Witch");
+        assert_eq!(monster_alternate_name("en-zh", "Witch", "魔女"), "魔女");
+        for (en, zh) in [("", "魔女"), ("Witch", ""), ("Witch", "witch"), (" ", " ")] {
+            for lang in ["zh-en", "en-zh"] {
+                assert!(monster_alternate_name(lang, en, zh).is_empty());
+            }
+        }
+        let catalog = Catalog::open().expect("db");
+        let code = "E59".to_string();
+        let monster = catalog.index.monsters.iter().find(|monster| monster.code == code).expect("bilingual monster");
+        assert!(!monster.en.is_empty() && !monster.zh.is_empty());
+        assert_eq!(catalog.monster_cards(&[code.clone()], "zh-en")[&code].alternate_name, monster.en);
+        assert_eq!(catalog.monster_cards(&[code.clone()], "en-zh")[&code].alternate_name, monster.zh);
+    }
+
+    #[test]
+    fn drop_options_are_unique_localized_dropped_items_and_support_aliases() {
+        let catalog = Catalog::open().expect("db");
+        let all = catalog.drop_options("", "zh-en");
+        assert!(!all.is_empty() && all.len() <= 40);
+        assert_eq!(all.iter().map(|hit| &hit.key).collect::<HashSet<_>>().len(), all.len());
+        for hit in &all {
+            let code: i64 = hit.key.trim_start_matches("item:").parse().expect("item key");
+            let count: i64 = catalog.conn.query_row(
+                "SELECT COUNT(DISTINCT d.monster_code) FROM monster_drops d JOIN monsters m ON m.code = d.monster_code WHERE d.item_code = ?1",
+                [code], |row| row.get(0),
+            ).expect("drop count");
+            assert!(count > 0);
+            assert_eq!(hit.subtitle, super::commas(count));
+        }
+        let zh = catalog.drop_options("生命的精髓", "zh-en");
+        assert!(zh.iter().any(|hit| hit.key == "item:4106" && hit.title == "生命的精髓"));
+        let en = catalog.drop_options("essence", "en-zh");
+        assert!(en.iter().any(|hit| hit.key == "item:4106" && hit.title.to_lowercase().contains("essence")));
+        catalog.index.aliases.borrow_mut().insert("qa-drop-alias".into(), HashSet::from(["4106".into(), "-99".into()]));
+        let aliased = catalog.drop_options("qa-drop-alias", "zh-en");
+        assert_eq!(aliased.iter().map(|hit| hit.key.as_str()).collect::<Vec<_>>(), vec!["item:4106"]);
+        assert!(catalog.drop_options("zzzz-no-such-drop", "zh-en").is_empty());
+    }
+
+    #[test]
+    fn exact_drop_filter_matches_all_catalog_monsters_without_the_search_limit() {
+        let catalog = Catalog::open().expect("db");
+        let all = catalog.monster_records("", "zh-en", "", "", "");
+        assert!(all.len() > 80);
+        let filtered = catalog.filter_monsters(all.clone(), -1, -1, -1, "item:4106");
+        let actual: HashSet<String> = filtered.into_iter().map(|hit| hit.key).collect();
+        let mut stmt = catalog.conn.prepare("SELECT DISTINCT m.code FROM monsters m JOIN monster_drops d ON d.monster_code = m.code WHERE d.item_code = 4106").expect("expected drops");
+        let expected: HashSet<String> = stmt.query_map([], |row| row.get::<_, String>(0)).expect("rows")
+            .map(|row| format!("monster:{}", row.expect("code"))).collect();
+        assert_eq!(actual, expected);
+        let first_page: HashSet<String> = all.into_iter().take(80).map(|hit| hit.key).collect();
+        assert!(actual.iter().any(|key| !first_page.contains(key)), "matching monsters after the original 80 must be kept");
+        assert!(catalog.monster_records("a", "en-zh", "", "", "").len() > 80);
+        for invalid in ["item:", "item:abc", "item:-1"] {
+            assert!(catalog.filter_monsters(catalog.monster_records("", "zh-en", "", "", ""), -1, -1, -1, invalid).is_empty());
+        }
+        let text = catalog.filter_monsters(catalog.monster_records("", "zh-en", "", "", ""), -1, -1, -1, "生命的精髓");
+        assert!(text.iter().any(|hit| hit.key == "monster:E59"));
+    }
+
+    #[test]
+    fn full_monster_records_intersect_the_selected_region_with_the_drop_filter() {
+        let catalog = Catalog::open().expect("db");
+        let (nation, location): (i64, i64) = catalog.conn.query_row(
+            "SELECT m.nation, ml.location_gts FROM monsters m JOIN monster_locations ml ON ml.monster_code = m.code WHERE m.code = 'E59' ORDER BY ml.location_gts LIMIT 1",
+            [], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).expect("witch location");
+        let region = catalog.monster_records("", "zh-en", &location.to_string(), &nation.to_string(), "");
+        let region_keys: HashSet<String> = catalog.filter_monsters(region, -1, -1, -1, "item:4106").into_iter().map(|hit| hit.key).collect();
+        let mut stmt = catalog.conn.prepare(
+            "SELECT DISTINCT m.code FROM monsters m JOIN monster_locations ml ON ml.monster_code = m.code JOIN monster_drops d ON d.monster_code = m.code WHERE ml.location_gts = ?1 AND d.item_code = 4106",
+        ).expect("region drop query");
+        let expected: HashSet<String> = stmt.query_map([location], |row| row.get::<_, String>(0)).expect("region rows")
+            .map(|row| format!("monster:{}", row.expect("code"))).collect();
+        assert_eq!(region_keys, expected);
+        assert!(region_keys.contains("monster:E59"));
+        let global: HashSet<String> = catalog.scope_monsters("all:", "", "zh-en", -1, -1, -1, "item:4106")
+            .into_iter().map(|hit| hit.key).collect();
+        assert!(region_keys.is_subset(&global));
+        assert!(global.len() > region_keys.len());
+    }
+
+    #[test]
+    fn summaries_keep_names_beyond_the_icon_limit_and_mark_missing_records() {
+        let drops: Vec<String> = (1..=12).map(|index| format!("Drop {index}")).collect();
+        let en = monster_brief_summary(&drops, &["First floor".into(), "Second floor".into()], "en-zh");
+        assert!(en.starts_with("Drops: Drop 1, "));
+        assert!(en.contains("Drop 11, Drop 12\nFound in: First floor, Second floor"));
+        assert_eq!(monster_brief_summary(&[], &[], "zh-en"), "掉落：未記錄\n出沒地：未記錄");
+        assert_eq!(monster_brief_summary(&[], &[], "en-zh"), "Drops: Not recorded\nFound in: Not recorded");
+    }
+
+    #[test]
+    fn card_summaries_use_localized_catalog_drop_names() {
+        let catalog = Catalog::open().expect("db");
+        for (lang, place) in [("zh-en", "出沒地：朝鮮地圖"), ("en-zh", "Found in: Korea Field")] {
+            let cards = catalog.monster_cards(&["M24".into()], lang);
+            let card = cards.get("M24").expect("deer");
+            let drops = catalog.monster_drops("M24", lang);
+            assert_eq!(card.drop_total as usize, drops.len());
+            assert_eq!(card.drop_items.len(), drops.len());
+            for (link, drop) in card.drop_items.iter().zip(&drops) {
+                assert_eq!(link.key, drop.key);
+                assert_eq!(link.title, drop.title);
+            }
+            assert!(drops.iter().all(|drop| card.summary.contains(&drop.title)), "{}", card.summary);
+            assert!(card.summary.ends_with(place), "{}", card.summary);
+            assert!(place.ends_with(&card.spawn_places));
+        }
+    }
+
+    #[test]
+    fn drop_links_keep_every_local_slot_even_without_an_icon() {
+        let catalog = Catalog::open().expect("db");
+        let codes: Vec<String> = catalog.index.monsters.iter().map(|monster| monster.code.clone()).collect();
+        let cards = catalog.monster_cards(&codes, "zh-en");
+        assert_eq!(cards.len(), codes.len());
+        assert!(cards.values().any(|card| !card.drop_items.is_empty()));
+        for card in cards.values() {
+            assert_eq!(card.drop_items.len(), card.drop_total as usize);
+            assert!(card.drop_items.iter().all(|drop| drop.key.starts_with("item:") && !drop.title.is_empty()));
+            assert_eq!(card.drop_items.iter().filter(|drop| drop.icon.is_some()).count(), card.drops.len());
+        }
+    }
+}
+
+fn like_contains(text: &str) -> String {
+    let mut pattern = String::from("%");
+    for ch in text.chars() {
+        if matches!(ch, '%' | '_' | '\\') {
+            pattern.push('\\');
+        }
+        pattern.push(ch);
+    }
+    pattern.push('%');
+    pattern
+}
+
 impl Catalog {
+    pub fn element_icon_for_value(&self, element: i64) -> Option<(PathBuf, i32)> {
+        let path = self.client_root.join(element_file(element)?);
+        path.is_file().then_some((path, 0))
+    }
+
+    pub fn refine_monsters(&self, hits: Vec<Hit>, query: &MonsterQuery) -> Vec<Hit> {
+        let mut hits = self.narrow_monsters(hits, query.element, query.ela_min, query.ela_max, &query.drop);
+        let ranges = query.hit_min >= 0 || query.hit_max >= 0 || query.magic_min >= 0 || query.magic_max >= 0;
+        let numeric_sort = (1..=6).contains(&query.sort_key);
+        if ranges || numeric_sort {
+            let codes: Vec<&str> = hits.iter().filter_map(|hit| hit.key.strip_prefix("monster:")).collect();
+            let mut stats: HashMap<String, [Option<i64>; 6]> = HashMap::new();
+            if !codes.is_empty() {
+                let marks = std::iter::repeat("?").take(codes.len()).collect::<Vec<_>>().join(",");
+                let sql = format!("SELECT code, element_gts, hit_resist, magic_resist, hp, mp, exp FROM monsters WHERE code IN ({marks})");
+                if let Ok(mut stmt) = self.conn.prepare(&sql) {
+                    if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                        Ok((row.get::<_, String>(0)?, [
+                            row.get::<_, Option<i64>>(1)?, row.get::<_, Option<i64>>(2)?, row.get::<_, Option<i64>>(3)?,
+                            row.get::<_, Option<i64>>(4)?, row.get::<_, Option<i64>>(5)?, row.get::<_, Option<i64>>(6)?,
+                        ]))
+                    }) {
+                        stats.extend(rows.filter_map(Result::ok));
+                    }
+                }
+            }
+            let stat = |hit: &Hit, slot: usize| {
+                hit.key.strip_prefix("monster:").and_then(|code| stats.get(code)).and_then(|values| values[slot])
+            };
+            if ranges {
+                hits.retain(|hit| within_bounds(stat(hit, 1), query.hit_min, query.hit_max)
+                    && within_bounds(stat(hit, 2), query.magic_min, query.magic_max));
+            }
+            if numeric_sort {
+                let slot = (query.sort_key - 1) as usize;
+                hits.sort_by(|a, b| compare_optional_stat(stat(a, slot), stat(b, slot), query.sort_desc).then(a.key.cmp(&b.key)));
+            }
+        }
+        if query.sort_key == 7 {
+            if query.sort_desc {
+                hits.sort_by_cached_key(|hit| (hit.title.trim().is_empty(), std::cmp::Reverse(hit.title.to_lowercase()), hit.key.clone()));
+            } else {
+                hits.sort_by_cached_key(|hit| (hit.title.trim().is_empty(), hit.title.to_lowercase(), hit.key.clone()));
+            }
+        }
+        hits
+    }
+
+    pub fn drop_options(&self, query: &str, lang: &str) -> Vec<Hit> {
+        let query = query.trim();
+        let folded = query.to_lowercase();
+        let aliases = alias_codes(&self.index.aliases.borrow(), &folded);
+        let mut stmt = match self.conn.prepare(
+            "SELECT d.item_code, COUNT(DISTINCT d.monster_code)
+             FROM monster_drops d JOIN monsters m ON m.code = d.monster_code
+             GROUP BY d.item_code",
+        ) {
+            Ok(stmt) => stmt,
+            Err(_) => return Vec::new(),
+        };
+        let counts: HashMap<i64, i64> = match stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?))) {
+            Ok(rows) => rows.filter_map(Result::ok).collect(),
+            Err(_) => return Vec::new(),
+        };
+        let mut choices: Vec<(i64, i64, String, &super::rows::ItemRow)> = self.index.items.iter().filter_map(|item| {
+            let code = item.code_str.parse::<i64>().ok()?;
+            let count = *counts.get(&code)?;
+            if !name_match(query, &folded, &item.code_str, &item.names) && !aliases.contains(&item.code_str) {
+                return None;
+            }
+            let title = lead(lang, &item.en, &item.zh);
+            Some((code, count, if title.is_empty() { format!("#{code}") } else { title }, item))
+        }).collect();
+        choices.sort_by(|a, b| {
+            if query.is_empty() {
+                b.1.cmp(&a.1).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0))
+            } else {
+                let exact_a = a.2.eq_ignore_ascii_case(query) || a.3.code_str == query;
+                let exact_b = b.2.eq_ignore_ascii_case(query) || b.3.code_str == query;
+                exact_b.cmp(&exact_a).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0))
+            }
+        });
+        choices.into_iter().take(40).map(|(code, count, title, _)| Hit {
+            title,
+            subtitle: commas(count),
+            key: format!("item:{code}"),
+            icon: self.item_icon(code),
+            solo: false,
+            badge: None,
+            aside: String::new(),
+            chip: String::new(),
+        }).collect()
+    }
+
     pub(in crate::db) fn monster_text(&self, code: &str, lang: &str) -> String {
         let row = self.conn.query_row(
             "SELECT m.code, m.name_ko, IFNULL(se.text, ''), IFNULL(sz.text, ''),
@@ -259,6 +683,185 @@ impl Catalog {
             }
         }
         lines
+    }
+
+    pub fn monster_cards(&self, codes: &[String], lang: &str) -> HashMap<String, MonsterBrief> {
+        let mut cards: HashMap<String, MonsterBrief> = HashMap::new();
+        if codes.is_empty() {
+            return cards;
+        }
+        let marks = std::iter::repeat("?").take(codes.len()).collect::<Vec<_>>().join(",");
+        let stats = format!(
+            "SELECT code, hp, mp, hit_resist, magic_resist, atk_min, atk_max, exp, element, element_gts, is_boss, unit_type
+             FROM monsters WHERE code IN ({marks})"
+        );
+        if let Ok(mut stmt) = self.conn.prepare(&stats) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, i64>(7)?,
+                    row.get::<_, i64>(8)?,
+                    row.get::<_, i64>(9)?,
+                    row.get::<_, i64>(10)?,
+                    row.get::<_, i64>(11)?,
+                ))
+            }) {
+                for row in rows.flatten() {
+                    let (code, hp, mp, hit, magic, atk_min, atk_max, exp, element, ela, boss, unit) = row;
+                    let kind = if boss == 1 { phrase("boss", lang) } else { phrase("normal", lang) };
+                    let unit_name = if unit == 1 { phrase("air", lang) } else { phrase("ground", lang) };
+                    let mut element_text = element_name(element, lang);
+                    if ela > 0 {
+                        element_text.push_str(&format!(" · {} {}", phrase("ela", lang), commas(ela)));
+                    }
+                    cards.insert(
+                        code,
+                        MonsterBrief {
+                            alternate_name: String::new(),
+                            kind: format!("{kind} · {unit_name}"),
+                            element: element_text,
+                            hp: commas(hp),
+                            mp: commas(mp),
+                            hit: commas(hit),
+                            magic: commas(magic),
+                            atk: format!("{}-{}", commas(atk_min), commas(atk_max)),
+                            exp: commas(exp),
+                            summary: String::new(),
+                            spawn_places: String::new(),
+                            drop_items: Vec::new(),
+                            drops: Vec::new(),
+                            drop_total: 0,
+                            battle: None,
+                        },
+                    );
+                }
+            }
+        }
+        let mut drop_names: HashMap<String, Vec<String>> = HashMap::new();
+        let drops = format!(
+            "SELECT d.monster_code, d.item_code, d.slot, IFNULL(i.name_ko, ''),
+                    IFNULL(se.text, ''), IFNULL(sz.text, '')
+             FROM monster_drops d
+             LEFT JOIN items i ON i.code = d.item_code
+             LEFT JOIN strings se ON se.object = 'OnlineText.dat' AND se.lang = 'en'
+                AND i.name_gts > 0 AND se.id = printf('%08d', i.name_gts)
+             LEFT JOIN strings sz ON sz.object = 'OnlineText.dat' AND sz.lang = 'zh'
+                AND i.name_gts > 0 AND sz.id = printf('%08d', i.name_gts)
+             WHERE d.monster_code IN ({marks}) ORDER BY d.monster_code, d.slot"
+        );
+        if let Ok(mut stmt) = self.conn.prepare(&drops) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            }) {
+                for (code, item, slot, ko, en, zh) in rows.flatten() {
+                    let Some(card) = cards.get_mut(&code) else { continue };
+                    card.drop_total += 1;
+                    let icon = self.item_icon(item);
+                    if let Some(icon) = icon.clone() {
+                        card.drops.push(icon);
+                    }
+                    let mut name = lead(lang, &en, &zh);
+                    if name.is_empty() {
+                        name = if ko.trim().is_empty() { format!("#{item}") } else { ko };
+                    }
+                    if slot >= 9 {
+                        name.push_str(&format!(" ({})", phrase("solo-drop", lang)));
+                    }
+                    card.drop_items.push(MonsterDropBrief {
+                        key: format!("item:{item}"),
+                        title: name.clone(),
+                        icon,
+                    });
+                    drop_names.entry(code).or_default().push(name);
+                }
+            }
+        }
+        let mut place_names: HashMap<String, Vec<String>> = HashMap::new();
+        let places = format!(
+            "SELECT ml.monster_code, ml.location_gts, IFNULL(le.text, ''), IFNULL(lz.text, '')
+             FROM monster_locations ml
+             LEFT JOIN strings le ON le.object = 'OnlineText.dat' AND le.lang = 'en'
+                AND le.id = printf('%08d', ml.location_gts)
+             LEFT JOIN strings lz ON lz.object = 'OnlineText.dat' AND lz.lang = 'zh'
+                AND lz.id = printf('%08d', ml.location_gts)
+             WHERE ml.monster_code IN ({marks}) ORDER BY ml.monster_code, ml.location_gts"
+        );
+        if let Ok(mut stmt) = self.conn.prepare(&places) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            }) {
+                for (code, gts, en, zh) in rows.flatten() {
+                    let name = lead(lang, &en, &zh);
+                    place_names.entry(code).or_default().push(if name.is_empty() { format!("#{gts}") } else { name });
+                }
+            }
+        }
+        let sprites = format!("SELECT code, path FROM monster_sprites WHERE code IN ({marks})");
+        if let Ok(mut stmt) = self.conn.prepare(&sprites) {
+            if let Ok(rows) = stmt.query_map(rusqlite::params_from_iter(codes.iter()), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            }) {
+                for (code, relative) in rows.flatten() {
+                    let Some(card) = cards.get_mut(&code) else { continue };
+                    card.battle = self.character_file(&relative).map(|path| (path, 0));
+                }
+            }
+        }
+        for monster in &self.index.monsters {
+            if let Some(card) = cards.get_mut(&monster.code) {
+                card.alternate_name = monster_alternate_name(lang, &monster.en, &monster.zh);
+            }
+        }
+        for (code, card) in &mut cards {
+            let places = place_names.get(code).map(Vec::as_slice).unwrap_or(&[]);
+            card.spawn_places = monster_brief_names(places, lang);
+            card.summary = monster_brief_summary(
+                drop_names.get(code).map(Vec::as_slice).unwrap_or(&[]),
+                places,
+                lang,
+            );
+        }
+        cards
+    }
+
+    pub fn battle_sprite(&self, code: &str) -> Option<(PathBuf, i32)> {
+        let relative: String = self
+            .conn
+            .query_row("SELECT path FROM monster_sprites WHERE code = ?1", [code], |row| row.get(0))
+            .ok()?;
+        self.character_file(&relative).map(|path| (path, 0))
+    }
+
+    fn character_file(&self, relative: &str) -> Option<PathBuf> {
+        let name = Path::new(relative).file_name()?.to_string_lossy().to_lowercase();
+        let folder = self.characters.as_ref()?;
+        let mut cache = self.character_files.borrow_mut();
+        if cache.is_none() {
+            let listed = std::fs::read_dir(folder).ok()?.filter_map(Result::ok).filter_map(|entry| {
+                let path = entry.path();
+                path.is_file().then(|| (entry.file_name().to_string_lossy().to_lowercase(), path))
+            });
+            *cache = Some(listed.collect());
+        }
+        cache.as_ref()?.get(&name).cloned()
     }
 
     pub(in crate::db) fn place_names(&self, code: &str, lang: &str) -> Vec<String> {
@@ -412,6 +1015,79 @@ impl Catalog {
                     .and_then(|quest| self.index.npc_face(quest.npc));
                 Some(hit)
             })
+            .collect()
+    }
+
+    pub(in crate::db) fn narrow_monsters(&self, hits: Vec<super::Hit>, element: i64, ela_min: i64, ela_max: i64, drop: &str) -> Vec<super::Hit> {
+        let drop = drop.trim();
+        let exact_drop = match drop.strip_prefix("item:") {
+            Some(code) => match code.parse::<i64>() {
+                Ok(code) if code > 0 => Some(code),
+                _ => return Vec::new(),
+            },
+            None => None,
+        };
+        if element < 0 && ela_min < 0 && ela_max < 0 && drop.is_empty() {
+            return hits;
+        }
+        let codes: Vec<String> = hits
+            .iter()
+            .filter_map(|hit| hit.key.strip_prefix("monster:").map(str::to_string))
+            .collect();
+        if codes.is_empty() {
+            return hits;
+        }
+        let marks = std::iter::repeat("?").take(codes.len()).collect::<Vec<_>>().join(",");
+        let mut sql = format!("SELECT m.code FROM monsters m WHERE m.code IN ({marks})");
+        let mut extra: Vec<String> = Vec::new();
+        if element >= 0 {
+            sql.push_str(&format!(" AND m.element = ?{}", codes.len() + extra.len() + 1));
+            extra.push(element.to_string());
+        }
+        if ela_min >= 0 {
+            sql.push_str(&format!(" AND m.element_gts >= ?{}", codes.len() + extra.len() + 1));
+            extra.push(ela_min.to_string());
+        }
+        if ela_max >= 0 {
+            sql.push_str(&format!(" AND m.element_gts <= ?{}", codes.len() + extra.len() + 1));
+            extra.push(ela_max.to_string());
+        }
+        if let Some(item) = exact_drop {
+            let param = codes.len() + extra.len() + 1;
+            sql.push_str(&format!(" AND EXISTS (SELECT 1 FROM monster_drops d WHERE d.monster_code = m.code AND d.item_code = ?{param})"));
+            extra.push(item.to_string());
+        } else if !drop.is_empty() {
+            let raw = codes.len() + extra.len() + 1;
+            let folded = raw + 1;
+            sql.push_str(&format!(
+                " AND EXISTS (
+                    SELECT 1 FROM monster_drops d
+                    JOIN items i ON i.code = d.item_code
+                    LEFT JOIN strings se ON se.object = 'OnlineText.dat' AND se.lang = 'en'
+                        AND i.name_gts > 0 AND se.id = printf('%08d', i.name_gts)
+                    LEFT JOIN strings sz ON sz.object = 'OnlineText.dat' AND sz.lang = 'zh'
+                        AND i.name_gts > 0 AND sz.id = printf('%08d', i.name_gts)
+                    WHERE d.monster_code = m.code
+                      AND (i.name_ko LIKE ?{raw} ESCAPE '\\' OR IFNULL(se.text, '') LIKE ?{raw} ESCAPE '\\' OR IFNULL(sz.text, '') LIKE ?{raw} ESCAPE '\\'
+                        OR lower(i.name_ko) LIKE ?{folded} ESCAPE '\\' OR lower(IFNULL(se.text, '')) LIKE ?{folded} ESCAPE '\\' OR lower(IFNULL(sz.text, '')) LIKE ?{folded} ESCAPE '\\')
+                )"
+            ));
+            extra.push(like_contains(drop));
+            extra.push(like_contains(&drop.to_lowercase()));
+        }
+        let mut params: Vec<String> = codes;
+        params.extend(extra);
+        let mut stmt = match self.conn.prepare(&sql) {
+            Ok(stmt) => stmt,
+            Err(_) => return hits,
+        };
+        let rows = match stmt.query_map(rusqlite::params_from_iter(params.iter()), |row| row.get::<_, String>(0)) {
+            Ok(rows) => rows,
+            Err(_) => return hits,
+        };
+        let keep: HashSet<String> = rows.flatten().collect();
+        hits.into_iter()
+            .filter(|hit| hit.key.strip_prefix("monster:").is_some_and(|code| keep.contains(code)))
             .collect()
     }
 

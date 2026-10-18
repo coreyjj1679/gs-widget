@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod agf;
 mod alias_ui;
@@ -7,6 +7,8 @@ mod hotkey;
 mod icons;
 mod list;
 mod sheet;
+mod update;
+mod update_ui;
 mod window;
 
 use std::cell::{Cell, RefCell};
@@ -22,12 +24,12 @@ use slint::{Image, Model, ModelRc, Timer, TimerMode, VecModel};
 slint::include_modules!();
 
 use alias_ui::{alias_code_list, alias_suggestions, alias_text, refresh_alias_icons, show_alias_rows};
-use icons::{image_from_icon, spawn_icon_worker};
-use list::{publish, row_index, sync_view_star};
+use icons::{image_from_icon, show_battle_frame, spawn_icon_worker};
+use list::{monster_query, publish, reflow_board, row_index, show_board_monsters, show_home_saved, sync_view_star};
 use sheet::{focus_section, open_scope, show_key};
 use window::{
-    copy_to_clipboard, default_icon_size, default_main_size, fit_on_screen, focus_window, place_window,
-    remember_window, work_area_at,
+    copy_to_clipboard, default_icon_size, default_main_size, enters_full, fit_on_screen, focus_window, full_window_size,
+    leaves_full, place_fitted, place_window, remember_window, work_area_at,
 };
 
 struct IconJob {
@@ -49,6 +51,58 @@ struct Session {
 
 thread_local! {
     static ICON_CACHE: RefCell<Option<Rc<RefCell<HashMap<String, Image>>>>> = RefCell::new(None);
+}
+
+struct BoardList {
+    key: String,
+    lang: String,
+    hits: Vec<db::Hit>,
+}
+
+struct AnimClip {
+    code: String,
+    path: std::path::PathBuf,
+    frames: Vec<i32>,
+}
+
+fn reload_board(app: &App, catalog: &db::Catalog, session: &Session, favourites: &std::collections::HashSet<String>, cache: &RefCell<BoardList>) {
+    let key = if app.get_full_mode() && app.get_category() == "monster" {
+        list::monster_filter_scope(app, catalog)
+    } else {
+        app.get_expanded().to_string()
+    };
+    if key.is_empty() {
+        return;
+    }
+    let query = monster_query(app);
+    let lang = app.get_lang().to_string();
+    let hits = if key == "saved:" {
+        let all = catalog.monster_records("", &lang, "", "", "");
+        list::full_monster_results(catalog, all, favourites, true, &query, false)
+    } else if key == "all:" || key.starts_with("jump:") || key.starts_with("nation:") {
+        let base = {
+            let mut cached = cache.borrow_mut();
+            if cached.key != key || cached.lang != lang {
+                cached.hits = catalog.scope_monsters(&key, "", &lang, -1, -1, -1, "");
+                cached.key = key.clone();
+                cached.lang = lang;
+            }
+            cached.hits.clone()
+        };
+        list::full_monster_results(catalog, base, favourites, false, &query, false)
+    } else {
+        catalog.section_records(&key, &lang)
+    };
+    let detail = app.get_detail_key().to_string();
+    let index = hits.iter().position(|hit| hit.key == detail);
+    show_board_monsters(app, session, catalog, &app.get_nation(), hits, favourites);
+    match index {
+        Some(index) => app.set_detail_index(index as i32),
+        None => {
+            app.set_detail_key("".into());
+            app.set_detail_index(-1);
+        }
+    }
 }
 
 fn park_disabled(order: &mut Vec<i32>, on: &[bool; 9]) {
@@ -120,6 +174,29 @@ fn window_logical(window: &slint::Window) -> (f32, f32) {
     (size.width as f32 / scale, size.height as f32 / scale)
 }
 
+fn stored_full_size(scale: f32) -> (f32, f32) {
+    db::load_window()
+        .filter(|pref| pref.has_full_size && pref.full_width >= 280.0 && pref.full_height >= 360.0)
+        .map(|pref| (pref.full_width, pref.full_height))
+        .unwrap_or_else(|| full_window_size(scale))
+}
+
+fn refresh_mode_pages(app: &App, full: bool, catalog: &db::Catalog, session: &Session, favourites: &std::collections::HashSet<String>) {
+    if full {
+        app.set_favourites_only(false);
+    }
+    if app.get_category().as_str() == "monster" && app.get_viewing().is_empty() {
+        let query = app.get_query().to_string();
+        publish(app, catalog, session, favourites, "monster", &query);
+    } else if app.get_category().is_empty() {
+        if full {
+            show_home_saved(app, catalog, session, favourites);
+        } else {
+            app.set_hits(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
+        }
+    }
+}
+
 fn remember_dock(app: &App, size: (f32, f32)) {
     db::save_dock(&db::DockPref {
         vertical: app.get_dock_vertical(),
@@ -144,23 +221,92 @@ fn read_order(model: &ModelRc<i32>) -> [i32; 9] {
     home_array(&model.iter().collect::<Vec<_>>())
 }
 
+fn edit_view(change: impl FnOnce(&mut db::ViewPref)) {
+    let mut view = db::load_view();
+    change(&mut view);
+    db::save_view(&view);
+}
+
+/// Headless preflight used by release CI and the update helper. Always inspect
+/// the bundle beside this executable, without migrating or writing preferences.
+fn check_installation() -> Result<(), String> {
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    let root = executable.parent().ok_or("Missing installation directory")?;
+    for relative in ["data/gersang.db", "data/client-version.txt", "data/client/Assets/Textures/UI/Portraits/PORTRAIT_INVEN.AGF"] {
+        if !root.join(relative).is_file() {
+            return Err(format!("Missing packaged file: {relative}"));
+        }
+    }
+    let conn = rusqlite::Connection::open_with_flags(
+        root.join("data/gersang.db"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    ).map_err(|error| error.to_string())?;
+    let integrity: String = conn.query_row("PRAGMA quick_check", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if integrity != "ok" { return Err(format!("Catalog integrity check failed: {integrity}")); }
+    for table in ["items", "monsters", "sources"] {
+        let count: i64 = conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        if count == 0 { return Err(format!("Empty catalog table: {table}")); }
+    }
+    Ok(())
+}
+
 fn main() {
-    let catalog = match db::Catalog::open() {
+    if update::run_helper_if_requested() {
+        return;
+    }
+    if std::env::args().any(|arg| arg == "--check-installation") {
+        match check_installation() {
+            Ok(()) => println!("Gersang {}: installation OK", env!("CARGO_PKG_VERSION")),
+            Err(message) => {
+                eprintln!("Installation check failed: {message}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+    // Hold a shared installation lock until this process exits. The helper
+    // obtains it exclusively before replacing files, including when another
+    // copy of this portable app is still open.
+    let running_guard = update::running_guard();
+    let initialization = match &running_guard {
+        Ok(_) => db::initialize_user_data().and_then(|()| db::Catalog::open()),
+        Err(message) => Err(message.clone()),
+    };
+    let catalog = match initialization {
         Ok(catalog) => Rc::new(catalog),
         Err(message) => {
             eprintln!("{message}");
-            let app = App::new().expect("視窗建立失敗");
-            app.set_detail(message.into());
+            let app = StartupError::new().expect("視窗建立失敗");
+            app.set_message(message.into());
+            app.on_dismiss(|| { let _ = slint::quit_event_loop(); });
             app.run().expect("視窗執行失敗");
             return;
         }
     };
 
     let app = App::new().expect("視窗建立失敗");
+    let _update_ui = update_ui::install(&app);
+    app.on_open_source(window::open_source_repository);
+    #[cfg(target_os = "macos")]
+    app.set_ui_font("PingFang TC".into());
     app.set_lang(db::load_lang().into());
     app.set_window_opacity(db::load_opacity());
     app.set_show_set_extra(db::load_set_extra());
+    let view = db::load_view();
+    app.set_pin_top(view.pin);
+    app.set_battle_view(view.battle);
+    app.set_monster_gallery(view.gallery);
+    app.set_animate_battle(view.animate);
+    app.set_hotkeys_on(view.hotkeys);
+    app.set_legacy_mode(view.legacy);
     app.set_client_version(db::client_label().into());
+    let element_icons: Vec<Image> = (-1..=5).map(|element| {
+        catalog.element_icon_for_value(element)
+            .and_then(|(path, frame)| agf::frame_rgba(&path, frame).ok())
+            .map(image_from_icon).unwrap_or_default()
+    }).collect();
+    app.set_filter_element_icons(ModelRc::new(VecModel::from(element_icons)));
     let mut home = db::load_home();
     if !home.size_chosen {
         home.size = default_icon_size();
@@ -420,6 +566,24 @@ fn main() {
         }
     });
 
+    let update_aliases = Rc::clone(&alias_rows);
+    let update_app = app.as_weak();
+    app.on_prepare_update(move || {
+        // A restart must not silently discard an alias editor draft. Keep the
+        // ready download and let the user resolve the draft in its normal UI.
+        if *update_aliases.borrow() != db::alias_rows() {
+            if let Some(app) = update_app.upgrade() {
+                app.set_update_error(if app.get_lang() == "en-zh" {
+                    "You have unsaved aliases. Save or cancel them in the Aliases tab before restarting."
+                } else {
+                    "別名有未儲存的修改。請先到「別名」儲存或取消，再重新啟動更新。"
+                }.into());
+            }
+            return false;
+        }
+        true
+    });
+
     let search_app = app.as_weak();
     let search_catalog = Rc::clone(&catalog);
     let search_current = Rc::clone(&current);
@@ -451,15 +615,24 @@ fn main() {
     let home_current = Rc::clone(&current);
     let home_history = Rc::clone(&history);
     let home_session = session.clone();
+    let home_catalog = Rc::clone(&catalog);
+    let home_favs = Rc::clone(&favourites);
     app.on_went_home(move || {
         let Some(app) = home_app.upgrade() else { return };
         home_session.generation.fetch_add(1, Ordering::Relaxed);
         *home_current.borrow_mut() = String::new();
         home_history.borrow_mut().clear();
-        app.set_hits(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
         app.set_links(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
+        if app.get_full_mode() {
+            show_home_saved(&app, &home_catalog, &home_session, &home_favs.borrow());
+        } else {
+            app.set_hits(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
+        }
     });
 
+    if db::load_window().is_some_and(|pref| pref.full) {
+        app.set_full_mode(true);
+    }
     let saved_size = Rc::new(Cell::new(db::load_window().map(|pref| (pref.width, pref.height)).unwrap_or((560.0, 740.0))));
     let placed_size = Rc::clone(&saved_size);
     let dock_size = Rc::new(Cell::new((dock.width, dock.height)));
@@ -472,6 +645,7 @@ fn main() {
     let dock_while_open = Rc::clone(&dock_size);
     let hold_on_switch = Rc::clone(&size_hold);
     let watch_saved = Rc::clone(&saved_size);
+    let mode_saved = Rc::clone(&saved_size);
     app.on_collapse_changed(move |collapsed| {
         if collapsed && shown_at.elapsed() < Duration::from_millis(800) {
             return;
@@ -479,7 +653,7 @@ fn main() {
         let Some(app) = collapse_app.upgrade() else { return };
         let (width, height) = window_logical(app.window());
         if collapsed {
-            if width > 160.0 && height > 160.0 {
+            if !app.get_full_mode() && width > 160.0 && height > 160.0 {
                 saved_size.set((width, height));
             }
         } else if width >= 48.0 && height >= 48.0 && (width < 220.0 || height < 220.0) {
@@ -509,7 +683,11 @@ fn main() {
                 let pos = window.position();
                 let size = window.size();
                 dock_park.set((pos.x, pos.y));
-                let (width, height) = saved_size.get();
+                let (width, height) = if app.get_full_mode() {
+                    stored_full_size(window.scale_factor())
+                } else {
+                    saved_size.get()
+                };
                 let scale = window.scale_factor().max(1.0);
                 let new_w = (width * scale).round() as i32;
                 let new_h = (height * scale).round() as i32;
@@ -532,6 +710,21 @@ fn main() {
     let watch_app = app.as_weak();
     let watch_dock = Rc::clone(&dock_size);
     let watch_hold = Rc::clone(&size_hold);
+    let watch_full = Rc::new(Cell::new(
+        db::load_window()
+            .filter(|pref| pref.has_full_pos)
+            .map(|pref| (pref.full_x, pref.full_y))
+            .unwrap_or((0, 0)),
+    ));
+    let watch_full_size = Rc::new(Cell::new(
+        db::load_window()
+            .filter(|pref| pref.has_full_size)
+            .map(|pref| (pref.full_width, pref.full_height))
+            .unwrap_or((0.0, 0.0)),
+    ));
+    let watch_catalog = Rc::clone(&catalog);
+    let watch_session = session.clone();
+    let watch_favs = Rc::clone(&favourites);
     let size_watch = Timer::default();
     size_watch.start(TimerMode::Repeated, Duration::from_millis(80), move || {
         if Instant::now() < watch_hold.get() {
@@ -548,13 +741,96 @@ fn main() {
                 watch_dock.set((width, height));
                 remember_dock(&app, (width, height));
             }
-        } else if width > 280.0 && height > 360.0 {
+            return;
+        }
+        let pos = app.window().position();
+        if app.get_full_mode() {
+            if leaves_full(width, height) {
+                watch_hold.set(Instant::now() + Duration::from_millis(400));
+                app.set_full_mode(false);
+                watch_saved.set((width, height));
+                let mut pref = db::load_window().unwrap_or(db::WindowPref::widget(width, height, pos.x, pos.y));
+                pref.width = width;
+                pref.height = height;
+                pref.x = pos.x;
+                pref.y = pos.y;
+                pref.full = false;
+                db::save_window(&pref);
+                refresh_mode_pages(&app, false, &watch_catalog, &watch_session, &watch_favs.borrow());
+            } else {
+                let previous = watch_full.get();
+                let previous_size = watch_full_size.get();
+                let moved = previous != (pos.x, pos.y);
+                let resized = (previous_size.0 - width).abs() > 1.0 || (previous_size.1 - height).abs() > 1.0;
+                if moved || resized {
+                    watch_full.set((pos.x, pos.y));
+                    watch_full_size.set((width, height));
+                    db::save_full_geometry(width, height, pos.x, pos.y);
+                }
+            }
+            return;
+        }
+        if enters_full(width, height) {
+            watch_hold.set(Instant::now() + Duration::from_millis(400));
+            app.set_full_mode(true);
+            watch_full.set((pos.x, pos.y));
+            watch_full_size.set((width, height));
+            db::save_full_geometry(width, height, pos.x, pos.y);
+            refresh_mode_pages(&app, true, &watch_catalog, &watch_session, &watch_favs.borrow());
+            return;
+        }
+        if width > 280.0 && height > 360.0 {
             let previous = watch_saved.get();
             watch_saved.set((width, height));
             if (previous.0 - width).abs() > 1.0 || (previous.1 - height).abs() > 1.0 {
                 remember_window(app.window());
             }
         }
+    });
+    let mode_app = app.as_weak();
+    let mode_hold = Rc::clone(&size_hold);
+    let mode_catalog = Rc::clone(&catalog);
+    let mode_session = session.clone();
+    let mode_favs = Rc::clone(&favourites);
+    app.on_mode_changed(move |full| {
+        let Some(app) = mode_app.upgrade() else { return };
+        mode_hold.set(Instant::now() + Duration::from_millis(500));
+        let window = app.window();
+        if full {
+            if !app.get_collapsed() {
+                let (width, height) = window_logical(window);
+                if width > 280.0 && height > 360.0 {
+                    mode_saved.set((width, height));
+                    remember_window(window);
+                }
+            }
+            let (width, height) = stored_full_size(window.scale_factor());
+            let prefer = db::load_window().and_then(|pref| pref.has_full_pos.then_some((pref.full_x, pref.full_y)));
+            let pos = place_fitted(window, width, height, prefer);
+            db::save_full_geometry(width, height, pos.0, pos.1);
+        } else {
+            let pos = window.position();
+            db::save_mode(false, Some((pos.x, pos.y)));
+            if !app.get_collapsed() {
+                if let Some(pref) = db::load_window() {
+                    mode_saved.set((pref.width, pref.height));
+                    place_fitted(window, pref.width, pref.height, Some((pref.x, pref.y)));
+                }
+            }
+        }
+        if full {
+            app.set_favourites_only(false);
+        }
+        refresh_mode_pages(&app, full, &mode_catalog, &mode_session, &mode_favs.borrow());
+    });
+    let reflow_app = app.as_weak();
+    app.on_reflow(move |span| {
+        let Some(app) = reflow_app.upgrade() else { return };
+        if app.get_flow_h() > 0 && (app.get_board_span() - span).abs() < 20.0 {
+            return;
+        }
+        app.set_board_span(span);
+        reflow_board(&app);
     });
     let dock_remember = Rc::clone(&dock_size);
     let dock_axis = Rc::clone(&dock_vertical);
@@ -671,7 +947,11 @@ fn main() {
     });
     app.on_request_close(move || {
         if let Some(app) = close_app.upgrade() {
-            if !app.get_collapsed() {
+            if app.get_full_mode() && !app.get_collapsed() {
+                let (width, height) = window_logical(app.window());
+                let pos = app.window().position();
+                db::save_full_geometry(width, height, pos.x, pos.y);
+            } else if !app.get_collapsed() {
                 remember_window(app.window());
             }
             if app.get_collapsed() {
@@ -691,6 +971,30 @@ fn main() {
 
     app.on_opacity_changed(move |value| {
         db::save_opacity(value);
+    });
+    app.on_pin_changed(move |mode| {
+        let mode = mode.clamp(0, 2);
+        edit_view(|view| view.pin = mode);
+    });
+    app.on_battle_changed(move |battle| {
+        edit_view(|view| view.battle = battle);
+    });
+    app.on_gallery_changed(move |gallery| {
+        edit_view(|view| view.gallery = gallery);
+    });
+    app.on_animate_changed(move |animate| {
+        edit_view(|view| view.animate = animate);
+    });
+    app.on_hotkeys_changed(move |on| {
+        edit_view(|view| view.hotkeys = on);
+        hotkey::set_enabled(on);
+    });
+    let legacy_app = app.as_weak();
+    app.on_choose_legacy(move |on| {
+        if let Some(app) = legacy_app.upgrade() {
+            app.set_legacy_mode(on);
+        }
+        edit_view(|view| view.legacy = on);
     });
     let extra_app = app.as_weak();
     let extra_catalog = Rc::clone(&catalog);
@@ -738,6 +1042,9 @@ fn main() {
             sync_view_star(&app, &lang_favs.borrow());
         }
         show_alias_rows(&app, &lang_catalog, &lang_aliases.borrow());
+        if app.get_full_mode() && app.get_category().is_empty() {
+            show_home_saved(&app, &lang_catalog, &lang_session, &lang_favs.borrow());
+        }
     });
 
     let open_app = app.as_weak();
@@ -748,6 +1055,11 @@ fn main() {
     let open_history = Rc::clone(&history);
     let fav_catalog = Rc::clone(&open_catalog);
     let fav_session = open_session.clone();
+    let board_list = Rc::new(RefCell::new(BoardList {
+        key: String::new(),
+        lang: String::new(),
+        hits: Vec::new(),
+    }));
     let restore_app = app.as_weak();
     let restore_catalog = Rc::clone(&open_catalog);
     let restore_current = Rc::clone(&open_current);
@@ -787,10 +1099,177 @@ fn main() {
         show_key(&app, &source_catalog, &source_session, &viewing, true);
         focus_section(&app, &key);
     });
+    let toggle_app = app.as_weak();
+    let toggle_catalog = Rc::clone(&open_catalog);
+    let toggle_session = open_session.clone();
+    let toggle_favs = Rc::clone(&favourites);
+    let toggle_list = Rc::clone(&board_list);
+    app.on_toggle_board(move |key| {
+        let Some(app) = toggle_app.upgrade() else { return };
+        let key = key.to_string();
+        if key.is_empty() {
+            return;
+        }
+        let full_monsters = app.get_full_mode() && app.get_category() == "monster";
+        let was_global = full_monsters && app.get_filter_global();
+        if full_monsters {
+            app.set_filter_global(false);
+        }
+        if app.get_expanded().as_str() == key && !was_global {
+            if full_monsters && key == "all:" {
+                return;
+            }
+            app.set_expanded("".into());
+            app.set_detail_key("".into());
+            app.set_detail_index(-1);
+            app.set_board_monsters(ModelRc::new(VecModel::from(Vec::new())));
+            toggle_session.generation.fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+        app.set_expanded(key.clone().into());
+        app.set_detail_key("".into());
+        app.set_detail_index(-1);
+        reload_board(&app, &toggle_catalog, &toggle_session, &toggle_favs.borrow(), &toggle_list);
+    });
+    let detail_app = app.as_weak();
+    let detail_catalog = Rc::clone(&open_catalog);
+    let detail_session = open_session.clone();
+    app.on_toggle_detail(move |key, index| {
+        let Some(app) = detail_app.upgrade() else { return };
+        let key = key.to_string();
+        if key.is_empty() {
+            return;
+        }
+        if app.get_detail_key().as_str() == key {
+            app.set_detail_key("".into());
+            app.set_detail_index(-1);
+            return;
+        }
+        app.set_detail_key(key.clone().into());
+        app.set_detail_index(index);
+        show_key(&app, &detail_catalog, &detail_session, &key, false);
+    });
+    let inline_app = app.as_weak();
+    let inline_catalog = Rc::clone(&open_catalog);
+    let inline_session = open_session.clone();
+    app.on_reload_inline_detail(move || {
+        let Some(app) = inline_app.upgrade() else { return };
+        let key = app.get_detail_key().to_string();
+        if !key.is_empty() {
+            // A linked page replaces the shared facts and drops; restore the open row without toggling it.
+            show_key(&app, &inline_catalog, &inline_session, &key, false);
+        }
+    });
+    let suggest_app = app.as_weak();
+    let suggest_catalog = Rc::clone(&open_catalog);
+    app.on_suggest_drops(move |query| {
+        let Some(app) = suggest_app.upgrade() else { return };
+        let choices = suggest_catalog.drop_options(&query, &app.get_lang());
+        app.set_drop_options(ModelRc::new(VecModel::from(list::plain_hits(choices))));
+    });
+    let regions_app = app.as_weak();
+    let regions_catalog = Rc::clone(&open_catalog);
+    app.on_refine_regions(move || {
+        let Some(app) = regions_app.upgrade() else { return };
+        if !app.get_full_mode() || app.get_category() != "monster" {
+            return;
+        }
+        list::refresh_region_rows(&app, &regions_catalog);
+    });
+    let drop_monsters_app = app.as_weak();
+    app.on_find_drop_monsters(move |key, title| {
+        let Some(app) = drop_monsters_app.upgrade() else { return };
+        if !app.get_full_mode() || !key.strip_prefix("item:").and_then(|code| code.parse::<i64>().ok()).is_some_and(|code| code > 0) {
+            return;
+        }
+        app.set_category("monster".into());
+        app.set_nation("".into());
+        app.set_nation_name("".into());
+        app.set_area("".into());
+        app.set_area_name("".into());
+        app.set_place("".into());
+        app.set_place_name("".into());
+        app.set_query("".into());
+        app.set_search_open(false);
+        app.set_favourites_only(false);
+        app.set_filter_global(false);
+        app.set_filter_element(-1);
+        app.set_filter_ela_min("".into());
+        app.set_filter_ela_max("".into());
+        app.set_filter_hit_min("".into());
+        app.set_filter_hit_max("".into());
+        app.set_filter_magic_min("".into());
+        app.set_filter_magic_max("".into());
+        app.set_filter_drop_key(key);
+        app.set_filter_drop(title);
+        app.set_expanded("all:".into());
+        app.set_list_offset(0.0);
+        app.set_cursor(0);
+        // Reuse category navigation so an open item page and its detail history are cleared too.
+        app.invoke_query_changed("monster".into(), "".into());
+    });
+    let filter_app = app.as_weak();
+    let filter_catalog = Rc::clone(&open_catalog);
+    let filter_session = open_session.clone();
+    let filter_favs = Rc::clone(&favourites);
+    let filter_list = Rc::clone(&board_list);
+    let filter_ticket = Rc::new(Cell::new(0u64));
+    app.on_apply_filter(move |now| {
+        let id = filter_ticket.get().wrapping_add(1);
+        filter_ticket.set(id);
+        let ticket = Rc::clone(&filter_ticket);
+        let app = filter_app.clone();
+        let catalog = Rc::clone(&filter_catalog);
+        let session = filter_session.clone();
+        let favs = Rc::clone(&filter_favs);
+        let list = Rc::clone(&filter_list);
+        let fire = move || {
+            if ticket.get() != id {
+                return;
+            }
+            let Some(app) = app.upgrade() else { return };
+            if !app.get_full_mode() || app.get_category() != "monster" {
+                return;
+            }
+            app.set_list_offset(0.0);
+            app.set_cursor(0);
+            if !app.get_query().trim().is_empty() || app.get_favourites_only()
+                || !app.get_place().is_empty() || !app.get_area().is_empty() || !app.get_nation().is_empty()
+            {
+                publish(&app, &catalog, &session, &favs.borrow(), "monster", &app.get_query());
+            } else {
+                reload_board(&app, &catalog, &session, &favs.borrow(), &list);
+            }
+        };
+        if now {
+            fire();
+        } else {
+            Timer::single_shot(Duration::from_millis(160), fire);
+        }
+    });
+    let anim_catalog = Rc::clone(&open_catalog);
+    let saved_open_catalog = Rc::clone(&open_catalog);
+    let saved_open_session = open_session.clone();
+    let saved_open_favs = Rc::clone(&open_favs);
+    let saved_open_current = Rc::clone(&open_current);
+    let saved_open_history = Rc::clone(&open_history);
     app.on_open_hit(move |key| {
         let Some(app) = open_app.upgrade() else { return };
+        let mut key = key.to_string();
         if key.is_empty() || key.starts_with("section:") {
             return;
+        }
+        if let Some(rest) = key.strip_prefix("jump:").map(str::to_string) {
+            if let Some((nation, tail)) = rest.split_once('|') {
+                let lang = app.get_lang();
+                app.set_nation(nation.into());
+                app.set_nation_name(db::nation_label(nation, &lang).into());
+                app.set_area("".into());
+                app.set_area_name("".into());
+                app.set_place("".into());
+                app.set_place_name("".into());
+                key = tail.to_string();
+            }
         }
         if let Some(id) = key.strip_prefix("nation:") {
             let lang = app.get_lang();
@@ -958,8 +1437,38 @@ fn main() {
         sync_view_star(&app, &open_favs.borrow());
     });
 
+    let saved_open_app = app.as_weak();
+    let boot_catalog = Rc::clone(&saved_open_catalog);
+    let boot_session = saved_open_session.clone();
+    app.on_home_open(move |key| {
+        let Some(app) = saved_open_app.upgrade() else { return };
+        let key = key.to_string();
+        if !key.starts_with("monster:") {
+            return;
+        }
+        app.set_category("monster".into());
+        app.set_nation("".into());
+        app.set_nation_name("".into());
+        app.set_area("".into());
+        app.set_area_name("".into());
+        app.set_place("".into());
+        app.set_place_name("".into());
+        app.set_query("".into());
+        app.set_favourites_only(false);
+        app.set_expanded("".into());
+        app.set_detail_key("".into());
+        app.set_detail_index(-1);
+        publish(&app, &saved_open_catalog, &saved_open_session, &saved_open_favs.borrow(), "monster", "");
+        *saved_open_current.borrow_mut() = key.clone();
+        saved_open_history.borrow_mut().clear();
+        app.set_viewing(key.clone().into());
+        show_key(&app, &saved_open_catalog, &saved_open_session, &key, false);
+        sync_view_star(&app, &saved_open_favs.borrow());
+    });
+
     let fav_app = app.as_weak();
     let favs = Rc::clone(&favourites);
+    let fav_list = Rc::clone(&board_list);
     app.on_toggle_favourite(move |key| {
         let Some(app) = fav_app.upgrade() else { return };
         let Some(code) = key.strip_prefix("monster:") else { return };
@@ -971,6 +1480,19 @@ fn main() {
         }
         db::save_favourites(&favs.borrow());
         sync_view_star(&app, &favs.borrow());
+        let starred = favs.borrow().contains(code);
+        if app.get_full_mode() && app.get_category().is_empty() {
+            show_home_saved(&app, &fav_catalog, &fav_session, &favs.borrow());
+            return;
+        }
+        if app.get_full_mode() && !app.get_expanded().is_empty() {
+            if app.get_expanded().as_str() == "saved:" {
+                reload_board(&app, &fav_catalog, &fav_session, &favs.borrow(), &fav_list);
+            } else {
+                list::set_row_favourite(&app, key.as_str(), starred);
+            }
+            return;
+        }
         app.set_stick_cursor(true);
         publish(&app, &fav_catalog, &fav_session, &favs.borrow(), &app.get_category(), &app.get_query());
         let index = row_index(&app, key.as_str());
@@ -996,7 +1518,7 @@ fn main() {
     });
 
     let (hot_tx, hot_rx) = mpsc::channel();
-    hotkey::spawn(hot_tx);
+    hotkey::spawn(hot_tx, db::load_view().hotkeys);
     let hot_app = app.as_weak();
     let hot_timer = Timer::default();
     hot_timer.start(TimerMode::Repeated, Duration::from_millis(40), move || {
@@ -1011,7 +1533,17 @@ fn main() {
         let window = app.window();
         if let Some(pref) = db::load_window() {
             placed_size.set((pref.width, pref.height));
-            place_window(window, pref.width, pref.height, Some((pref.x, pref.y)));
+            if pref.full {
+                let (width, height) = if pref.has_full_size {
+                    (pref.full_width, pref.full_height)
+                } else {
+                    full_window_size(window.scale_factor())
+                };
+                let at = pref.has_full_pos.then_some((pref.full_x, pref.full_y));
+                place_fitted(window, width, height, at);
+            } else {
+                place_window(window, pref.width, pref.height, Some((pref.x, pref.y)));
+            }
         } else {
             let (width, height) = default_main_size(window.scale_factor());
             placed_size.set((width, height));
@@ -1019,6 +1551,53 @@ fn main() {
         }
         focus_window();
     });
+    let anim_app = app.as_weak();
+    let anim_tick = Rc::new(Cell::new(0i32));
+    let anim_clip = Rc::new(RefCell::new(AnimClip {
+        code: String::new(),
+        path: std::path::PathBuf::new(),
+        frames: Vec::new(),
+    }));
+    let anim_timer = Timer::default();
+    anim_timer.start(TimerMode::Repeated, Duration::from_millis(140), move || {
+        let Some(app) = anim_app.upgrade() else { return };
+        if !app.get_battle_view() || !app.get_animate_battle() {
+            return;
+        }
+        let code = app
+            .get_viewing()
+            .strip_prefix("monster:")
+            .map(str::to_string)
+            .or_else(|| app.get_detail_key().strip_prefix("monster:").map(str::to_string));
+        let Some(code) = code else { return };
+        let mut clip = anim_clip.borrow_mut();
+        if clip.code != code {
+            clip.code = code.clone();
+            clip.frames.clear();
+            anim_tick.set(0);
+            if let Some((path, _)) = anim_catalog.battle_sprite(&code) {
+                if let Ok(frames) = agf::playable_frames(&path) {
+                    clip.path = path;
+                    clip.frames = frames;
+                }
+            }
+        }
+        if clip.frames.len() < 2 {
+            return;
+        }
+        let tick = anim_tick.get().wrapping_add(1);
+        anim_tick.set(tick);
+        let frame = clip.frames[(tick as usize) % clip.frames.len()];
+        let path = clip.path.clone();
+        drop(clip);
+        let Ok(icon) = agf::frame_rgba(&path, frame) else { return };
+        let image = image_from_icon(icon);
+        app.set_battle_icon(image.clone());
+        show_battle_frame(&app, &format!("monster:{code}"), image);
+    });
+    if app.get_full_mode() && app.get_category().is_empty() {
+        show_home_saved(&app, &boot_catalog, &boot_session, &favourites.borrow());
+    }
     app.run().expect("視窗執行失敗");
 }
 
@@ -1050,5 +1629,19 @@ mod tests {
     fn home_array_keeps_only_a_full_order() {
         assert_eq!(home_array(&[8, 7, 6, 5, 4, 3, 2, 1, 0]), [8, 7, 6, 5, 4, 3, 2, 1, 0]);
         assert_eq!(home_array(&[1, 2]), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    }
+
+    #[test]
+    fn battle_frames_skip_blanks_and_reuse_the_decoded_frame() {
+        let catalog = crate::db::Catalog::open().expect("db");
+        let (path, _) = catalog.battle_sprite("M96").expect("sprite");
+        let frames = crate::agf::playable_frames(&path).expect("frames");
+        assert!(frames.len() >= 2, "sprite has {} playable frames", frames.len());
+        assert!(frames.windows(2).all(|pair| pair[0] < pair[1]));
+        let first = crate::agf::frame_rgba(&path, frames[0]).expect("frame");
+        let again = crate::agf::frame_rgba(&path, frames[0]).expect("cached frame");
+        assert!(first.width > 0 && first.height > 0);
+        assert_eq!(first.rgba.len(), first.width as usize * first.height as usize * 4);
+        assert_eq!(first.rgba, again.rgba);
     }
 }

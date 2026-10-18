@@ -1,0 +1,4 @@
+# The distributed Windows ZIP must run without installing the Visual C++ runtime.
+# Use an explicit --target for Windows builds so host build tools keep host flags.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
