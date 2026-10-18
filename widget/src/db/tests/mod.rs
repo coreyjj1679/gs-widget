@@ -6,6 +6,7 @@ use super::search::{is_floor_suffix, place_split};
 use super::*;
 
 mod browse;
+mod performance;
 
 #[test]
 fn display_modes_keep_chinese_and_english() {

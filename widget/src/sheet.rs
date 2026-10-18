@@ -239,6 +239,8 @@ pub(crate) fn focus_section(app: &App, key: &str) {
 }
 
 pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key: &str, keep_sheet: bool) {
+    super::perf::begin_update();
+    let _timer = super::perf::Span::new("detail.open", 1);
     if !keep_sheet {
         app.set_item_tab("".into());
         app.set_item_source("".into());

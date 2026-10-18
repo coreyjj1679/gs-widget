@@ -844,7 +844,8 @@ impl Index {
     }
 
     pub(in crate::db) fn find_item(&self, code: i64) -> Option<&ItemRow> {
-        let key = code.to_string();
-        self.items.iter().find(|item| item.code_str == key)
+        // load_items orders by numeric code; keep lookups logarithmic when a
+        // production or town list resolves hundreds of item references.
+        self.items.binary_search_by_key(&code, |item| item.code).ok().map(|index| &self.items[index])
     }
 }

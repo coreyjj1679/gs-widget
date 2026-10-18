@@ -578,6 +578,7 @@ pub(in crate::db) fn load_items(conn: &Connection, texts: &HashMap<String, Strin
         let en = online(texts, name_gts, "en").to_string();
         let zh = online(texts, name_gts, "zh").to_string();
         items.push(ItemRow {
+            code,
             names: haystack(&[&ko, &en, &zh]),
             code_str: code.to_string(),
             en,
