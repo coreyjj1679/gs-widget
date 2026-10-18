@@ -423,7 +423,6 @@ component SidebarCategoryRow inherits Rectangle {
     in property <image> logo;
     in property <string> glyph;
     in property <string> label;
-    in property <string> shortcut;
     in property <bool> selected;
     in property <bool> lifted;
     in property <bool> english;
@@ -461,7 +460,7 @@ component SidebarCategoryRow inherits Rectangle {
     }
     Text {
         x: 42px; y: 0px;
-        width: max(parent.width - 98px, 20px);
+        width: max(parent.width - 70px, 20px);
         height: 100%;
         text: root.label;
         font-size: 13px;
@@ -469,15 +468,6 @@ component SidebarCategoryRow inherits Rectangle {
         color: root.selected ? DesktopTheme.text : DesktopTheme.secondary;
         vertical-alignment: center;
         overflow: elide;
-    }
-    Text {
-        x: parent.width - 50px; y: 0px;
-        width: 24px; height: 100%;
-        text: root.shortcut;
-        font-size: 11px;
-        color: DesktopTheme.muted;
-        horizontal-alignment: right;
-        vertical-alignment: center;
     }
     DesktopIcon {
         x: parent.width - 20px; y: 12px;
@@ -4294,6 +4284,7 @@ export component App inherits Window {
     callback gallery-changed(bool);
     callback animate-changed(bool);
     callback hotkeys-changed(bool);
+    callback hotkey-scope-changed(bool);
     callback alias-save();
     callback alias-cancel();
     callback alias-add();
@@ -4560,17 +4551,19 @@ export component App inherits Window {
     }
 
     function select-settings(index: int) {
-        if (root.settings-tab == 2 && index != 2) {
+        let next = root.full-mode && index == 3 ? 0 : index;
+        if (root.settings-tab == 2 && next != 2) {
             root.alias-edit = -1;
             root.alias-hits = [];
             root.alias-target = -1;
         }
-        root.settings-tab = index;
-        if (index == 2) { root.alias-refresh(); }
+        root.settings-tab = next;
+        if (next == 2) { root.alias-refresh(); }
     }
 
     function cycle-settings(delta: int) {
-        root.select-settings(mod(root.settings-tab + delta + 5, 5));
+        let next = mod(root.settings-tab + delta + 5, 5);
+        root.select-settings(root.full-mode && next == 3 ? (delta > 0 ? 4 : 2) : next);
     }
 
     function navigate-settings(delta: int) {
@@ -6092,6 +6085,8 @@ export component App inherits Window {
     ];
 
     changed full-mode => {
+        root.hotkey-scope-changed(!root.full-mode);
+        if (root.full-mode && root.settings-tab == 3) { root.select-settings(0); }
         if (!root.full-mode) { root.calculator-open = false; }
     }
 
@@ -6101,7 +6096,7 @@ export component App inherits Window {
 
     changed hotkey-nth => {
         if (root.hotkey-nth >= 1) {
-            root.open-nth-visible(root.hotkey-nth);
+            if (!root.full-mode && root.hotkeys-on) { root.open-nth-visible(root.hotkey-nth); }
             root.hotkey-nth = 0;
         }
     }
@@ -6316,7 +6311,6 @@ export component App inherits Window {
                                     logo: root.category-logo(slot);
                                     glyph: root.category-glyph(slot);
                                     label: root.category-short(slot);
-                                    shortcut: "F" + root.visible-index(slot);
                                     selected: !root.settings-open && !root.calculator-open && root.category == root.categories[slot].id;
                                     lifted: nav-drag.moving && nav-drag.from-row == i;
                                     english: root.lang == "en-zh";
@@ -8589,7 +8583,7 @@ export component App inherits Window {
                         clicked => { root.select-settings(2); self.focus(); }
                         navigate(delta) => { root.navigate-settings(delta); }
                     }
-                    settings-tab-3 := PatchTab {
+                    if !root.full-mode: settings-tab-3 := PatchTab {
                         label: root.lang == "en-zh" ? "Keys" : "快捷鍵";
                         active: root.settings-tab == 3;
                         tab-stop: self.active;
@@ -9155,7 +9149,7 @@ export component App inherits Window {
                         }
                     }
                 }
-                if root.settings-tab == 3: keys-layout := Rectangle {
+                if root.settings-tab == 3 && !root.full-mode: keys-layout := Rectangle {
                     property <bool> split: root.full-mode && self.width >= 720px;
                     property <length> column-w: self.split ? (self.width - 24px) / 2 : self.width;
                     height: self.split ? max(keys-left.preferred-height, keys-right.preferred-height) : keys-left.preferred-height + 16px + keys-right.preferred-height;
