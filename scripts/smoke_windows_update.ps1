@@ -20,12 +20,12 @@ $fixture = Join-Path $PSScriptRoot "windows_update_fixture.py"
 if (Test-Path -LiteralPath $root) { throw "TestRoot must be a new disposable directory: $root" }
 
 function Invoke-Fixture {
-    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    param([string[]]$Arguments)
     & python $fixture @Arguments
     if ($LASTEXITCODE -ne 0) { throw "Fixture verification failed: $($Arguments -join ' ')" }
 }
 
-Invoke-Fixture prepare --root $root --baseline-zip $baselineArchive --candidate-zip $candidateArchive --candidate-version $CandidateVersion
+Invoke-Fixture -Arguments @("prepare", "--root", $root, "--baseline-zip", $baselineArchive, "--candidate-zip", $candidateArchive, "--candidate-version", $CandidateVersion)
 $install = Join-Path $root "app with spaces"
 $executable = Join-Path $install "gersang-widget.exe"
 $candidateExe = Join-Path $root "candidate package/gersang-widget.exe"
@@ -159,7 +159,7 @@ try {
     Wait-Gui -AppProcess $warmup
     Assert-GuiResponsive -AppProcess $warmup -Seconds 3
     Close-Gui -AppProcess $warmup
-    Invoke-Fixture snapshot --root $root
+    Invoke-Fixture -Arguments @("snapshot", "--root", $root)
     $checks.Add("Published baseline GUI reads seeded non-default profile and closes normally")
 
     $oldGui = Start-SmokeProcess -FilePath $executable -Name "baseline-update-parent"
@@ -168,11 +168,11 @@ try {
     $report["oldGuiPid"] = $oldGui.Id
 
     # Reject a modified staged file while the real baseline GUI remains open.
-    Invoke-Fixture stage --root $root --parent-pid $oldGui.Id --case tampered
+    Invoke-Fixture -Arguments @("stage", "--root", $root, "--parent-pid", $oldGui.Id, "--case", "tampered")
     $badStage = Join-Path $install ".gs-widget-update-smoke-tampered"
     $badHelper = Start-SmokeProcess -FilePath (Join-Path $badStage "updater.exe") -Arguments @("--apply-update", (Join-Path $badStage "plan.json")) -Name "tampered-helper"
     Wait-Marker -Directory $badStage -Marker "error.txt" -Helper $badHelper
-    Invoke-Fixture verify --root $root --phase rejected
+    Invoke-Fixture -Arguments @("verify", "--root", $root, "--phase", "rejected")
     Assert-GuiResponsive -AppProcess $oldGui -Seconds 1
     # An error uses a modal MessageBox. Its marker has already proved rejection;
     # stop this failed disposable helper so the CI desktop is not left blocked.
@@ -181,7 +181,7 @@ try {
     if (-not $badHelper.WaitForExit(5000)) { throw "Failed helper did not terminate" }
     $checks.Add("Tampered payload rejected before ready; baseline GUI, application and all personal data remain intact")
 
-    Invoke-Fixture stage --root $root --parent-pid $oldGui.Id --case success
+    Invoke-Fixture -Arguments @("stage", "--root", $root, "--parent-pid", $oldGui.Id, "--case", "success")
     $stage = Join-Path $install ".gs-widget-update-smoke-success"
     $helper = Start-SmokeProcess -FilePath (Join-Path $stage "updater.exe") -Arguments @("--apply-update", (Join-Path $stage "plan.json")) -Name "update-helper"
     Wait-Marker -Directory $stage -Marker "ready" -Helper $helper
@@ -211,7 +211,7 @@ try {
     Wait-Gui -AppProcess $newGui
     Assert-GuiResponsive -AppProcess $newGui -Seconds 35
     Close-Gui -AppProcess $newGui
-    Invoke-Fixture verify --root $root --phase updated
+    Invoke-Fixture -Arguments @("verify", "--root", $root, "--phase", "updated")
     Assert-Installation -FilePath $executable -Expected $CandidateVersion -Name "updated-installation"
     $checks.Add("New v1.0.1 GUI restarts from the same installation, stays responsive offline for 35 seconds and closes normally")
     $checks.Add("All 11 personal files and 13 unrelated/legacy files survive byte-for-byte; new package and original recovery backup hashes match")
