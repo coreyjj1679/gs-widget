@@ -4,7 +4,9 @@
 
 Download `gs-widget-v1.0.0-windows-x64.zip` (or a newer version) from [GitHub Releases](https://github.com/coreyjj1679/gs-widget/releases/latest). Extract the whole archive into a writable folder such as `%LOCALAPPDATA%\Programs\gs-widget`, then open `gersang-widget.exe`. The ZIP contains the executable, `data/gersang.db`, `data/client-version.txt`, and the bundled `data/client` pictures. GitHub's automatically generated **Source code** ZIP is not the runnable app.
 
-Open **Settings → App / 設定 → 程式** to see the installed app version and check for updates. Choose **Download update / 下載更新** when a newer stable version exists, then **Restart and update / 重新啟動並更新** when it is ready. Browsing remains available during checks and downloads. A restart always requires that final button press. The updater checks the Release asset's SHA-256 digest returned by GitHub over HTTPS before accepting the ZIP; it does not require Git or Rust on the user's computer.
+Each launch checks for updates in the background and shows a notice at the bottom left of the navigation bar when a newer stable version is available. Offline or failed startup checks remain quiet and do not affect the local catalog, pictures or personal settings. Open **Settings → App / 設定 → 程式** to see the installed app version or check manually; a failed manual check displays an error and a retry option.
+
+Choose **Download update / 下載更新** when you want the new version, then **Restart and update / 重新啟動並更新** when it is ready. Browsing remains available during checks and downloads. A restart always requires that final button press. The updater checks the Release asset's SHA-256 digest returned by GitHub over HTTPS before accepting the ZIP; it does not require Git or Rust on the user's computer.
 
 Favourites, aliases and preferences live under `%LOCALAPPDATA%\gs-widget`, outside the installed app. An existing installation's settings are migrated from beside the active catalog on first launch; existing destination files take precedence and source files are retained. Do not delete the old `data` folder until you have launched the new app and checked your settings. Close the app before copying the profile folder as a backup. The app and game catalog have separate version numbers.
 
@@ -14,16 +16,20 @@ The updater temporarily keeps the previous executable and catalog assets in `.gs
 
 ## Publish a version
 
-The workflow is `.github/workflows/windows.yml`. A branch push, pull request, or **Run workflow** builds and tests Windows x64, creates the ZIP, checks its contents and PE imports, runs the extracted app's headless installation check, and stores a `windows-x64` Actions artifact for 14 days. Only a **push of a `v*` tag** publishes a GitHub Release. A manual run never publishes.
+The workflow is `.github/workflows/windows.yml`. Only a **push of a `v*` tag** triggers it; ordinary branch pushes (including `main`, feature and development branches), pull requests, and manual dispatch do not. Before building, it fetches complete history and verifies the checked-out tag's commit is already part of `origin/main` using Git ancestry. A tag on an unmerged feature commit fails the gate. A tagged ancestor of the current `main` tip is eligible, including an annotated tag.
 
-For the first release, ensure the reviewed implementation is committed on `feat/full-mode`, `widget/Cargo.toml` contains `version = "1.0.0"`, and `widget/Cargo.lock` contains the matching package version. Push the branch and wait for the Windows workflow to pass, then tag that same tested commit:
+An eligible tag builds and tests Windows x64, creates the ZIP, checks its contents and PE imports, runs the extracted app's headless installation check and offline GUI smoke check, and stores a `windows-x64` Actions artifact for 14 days. The GUI check uses software rendering and a refused loopback proxy; it requires a live window and initialized alias profile, then closes the app normally. The publication job rechecks the tag against the built commit and the freshly fetched `origin/main` before creating the Release.
+
+For the first release, review and validate the implementation from `feat/full-mode`, ensure `widget/Cargo.toml` contains `version = "1.0.0"` and `widget/Cargo.lock` contains the matching package version, then merge and push that work to `main`. Tag only after the release commit is present on the remote main branch:
 
 ```sh
+git switch main
+git pull --ff-only origin main
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-For `v1.1.0`, update `widget/Cargo.toml` to `1.1.0`, refresh and commit `widget/Cargo.lock` with the change, push the branch, wait for CI, then tag the tested commit as `v1.1.0`. Use all three version components: `v1.1.0`, not `v1.1`. Tag/version mismatches and prerelease versions fail validation.
+For `v1.1.0`, update `widget/Cargo.toml` to `1.1.0`, refresh and commit `widget/Cargo.lock` with the change, run the local checks below, and merge and push the changes to `main` before tagging that release commit as `v1.1.0`. The tag-triggered workflow runs all Windows checks before publication. Use all three version components: `v1.1.0`, not `v1.1`. Tag/version mismatches and prerelease versions fail validation. To check ancestry locally after fetching the remote branches and tags, run `python scripts/check_release_ref.py --tag v1.1.0` with that tagged commit checked out; this command verifies eligibility without publishing anything.
 
 The workflow uses Rust **1.92.0**, `--locked`, the MSVC x64 target and a static C runtime. Python **3.12** performs packaging and publication. The ZIP is named `gs-widget-v<version>-windows-x64.zip`; an explicit file allowlist prevents personal preferences, aliases, source code, caches and game notice files from being included. The tests skip only the existing optional `battle_frames_skip_blanks_and_reuse_the_decoded_frame` test, which needs an unbundled game sprite.
 
@@ -68,15 +74,23 @@ python scripts/package_windows.py --expected-tag v1.0.0
 
 The resulting ZIP is in `dist`. For a non-publishing smoke test, extract it to a temporary directory, set `LOCALAPPDATA` to a separate temporary profile, and run its EXE with `--check-installation` from a different working directory. This checks the packaged catalog and assets without creating a GUI. The automated workflow does this with `Start-Process` and checks the exit code.
 
+To run the offline GUI check locally with PowerShell 7, use a temporary profile and an extracted release:
+
+```powershell
+.\scripts\smoke_windows_offline.ps1 -ExePath C:\Temp\gs-widget\gersang-widget.exe -LocalAppData C:\Temp\gs-widget-test-profile -WorkingDirectory C:\Temp
+```
+
+The script temporarily sets `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY` to `http://127.0.0.1:1`, clears `NO_PROXY`, and selects Slint's `winit-software` backend. It waits up to 30 seconds for the normal window and `aliases.txt`, verifies the app remains alive and responsive for another 35 seconds (covering the update check's 30-second timeout), then requests a normal close. Every wait is bounded; cleanup kills a stuck process and restores the caller's environment. This is an offline startup/responsiveness check, not a visual layout or complete update-installation test. A Windows desktop session is required for local execution.
+
 ## Update acceptance test: v1.0.0 → v1.1.0
 
 Use a Windows x64 test account or VM with a backed-up profile. Successful local or hosted compilation does not replace this runtime test.
 
 1. Download the published `v1.0.0` ZIP, extract it to a folder whose name contains a space, and launch it without any development tools installed. Confirm Chinese and English content and pictures load.
 2. Save several monsters, create an alias, switch language and shortcut/pin settings, move and resize the window, then close and reopen it. Confirm those choices are saved under `%LOCALAPPDATA%\gs-widget`.
-3. Publish `v1.1.0` using the same workflow. In the installed **v1.0.0** app, check for updates, download it, and continue browsing. Confirm the downloaded version is `1.1.0` and the app does not restart before you press the restart button.
+3. Publish `v1.1.0` using the same workflow. Launch the installed **v1.0.0** app and confirm its background check shows a notice at the bottom left of the navigation bar. Open that notice, download the update, and continue browsing. Also check the manual **Settings → App** flow. Confirm the downloaded version is `1.1.0` and the app does not restart before you press the restart button.
 4. Restart and update. Verify the reopened app shows `1.1.0`, the catalog and pictures load, and all favourites, aliases, language, shortcuts, pin mode, window position and view preferences remain. Restart once more and check again.
-5. Test a disconnected network during check/download and retry after reconnecting. The current app must remain usable; no partial download should become installable. A missing/invalid digest or malformed package must fail before replacing the installation (covered by automated tests as well).
+5. Launch while offline: the background check must stay quiet while local records, pictures, favourites and settings work normally. Manually check while offline and confirm an error is shown. Also disconnect during download and retry after reconnecting; no partial download should become installable. A missing/invalid digest or malformed package must fail before replacing the installation (covered by automated tests as well).
 6. In a disposable test install, prevent a file replacement with a second process holding a catalog or EXE open, then attempt the update. Confirm the helper reports failure and the old version and profile remain available. Release the lock, reopen the app and retry. Never perform deliberate corruption or lock tests on a profile without a backup.
 7. For migration, prepare an older install with favourites, aliases and settings beside `data/gersang.db`, and use a fresh temporary `LOCALAPPDATA`. Launch the new app against that catalog once. Confirm migrated values, unchanged old files, and that a second launch does not overwrite newly changed profile values. Also confirm an existing destination profile takes precedence.
 

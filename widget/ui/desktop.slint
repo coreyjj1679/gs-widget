@@ -51,6 +51,7 @@ export component DesktopNavRow inherits Rectangle {
     in property <bool> selected: false;
     in property <string> shortcut: "";
     in property <string> icon-path: "";
+    in property <length> icon-size: 20px;
     in property <bool> enabled: true;
     callback clicked();
 
@@ -77,8 +78,10 @@ export component DesktopNavRow inherits Rectangle {
             width: 22px;
             height: 100%;
             if root.icon-path != "": DesktopIcon {
-                x: 1px;
+                x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
+                width: root.icon-size;
+                height: root.icon-size;
                 path: root.icon-path;
                 ink: root.selected ? DesktopTheme.accent : DesktopTheme.secondary;
             }

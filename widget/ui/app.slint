@@ -3559,6 +3559,7 @@ export component App inherits Window {
     in-out property <bool> full-mode: false;
     callback mode-changed(bool);
     property <length> nav-w: root.width < 1100px ? 176px : 208px;
+    property <length> nav-footer-h: root.updates-supported ? 144px : 112px;
     property <length> page-pad: root.full-mode ? 24px : 14px;
     property <length> pane-w: full-mode && !collapsed ? max(root.width - nav-w, 280px) : root.width;
     in-out property <bool> dock-menu: false;
@@ -3598,6 +3599,14 @@ export component App inherits Window {
     callback prepare-update() -> bool;
     property <bool> update-busy: update-state == 1 || update-state == 4 || update-state == 7;
     property <string> update-action: update-state == 3 ? (lang == "en-zh" ? "Download update" : "下載更新") : update-state == 5 ? (lang == "en-zh" ? "Restart and update" : "重新啟動並更新") : update-state == 6 ? (lang == "en-zh" ? "Try again" : "重試") : (lang == "en-zh" ? "Check for updates" : "檢查更新");
+    property <string> sidebar-update-action: update-state == 5 && update-error != "" ? (lang == "en-zh" ? "Update issue" : "查看更新問題") :
+        update-state == 1 ? (lang == "en-zh" ? "Checking…" : "正在檢查…") :
+        update-state == 3 ? (lang == "en-zh" ? "Update v" + update-version : "更新 v" + update-version) :
+        update-state == 4 ? (lang == "en-zh" ? "Download " + update-progress + "%" : "下載 " + update-progress + "%") :
+        update-state == 5 ? (lang == "en-zh" ? "Restart update" : "重啟更新") :
+        update-state == 6 ? (lang == "en-zh" ? "Retry check" : "重試檢查") :
+        update-state == 7 ? (lang == "en-zh" ? "Restarting…" : "正在重新啟動…") :
+        (lang == "en-zh" ? "Check updates" : "檢查更新");
     property <string> update-status: !updates-supported ? (lang == "en-zh" ? "In-app updates are available for the Windows x64 release." : "App 內更新目前支援 Windows x64 發布版。") :
         update-state == 1 ? (lang == "en-zh" ? "Checking for updates…" : "正在檢查更新…") :
         update-state == 2 ? (lang == "en-zh" ? "You are using the latest published version." : "目前已是最新發布版本。") :
@@ -5547,13 +5556,21 @@ export component App inherits Window {
                     height: 88px;
                     Image { x: 20px; y: 25px; width: 32px; height: 32px; source: @image-url("app-icon.png"); image-fit: contain; }
                     Text { x: 62px; y: 23px; text: root.lang == "en-zh" ? "Gersang" : "巨商圖鑑"; font-size: 17px; font-weight: 600; color: DesktopTheme.text; }
-                    Text { x: 62px; y: 48px; text: root.lang == "en-zh" ? "Game companion" : "Gersang companion"; font-size: 11px; color: DesktopTheme.muted; }
+                    Text {
+                        x: 62px; y: 48px;
+                        width: parent.width - 74px;
+                        text: "v" + root.app-version;
+                        font-size: 11px;
+                        color: DesktopTheme.muted;
+                        overflow: elide;
+                        accessible-label: (root.lang == "en-zh" ? "App version " : "程式版本 ") + root.app-version;
+                    }
                     WindowMoveArea { width: 100%; height: 100%; }
                 }
                 Rectangle {
                     y: 88px;
                     width: root.nav-w;
-                    height: max(root.height - 200px, 80px);
+                    height: max(root.height - 88px - root.nav-footer-h, 80px);
                     clip: true;
                 nav-scroll := Flickable {
                     interactive: !root.nav-dragging;
@@ -5633,11 +5650,13 @@ export component App inherits Window {
                     }
                     }
                     Rectangle {
-                        y: root.height - 112px;
-                        height: 112px;
+                        y: root.height - root.nav-footer-h;
+                        height: root.nav-footer-h;
                         width: root.nav-w;
                         background: DesktopTheme.sidebar;
                         Rectangle {
+                            x: 0px;
+                            y: 0px;
                             width: 100%;
                             height: 1px;
                             background: DesktopTheme.border;
@@ -5651,9 +5670,37 @@ export component App inherits Window {
                             color: DesktopTheme.muted;
                             vertical-alignment: center;
                         }
+                        if root.updates-supported: DesktopNavRow {
+                            x: 12px;
+                            y: 48px;
+                            width: root.nav-w - 24px;
+                            height: 36px;
+                            label: root.sidebar-update-action;
+                            icon-path: "M12 3 L12 15 M7 10 L12 15 L17 10 M4 16 L4 21 L20 21 L20 16";
+                            icon-size: 18px;
+                            selected: (root.update-state == 3 || root.update-state == 5) && root.update-error == "";
+                            enabled: !root.update-busy;
+                            accessible-description: root.update-error != "" ? root.update-error : root.update-status;
+                            clicked => {
+                                root.nav-dragging = false;
+                                if (root.update-state == 5 && root.update-error != "") {
+                                    root.settings-tab = 4;
+                                    root.settings-open = true;
+                                } else {
+                                    let show-details = root.update-state == 6;
+                                    root.request-update();
+                                    // A restart may synchronously reject an unsaved alias
+                                    // draft. Show its recovery instructions immediately.
+                                    if (show-details || root.update-error != "") {
+                                        root.settings-tab = 4;
+                                        root.settings-open = true;
+                                    }
+                                }
+                            }
+                        }
                         DesktopNavRow {
                             x: 12px;
-                            y: 56px;
+                            y: parent.height - 56px;
                             width: root.nav-w - 24px;
                             glyph: "⚙️";
                             label: root.lang == "en-zh" ? "Settings" : "設定";

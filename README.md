@@ -10,7 +10,9 @@ The catalog is `data/gersang.db`. Pictures are in `data/client`.
 2. Extract the entire ZIP to a writable folder, such as `%LOCALAPPDATA%\Programs\gs-widget`. Keep `gersang-widget.exe` and `data` together.
 3. Open `gersang-widget.exe`. Windows users do not need Git, Rust, Visual Studio, or the game installed. Use the compiled `gs-widget-…-windows-x64.zip` asset; GitHub's **Source code** downloads are for developers.
 
-For the next version, open **Settings → App / 設定 → 程式**, choose **Check for updates / 檢查更新**, then **Download update / 下載更新**. Once the download is verified, choose **Restart and update / 重新啟動並更新**. The app restarts into the new version; downloads do not interrupt browsing or restart the app automatically. Updates currently support the Windows x64 release.
+Each launch checks for updates in the background. When a newer version is available, a download icon and version appear at the bottom left of the navigation bar. The currently installed app version is shown below the app name at the top left. Offline or failed background checks remain quiet; the local catalog, pictures, favourites and settings stay available. You can also check manually under **Settings → App / 設定 → 程式**, where failures are shown with a retry option. Opening an external website, such as the source repository, also requires an internet connection.
+
+Choose **Download update / 下載更新** when you want the new version. Once the download is verified, choose **Restart and update / 重新啟動並更新**. The app restarts into the new version; downloads do not interrupt browsing or restart the app automatically. Updates currently support the Windows x64 release.
 
 Favourites, aliases, language, shortcuts, and window settings are stored in `%LOCALAPPDATA%\gs-widget`, separately from the app's replaceable catalog and pictures. The first launch migrates settings found beside the old catalog without deleting the original files or replacing existing settings. Keep the old `data` folder in place for that first launch. To back up your personal data, copy `%LOCALAPPDATA%\gs-widget` while the app is closed.
 
@@ -27,7 +29,7 @@ cargo build --locked --release --manifest-path widget/Cargo.toml --target x86_64
 .\widget\target\x86_64-pc-windows-msvc\release\gersang-widget.exe
 ```
 
-For maintainers, pushing a stable version tag such as `v1.0.0` runs the Windows GitHub Actions build, tests and ZIP packaging, then creates a Release titled `v1.0.0` with an empty description. The tag must match `widget/Cargo.toml`; the process does not generate patch notes. Ordinary branch pushes, pull requests, and manual workflow runs build an artifact without publishing a Release.
+For maintainers, first merge and push the release commit to `main`, then push its stable version tag, such as `v1.0.0`. Only version-tag pushes trigger the Windows GitHub Actions workflow. It verifies the tagged commit is already in `origin/main` history, runs the tests and ZIP packaging, then creates a Release titled `v1.0.0` with an empty description. The tag must match `widget/Cargo.toml`; the process does not generate patch notes. Ordinary pushes to `main`, feature or development branches and pull requests do not run this workflow; manual dispatch is disabled.
 
 ## macOS
 
