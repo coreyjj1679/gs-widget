@@ -119,9 +119,10 @@ $root = [System.IO.Path]::GetFullPath($TestRoot)
 if (Test-Path -LiteralPath $root) { throw "TestRoot must be a new disposable directory: $root" }
 New-Item -ItemType Directory -Path $root | Out-Null
 $notes = Get-Content -Raw -LiteralPath (Join-Path $repository "release-notes.json") | ConvertFrom-Json
-$versionMatch = [regex]::Match([System.IO.File]::ReadAllText((Join-Path $repository "widget/Cargo.toml")), '(?m)^version = "([^"]+)"$')
-if (-not $versionMatch.Success) { throw "Cannot determine current app version" }
-$currentVersion = $versionMatch.Groups[1].Value
+$versionOutput = & python (Join-Path $repository "scripts/package_windows.py") --root $repository --version-only
+if ($LASTEXITCODE -ne 0) { throw "Cannot determine current app version from the package manifest" }
+$currentVersion = ($versionOutput -join "`n").Trim()
+if (-not $currentVersion) { throw "Package manifest returned an empty app version" }
 $cases = [System.Collections.Generic.List[object]]::new()
 $report = [ordered]@{
     status = "running"
@@ -155,12 +156,12 @@ try {
         foreach ($mode in @("widget", "full")) {
             $caseName = "$language-$mode"
             $directory = Join-Path $root $caseName
-            $profile = Join-Path $directory "profile/gs-widget"
-            New-Item -ItemType Directory -Path $profile -Force | Out-Null
+            $caseProfile = Join-Path $directory "profile/gs-widget"
+            New-Item -ItemType Directory -Path $caseProfile -Force | Out-Null
             $env:LOCALAPPDATA = Join-Path $directory "profile"
-            [System.IO.File]::WriteAllText((Join-Path $profile "ui-lang.txt"), $language, $utf8)
-            [System.IO.File]::WriteAllText((Join-Path $profile "opacity.txt"), "100", $utf8)
-            [System.IO.File]::WriteAllText((Join-Path $profile "window.txt"), "size=560,600`npos=32,32`nmode=$mode`nfull-pos=32,32`nfull-size=960,640`n", $utf8)
+            [System.IO.File]::WriteAllText((Join-Path $caseProfile "ui-lang.txt"), $language, $utf8)
+            [System.IO.File]::WriteAllText((Join-Path $caseProfile "opacity.txt"), "100", $utf8)
+            [System.IO.File]::WriteAllText((Join-Path $caseProfile "window.txt"), "size=560,600`npos=32,32`nmode=$mode`nfull-pos=32,32`nfull-size=960,640`n", $utf8)
             $caseResult = [ordered]@{ name = $caseName; passed = $false; language = $language; mode = $mode }
             $cases.Add($caseResult)
             $appProcess = $null
@@ -227,7 +228,7 @@ try {
                 Assert-GuiResponsive -AppProcess $appProcess -Seconds 5
                 Close-Gui -AppProcess $appProcess
                 $caseResult["normalExit"] = $true
-                if ([System.IO.File]::ReadAllText((Join-Path $profile "ui-lang.txt")) -cne $language) {
+                if ([System.IO.File]::ReadAllText((Join-Path $caseProfile "ui-lang.txt")) -cne $language) {
                     throw "Reading changelog changed the saved language"
                 }
                 $caseResult["verifiedHistoryTextCount"] = $expected.Count
