@@ -1,0 +1,178 @@
+import { LineEdit } from "std-widgets.slint";
+import { DesktopTheme, DesktopIcon } from "desktop.slint";
+
+export struct QuestBrowseGroup {
+    key: string,
+    title: string,
+    subtitle: string,
+    count: string,
+}
+
+component DirectoryControl inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <bool> back;
+    callback clicked();
+    height: 32px;
+    min-width: caption.preferred-width + (back ? 40px : 24px);
+    horizontal-stretch: 0;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: focus.has-focus || active ? DesktopTheme.accent : DesktopTheme.border;
+    background: active ? DesktopTheme.selected : tap.has-hover ? DesktopTheme.hover : transparent;
+    forward-focus: focus;
+    accessible-role: button; accessible-label: label;
+    accessible-description: active ? "已選取 / Selected" : "";
+    accessible-action-default => { root.clicked(); }
+    if root.back: DesktopIcon {
+        x: 9px; y: 8px; width: 16px; height: 16px;
+        path: "M15 5L8 12L15 19";
+        ink: DesktopTheme.secondary;
+    }
+    caption := Text {
+        x: root.back ? 28px : 12px; y: 0px;
+        width: parent.width - (root.back ? 40px : 24px); height: 100%;
+        text: root.label; font-size: 13px;
+        color: root.active ? DesktopTheme.accent : DesktopTheme.text;
+        horizontal-alignment: center; vertical-alignment: center;
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+}
+
+component DirectoryRow inherits Rectangle {
+    in property <QuestBrowseGroup> group;
+    in property <bool> english;
+    callback clicked();
+    callback focused();
+    height: 74px;
+    border-radius: 5px;
+    border-width: 1px; border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    background: tap.has-hover ? DesktopTheme.hover : transparent;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: group.title;
+    accessible-description: group.count + (english ? (group.count == "1" ? " quest. " : " quests. ") : " 個任務。") + group.subtitle;
+    accessible-action-default => { root.clicked(); }
+    Text {
+        x: 14px; y: 11px; width: parent.width - 144px; height: 20px;
+        text: root.group.title; font-size: 14px; font-weight: 500;
+        color: DesktopTheme.text; overflow: elide;
+    }
+    Text {
+        x: 14px; y: 36px; width: parent.width - 144px; height: 30px;
+        text: root.group.subtitle; font-size: 12px; color: DesktopTheme.secondary;
+        wrap: word-wrap; overflow: elide;
+    }
+    Text {
+        x: parent.width - 124px; y: 12px; width: 88px; height: 18px;
+        text: root.group.count + (root.english ? (root.group.count == "1" ? " quest" : " quests") : " 個任務");
+        font-size: 12px; color: DesktopTheme.secondary; horizontal-alignment: right;
+    }
+    DesktopIcon {
+        x: parent.width - 27px; y: 13px; width: 15px; height: 15px;
+        path: "M9 5L16 12L9 19";
+        ink: tap.has-hover ? DesktopTheme.accent : DesktopTheme.muted;
+    }
+    Rectangle { x: 14px; y: parent.height - 1px; width: parent.width - 28px; height: 1px; background: DesktopTheme.border; }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        changed has-focus => { if (self.has-focus) { root.focused(); } }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+}
+
+export component QuestGroupDirectory inherits Rectangle {
+    in property <bool> english;
+    in property <string> grouping: "chain";
+    in property <[QuestBrowseGroup]> groups;
+    callback choose-grouping(string);
+    callback filter(string);
+    callback open-key(string);
+    callback back();
+    in-out property <string> query;
+    property <string> heading: grouping == "npc" ? (english ? "Quest givers" : "委託 NPC") : grouping == "region" ? (english ? "Quest regions" : "任務地區") : (english ? "Quest chains" : "完整任務鏈");
+    property <string> help: grouping == "npc" ? (english ? "Browse the quests offered by each NPC." : "查看每位 NPC 提供的任務。") : grouping == "region" ? (english ? "Browse recorded locations, including quests with no known region." : "依資料庫記錄的所在地瀏覽；未標示地區的任務也會保留。") : (english ? "Follow each connected chain, including prerequisites and branches." : "以完整依賴關係整理任務，包含前置與分支。");
+    changed grouping => { results.content-y = 0px; }
+    changed groups => { results.content-y = 0px; }
+    function reveal-row(index: int) {
+        let top = index * 76px;
+        if (top < -results.content-y) { results.content-y = -top; }
+        else if (top + 74px > -results.content-y + results.height) { results.content-y = results.height - top - 74px; }
+    }
+
+    VerticalLayout {
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+        spacing: 16px;
+        HorizontalLayout {
+            height: 32px; spacing: 8px;
+            DirectoryControl { label: root.english ? "Overview" : "分類摘要"; back: true; clicked => { root.back(); } }
+            Rectangle { width: 12px; horizontal-stretch: 0; }
+            DirectoryControl { label: root.english ? "Chains" : "任務鏈"; active: root.grouping == "chain"; clicked => { if (root.grouping != "chain") { root.choose-grouping("chain"); } } }
+            DirectoryControl { label: "NPC"; active: root.grouping == "npc"; clicked => { if (root.grouping != "npc") { root.choose-grouping("npc"); } } }
+            DirectoryControl { label: root.english ? "Regions" : "地區"; active: root.grouping == "region"; clicked => { if (root.grouping != "region") { root.choose-grouping("region"); } } }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        HorizontalLayout {
+            spacing: 20px; height: max(54px, titles.preferred-height);
+            titles := VerticalLayout {
+                horizontal-stretch: 1; min-width: 0px; spacing: 5px; alignment: start;
+                Text { text: root.heading; font-size: 18px; font-weight: 600; color: DesktopTheme.text; }
+                Text { text: root.help; font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap; }
+            }
+            VerticalLayout {
+                width: min(300px, root.width * 0.4); spacing: 6px; alignment: start;
+                LineEdit {
+                    text <=> root.query;
+                    placeholder-text: root.english ? "Search groups" : "搜尋分組";
+                    accessible-label: root.english ? "Search quest groups" : "搜尋任務分組";
+                    edited => { root.filter(self.text); }
+                }
+                Text {
+                    text: root.groups.length + (root.english ? (root.groups.length == 1 ? " group" : " groups") : " 個分組");
+                    font-size: 11px; color: DesktopTheme.secondary; horizontal-alignment: right;
+                }
+            }
+        }
+        Rectangle { height: 1px; background: DesktopTheme.border; }
+        Rectangle {
+            vertical-stretch: 1; min-height: 120px;
+            results := Flickable {
+                x: 0px; y: 0px; width: parent.width; height: parent.height;
+                content-width: self.width; content-height: max(self.height, root.groups.length * 76px);
+                for group[i] in root.groups: DirectoryRow {
+                    x: 0px; y: i * 76px; width: parent.width;
+                    group: group; english: root.english;
+                    focused => { root.reveal-row(i); }
+                    clicked => { root.open-key(group.key); }
+                }
+            }
+            if root.groups.length == 0: VerticalLayout {
+                x: 14px; y: 20px; width: parent.width - 28px; height: self.preferred-height;
+                spacing: 10px; alignment: start;
+                Text { text: root.english ? "No matching groups" : "沒有符合的分組"; font-size: 15px; font-weight: 600; color: DesktopTheme.text; }
+                Text { text: root.english ? "Try another name or clear the search." : "試試其他名稱，或清除搜尋。"; font-size: 13px; color: DesktopTheme.secondary; }
+                HorizontalLayout {
+                    if root.query != "": DirectoryControl { label: root.english ? "Clear search" : "清除搜尋"; clicked => { root.query = ""; root.filter(""); } }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+            }
+        }
+    }
+}

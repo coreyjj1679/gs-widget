@@ -1,5 +1,17 @@
-import { Palette, LineEdit, TextEdit, Button } from "std-widgets.slint";
+import { Palette, LineEdit, TextEdit, Button, ComboBox } from "std-widgets.slint";
 import { DesktopTheme, DesktopNavRow, DesktopEntry, DesktopIcon } from "desktop.slint";
+import { QuestRoadmap, QuestMapNode, QuestMapSegment } from "quest-roadmap.slint";
+export { QuestMapNode, QuestMapSegment }
+import { QuestGroupDirectory, QuestBrowseGroup } from "quest-group-directory.slint";
+export { QuestBrowseGroup }
+import { QuestItemStrip, QuestItemChip, QuestSummaryBadge } from "quest-item-strip.slint";
+export { QuestItemChip }
+
+export struct QuestItemRow {
+    required-items: [QuestItemChip],
+    reward-icons: [QuestItemChip],
+    other-objectives: string,
+}
 
 import { CalculatorPane, CalcChoice, CalcMaterial, CalcSaved } from "calculator.slint";
 export { CalcChoice, CalcMaterial, CalcSaved }
@@ -3497,6 +3509,170 @@ component CatalogRow inherits Rectangle {
 }
 
 
+// Quest rows keep the category, level and full metadata separate from the title.
+component QuestTab inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+    callback focused(length, length);
+    height: 32px; min-width: caption.preferred-width + 24px;
+    border-radius: 6px;
+    background: active ? DesktopTheme.selected : tap.has-hover ? DesktopTheme.hover : DesktopTheme.surface;
+    border-width: 1px; border-color: focus.has-focus || active ? DesktopTheme.accent : DesktopTheme.border;
+    forward-focus: focus;
+    accessible-role: button; accessible-label: label;
+    accessible-description: active ? "已選取 / Selected" : "";
+    accessible-action-default => { root.clicked(); }
+    caption := Text {
+        width: 100%; height: 100%; text: root.label; font-size: 13px;
+        color: root.active ? DesktopTheme.accent : DesktopTheme.text;
+        horizontal-alignment: center; vertical-alignment: center;
+    }
+    focus := FocusScope {
+        changed has-focus => { if (self.has-focus) { root.focused(root.y, root.height); } }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea { width: 100%; height: 100%; mouse-cursor: pointer; clicked => { focus.focus(); root.clicked(); } }
+}
+
+component QuestPick inherits Rectangle {
+    in property <Hit> hit;
+    in property <string> alternate-title;
+    in property <string> objective;
+    in property <string> rewards;
+    in property <string> reward-items;
+    in property <string> reward-stats;
+    in property <QuestItemRow> items;
+    in property <bool> english;
+    in property <bool> selected: false;
+    in property <bool> keyboard-selected: false;
+    callback clicked();
+    height: 140px;
+    border-radius: 6px;
+    background: selected ? DesktopTheme.selection-low : tap.has-hover || focus.has-focus || keyboard-selected ? DesktopTheme.hover : transparent;
+    accessible-role: button;
+    accessible-label: hit.title;
+    accessible-description: alternate-title + " · " + hit.aside + " · " + objective + " · " + rewards;
+    accessible-action-default => { root.clicked(); }
+    tap := TouchArea { width: 100%; height: 100%; mouse-cursor: pointer; clicked => { focus.focus(); root.clicked(); } }
+    Rectangle {
+        x: 0px; y: 10px; width: 1px; height: parent.height - 20px;
+        background: root.selected || root.keyboard-selected || focus.has-focus ? DesktopTheme.accent : transparent;
+    }
+    Text {
+        x: 12px; y: 8px; width: parent.width - 96px; height: 32px;
+        text: root.hit.title; wrap: word-wrap; overflow: elide;
+        font-size: 13px; font-weight: 600; color: DesktopTheme.text;
+    }
+    Text {
+        x: parent.width - 84px; y: 10px; width: 72px;
+        text: root.hit.aside == "" ? (root.english ? "Lv. —" : "等級 —") : root.hit.aside;
+        font-size: 11px; color: DesktopTheme.secondary; horizontal-alignment: right; overflow: elide;
+    }
+    if root.alternate-title != "": Text {
+        x: 12px; y: 40px; width: parent.width - 24px; height: 16px;
+        text: root.alternate-title; overflow: elide;
+        font-size: 12px; color: DesktopTheme.secondary;
+    }
+    QuestSummaryBadge {
+        x: 12px; y: 62px;
+        label: (root.english ? "Goal" : "目標") + (root.items.required-items.length > 0 && root.items.other-objectives != "" ? " +" : "");
+        hint: root.items.required-items.length > 0 ? root.items.other-objectives : "";
+        activated => { focus.focus(); root.clicked(); }
+    }
+    if root.items.required-items.length > 0: QuestItemStrip {
+        x: 62px; y: 58px; width: parent.width - 74px;
+        items: root.items.required-items; english: root.english;
+        activated => { focus.focus(); root.clicked(); }
+    }
+    if root.items.required-items.length == 0: Text {
+        x: 62px; y: 58px; width: parent.width - 74px; height: 26px;
+        text: root.items.other-objectives != "" ? root.items.other-objectives : root.objective == "" ? (root.english ? "See quest details" : "查看任務內容") : root.objective;
+        overflow: elide; wrap: word-wrap; font-size: 11px; color: DesktopTheme.secondary;
+    }
+    QuestSummaryBadge { x: 12px; y: 92px; label: root.english ? "Reward" : "獎勵"; activated => { focus.focus(); root.clicked(); } }
+    if root.items.reward-icons.length > 0: QuestItemStrip {
+        x: 62px; y: 88px; width: parent.width - 74px;
+        items: root.items.reward-icons; english: root.english;
+        activated => { focus.focus(); root.clicked(); }
+    }
+    if root.items.reward-icons.length == 0: Text {
+        x: 62px; y: 93px; width: parent.width - 74px; height: 16px;
+        text: root.reward-items == "" ? (root.english ? "No items listed" : "未記錄物品") : root.reward-items;
+        overflow: elide; font-size: 11px; color: DesktopTheme.secondary;
+    }
+    Text {
+        x: 62px; y: 118px; width: parent.width - 74px; height: 16px;
+        text: root.reward-stats == "" ? (root.english ? "XP / Credit —" : "經驗／信用 —") : root.reward-stats;
+        overflow: elide; font-size: 11px; color: root.selected ? DesktopTheme.accent : DesktopTheme.secondary;
+    }
+    Rectangle { y: parent.height - 1px; x: 12px; width: parent.width - 24px; height: 1px; background: root.selected || root.keyboard-selected || focus.has-focus ? transparent : DesktopTheme.border; }
+    focus := FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+}
+
+component QuestCategoryRow inherits Rectangle {
+    in property <Hit> hit;
+    callback clicked();
+    callback focused(length, length);
+    height: 58px;
+    border-radius: 6px;
+    background: tap.has-hover ? DesktopTheme.hover : transparent;
+    border-width: focus.has-focus ? 1px : 0px;
+    border-color: DesktopTheme.accent;
+    forward-focus: focus;
+    accessible-role: button; accessible-label: hit.title;
+    accessible-description: hit.aside + " · " + hit.subtitle;
+    accessible-action-default => { root.clicked(); }
+    Text { x: 12px; y: 8px; width: parent.width - 90px; text: root.hit.title; color: DesktopTheme.text; font-size: 14px; font-weight: 500; overflow: elide; }
+    Text { x: 12px; y: 28px; width: parent.width - 68px; height: 28px; text: root.hit.subtitle; color: DesktopTheme.secondary; font-size: 11px; wrap: word-wrap; overflow: elide; }
+    Text { x: parent.width - 74px; y: 10px; width: 42px; text: root.hit.aside; color: DesktopTheme.secondary; font-size: 13px; horizontal-alignment: right; }
+    DesktopIcon { x: parent.width - 23px; y: 11px; width: 14px; height: 14px; path: "M9 5L16 12L9 19"; ink: tap.has-hover ? DesktopTheme.accent : DesktopTheme.muted; }
+    Rectangle { x: 12px; y: parent.height - 1px; width: parent.width - 24px; height: 1px; background: DesktopTheme.border; }
+    focus := FocusScope { changed has-focus => { if (self.has-focus) { root.focused(root.y, root.height); } } key-pressed(event) => { if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; } return reject; } }
+    tap := TouchArea { width: 100%; height: 100%; mouse-cursor: pointer; clicked => { focus.focus(); root.clicked(); } }
+}
+
+component QuestSectionHeading inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    height: subtitle == "" ? 32px : 52px;
+    Text { x: 12px; y: 5px; text: root.title; color: DesktopTheme.text; font-size: 17px; font-weight: 600; }
+    if root.subtitle != "": Text { x: 12px; y: 30px; width: parent.width - 24px; text: root.subtitle; color: DesktopTheme.secondary; font-size: 12px; overflow: elide; }
+}
+
+component QuestFactRow inherits Rectangle {
+    in property <Fact> fact;
+    callback open();
+    callback focused(length, length);
+    height: max(32px, value.preferred-height + 12px);
+    border-radius: 4px;
+    background: tap.has-hover && fact.key != "" ? DesktopTheme.hover : transparent;
+    border-width: focus.has-focus ? 1px : 0px; border-color: DesktopTheme.accent;
+    Text { x: 0px; y: 7px; width: 92px; text: root.fact.label; font-size: 12px; color: DesktopTheme.secondary; overflow: elide; }
+    if root.fact.has-icon: Image { x: 102px; y: 3px; width: 26px; height: 26px; source: root.fact.icon; image-fit: contain; }
+    value := Text { x: root.fact.has-icon ? 138px : 102px; y: 6px; width: parent.width - self.x - 8px; text: root.fact.value; wrap: word-wrap; font-size: 13px; color: root.fact.key == "" ? DesktopTheme.text : DesktopTheme.accent; }
+    focus := FocusScope {
+        enabled: root.fact.key != "";
+        changed has-focus => { if (self.has-focus) { root.focused(root.y, root.height); } }
+        key-pressed(event) => { if (event.text == Key.Return || event.text == Key.Space) { root.open(); return accept; } return reject; }
+    }
+    tap := TouchArea {
+        width: 100%; height: 100%; enabled: root.fact.key != ""; mouse-cursor: root.fact.key == "" ? default : pointer;
+        accessible-role: button; accessible-label: root.fact.label + " " + root.fact.value; accessible-enabled: root.fact.key != "";
+        accessible-action-default => { if (root.fact.key != "") { root.open(); } }
+        clicked => { focus.focus(); root.open(); }
+    }
+}
+
 component DockChip inherits Rectangle {
     in property <image> logo;
     in property <string> glyph: "";
@@ -3570,6 +3746,7 @@ component FactLine inherits Rectangle {
     in property <length> line-height: 30px;
     in property <bool> wrap-value: false;
     in property <bool> align-value-left: false;
+    in property <bool> keyboard-link: false;
     in property <length> label-width: 112px;
     callback open();
     property <bool> heading: value == "" && !has-icon;
@@ -3618,11 +3795,92 @@ component FactLine inherits Rectangle {
         height: 1px;
         background: DesktopTheme.selected;
     }
-    if root.key != "": TouchArea {
+    if root.key != "" && !root.keyboard-link: TouchArea {
         width: 100%;
         height: 100%;
         clicked => { root.open(); }
         mouse-cursor: pointer;
+    }
+    if root.key != "" && root.keyboard-link: Rectangle {
+        width: 100%; height: 100%; border-radius: 6px;
+        border-width: link-focus.has-focus ? 1px : 0px;
+        border-color: DesktopTheme.accent;
+        accessible-role: button;
+        accessible-label: root.label + " " + root.value;
+        accessible-action-default => { root.open(); }
+        link-focus := FocusScope {
+            key-pressed(event) => {
+                if (event.text == Key.Return || event.text == Key.Space) { root.open(); return accept; }
+                return reject;
+            }
+        }
+        TouchArea { width: 100%; height: 100%; mouse-cursor: pointer; clicked => { link-focus.focus(); root.open(); } }
+    }
+}
+
+component QuestDetailPane inherits Rectangle {
+    in property <string> quest-key;
+    in property <bool> english;
+    in property <string> title;
+    in property <string> alt;
+    in property <string> code;
+    in property <string> note;
+    in property <image> portrait;
+    in property <bool> has-portrait;
+    in property <[Fact]> classification;
+    in property <[Fact]> facts;
+    in property <[Fact]> rewards;
+    in property <[Hit]> links;
+    in property <int> dependency-count;
+    callback open-key(string);
+    callback open-map();
+    changed quest-key => { detail-scroll.content-y = 0px; }
+    function reveal-row(top: length, size: length) {
+        if (top < -detail-scroll.content-y) { detail-scroll.content-y = -top; }
+        else if (top + size > -detail-scroll.content-y + detail-scroll.height) { detail-scroll.content-y = min(0px, detail-scroll.height - top - size); }
+    }
+    background: DesktopTheme.detail;
+    border-radius: 8px;
+    VerticalLayout {
+        padding: 20px; spacing: 14px;
+        HorizontalLayout {
+            spacing: 12px; alignment: start;
+            if root.has-portrait: Image { source: root.portrait; width: 48px; height: 48px; image-fit: contain; }
+            VerticalLayout {
+                spacing: 4px;
+                Text { text: root.title; wrap: word-wrap; font-size: 17px; font-weight: 600; color: DesktopTheme.text; }
+                if root.alt != "": Text { text: root.alt; wrap: word-wrap; font-size: 12px; color: DesktopTheme.secondary; }
+                Text { text: root.code; font-size: 11px; color: DesktopTheme.muted; }
+            }
+        }
+        HorizontalLayout {
+            height: 32px;
+            QuestTab { label: (root.english ? "Explore dependency map" : "查看依賴路線圖") + " · " + root.dependency-count; active: false; clicked => { root.open-map(); } }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        Rectangle { height: 1px; background: DesktopTheme.border; }
+        detail-scroll := Flickable {
+            width: root.width - 40px; vertical-stretch: 1;
+            content-width: self.width; content-height: max(detail-column.preferred-height, self.height);
+            detail-column := VerticalLayout {
+                x: 0px; y: 0px; width: parent.width; height: self.preferred-height; spacing: 4px; alignment: start;
+                for fact in root.classification: QuestFactRow { width: root.width - 40px; fact: fact; focused(top, size) => { root.reveal-row(top, size); } open => { if (fact.key != "") { root.open-key(fact.key); } } }
+                if root.note != "": Rectangle { height: 10px; }
+                if root.note != "": Text { text: root.note; wrap: word-wrap; font-size: 13px; color: DesktopTheme.text; }
+                if root.facts.length > 0: Rectangle { height: 12px; }
+                if root.facts.length > 0: Text { text: root.english ? "Requirements & objectives" : "條件與目標"; font-size: 13px; font-weight: 600; color: DesktopTheme.secondary; }
+                for fact in root.facts: QuestFactRow { width: root.width - 40px; fact: fact; focused(top, size) => { root.reveal-row(top, size); } open => { if (fact.key != "") { root.open-key(fact.key); } } }
+                if root.rewards.length > 0 || root.links.length > 0: Rectangle { height: 12px; }
+                if root.rewards.length > 0 || root.links.length > 0: Text { text: root.english ? "Rewards" : "獎勵"; font-size: 13px; font-weight: 600; color: DesktopTheme.secondary; }
+                for fact in root.rewards: QuestFactRow { width: root.width - 40px; fact: fact; }
+                for row[i] in root.links: QuestFactRow {
+                    width: root.width - 40px;
+                    fact: { label: i == 0 ? (root.english ? "Items" : "物品") : "", value: row.title + (row.subtitle == "" ? "" : "\n" + row.subtitle), key: row.key, icon: row.icon, has-icon: row.has-icon, section: "" };
+                    focused(top, size) => { root.reveal-row(top, size); }
+                    open => { root.open-key(row.key); }
+                }
+            }
+        }
     }
 }
 
@@ -4143,6 +4401,37 @@ export component App inherits Window {
     in-out property <[Hit]> chain-prev;
     in-out property <[Hit]> chain-next;
     in-out property <string> quest-npc: "";
+    in-out property <bool> quest-summary: true;
+    in-out property <bool> quest-map-open: false;
+    in-out property <string> quest-category: "qcat:all";
+    in-out property <string> quest-category-title;
+    in-out property <[Hit]> quest-categories;
+    in-out property <Hit> quest-all;
+    in-out property <Hit> quest-standard-all;
+    in-out property <[Hit]> quest-browse-entries;
+    in-out property <[QuestBrowseGroup]> quest-browse-groups;
+    in-out property <string> quest-grouping;
+    in-out property <string> quest-group-query;
+    in-out property <[Hit]> quest-recurring-categories;
+    in-out property <[Hit]> quest-growth-categories;
+    in-out property <[Hit]> quest-other-categories;
+    in-out property <[QuestMapNode]> quest-map-nodes;
+    in-out property <[QuestMapSegment]> quest-map-segments;
+    in-out property <float> quest-map-width;
+    in-out property <float> quest-map-height;
+    in-out property <float> quest-map-focus-x;
+    in-out property <float> quest-map-focus-y;
+    in-out property <string> quest-map-note;
+    in-out property <[string]> quest-category-names;
+    in-out property <[string]> quest-alternate-titles;
+    in-out property <[string]> quest-objective-summaries;
+    in-out property <[string]> quest-reward-summaries;
+    in-out property <[string]> quest-reward-items;
+    in-out property <[string]> quest-reward-stats;
+    in-out property <[QuestItemRow]> quest-item-rows;
+    in-out property <[Hit]> quest-dependencies;
+    in-out property <[Fact]> quest-classification;
+    in-out property <string> quest-dependency-note;
     in-out property <string> sheet-title;
     in-out property <string> sheet-alt;
     in-out property <string> sheet-code;
@@ -4257,6 +4546,7 @@ export component App inherits Window {
     property <length> total-fold-y: 0px;
     in-out property <length> quest-facts-body: 0px;
     callback query-changed(string, string);
+    callback quest-groups-requested(string, string);
     callback open-hit(string);
     callback source-changed(string);
     callback restore-view() -> bool;
@@ -4335,6 +4625,7 @@ export component App inherits Window {
 
     function open-category(id: string) {
         root.calculator-open = false;
+        root.quest-map-open = false;
         root.category = id;
         root.nation = "";
         root.nation-name = "";
@@ -4347,7 +4638,15 @@ export component App inherits Window {
         root.search-open = false;
         root.favourites-only = false;
         root.ship = "";
+        if (id == "quest") { root.quest-summary = true; root.quest-category = "qcat:all"; root.quest-grouping = ""; root.quest-group-query = ""; }
         root.query-changed(id, "");
+    }
+
+    function choose-quest-mode(summary: bool) {
+        root.quest-summary = summary;
+        root.quest-map-open = false;
+        if (summary) { root.query = ""; root.quest-category = "qcat:all"; root.quest-grouping = ""; root.quest-group-query = ""; }
+        root.query-changed("quest", root.query);
     }
 
     function quest-type-index() -> int {
@@ -4672,6 +4971,7 @@ export component App inherits Window {
     }
 
     function go-back() {
+        if (root.quest-map-open && (root.quest-browser || root.quest-sheet)) { root.quest-map-open = false; return; }
         if (root.monster-page-settings-open) {
             root.monster-page-settings-open = false;
             return;
@@ -4709,6 +5009,11 @@ export component App inherits Window {
             if (root.full-mode && (root.category != "monster" || !root.legacy-mode) && root.detail-key != "") {
                 root.reload-inline-detail();
             }
+        } else if (root.quest-browser && !root.quest-summary) {
+            if (root.quest-grouping != "") { root.quest-groups-requested(root.quest-grouping, root.quest-group-query); }
+            else { root.choose-quest-mode(true); }
+        } else if (root.quest-browser && root.quest-grouping != "") {
+            root.choose-quest-mode(true);
         } else if (root.category == "quest" && root.area != "") {
             root.search-open = false;
             root.area = "";
@@ -4873,6 +5178,15 @@ export component App inherits Window {
     }
 
     function reveal-list(index: int) {
+        if (root.quest-browser) {
+            if (root.quest-summary || root.quest-map-open) { return; }
+            let row = index * 142px;
+            let stride = 142px;
+            let view = max(root.list-view - 60px, 1px);
+            if (row < -root.list-offset) { root.list-offset = -row; }
+            else if (row + stride > -root.list-offset + view) { root.list-offset = view - row - stride; }
+            return;
+        }
         if (root.hits.length == 0) {
             return;
         }
@@ -5076,6 +5390,8 @@ export component App inherits Window {
     }
 
     function move-list(delta: int) {
+        if (root.quest-browser && (root.quest-summary || root.quest-map-open)) { return; }
+        if (root.full-mode && root.quest-sheet) { return; }
         if (root.monster-board && !root.legacy-mode && root.menu-open) { root.move-region(delta); return; }
         if (root.quest-sheet) {
             root.move-quest(delta);
@@ -5296,6 +5612,7 @@ export component App inherits Window {
     }
 
     function activate() {
+        if (root.quest-browser && (root.quest-summary || root.quest-map-open)) { return; }
         if (root.monster-board && !root.legacy-mode && root.menu-open) { root.activate-region(); return; }
         if (root.collapsed) {
             root.open-dock(root.home-cursor);
@@ -5337,6 +5654,7 @@ export component App inherits Window {
         if (root.viewing-monster && !root.drops-open) {
             return;
         }
+        if (root.full-mode && root.quest-sheet) { return; }
         if (root.quest-sheet && root.next-focus >= 0 && root.next-focus < root.chain-next.length) {
             root.open-hit(root.chain-next[root.next-focus].key);
             return;
@@ -5586,11 +5904,11 @@ export component App inherits Window {
             root.sheet-focus = root.related-slot();
             return accept;
         }
-        if (root.quest-sheet && event.text == Key.LeftArrow) {
+        if (root.quest-sheet && !root.full-mode && event.text == Key.LeftArrow) {
             root.open-prev();
             return accept;
         }
-        if (root.quest-sheet && event.text == Key.RightArrow) {
+        if (root.quest-sheet && !root.full-mode && event.text == Key.RightArrow) {
             root.open-next();
             return accept;
         }
@@ -5811,7 +6129,8 @@ export component App inherits Window {
     property <bool> monster-board: full-mode && category == "monster" && viewing == "" && place == "" && area == "" && !favourites-only && query == "";
     property <bool> monster-results-filter: full-mode && category == "monster" && viewing == "" && !monster-board;
     property <bool> monster-filter-scoped: root.place != "" || root.area != "" || root.nation != "" || root.expanded == "saved:" || root.expanded.starts-with("jump:") || root.expanded.starts-with("nation:");
-    property <bool> full-board: full-mode && category != "" && category != "monster" && viewing == "" && place == "" && area == "";
+    property <bool> quest-browser: full-mode && category == "quest" && viewing == "";
+    property <bool> full-board: full-mode && category != "" && category != "monster" && category != "quest" && viewing == "" && place == "" && area == "";
     in-out property <[Hit]> catalog-sections;
     in-out property <string> catalog-category: "";
     in-out property <bool> catalog-searching: false;
@@ -6028,7 +6347,7 @@ export component App inherits Window {
     property <length> quest-code-y: quest-title-y + (sheet-alt == "" ? 26px : 46px);
     property <length> quest-note-y: quest-code-y + 22px;
     property <length> quest-note-h: sheet-note == "" ? 0px : 96px;
-    property <bool> quest-has-reward: quest-sheet && (reward-facts.length > 0 || links.length > 0);
+    property <bool> quest-has-reward: quest-sheet && !full-mode && (reward-facts.length > 0 || links.length > 0);
     property <length> quest-chain-h: !quest-sheet || (chain-prev.length == 0 && chain-next.length == 0) ? 0px : chain-next.length > 1 ? min(chain-next.length * 44px, 132px) : 52px;
     property <length> chain-w: max((root.pane-w - 36px) / 2, 96px);
     property <length> quest-ask-y: quest-note-y + quest-note-h + 8px;
@@ -7069,7 +7388,7 @@ export component App inherits Window {
                         x: root.full-mode ? root.pane-w - (root.category == "monster" ? 348px : 304px) : root.page-pad;
                         y: root.full-mode ? 10px : root.search-y;
                         width: (root.full-mode ? 280px : max(root.pane-w - 2 * root.page-pad, 40px)) - (root.query != "" ? 64px : 0px);
-                        placeholder-text: root.full-mode ? (root.lang == "en-zh" ? "Search this category…" : "搜尋此分類…") : (root.lang == "en-zh" ? "Search" : "搜尋");
+                        placeholder-text: root.full-mode && root.category == "quest" ? (root.lang == "en-zh" ? "Quest, required item or reward…" : "搜尋任務、任務品或獎勵…") : root.full-mode ? (root.lang == "en-zh" ? "Search this category…" : "搜尋此分類…") : (root.lang == "en-zh" ? "Search" : "搜尋");
                         text <=> root.query;
                         property <bool> focus-requested: root.search-open;
                         changed focus-requested => { if (self.focus-requested) { self.focus(); } }
@@ -7558,7 +7877,131 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.viewing == "" && !root.monster-board && !root.full-board && !(root.monster-gallery && root.monster-cards) && !(root.full-mode && root.monster-cards): list := Flickable {
+                    if root.quest-browser: Rectangle {
+                        x: root.page-pad; y: root.list-y;
+                        width: max(root.pane-w - 2 * root.page-pad, 40px); height: root.list-view;
+                        if !root.quest-summary || root.quest-grouping == "": HorizontalLayout {
+                            x: 0px; y: 0px; width: 100%; height: 32px; spacing: 8px;
+                            QuestTab { label: root.lang == "en-zh" ? "Overview" : "分類摘要"; active: root.quest-summary; horizontal-stretch: 0; clicked => { root.choose-quest-mode(true); } }
+                            QuestTab { label: root.lang == "en-zh" ? "List" : "任務列表"; active: !root.quest-summary && !root.quest-map-open; horizontal-stretch: 0; clicked => { if (root.quest-map-open) { root.quest-map-open = false; } else { root.choose-quest-mode(false); } } }
+                            if !root.quest-summary: ComboBox {
+                                width: min(250px, parent.width * 0.34); horizontal-stretch: 0;
+                                model: root.quest-category-names; current-value: root.quest-category-title;
+                                accessible-label: root.lang == "en-zh" ? "Quest category" : "任務分類";
+                                selected => { if (self.current-index >= 0 && self.current-index < root.quest-categories.length) { root.open-hit(root.quest-categories[self.current-index].key); } }
+                            }
+                            if !root.quest-summary && root.detail-key != "": QuestTab { label: root.lang == "en-zh" ? "Roadmap" : "依賴路線圖"; active: root.quest-map-open; horizontal-stretch: 0; clicked => { root.quest-map-open = true; } }
+                            Rectangle { horizontal-stretch: 1; }
+                            if root.quest-summary: QuestTab { label: (root.lang == "en-zh" ? "All quests · " : "全部任務 · ") + root.quest-all.aside; active: false; horizontal-stretch: 0; clicked => { root.open-hit(root.quest-all.key); } }
+                            if !root.quest-summary: Text { text: root.hits.length + (root.lang == "en-zh" ? (root.hits.length == 1 ? " quest" : " quests") : " 筆"); color: DesktopTheme.secondary; font-size: 12px; vertical-alignment: center; }
+                        }
+                        if root.quest-summary && root.quest-grouping == "": summary-scroll := Flickable {
+                            x: 0px; y: 52px; width: 100%; height: parent.height - 52px;
+                            content-width: self.width; content-height: max(max(standard-col.preferred-height, other-col.preferred-height) + 8px, self.height);
+                            content-y <=> root.list-offset;
+                            standard-col := VerticalLayout {
+                                x: 0px; y: 0px; width: (parent.width - 32px) / 2; height: self.preferred-height; spacing: 2px; alignment: start;
+                                QuestSectionHeading { title: root.lang == "en-zh" ? "Explore quests" : "探索任務"; subtitle: root.lang == "en-zh" ? "Find a path, a quest giver or a place" : "從任務鏈、委託人或所在地開始"; }
+                                for row in root.quest-browse-entries: QuestCategoryRow { hit: row; focused(top, size) => { if (top < -summary-scroll.content-y) { summary-scroll.content-y = -top; } else if (top + size > -summary-scroll.content-y + summary-scroll.height) { summary-scroll.content-y = min(0px, summary-scroll.height - top - size); } } clicked => { root.quest-groups-requested(row.key, ""); } }
+                                Rectangle { height: 8px; }
+                                QuestTab { label: (root.lang == "en-zh" ? "All standard quests · " : "全部一般任務 · ") + root.quest-standard-all.aside; active: false; focused(top, size) => { if (top < -summary-scroll.content-y) { summary-scroll.content-y = -top; } else if (top + size > -summary-scroll.content-y + summary-scroll.height) { summary-scroll.content-y = min(0px, summary-scroll.height - top - size); } } clicked => { root.open-hit(root.quest-standard-all.key); } }
+                                Rectangle { height: 20px; }
+                                QuestSectionHeading { title: root.lang == "en-zh" ? "Getting started" : "入門與成長"; }
+                                for row in root.quest-growth-categories: QuestCategoryRow { hit: row; focused(top, size) => { if (top < -summary-scroll.content-y) { summary-scroll.content-y = -top; } else if (top + size > -summary-scroll.content-y + summary-scroll.height) { summary-scroll.content-y = min(0px, summary-scroll.height - top - size); } } clicked => { root.open-hit(row.key); } }
+                            }
+                            other-col := VerticalLayout {
+                                x: (parent.width + 32px) / 2; y: 0px; width: (parent.width - 32px) / 2; height: self.preferred-height; spacing: 2px; alignment: start;
+                                QuestSectionHeading { title: root.lang == "en-zh" ? "Repeatable quests" : "週期任務"; subtitle: root.lang == "en-zh" ? "Daily, weekly and time-restricted tasks" : "依重複週期與時間限制瀏覽"; }
+                                for row in root.quest-recurring-categories: QuestCategoryRow { hit: row; focused(top, size) => { if (top < -summary-scroll.content-y) { summary-scroll.content-y = -top; } else if (top + size > -summary-scroll.content-y + summary-scroll.height) { summary-scroll.content-y = min(0px, summary-scroll.height - top - size); } } clicked => { root.open-hit(row.key); } }
+                                Rectangle { height: 24px; }
+                                QuestSectionHeading { title: root.lang == "en-zh" ? "Stories & assignments" : "劇情與委託"; }
+                                for row in root.quest-other-categories: QuestCategoryRow { hit: row; focused(top, size) => { if (top < -summary-scroll.content-y) { summary-scroll.content-y = -top; } else if (top + size > -summary-scroll.content-y + summary-scroll.height) { summary-scroll.content-y = min(0px, summary-scroll.height - top - size); } } clicked => { root.open-hit(row.key); } }
+                            }
+                        }
+                        if root.quest-summary && root.quest-grouping != "": QuestGroupDirectory {
+                            width: 100%; height: 100%; english: root.lang == "en-zh";
+                            grouping: root.quest-grouping; groups: root.quest-browse-groups;
+                            query <=> root.quest-group-query;
+                            choose-grouping(grouping) => { root.quest-groups-requested(grouping, ""); }
+                            filter(query) => { root.quest-groups-requested(root.quest-grouping, query); }
+                            open-key(key) => { root.open-hit(key); }
+                            back => { root.choose-quest-mode(true); }
+                        }
+                        if !root.quest-summary && !root.quest-map-open: HorizontalLayout {
+                            x: 0px; y: 48px; width: 100%; height: parent.height - 48px; spacing: 16px;
+                            Rectangle {
+                                width: clamp(parent.width * 0.36, 280px, 380px);
+                                background: DesktopTheme.surface-alt; border-radius: 8px;
+                                if root.hits.length == 0: Text {
+                                    x: 16px; y: 24px; width: parent.width - 32px;
+                                    text: root.lang == "en-zh" ? "No matching quests. Clear the search or choose another category." : "沒有符合的任務。請清除搜尋或選擇其他分類。";
+                                    wrap: word-wrap; color: DesktopTheme.secondary; font-size: 13px;
+                                }
+                                quest-results := Flickable {
+                                    x: 4px; y: 4px; width: parent.width - 8px; height: parent.height - 8px;
+                                    content-width: self.width; content-height: max(root.hits.length * 142px, self.height);
+                                    content-y <=> root.list-offset;
+                                    for row[i] in root.hits: Rectangle {
+                                        y: i * 142px; width: parent.width; height: 140px;
+                                        if root.cursor == i || root.detail-key == row.key || (self.y + 140px >= -root.list-offset - 284px && self.y <= -root.list-offset + quest-results.height + 284px): QuestPick {
+                                            width: parent.width; hit: row; alternate-title: root.quest-alternate-titles[i]; objective: root.quest-objective-summaries[i]; rewards: root.quest-reward-summaries[i]; reward-items: root.quest-reward-items[i]; reward-stats: root.quest-reward-stats[i]; english: root.lang == "en-zh"; selected: root.detail-key == row.key; keyboard-selected: root.cursor == i;
+                                            items: root.quest-item-rows[i];
+                                            clicked => { root.cursor = i; root.open-hit(row.key); keys.focus(); }
+                                        }
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                horizontal-stretch: 1; min-width: 280px;
+                                background: DesktopTheme.detail; border-radius: 8px;
+                                if root.detail-key == "": VerticalLayout {
+                                    x: 28px; y: 36px; width: parent.width - 56px; height: self.preferred-height; spacing: 12px;
+                                    DesktopIcon { width: 28px; height: 28px; path: "M5 4H19V20H5ZM8 8H16M8 12H16M8 16H13"; ink: DesktopTheme.muted; }
+                                    Text { text: root.lang == "en-zh" ? "Select a quest" : "選擇一個任務"; font-size: 17px; font-weight: 600; color: DesktopTheme.text; }
+                                    Text { text: root.lang == "en-zh" ? "See objectives and rewards here, then explore its prerequisites and branches on the roadmap." : "在這裡查看目標與獎勵，再從路線圖探索前置任務和分支。"; wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary; }
+                                }
+                                if root.detail-key != "": QuestDetailPane {
+                                    width: 100%; height: 100%; english: root.lang == "en-zh";
+                                    quest-key: root.detail-key;
+                                    title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note;
+                                    portrait: root.item-icon; has-portrait: root.show-icon;
+                                    classification: root.quest-classification; facts: root.facts; rewards: root.reward-facts; links: root.links;
+                                    dependency-count: root.quest-dependencies.length;
+                                    open-key(key) => { if (key != "") { root.open-hit(key); } }
+                                    open-map => { root.quest-map-open = true; }
+                                }
+                            }
+                        }
+                        if !root.quest-summary && root.quest-map-open: QuestRoadmap {
+                            x: 0px; y: 48px; width: 100%; height: parent.height - 48px;
+                            english: root.lang == "en-zh"; selected-title: root.sheet-title; selected-key: root.detail-key;
+                            nodes: root.quest-map-nodes; segments: root.quest-map-segments;
+                            graph-width: root.quest-map-width; graph-height: root.quest-map-height;
+                            focus-x: root.quest-map-focus-x; focus-y: root.quest-map-focus-y; note: root.quest-map-note;
+                            open-key(key) => { root.open-hit(key); }
+                            show-details => { root.quest-map-open = false; }
+                        }
+                    }
+                    if root.full-mode && root.quest-sheet && !root.quest-map-open: QuestDetailPane {
+                        x: root.page-pad; y: 56px; width: root.pane-w - 2 * root.page-pad; height: parent.height - 64px;
+                        quest-key: root.viewing;
+                        english: root.lang == "en-zh"; title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note;
+                        portrait: root.item-icon; has-portrait: root.show-icon;
+                        classification: root.quest-classification; facts: root.facts; rewards: root.reward-facts; links: root.links;
+                        dependency-count: root.quest-dependencies.length;
+                        open-key(key) => { if (key != "") { root.open-hit(key); } }
+                        open-map => { root.quest-map-open = true; }
+                    }
+                    if root.full-mode && root.quest-sheet && root.quest-map-open: QuestRoadmap {
+                        x: root.page-pad; y: 56px; width: root.pane-w - 2 * root.page-pad; height: parent.height - 64px;
+                        english: root.lang == "en-zh"; selected-title: root.sheet-title; selected-key: root.viewing;
+                        nodes: root.quest-map-nodes; segments: root.quest-map-segments;
+                        graph-width: root.quest-map-width; graph-height: root.quest-map-height;
+                        focus-x: root.quest-map-focus-x; focus-y: root.quest-map-focus-y; note: root.quest-map-note;
+                        open-key(key) => { root.open-hit(key); }
+                        show-details => { root.quest-map-open = false; }
+                    }
+                    if root.viewing == "" && !root.quest-browser && !root.monster-board && !root.full-board && !(root.monster-gallery && root.monster-cards) && !(root.full-mode && root.monster-cards): list := Flickable {
                         x: root.page-pad;
                         y: root.list-y;
                         width: max(root.pane-w - 2 * root.page-pad, 40px);
@@ -8086,7 +8529,7 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.quest-sheet && root.show-icon: Image {
+                    if root.quest-sheet && !root.full-mode && root.show-icon: Image {
                         x: root.side-gap;
                         y: root.quest-title-y;
                         width: 48px;
@@ -8094,7 +8537,7 @@ export component App inherits Window {
                         source: root.item-icon;
                         image-fit: contain;
                     }
-                    if root.quest-sheet && root.show-icon && root.quest-npc != "": TouchArea {
+                    if root.quest-sheet && !root.full-mode && root.show-icon && root.quest-npc != "": TouchArea {
                         x: root.side-gap;
                         y: root.quest-title-y;
                         width: 48px;
@@ -8102,7 +8545,7 @@ export component App inherits Window {
                         clicked => { root.open-hit(root.quest-npc); }
                         mouse-cursor: pointer;
                     }
-                    if root.quest-sheet: Text {
+                    if root.quest-sheet && !root.full-mode: Text {
                         x: root.show-icon ? root.side-gap + 56px : root.side-gap;
                         y: root.quest-title-y;
                         width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
@@ -8113,7 +8556,7 @@ export component App inherits Window {
                         horizontal-alignment: center;
                         overflow: elide;
                     }
-                    if root.quest-sheet && root.sheet-alt != "": Text {
+                    if root.quest-sheet && !root.full-mode && root.sheet-alt != "": Text {
                         x: root.show-icon ? root.side-gap + 56px : root.side-gap;
                         y: root.quest-title-y + 24px;
                         width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
@@ -8123,7 +8566,7 @@ export component App inherits Window {
                         horizontal-alignment: center;
                         overflow: elide;
                     }
-                    if root.quest-sheet: Text {
+                    if root.quest-sheet && !root.full-mode: Text {
                         x: root.show-icon ? root.side-gap + 56px : root.side-gap;
                         y: root.quest-code-y;
                         width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
@@ -8133,7 +8576,7 @@ export component App inherits Window {
                         horizontal-alignment: center;
                         overflow: elide;
                     }
-                    if root.quest-sheet && root.sheet-note != "": note-scroll := Flickable {
+                    if root.quest-sheet && !root.full-mode && root.sheet-note != "": note-scroll := Flickable {
                         x: root.side-gap;
                         y: root.quest-note-y;
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -8148,14 +8591,14 @@ export component App inherits Window {
                             color: DesktopTheme.text;
                         }
                     }
-                    if root.quest-sheet && root.facts.length > 0: Text {
+                    if root.quest-sheet && !root.full-mode && root.facts.length > 0: Text {
                         x: root.side-gap;
                         y: root.quest-ask-y;
                         text: root.lang == "en-zh" ? "Task" : "要求";
                         font-size: 12px;
                         color: DesktopTheme.secondary;
                     }
-                    if root.quest-sheet && root.facts.length > 0: Rectangle {
+                    if root.quest-sheet && !root.full-mode && root.facts.length > 0: Rectangle {
                         x: root.side-gap;
                         y: root.quest-form-y;
                         width: max(parent.width - 2 * root.side-gap, 80px);
@@ -8398,7 +8841,7 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.quest-sheet && root.chain-prev.length > 0: ChainButton {
+                    if root.quest-sheet && !root.full-mode && root.chain-prev.length > 0: ChainButton {
                         x: root.side-gap;
                         y: parent.height - root.quest-chain-h + 4px;
                         width: root.chain-w;
@@ -8406,7 +8849,7 @@ export component App inherits Window {
                         name: root.chain-prev[0].title;
                         clicked => { root.open-hit(root.chain-prev[0].key); }
                     }
-                    if root.quest-sheet && root.chain-next.length == 1: ChainButton {
+                    if root.quest-sheet && !root.full-mode && root.chain-next.length == 1: ChainButton {
                         x: parent.width - root.side-gap - root.chain-w;
                         y: parent.height - root.quest-chain-h + 4px;
                         width: root.chain-w;
@@ -8415,7 +8858,7 @@ export component App inherits Window {
                         name: root.chain-next[0].title;
                         clicked => { root.open-hit(root.chain-next[0].key); }
                     }
-                    if root.quest-sheet && root.chain-next.length > 1: next-scroll := Flickable {
+                    if root.quest-sheet && !root.full-mode && root.chain-next.length > 1: next-scroll := Flickable {
                         x: parent.width - root.side-gap - root.chain-w;
                         y: parent.height - root.quest-chain-h;
                         width: root.chain-w;
