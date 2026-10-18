@@ -2,7 +2,7 @@
 
 ## Install and update
 
-Download `gs-widget-v1.0.0-windows-x64.zip` (or a newer version) from [GitHub Releases](https://github.com/coreyjj1679/gs-widget/releases/latest). Extract the whole archive into a writable folder such as `%LOCALAPPDATA%\Programs\gs-widget`, then open `gersang-widget.exe`. The ZIP contains the executable, `data/gersang.db`, `data/client-version.txt`, and the bundled `data/client` pictures. GitHub's automatically generated **Source code** ZIP is not the runnable app.
+Download `gs-widget-v1.1.0-windows-x64.zip` (or a newer version) from [GitHub Releases](https://github.com/coreyjj1679/gs-widget/releases/latest). Extract the whole archive into a writable folder such as `%LOCALAPPDATA%\Programs\gs-widget`, then open `gersang-widget.exe`. The ZIP contains the executable, `data/gersang.db`, `data/client-version.txt`, and the bundled `data/client` pictures. GitHub's automatically generated **Source code** ZIP is not the runnable app.
 
 Each launch checks for updates in the background and shows a notice at the bottom left of the navigation bar when a newer stable version is available. Offline or failed startup checks remain quiet and do not affect the local catalog, pictures or personal settings. Open **Settings → App / 設定 → 程式** to see the installed app version or check manually; a failed manual check displays an error and a retry option.
 
@@ -22,11 +22,11 @@ An eligible tag first validates its package version and bilingual release notes,
 
 For each new release, add its changes to the top of `release-notes.json`. Use the stable package version without the `v` prefix, a real `YYYY-MM-DD` date, and one or more sections with kind `added`, `improved`, or `fixed`. Write a complete English (`en`) list and a Traditional Chinese (`zh-TW`) list with a matching translation at each position. Keep previous version entries in descending numeric version order; historical entries must describe only what actually shipped in those versions. The app embeds this file for offline release history and follows the player's interface language. GitHub receives only the selected version's English entries.
 
-Bump `widget/Cargo.toml` and the `gersang-widget` package entry in `widget/Cargo.lock` to the new version. Validate the notes and preview the English Release description before merging, substituting the intended version for `1.0.2`:
+Bump `widget/Cargo.toml` and the `gersang-widget` package entry in `widget/Cargo.lock` to the new version. Validate the notes and preview the English Release description before merging, substituting the intended version for `1.1.0`:
 
 ```sh
-python scripts/release_notes.py --version 1.0.2
-python scripts/release_notes.py --version 1.0.2 --render
+python scripts/release_notes.py --version 1.1.0
+python scripts/release_notes.py --version 1.1.0 --render
 python -m unittest discover -s scripts/tests -v
 ```
 
@@ -35,11 +35,11 @@ Review and validate the app, then merge and push the release commit to `main`. T
 ```sh
 git switch main
 git pull --ff-only origin main
-git tag v1.0.2
-git push origin v1.0.2
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
-The tag-triggered workflow runs all Windows checks before publication. Use all three version components: `v1.0.2`, not `v1.0`. Tag/version mismatches, prerelease versions, missing changelog entries, invalid dates, and incomplete translations fail validation before the Windows build. To check ancestry locally after fetching the remote branches and tags, run `python scripts/check_release_ref.py --tag v1.0.2` with that tagged commit checked out; this command verifies eligibility without publishing anything.
+The tag-triggered workflow runs all Windows checks before publication. Use all three version components: `v1.1.0`, not `v1.0`. Tag/version mismatches, prerelease versions, missing changelog entries, invalid dates, and incomplete translations fail validation before the Windows build. To check ancestry locally after fetching the remote branches and tags, run `python scripts/check_release_ref.py --tag v1.1.0` with that tagged commit checked out; this command verifies eligibility without publishing anything.
 
 The workflow uses Rust **1.92.0**, `--locked`, the MSVC x64 target and a static C runtime. Python **3.12** performs packaging and publication. The ZIP is named `gs-widget-v<version>-windows-x64.zip`; an explicit file allowlist prevents personal preferences, aliases, source code, caches and game notice files from being included. The tests skip only the existing optional `battle_frames_skip_blanks_and_reuse_the_decoded_frame` test, which needs an unbundled game sprite.
 
