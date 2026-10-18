@@ -20,10 +20,12 @@ mod search;
 mod store;
 mod text;
 mod town;
+mod user_data;
 mod work;
 
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
+pub use user_data::initialize_user_data;
 pub use monster::MonsterQuery;
 pub use prefs::{DockPref, HomePref, ViewPref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_view, load_window, save_dock, save_favourites, save_full_geometry, save_home, save_lang, save_mode, save_opacity, save_set_extra, save_view, save_window};
 pub use text::{hero_land_label, hero_rank_label, hero_tier_label, item_category_label, nation_label, relation_label, source_label, weapon_family_label};
@@ -79,7 +81,7 @@ impl Catalog {
         let client_root = locate_client(stored, db.parent().unwrap_or(Path::new(".")));
         let characters = characters_dir(&client_root, db.parent().unwrap_or(Path::new(".")));
         let pictures = choose_pictures(&client_root, &load_sprites(&conn), &load_portraits(&conn));
-        let index = Index::load(&conn, &client_root, &pictures, db.parent().unwrap_or(Path::new(".")))?;
+        let index = Index::load(&conn, &client_root, &pictures, &user_data::preferences_dir())?;
         Ok(Self {
             conn,
             client_root,

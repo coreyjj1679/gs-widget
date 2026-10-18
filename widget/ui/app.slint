@@ -1,4 +1,4 @@
-import { Palette, LineEdit, TextEdit } from "std-widgets.slint";
+import { Palette, LineEdit, TextEdit, Button } from "std-widgets.slint";
 import { DesktopTheme, DesktopNavRow, DesktopEntry, DesktopIcon } from "desktop.slint";
 
 export struct MonsterDrop {
@@ -682,6 +682,10 @@ component PatchTab inherits Rectangle {
     in property <string> label;
     in property <bool> active;
     callback clicked();
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-description: root.active ? "已選取 / Selected" : "";
+    accessible-action-default => { root.clicked(); }
     horizontal-stretch: 1;
     background: active ? DesktopTheme.accent : (tap.has-hover ? #2a2622 : transparent);
     Text {
@@ -3525,6 +3529,21 @@ component ChainButton inherits Rectangle {
     }
 }
 
+export component StartupError inherits Window {
+    title: "Gersang";
+    width: 520px;
+    height: 280px;
+    in property <string> message;
+    callback dismiss();
+    VerticalLayout {
+        padding: 24px;
+        spacing: 16px;
+        Text { text: "無法開啟 Gersang / Unable to open Gersang"; font-size: 18px; wrap: word-wrap; }
+        Text { text: root.message; wrap: word-wrap; vertical-stretch: 1; }
+        Button { text: "關閉 / Close"; clicked => { root.dismiss(); } }
+    }
+}
+
 export component App inherits Window {
     in-out property <string> query;
     in-out property <string> category;
@@ -3568,6 +3587,26 @@ export component App inherits Window {
     in-out property <bool> copied: false;
     in-out property <string> ship: "";
     in-out property <string> client-version: "V3.4220";
+    in-out property <string> app-version;
+    in-out property <bool> updates-supported: false;
+    // idle, checking, current, available, downloading, ready, error, restarting
+    in-out property <int> update-state: 0;
+    in-out property <string> update-version;
+    in-out property <int> update-progress: 0;
+    in-out property <string> update-error;
+    callback request-update();
+    callback prepare-update() -> bool;
+    property <bool> update-busy: update-state == 1 || update-state == 4 || update-state == 7;
+    property <string> update-action: update-state == 3 ? (lang == "en-zh" ? "Download update" : "下載更新") : update-state == 5 ? (lang == "en-zh" ? "Restart and update" : "重新啟動並更新") : update-state == 6 ? (lang == "en-zh" ? "Try again" : "重試") : (lang == "en-zh" ? "Check for updates" : "檢查更新");
+    property <string> update-status: !updates-supported ? (lang == "en-zh" ? "In-app updates are available for the Windows x64 release." : "App 內更新目前支援 Windows x64 發布版。") :
+        update-state == 1 ? (lang == "en-zh" ? "Checking for updates…" : "正在檢查更新…") :
+        update-state == 2 ? (lang == "en-zh" ? "You are using the latest published version." : "目前已是最新發布版本。") :
+        update-state == 3 ? (lang == "en-zh" ? "Version " + update-version + " is available." : "有新版本 v" + update-version + "。") :
+        update-state == 4 ? (lang == "en-zh" ? "Downloading and verifying… " + update-progress + "%" : "下載並驗證更新中… " + update-progress + "%") :
+        update-state == 5 ? (lang == "en-zh" ? "Version " + update-version + " is ready. Restart when you are ready." : "v" + update-version + " 已準備好，可隨時重新啟動安裝。") :
+        update-state == 6 ? (lang == "en-zh" ? "The update could not be completed. See the details below before trying again." : "未能完成更新，請查看下方原因後重試。") :
+        update-state == 7 ? (lang == "en-zh" ? "Preparing to restart…" : "正在準備重新啟動…") :
+        (lang == "en-zh" ? "Check GitHub for a newer version of Gersang." : "到 GitHub 檢查 Gersang 是否有新版本。");
     in-out property <bool> favourites-only: false;
     in-out property <bool> stick-cursor: false;
     in-out property <bool> viewing-monster: false;
@@ -3918,11 +3957,11 @@ export component App inherits Window {
             root.alias-target = -1;
         }
         root.settings-tab = root.settings-tab + delta;
-        if (root.settings-tab > 3) {
+        if (root.settings-tab > 4) {
             root.settings-tab = 0;
         }
         if (root.settings-tab < 0) {
-            root.settings-tab = 3;
+            root.settings-tab = 4;
         }
         if (root.settings-tab == 2) {
             root.alias-refresh();
@@ -4782,6 +4821,10 @@ export component App inherits Window {
             }
             if (root.settings-tab == 2 && root.alias-hits.length > 0 && event.text == Key.DownArrow) {
                 root.alias-pick = min(root.alias-pick + 1, root.alias-hits.length - 1);
+                return accept;
+            }
+            if (root.settings-tab == 4 && (event.text == Key.Return || event.text == Key.Space) && root.updates-supported && !root.update-busy) {
+                root.request-update();
                 return accept;
             }
             return reject;
@@ -7639,6 +7682,11 @@ export component App inherits Window {
                         active: root.settings-tab == 3;
                         clicked => { root.settings-tab = 3; }
                     }
+                    PatchTab {
+                        label: root.lang == "en-zh" ? "App" : "程式";
+                        active: root.settings-tab == 4;
+                        clicked => { root.settings-tab = 4; }
+                    }
                 }
             }
             if root.settings-tab == 1: VerticalLayout {
@@ -7755,6 +7803,55 @@ export component App inherits Window {
                 padding-bottom: 24px;
                 spacing: 16px;
                 alignment: start;
+                if root.settings-tab == 4: Text {
+                    text: root.lang == "en-zh" ? "App updates" : "程式更新";
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: DesktopTheme.text;
+                }
+                if root.settings-tab == 4: Text {
+                    text: "Gersang v" + root.app-version;
+                    font-size: 14px;
+                    color: DesktopTheme.text;
+                }
+                if root.settings-tab == 4: Text {
+                    text: (root.lang == "en-zh" ? "Game data: " : "遊戲資料版本：") + root.client-version;
+                    font-size: 12px;
+                    color: DesktopTheme.secondary;
+                }
+                if root.settings-tab == 4: Text {
+                    text: root.update-status;
+                    font-size: 14px;
+                    color: DesktopTheme.text;
+                    wrap: word-wrap;
+                }
+                if root.settings-tab == 4 && root.update-state == 4: Rectangle {
+                    height: 4px;
+                    background: DesktopTheme.border;
+                    Rectangle {
+                        width: parent.width * root.update-progress / 100;
+                        height: parent.height;
+                        background: DesktopTheme.accent;
+                    }
+                }
+                if root.settings-tab == 4 && root.update-error != "": Text {
+                    text: root.update-error;
+                    color: DesktopTheme.secondary;
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+                if root.settings-tab == 4 && root.updates-supported: Button {
+                    text: root.update-busy ? (root.lang == "en-zh" ? "Please wait…" : "請稍候…") : root.update-action;
+                    enabled: !root.update-busy;
+                    min-height: 36px;
+                    clicked => { root.request-update(); }
+                }
+                if root.settings-tab == 4 && root.updates-supported: Text {
+                    text: root.lang == "en-zh" ? "Your favourites, aliases and settings are kept when you update. You can keep browsing while the download runs." : "更新會保留收藏、別名和設定。下載期間可繼續使用圖鑑。";
+                    font-size: 12px;
+                    color: DesktopTheme.secondary;
+                    wrap: word-wrap;
+                }
                 if root.full-mode && root.settings-tab == 0: FormBlock {
                     title: root.lang == "en-zh" ? "Window" : "視窗";
                     HorizontalLayout {
@@ -8089,10 +8186,28 @@ export component App inherits Window {
                 }
                 if root.settings-tab == 2: HorizontalLayout {
                     spacing: 8px;
-                    LangChip {
-                        label: root.lang == "en-zh" ? "Add" : "新增";
-                        active: false;
+                    Button {
+                        text: root.lang == "en-zh" ? "Add" : "新增";
                         clicked => { root.alias-add(); }
+                    }
+                    Button {
+                        text: root.lang == "en-zh" ? "Save all" : "全部儲存";
+                        clicked => {
+                            if (root.alias-edit >= 0) { root.alias-finish(root.alias-edit); }
+                            root.alias-save();
+                            root.alias-edit = -1;
+                            root.alias-hits = [];
+                            root.alias-target = -1;
+                        }
+                    }
+                    Button {
+                        text: root.lang == "en-zh" ? "Discard" : "取消修改";
+                        clicked => {
+                            root.alias-cancel();
+                            root.alias-edit = -1;
+                            root.alias-hits = [];
+                            root.alias-target = -1;
+                        }
                     }
                 }
                 if root.settings-tab == 3: Text {

@@ -1,6 +1,7 @@
 use super::alias::{alias_rows_from, set_query};
 use super::names::{fuzzy_budget, fuzzy_dist, haystack, nicknames};
-use super::paths::{data_dir, pictures_ready};
+use super::paths::pictures_ready;
+use super::user_data::preferences_dir;
 use super::search::{is_floor_suffix, place_split};
 use super::*;
 
@@ -723,7 +724,7 @@ fn item_page_groups_by_category() {
     let belt_items = &pieces[belt + 1..belt + 1 + next];
     assert!(belt_items.iter().any(|hit| hit.key == "item:7129"));
     assert!(belt_items.iter().all(|hit| hit.key != "item:8302"));
-    let saved_extra = std::fs::read_to_string(data_dir().join("set-extra.txt")).ok();
+    let saved_extra = std::fs::read_to_string(preferences_dir().join("set-extra.txt")).ok();
     save_set_extra(false);
     let (_, amaterasu, _) = catalog.open_key("set:32", "zh-en");
     let shoes = amaterasu.iter().position(|hit| hit.key == "section:S").expect("shoes");
@@ -790,10 +791,10 @@ fn item_page_groups_by_category() {
     assert!(sage.iter().any(|(label, value, _, section)| label == "傷害" && value == "+15%" && section == "total"));
     match saved_extra {
         Some(text) => {
-            let _ = std::fs::write(data_dir().join("set-extra.txt"), text);
+            let _ = std::fs::write(preferences_dir().join("set-extra.txt"), text);
         }
         None => {
-            let _ = std::fs::remove_file(data_dir().join("set-extra.txt"));
+            let _ = std::fs::remove_file(preferences_dir().join("set-extra.txt"));
         }
     }
     let (_, _, _, shoe_lines, shoes) = catalog.item_sheet(6257, "zh-en").expect("zhuge shoes");

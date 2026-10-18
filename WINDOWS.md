@@ -1,4 +1,35 @@
-# Windows build and verification
+# Windows releases, updates, and verification
+
+## Install and update
+
+Download `gs-widget-v1.0.0-windows-x64.zip` (or a newer version) from [GitHub Releases](https://github.com/coreyjj1679/gs-widget/releases/latest). Extract the whole archive into a writable folder such as `%LOCALAPPDATA%\Programs\gs-widget`, then open `gersang-widget.exe`. The ZIP contains the executable, `data/gersang.db`, `data/client-version.txt`, and the bundled `data/client` pictures. GitHub's automatically generated **Source code** ZIP is not the runnable app.
+
+Open **Settings → App / 設定 → 程式** to see the installed app version and check for updates. Choose **Download update / 下載更新** when a newer stable version exists, then **Restart and update / 重新啟動並更新** when it is ready. Browsing remains available during checks and downloads. A restart always requires that final button press. The updater checks the Release asset's SHA-256 digest returned by GitHub over HTTPS before accepting the ZIP; it does not require Git or Rust on the user's computer.
+
+Favourites, aliases and preferences live under `%LOCALAPPDATA%\gs-widget`, outside the installed app. An existing installation's settings are migrated from beside the active catalog on first launch; existing destination files take precedence and source files are retained. Do not delete the old `data` folder until you have launched the new app and checked your settings. Close the app before copying the profile folder as a backup. The app and game catalog have separate version numbers.
+
+Use a normal writable folder rather than `Program Files` for this portable ZIP. If the app cannot write to its installation directory, the update reports an error; move the extracted app to a writable folder and retry. A GitHub/network error leaves the current installation usable. The app has no GitHub token embedded; a public repository and publicly downloadable Release assets are required for the update check.
+
+The updater temporarily keeps the previous executable and catalog assets in `.gs-widget-update-<id>/backup` beneath the installation directory. File replacement failures trigger rollback. If rollback cannot finish (for example, another process still locks a file), the error reports the recovery directory. Preserve a copy of that directory, close every running app copy, and follow `RECOVERY.txt`: actual files present in `backup` take precedence over `journal.json`, which can be one move behind after an interruption. Restore only those backed-up program/catalog units; do not delete an installed unit just because its backup is absent. Replace `data/client` as a whole when restoring it, but never replace the entire `data` folder or `%LOCALAPPDATA%\gs-widget`. Keep recovery files until the app is working again.
+
+## Publish a version
+
+The workflow is `.github/workflows/windows.yml`. A branch push, pull request, or **Run workflow** builds and tests Windows x64, creates the ZIP, checks its contents and PE imports, runs the extracted app's headless installation check, and stores a `windows-x64` Actions artifact for 14 days. Only a **push of a `v*` tag** publishes a GitHub Release. A manual run never publishes.
+
+For the first release, ensure the reviewed implementation is committed on `feat/full-mode`, `widget/Cargo.toml` contains `version = "1.0.0"`, and `widget/Cargo.lock` contains the matching package version. Push the branch and wait for the Windows workflow to pass, then tag that same tested commit:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+For `v1.1.0`, update `widget/Cargo.toml` to `1.1.0`, refresh and commit `widget/Cargo.lock` with the change, push the branch, wait for CI, then tag the tested commit as `v1.1.0`. Use all three version components: `v1.1.0`, not `v1.1`. Tag/version mismatches and prerelease versions fail validation.
+
+The workflow uses Rust **1.92.0**, `--locked`, the MSVC x64 target and a static C runtime. Python **3.12** performs packaging and publication. The ZIP is named `gs-widget-v<version>-windows-x64.zip`; an explicit file allowlist prevents personal preferences, aliases, source code, caches and game notice files from being included. The tests skip only the existing optional `battle_frames_skip_blanks_and_reuse_the_decoded_frame` test, which needs an unbundled game sprite.
+
+The release job uses GitHub Actions' built-in token with `contents: write`; no PAT or extra signing secret is needed. The Release title is exactly the tag and its description is empty (`generate_release_notes: false`). It creates a draft, uploads the ZIP, checks GitHub's SHA-256 asset digest against the local archive, and only then publishes. Existing releases are never overwritten. If a job fails after creating a draft, inspect that draft and the failed run, delete the incomplete draft if appropriate, and rerun the job. Do not replace an already published version's assets; publish a new patch version instead. GitHub's API digest verifies the downloaded bytes; the EXE is not Authenticode-signed.
+
+Relevant API contracts: [creating and updating Releases](https://docs.github.com/en/rest/releases/releases), [Release asset metadata and digests](https://docs.github.com/en/rest/releases/assets), and [Rust static C runtimes](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes).
 
 ## Build
 
@@ -9,24 +40,45 @@ In PowerShell, from the repository root:
 ```powershell
 rustc --version
 rustup show active-toolchain
-cargo build --locked --release --manifest-path widget/Cargo.toml
-.\widget\target\release\gersang-widget.exe
+cargo build --locked --release --manifest-path widget/Cargo.toml --target x86_64-pc-windows-msvc
+.\widget\target\x86_64-pc-windows-msvc\release\gersang-widget.exe
 ```
 
-The normal Windows Rust installation uses the MSVC toolchain. If a custom toolchain is active, use the matching MSVC toolchain already installed on that Windows machine. The build embeds the existing `ui/app.ico` through `winresource`; it does not require a separate packaging script.
+The normal Windows Rust installation uses the MSVC toolchain. If a custom toolchain is active, use the matching MSVC toolchain already installed on that Windows machine. The build embeds the existing `ui/app.ico` through `winresource`. The repository's `.cargo/config.toml` enables the static C runtime for this target, and the packager rejects a binary that still imports the Visual C++ runtime DLLs.
 
 For automated checks:
 
 ```powershell
-cargo test --locked --manifest-path widget/Cargo.toml window::tests
-cargo test --locked --manifest-path widget/Cargo.toml
+cargo test --locked --manifest-path widget/Cargo.toml --target x86_64-pc-windows-msvc window::tests
+cargo test --locked --manifest-path widget/Cargo.toml --target x86_64-pc-windows-msvc
 ```
 
 `battle_frames_skip_blanks_and_reuse_the_decoded_frame` requires the optional M96 battle sprite. If those game assets are absent, run the remaining suite explicitly:
 
 ```powershell
-cargo test --locked --manifest-path widget/Cargo.toml -- --skip battle_frames_skip_blanks_and_reuse_the_decoded_frame
+cargo test --locked --manifest-path widget/Cargo.toml --target x86_64-pc-windows-msvc -- --skip battle_frames_skip_blanks_and_reuse_the_decoded_frame
 ```
+
+To package locally, install Python 3.11 or newer, then run from the repository root after the release build:
+
+```powershell
+python -m unittest discover -s scripts/tests -v
+python scripts/package_windows.py --expected-tag v1.0.0
+```
+
+The resulting ZIP is in `dist`. For a non-publishing smoke test, extract it to a temporary directory, set `LOCALAPPDATA` to a separate temporary profile, and run its EXE with `--check-installation` from a different working directory. This checks the packaged catalog and assets without creating a GUI. The automated workflow does this with `Start-Process` and checks the exit code.
+
+## Update acceptance test: v1.0.0 → v1.1.0
+
+Use a Windows x64 test account or VM with a backed-up profile. Successful local or hosted compilation does not replace this runtime test.
+
+1. Download the published `v1.0.0` ZIP, extract it to a folder whose name contains a space, and launch it without any development tools installed. Confirm Chinese and English content and pictures load.
+2. Save several monsters, create an alias, switch language and shortcut/pin settings, move and resize the window, then close and reopen it. Confirm those choices are saved under `%LOCALAPPDATA%\gs-widget`.
+3. Publish `v1.1.0` using the same workflow. In the installed **v1.0.0** app, check for updates, download it, and continue browsing. Confirm the downloaded version is `1.1.0` and the app does not restart before you press the restart button.
+4. Restart and update. Verify the reopened app shows `1.1.0`, the catalog and pictures load, and all favourites, aliases, language, shortcuts, pin mode, window position and view preferences remain. Restart once more and check again.
+5. Test a disconnected network during check/download and retry after reconnecting. The current app must remain usable; no partial download should become installable. A missing/invalid digest or malformed package must fail before replacing the installation (covered by automated tests as well).
+6. In a disposable test install, prevent a file replacement with a second process holding a catalog or EXE open, then attempt the update. Confirm the helper reports failure and the old version and profile remain available. Release the lock, reopen the app and retry. Never perform deliberate corruption or lock tests on a profile without a backup.
+7. For migration, prepare an older install with favourites, aliases and settings beside `data/gersang.db`, and use a fresh temporary `LOCALAPPDATA`. Launch the new app against that catalog once. Confirm migrated values, unchanged old files, and that a second launch does not overwrite newly changed profile values. Also confirm an existing destination profile takes precedence.
 
 ## Verification status
 
@@ -40,7 +92,7 @@ No additional DPI manifest or window subclass was added: the installed Slint 1.1
 
 2. **Size and scaling.** Check full mode at 1280 × 800 and 960 × 640 logical pixels. Resize below 960 logical pixels wide or 640 high: existing behavior switches back to widget mode. Check 100%, 150%, and 200% display scaling where available. Text, rows, drop icons, and hover targets should remain aligned. A display whose usable area is smaller than the full-mode minimum cannot contain that minimum size.
 
-3. **Multiple monitors.** Put a secondary monitor to the left or above the primary display in Windows display settings. Move the app there, resize it, close it, and reopen it in both widget and full modes. It should restore on that display, including negative desktop coordinates. Repeat with different scaling on the two displays. Expand near a screen edge and confirm the title controls remain reachable and the taskbar is excluded. Disconnect the saved monitor and reopen: the window should move into the nearest available work area. Windows geometry is stored in `data/window.txt` beside the active database.
+3. **Multiple monitors.** Put a secondary monitor to the left or above the primary display in Windows display settings. Move the app there, resize it, close it, and reopen it in both widget and full modes. It should restore on that display, including negative desktop coordinates. Repeat with different scaling on the two displays. Expand near a screen edge and confirm the title controls remain reachable and the taskbar is excluded. Disconnect the saved monitor and reopen: the window should move into the nearest available work area. Windows geometry is stored in `%LOCALAPPDATA%\gs-widget\window.txt`.
 
 4. **Window level and hit testing.** In Automatic pin mode, the widget stays above an ordinary application and full mode behaves as a normal window. Verify Always and Never pin settings. Drag by the title area, resize all four edges and corners, and click controls beside those areas. Clicking a drop icon or a window button must not start dragging the window; normal clicks inside the app must not pass through to another application.
 

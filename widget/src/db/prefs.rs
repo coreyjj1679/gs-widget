@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use super::paths::data_dir;
+use super::user_data::{preferences_dir, write_preference};
 
 pub fn load_favourites() -> HashSet<String> {
     std::fs::read_to_string(favourites_file())
@@ -16,11 +16,11 @@ pub fn load_favourites() -> HashSet<String> {
 pub fn save_favourites(codes: &HashSet<String>) {
     let mut lines: Vec<&str> = codes.iter().map(String::as_str).collect();
     lines.sort_unstable();
-    let _ = std::fs::write(favourites_file(), lines.join("\n"));
+    write_preference(favourites_file(), lines.join("\n"));
 }
 
 pub(in crate::db) fn favourites_file() -> PathBuf {
-    data_dir().join("favourites.txt")
+    preferences_dir().join("favourites.txt")
 }
 
 pub fn load_lang() -> String {
@@ -33,12 +33,12 @@ pub fn load_lang() -> String {
 
 pub fn save_lang(lang: &str) {
     if matches!(lang, "zh-en" | "en-zh") {
-        let _ = std::fs::write(lang_file(), lang);
+        write_preference(lang_file(), lang);
     }
 }
 
 pub(in crate::db) fn set_extra_file() -> PathBuf {
-    data_dir().join("set-extra.txt")
+    preferences_dir().join("set-extra.txt")
 }
 
 pub fn load_set_extra() -> bool {
@@ -48,7 +48,7 @@ pub fn load_set_extra() -> bool {
 }
 
 pub fn save_set_extra(on: bool) {
-    let _ = std::fs::write(set_extra_file(), if on { "1" } else { "0" });
+    write_preference(set_extra_file(), if on { "1" } else { "0" });
 }
 
 pub(in crate::db) fn set_extra_name(name: &str) -> bool {
@@ -67,7 +67,7 @@ pub fn load_opacity() -> f32 {
 
 pub fn save_opacity(value: f32) {
     let percent = (value.clamp(0.25, 1.0) * 100.0).round() as i32;
-    let _ = std::fs::write(opacity_file(), percent.to_string());
+    write_preference(opacity_file(), percent.to_string());
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -87,7 +87,7 @@ impl ViewPref {
 }
 
 pub(in crate::db) fn view_file() -> PathBuf {
-    data_dir().join("view.txt")
+    preferences_dir().join("view.txt")
 }
 
 pub(crate) fn parse_view(text: &str) -> ViewPref {
@@ -137,7 +137,7 @@ pub fn load_view() -> ViewPref {
 }
 
 pub fn save_view(pref: &ViewPref) {
-    let _ = std::fs::write(view_file(), format_view(pref));
+    write_preference(view_file(), format_view(pref));
 }
 
 pub struct DockPref {
@@ -156,7 +156,7 @@ pub fn load_dock() -> DockPref {
         width: 580.0,
         height: 84.0,
     };
-    let text = std::fs::read_to_string(data_dir().join("dock.txt")).unwrap_or_default();
+    let text = std::fs::read_to_string(preferences_dir().join("dock.txt")).unwrap_or_default();
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("v=") {
             pref.vertical = value.trim() == "1";
@@ -193,7 +193,7 @@ pub fn save_dock(pref: &DockPref) {
         pref.width,
         pref.height
     );
-    let _ = std::fs::write(data_dir().join("dock.txt"), text);
+    write_preference(preferences_dir().join("dock.txt"), text);
 }
 
 pub struct HomePref {
@@ -208,7 +208,7 @@ pub fn load_home() -> HomePref {
         size_chosen: false,
         order: [0, 1, 2, 3, 4, 5, 6, 7, 8],
     };
-    let text = std::fs::read_to_string(data_dir().join("home.txt")).unwrap_or_default();
+    let text = std::fs::read_to_string(preferences_dir().join("home.txt")).unwrap_or_default();
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("size=") {
             if let Ok(size) = value.trim().parse::<i32>() {
@@ -230,7 +230,7 @@ pub fn load_home() -> HomePref {
 pub fn save_home(pref: &HomePref) {
     let order = pref.order.iter().map(|n| n.to_string()).collect::<Vec<_>>().join(",");
     let text = format!("size={}\norder={order}\n", pref.size.clamp(0, 2));
-    let _ = std::fs::write(data_dir().join("home.txt"), text);
+    write_preference(preferences_dir().join("home.txt"), text);
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -339,13 +339,13 @@ pub(crate) fn format_window(pref: &WindowPref) -> String {
 
 #[cfg(not(target_os = "macos"))]
 pub fn load_window() -> Option<WindowPref> {
-    let text = std::fs::read_to_string(data_dir().join("window.txt")).ok()?;
+    let text = std::fs::read_to_string(preferences_dir().join("window.txt")).ok()?;
     parse_window(&text)
 }
 
 #[cfg(target_os = "macos")]
 pub fn load_window() -> Option<WindowPref> {
-    let text = std::fs::read_to_string(data_dir().join("window-macos.txt")).ok()?;
+    let text = std::fs::read_to_string(preferences_dir().join("window-macos.txt")).ok()?;
     parse_macos_window(&text, crate::window::position_scale())
 }
 
@@ -377,7 +377,7 @@ pub fn save_window(pref: &WindowPref) {
     if pref.width < 280.0 || pref.height < 360.0 {
         return;
     }
-    let _ = std::fs::write(data_dir().join("window.txt"), format_window(pref));
+    write_preference(preferences_dir().join("window.txt"), format_window(pref));
 }
 
 #[cfg(target_os = "macos")]
@@ -387,7 +387,7 @@ pub fn save_window(pref: &WindowPref) {
     }
     let mut text = format_window(pref);
     text.push_str(&format!("scale={}\n", crate::window::position_scale()));
-    let _ = std::fs::write(data_dir().join("window-macos.txt"), text);
+    write_preference(preferences_dir().join("window-macos.txt"), text);
 }
 
 pub fn save_mode(full: bool, full_pos: Option<(i32, i32)>) {
@@ -433,11 +433,11 @@ pub(in crate::db) fn permutation(nums: &[i32]) -> Option<[i32; 9]> {
 }
 
 pub(in crate::db) fn lang_file() -> PathBuf {
-    data_dir().join("ui-lang.txt")
+    preferences_dir().join("ui-lang.txt")
 }
 
 pub(in crate::db) fn opacity_file() -> PathBuf {
-    data_dir().join("opacity.txt")
+    preferences_dir().join("opacity.txt")
 }
 
 #[cfg(test)]

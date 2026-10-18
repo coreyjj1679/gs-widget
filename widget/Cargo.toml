@@ -1,6 +1,6 @@
 [package]
 name = "gersang-widget"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.92"
 description = "Small dark Gersang reference widget"
@@ -10,6 +10,12 @@ slint = "1.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
 flate2 = "1"
 unicode-normalization = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+semver = "1"
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 global-hotkey = "0.8"

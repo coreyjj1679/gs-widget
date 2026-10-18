@@ -4,24 +4,30 @@ A bilingual item and monster reference for Windows and macOS. You do not need th
 
 The catalog is `data/gersang.db`. Pictures are in `data/client`.
 
-## Windows
+## Download for Windows
 
-Install:
+1. Open [Releases](https://github.com/coreyjj1679/gs-widget/releases/latest) and download **`gs-widget-v1.0.0-windows-x64.zip`** (or the newer version's ZIP).
+2. Extract the entire ZIP to a writable folder, such as `%LOCALAPPDATA%\Programs\gs-widget`. Keep `gersang-widget.exe` and `data` together.
+3. Open `gersang-widget.exe`. Windows users do not need Git, Rust, Visual Studio, or the game installed. Use the compiled `gs-widget-…-windows-x64.zip` asset; GitHub's **Source code** downloads are for developers.
 
-1. [Git](https://git-scm.com/download/win)
-2. [Rust](https://rustup.rs), version **1.92 or newer**. Open a new terminal and check with `rustc --version`. If it is older, run `rustup update stable`.
-3. [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/), with the **Desktop development with C++** workload. Rust needs that linker, and the build also needs `rc.exe` from the Windows SDK.
+For the next version, open **Settings → App / 設定 → 程式**, choose **Check for updates / 檢查更新**, then **Download update / 下載更新**. Once the download is verified, choose **Restart and update / 重新啟動並更新**. The app restarts into the new version; downloads do not interrupt browsing or restart the app automatically. Updates currently support the Windows x64 release.
 
-Clone, build, and open:
+Favourites, aliases, language, shortcuts, and window settings are stored in `%LOCALAPPDATA%\gs-widget`, separately from the app's replaceable catalog and pictures. The first launch migrates settings found beside the old catalog without deleting the original files or replacing existing settings. Keep the old `data` folder in place for that first launch. To back up your personal data, copy `%LOCALAPPDATA%\gs-widget` while the app is closed.
 
-```
+See [WINDOWS.md](WINDOWS.md) for Windows build, release, update, and runtime verification instructions.
+
+## Build from source
+
+Windows developers need [Git](https://git-scm.com/download/win), [Rust](https://rustup.rs) **1.92 or newer**, and [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++** and the Windows SDK (`rc.exe`). From PowerShell:
+
+```powershell
 git clone https://github.com/coreyjj1679/gs-widget.git
-cd gs-widget\widget
-cargo build --locked --release
-target\release\gersang-widget.exe
+cd gs-widget
+cargo build --locked --release --manifest-path widget/Cargo.toml --target x86_64-pc-windows-msvc
+.\widget\target\x86_64-pc-windows-msvc\release\gersang-widget.exe
 ```
 
-See [WINDOWS.md](WINDOWS.md) for the Windows build and display, hotkey, clipboard, and tooltip checks.
+For maintainers, pushing a stable version tag such as `v1.0.0` runs the Windows GitHub Actions build, tests and ZIP packaging, then creates a Release titled `v1.0.0` with an empty description. The tag must match `widget/Cargo.toml`; the process does not generate patch notes. Ordinary branch pushes, pull requests, and manual workflow runs build an artifact without publishing a Release.
 
 ## macOS
 
@@ -45,8 +51,8 @@ Use **Widget / 小窗** for the compact interface, or **–** for the floating c
 
 ## Data
 
-The first build downloads dependencies and can take a few minutes. Keep the repository's `data` folder in place: the program searches upward from the current directory and executable for `data/gersang.db` or `gersang.db`. You can also set `GERSANG_DB` to the catalog file's path. Preferences are saved beside that database.
+The first source build downloads dependencies and can take a few minutes. Keep the repository's `data` folder in place: the program locates the catalog from the executable or working directory. You can also set `GERSANG_DB` to the catalog file's path. Windows preferences are stored under `%LOCALAPPDATA%\gs-widget`; macOS preferences remain beside the active database.
 
-Window positions are saved separately in `window.txt` on Windows and `window-macos.txt` on macOS, so Retina scaling does not affect the Windows layout.
+Window positions are saved separately in `window.txt` on Windows and `window-macos.txt` on macOS, so Retina scaling does not affect the Windows layout. The app version (for example `1.0.0`) is separate from the catalog's game data version (for example `V3.4220`).
 
-The bundled pictures work without the game. Optional battle animations need additional client assets; set `GERSANG_CLIENT` to the client root or put that path in `data/client.txt`, as on Windows.
+The bundled pictures work without the game. Optional battle animations need additional client assets; set `GERSANG_CLIENT` to the client root or put that path in `%LOCALAPPDATA%\gs-widget\client.txt` on Windows, or `client.txt` beside the active database on macOS.

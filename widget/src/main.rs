@@ -7,6 +7,8 @@ mod hotkey;
 mod icons;
 mod list;
 mod sheet;
+mod update;
+mod update_ui;
 mod window;
 
 use std::cell::{Cell, RefCell};
@@ -225,22 +227,66 @@ fn edit_view(change: impl FnOnce(&mut db::ViewPref)) {
     db::save_view(&view);
 }
 
+/// Headless preflight used by release CI and the update helper. Always inspect
+/// the bundle beside this executable, without migrating or writing preferences.
+fn check_installation() -> Result<(), String> {
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    let root = executable.parent().ok_or("Missing installation directory")?;
+    for relative in ["data/gersang.db", "data/client-version.txt", "data/client/Assets/Textures/UI/Portraits/PORTRAIT_INVEN.AGF"] {
+        if !root.join(relative).is_file() {
+            return Err(format!("Missing packaged file: {relative}"));
+        }
+    }
+    let conn = rusqlite::Connection::open_with_flags(
+        root.join("data/gersang.db"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    ).map_err(|error| error.to_string())?;
+    let integrity: String = conn.query_row("PRAGMA quick_check", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if integrity != "ok" { return Err(format!("Catalog integrity check failed: {integrity}")); }
+    for table in ["items", "monsters", "sources"] {
+        let count: i64 = conn.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        if count == 0 { return Err(format!("Empty catalog table: {table}")); }
+    }
+    Ok(())
+}
+
 fn main() {
-    let catalog = match db::Catalog::open() {
+    if update::run_helper_if_requested() {
+        return;
+    }
+    if std::env::args().any(|arg| arg == "--check-installation") {
+        match check_installation() {
+            Ok(()) => println!("Gersang {}: installation OK", env!("CARGO_PKG_VERSION")),
+            Err(message) => {
+                eprintln!("Installation check failed: {message}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+    // Hold a shared installation lock until this process exits. The helper
+    // obtains it exclusively before replacing files, including when another
+    // copy of this portable app is still open.
+    let running_guard = update::running_guard();
+    let initialization = match &running_guard {
+        Ok(_) => db::initialize_user_data().and_then(|()| db::Catalog::open()),
+        Err(message) => Err(message.clone()),
+    };
+    let catalog = match initialization {
         Ok(catalog) => Rc::new(catalog),
         Err(message) => {
             eprintln!("{message}");
-            let app = App::new().expect("視窗建立失敗");
-            app.on_open_source(window::open_source_repository);
-            #[cfg(target_os = "macos")]
-            app.set_ui_font("PingFang TC".into());
-            app.set_detail(message.into());
+            let app = StartupError::new().expect("視窗建立失敗");
+            app.set_message(message.into());
+            app.on_dismiss(|| { let _ = slint::quit_event_loop(); });
             app.run().expect("視窗執行失敗");
             return;
         }
     };
 
     let app = App::new().expect("視窗建立失敗");
+    let _update_ui = update_ui::install(&app);
     app.on_open_source(window::open_source_repository);
     #[cfg(target_os = "macos")]
     app.set_ui_font("PingFang TC".into());
@@ -518,6 +564,24 @@ fn main() {
         if !query.is_empty() {
             publish(&app, &alias_catalog, &alias_session, &alias_favs.borrow(), &app.get_category(), &query);
         }
+    });
+
+    let update_aliases = Rc::clone(&alias_rows);
+    let update_app = app.as_weak();
+    app.on_prepare_update(move || {
+        // A restart must not silently discard an alias editor draft. Keep the
+        // ready download and let the user resolve the draft in its normal UI.
+        if *update_aliases.borrow() != db::alias_rows() {
+            if let Some(app) = update_app.upgrade() {
+                app.set_update_error(if app.get_lang() == "en-zh" {
+                    "You have unsaved aliases. Save or cancel them in the Aliases tab before restarting."
+                } else {
+                    "別名有未儲存的修改。請先到「別名」儲存或取消，再重新啟動更新。"
+                }.into());
+            }
+            return false;
+        }
+        true
     });
 
     let search_app = app.as_weak();

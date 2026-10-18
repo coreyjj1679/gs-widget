@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use super::paths::data_dir;
+use super::user_data::{preferences_dir, write_default_preference, write_preference};
 
 pub(in crate::db) const SET_NICKS: &[(&str, &str, &str)] = &[
     ("龜天", "多聞天王", "다문천왕"),
@@ -36,14 +36,17 @@ pub(in crate::db) fn set_query(query: &str) -> Option<(&'static str, &'static st
 pub(in crate::db) const DEFAULT_ALIAS_LINE: &str = "SSA 6213 6214 6215 6216 6943";
 
 pub fn alias_editor_text() -> String {
-    alias_editor_text_in(&data_dir())
+    alias_editor_text_in(&preferences_dir())
 }
 
 pub(in crate::db) fn alias_editor_text_in(dir: &Path) -> String {
     let path = dir.join("aliases.txt");
     if !path.is_file() {
-        let _ = std::fs::write(&path, format!("# 一行一個簡稱，後面寫道具編號。\n{DEFAULT_ALIAS_LINE}\n"));
-        return DEFAULT_ALIAS_LINE.to_string();
+        write_default_preference(&path, format!("# 一行一個簡稱，後面寫道具編號。\n{DEFAULT_ALIAS_LINE}\n").as_bytes());
+        // If another instance created this file concurrently, load its values.
+        return std::fs::read_to_string(&path)
+            .map(|text| alias_entry_text(&text))
+            .unwrap_or_else(|_| DEFAULT_ALIAS_LINE.to_string());
     }
     alias_entry_text(&std::fs::read_to_string(&path).unwrap_or_default())
 }
@@ -125,8 +128,8 @@ pub(in crate::db) fn alias_entry_text(raw: &str) -> String {
 
 pub fn save_alias_text(text: &str) {
     let body = text.replace('\r', "").trim().to_string();
-    let _ = std::fs::write(
-        data_dir().join("aliases.txt"),
+    write_preference(
+        preferences_dir().join("aliases.txt"),
         format!("# 一行一個簡稱，後面寫道具編號。\n{body}\n"),
     );
 }
