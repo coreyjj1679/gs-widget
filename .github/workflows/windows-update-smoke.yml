@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: windows-dummy-update-${{ github.ref }}
@@ -30,6 +31,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
@@ -76,7 +78,35 @@ jobs:
             $probe.Dispose()
             Get-Content -LiteralPath "$probeRoot/stdout.log", "$probeRoot/stderr.log"
           }
+      - name: Reuse the verified dummy build only while application source is identical
+        id: reuse
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # A pinned, test-only artifact from our completed build job. Expiry or
+          # any app/data/packager change falls back to a fresh build below.
+          $reuse = $false
+          git diff --quiet 9dff494e69168033a3319410016efdc109f9c8e1 HEAD -- widget .cargo data scripts/package_windows.py
+          if ($LASTEXITCODE -eq 0) {
+            try {
+              $artifact = Invoke-RestMethod -Uri "https://api.github.com/repos/coreyjj1679/gs-widget/actions/artifacts/12131981705" -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
+              $reuse = -not $artifact.expired -and $artifact.workflow_run.head_sha -eq "9dff494e69168033a3319410016efdc109f9c8e1" -and $artifact.digest -eq "sha256:fdf028594006526dc33042380892677f914b7c4eb12d695ba6e344960a632f55"
+            }
+            catch { Write-Output "Saved test artifact is unavailable; building a fresh candidate." }
+          }
+          "reuse=$($reuse.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Output "Reuse the pinned, source-identical dummy build: $reuse"
+          exit 0
+      - name: Retrieve the verified test-only candidate
+        if: steps.reuse.outputs.reuse == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-dummy-v1.0.1-test-only-do-not-release
+          run-id: 39113361544
+          github-token: ${{ github.token }}
+          path: dist
       - name: Set a dummy version only inside this disposable checkout
+        if: steps.reuse.outputs.reuse != 'true'
         run: |
           @'
           import re
@@ -97,12 +127,16 @@ jobs:
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install pinned Rust toolchain
+        if: steps.reuse.outputs.reuse != 'true'
         run: rustup toolchain install $env:RUST_TOOLCHAIN --profile minimal --target $env:WINDOWS_TARGET --no-self-update
       - name: Verify release metadata, archive validation, rollback and Windows locking
+        if: steps.reuse.outputs.reuse != 'true'
         run: cargo +$env:RUST_TOOLCHAIN test --release --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET -- --skip battle_frames_skip_blanks_and_reuse_the_decoded_frame
       - name: Build the dummy v1.0.1 Windows app
+        if: steps.reuse.outputs.reuse != 'true'
         run: cargo +$env:RUST_TOOLCHAIN build --release --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET
       - name: Package the dummy candidate without publishing
+        if: steps.reuse.outputs.reuse != 'true'
         run: python scripts/package_windows.py --expected-tag v1.0.1
       # Retain this test-only handoff for one day so rerunning a failed smoke
       # job can reuse the exact build. This asset never becomes a GitHub Release.

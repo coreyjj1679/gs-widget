@@ -94,7 +94,10 @@ def prepare(args) -> None:
         "home.txt": "size=2\norder=8,7,6,5,4,3,2,1,0\n",
         "opacity.txt": "85",
         "set-extra.txt": "1",
-        "window.txt": "size=560,740\npos=32,32\nmode=full\nfull-pos=32,32\nfull-size=960,640\n",
+        # Full mode automatically changes to widget below 960x640. Keep this
+        # updater fixture comfortably in widget mode on a hosted CI desktop,
+        # while retaining non-default remembered full-window geometry as data.
+        "window.txt": "size=560,600\npos=32,32\nmode=widget\nfull-pos=48,48\nfull-size=1120,720\n",
         "window-macos.txt": "preserve cross-platform personal settings\n",
         "client.txt": str(app / "data/client"),
     }
@@ -116,6 +119,7 @@ def prepare(args) -> None:
         "baseline_managed": baseline_manifest,
         "candidate_managed": candidate_manifest,
         "initial_profile": manifest(profile, list(preferences)),
+        "initial_window_text": preferences["window.txt"],
         "unmanaged": manifest(app, unmanaged),
     })
 
@@ -137,13 +141,20 @@ def assert_manifest(root: Path, expected: dict, label: str) -> None:
 def snapshot(args) -> None:
     value = context(args.root)
     profile = args.root / "isolated profile/gs-widget"
+    window = (profile / "window.txt").read_text(encoding="utf-8")
+    # Save diagnostics before assertions so a failed CI run retains the actual
+    # geometry in its JSON evidence, without uploading arbitrary profile files.
+    value["window_before_update"] = window
+    save(args.root / MARKER, value)
+    print("Window after baseline close: " + json.dumps(window, ensure_ascii=False), flush=True)
     # A normal close may normalize window geometry, but all other settings must
     # already match the seeds before we accept them as the upgrade baseline.
     unchanged = {k: v for k, v in value["initial_profile"].items() if k != "window.txt"}
     assert_manifest(profile, unchanged, "Initial personal data")
-    window = (profile / "window.txt").read_text(encoding="utf-8")
-    if "mode=full\n" not in window or "full-size=" not in window:
-        raise AssertionError("Baseline GUI lost its saved full mode/window settings")
+    fields = dict(line.split("=", 1) for line in window.splitlines() if "=" in line)
+    expected = {"mode": "widget", "full-pos": "48,48", "full-size": "1120,720"}
+    if any(fields.get(key) != wanted for key, wanted in expected.items()):
+        raise AssertionError(f"Baseline GUI changed widget mode or remembered full geometry: {window!r}")
     value["profile_before_update"] = manifest(profile, list(value["initial_profile"]))
     save(args.root / MARKER, value)
 
@@ -169,6 +180,10 @@ def stage(args) -> None:
 def verify(args) -> None:
     value = context(args.root)
     app = args.root / "app with spaces"
+    window = (args.root / "isolated profile/gs-widget/window.txt").read_text(encoding="utf-8")
+    value[f"window_after_{args.phase}"] = window
+    save(args.root / MARKER, value)
+    print(f"Window during {args.phase} verification: " + json.dumps(window, ensure_ascii=False), flush=True)
     assert_manifest(args.root / "isolated profile/gs-widget", value["profile_before_update"], "Personal data")
     assert_manifest(app, value["unmanaged"], "Legacy/unrelated installation data")
     expected = value["candidate_managed" if args.phase == "updated" else "baseline_managed"]
