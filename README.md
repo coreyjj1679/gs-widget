@@ -29,7 +29,11 @@ cargo build --locked --release --manifest-path widget/Cargo.toml --target x86_64
 .\widget\target\x86_64-pc-windows-msvc\release\gersang-widget.exe
 ```
 
-For maintainers, first merge and push the release commit to `main`, then push its stable version tag, such as `v1.0.0`. Only version-tag pushes trigger the Windows GitHub Actions workflow. It verifies the tagged commit is already in `origin/main` history, runs the tests and ZIP packaging, then creates a Release titled `v1.0.0` with an empty description. The tag must match `widget/Cargo.toml`; the process does not generate patch notes. Ordinary pushes to `main`, feature or development branches and pull requests do not run this workflow; manual dispatch is disabled.
+For maintainers, write the next version's user-facing changes in [`release-notes.json`](release-notes.json), with paired English (`en`) and Traditional Chinese (`zh-TW`) entries. Put the newest stable version first, use a `YYYY-MM-DD` release date, and group changes under `added`, `improved`, or `fixed`. Each English bullet must have its Chinese counterpart at the same position. Keep earlier entries so the app can show its bundled release history offline. Do not describe unshipped work as part of an older release.
+
+Bump the package version in `widget/Cargo.toml` and its `gersang-widget` entry in `widget/Cargo.lock`, then validate the notes with `python scripts/release_notes.py --version 1.0.2` (substitute the version being released). Add `--render` to preview the exact English GitHub Release description. Merge and push that release commit to `main`, then create and push the matching stable tag, such as `v1.0.2`.
+
+Only version-tag pushes trigger the Windows GitHub Actions workflow. It verifies the tagged commit is already in `origin/main` history, checks that the tag matches the package version and has complete bilingual notes, then runs the tests and ZIP packaging. It creates a draft Release titled with the tag, verifies the uploaded ZIP's digest, and publishes the English notes from the same file embedded in the app. The app's release history follows the player's interface language setting. Commit messages are not used to generate notes, and existing public releases are never overwritten. The original `v1.0.0` and `v1.0.1` GitHub descriptions remain empty. Ordinary pushes to `main`, feature or development branches and pull requests do not run this workflow; manual dispatch is disabled.
 
 ## macOS
 

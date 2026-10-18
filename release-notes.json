@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "releases": [
+    {
+      "version": "1.0.1",
+      "date": "2026-10-18",
+      "sections": [
+        {
+          "kind": "fixed",
+          "en": [
+            "Keep the saved window mode and size when the app starts."
+          ],
+          "zh-TW": [
+            "修正程式啟動時可能未能保留已儲存的視窗模式及大小。"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-10-18",
+      "sections": [
+        {
+          "kind": "added",
+          "en": [
+            "Download a portable Windows x64 ZIP and open the app without installing development tools.",
+            "Check for updates, download a new version, and restart to update inside the app while keeping favourites, aliases, and settings.",
+            "Browse the bundled item and monster catalog and pictures offline."
+          ],
+          "zh-TW": [
+            "提供 Windows x64 免安裝 ZIP，解壓後即可開啟程式，毋須安裝開發工具。",
+            "可在程式內檢查更新、下載新版及重新啟動更新，並保留收藏、別名及設定。",
+            "離線亦可瀏覽隨程式附帶的道具、怪物資料及圖片。"
+          ]
+        }
+      ]
+    }
+  ]
+}

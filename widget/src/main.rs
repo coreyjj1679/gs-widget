@@ -2,6 +2,7 @@
 
 mod agf;
 mod alias_ui;
+mod changelog;
 mod db;
 mod hotkey;
 mod icons;
@@ -286,6 +287,7 @@ fn main() {
     };
 
     let app = App::new().expect("視窗建立失敗");
+    changelog::install(&app);
     let _update_ui = update_ui::install(&app);
     app.on_open_source(window::open_source_repository);
     #[cfg(target_os = "macos")]

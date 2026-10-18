@@ -1,6 +1,117 @@
 import { Palette, LineEdit, TextEdit, Button } from "std-widgets.slint";
 import { DesktopTheme, DesktopNavRow, DesktopEntry, DesktopIcon } from "desktop.slint";
 
+export struct ChangelogItem {
+    text-en: string,
+    text-zh: string,
+}
+
+export struct ChangelogSection {
+    heading-en: string,
+    heading-zh: string,
+    entries: [ChangelogItem],
+}
+
+export struct ChangelogRelease {
+    version: string,
+    date: string,
+    sections: [ChangelogSection],
+}
+
+component ChangelogHistory inherits Rectangle {
+    in property <[ChangelogRelease]> releases;
+    in property <string> installed-version;
+    in property <bool> english;
+    height: history.preferred-height;
+
+    history := VerticalLayout {
+        width: parent.width;
+        spacing: 20px;
+        alignment: start;
+        Rectangle { height: 1px; background: DesktopTheme.border; }
+        VerticalLayout {
+            spacing: 6px;
+            Text {
+                text: root.english ? "Changelog" : "更新日誌";
+                font-size: 18px;
+                font-weight: 600;
+                color: DesktopTheme.text;
+            }
+            Text {
+                text: root.english ? "Release history included with this app. Available offline." : "此版本附帶的更新紀錄，離線也能閱讀。";
+                wrap: word-wrap;
+                font-size: 12px;
+                color: DesktopTheme.secondary;
+            }
+        }
+        if root.releases.length == 0: Text {
+            text: root.english ? "No release notes are included with this version." : "此版本尚未附帶更新日誌。";
+            wrap: word-wrap;
+            font-size: 13px;
+            color: DesktopTheme.secondary;
+        }
+        for release in root.releases: VerticalLayout {
+            spacing: 14px;
+            VerticalLayout {
+                spacing: 5px;
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: start;
+                    Text {
+                        text: "v" + release.version;
+                        font-size: 15px;
+                        font-weight: 600;
+                        color: DesktopTheme.accent;
+                    }
+                    if release.version == root.installed-version: Text {
+                        text: root.english ? "Installed" : "目前版本";
+                        font-size: 12px;
+                        color: DesktopTheme.secondary;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    text: release.date;
+                    font-size: 12px;
+                    color: DesktopTheme.secondary;
+                }
+            }
+            for section in release.sections: VerticalLayout {
+                spacing: 7px;
+                Text {
+                    text: root.english ? section.heading-en : section.heading-zh;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: DesktopTheme.text;
+                    wrap: word-wrap;
+                }
+                for entry in section.entries: HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Rectangle {
+                        width: 4px;
+                        Rectangle {
+                            y: 7px;
+                            width: 3px;
+                            height: 3px;
+                            border-radius: 2px;
+                            background: DesktopTheme.secondary;
+                        }
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        text: root.english ? entry.text-en : entry.text-zh;
+                        font-size: 13px;
+                        color: DesktopTheme.text;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+}
+
 export struct MonsterDrop {
     key: string,
     title: string,
@@ -3589,6 +3700,7 @@ export component App inherits Window {
     in-out property <string> ship: "";
     in-out property <string> client-version: "V3.4220";
     in-out property <string> app-version;
+    in property <[ChangelogRelease]> changelog-releases;
     in-out property <bool> updates-supported: false;
     // idle, checking, current, available, downloading, ready, error, restarting
     in-out property <int> update-state: 0;
@@ -3646,6 +3758,10 @@ export component App inherits Window {
     in-out property <bool> dock-editing: false;
     property <bool> nav-dragging: false;
     in-out property <int> settings-tab: 0;
+    property <length> settings-scroll-y: 0px;
+    property <length> settings-scroll-span: 0px;
+    property <length> settings-page-height: max(root.height - 42px - root.foot - 96px, 0px);
+    changed settings-tab => { root.settings-scroll-y = 0px; }
     in-out property <bool> arranging: false;
     in-out property <int> hotkey-nth: 0;
     property <length> home-pad: 16px;
@@ -4807,6 +4923,12 @@ export component App inherits Window {
             return reject;
         }
         if (root.settings-open) {
+            if (root.settings-tab == 4 && (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.PageUp || event.text == Key.PageDown)) {
+                let step = event.text == Key.PageUp || event.text == Key.PageDown ? max(root.settings-page-height - 32px, 48px) : 48px;
+                let direction = event.text == Key.UpArrow || event.text == Key.PageUp ? 1 : -1;
+                root.settings-scroll-y = max(-root.settings-scroll-span, min(0px, root.settings-scroll-y + direction * step));
+                return accept;
+            }
             if (event.text == Key.Tab || event.text == Key.Backtab) {
                 root.cycle-settings(event.text == Key.Tab ? 1 : -1);
                 return accept;
@@ -7841,6 +7963,9 @@ export component App inherits Window {
                 visible: root.settings-tab != 1;
                 content-width: settings-body.width;
                 content-height: settings-body.height;
+                content-y <=> root.settings-scroll-y;
+                changed content-height => { root.settings-scroll-span = max(self.content-height - self.height, 0px); }
+                changed height => { root.settings-scroll-span = max(self.content-height - self.height, 0px); }
                 settings-body := Rectangle {
                     width: root.full-mode ? min(parent.width - 16px, 688px) : parent.width;
                     height: inner.preferred-height;
@@ -7898,6 +8023,11 @@ export component App inherits Window {
                     font-size: 12px;
                     color: DesktopTheme.secondary;
                     wrap: word-wrap;
+                }
+                if root.settings-tab == 4: ChangelogHistory {
+                    releases: root.changelog-releases;
+                    installed-version: root.app-version;
+                    english: root.lang == "en-zh";
                 }
                 if root.full-mode && root.settings-tab == 0: FormBlock {
                     title: root.lang == "en-zh" ? "Window" : "視窗";
