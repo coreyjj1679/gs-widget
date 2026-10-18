@@ -36,6 +36,7 @@ jobs:
           Expand-Archive -LiteralPath $archive -DestinationPath "$root/app with spaces"
           $utf8 = [System.Text.UTF8Encoding]::new($false)
           [System.IO.File]::WriteAllText("$root/profile/gs-widget/ui-lang.txt", "en-zh", $utf8)
+          [System.IO.File]::WriteAllText("$root/profile/gs-widget/opacity.txt", "100", $utf8)
           [System.IO.File]::WriteAllText("$root/profile/gs-widget/view.txt", "pin=off`nbattle=0`ngallery=1`nanimate=0`nhotkeys=0`nlegacy=0`n", $utf8)
           [System.IO.File]::WriteAllText("$root/profile/gs-widget/window.txt", "size=560,600`npos=32,32`nmode=widget`nfull-pos=48,48`nfull-size=1120,720`n", $utf8)
           $env:LOCALAPPDATA = "$root/profile"
@@ -48,6 +49,14 @@ jobs:
             Wait-Gui -AppProcess $app
             Assert-GuiResponsive -AppProcess $app -Seconds 3
             ./scripts/windows_update_ui.ps1 -Mode Inspect -ProcessId $app.Id -OutputDirectory "$root/01-initial"
+            $settingsAction = ./scripts/windows_update_ui.ps1 -Mode Act -ProcessId $app.Id -OutputDirectory "$root/02-settings" -ButtonName "設定 / Settings" | ConvertFrom-Json
+            $action = Get-Content -LiteralPath $settingsAction.actionJson -Raw | ConvertFrom-Json
+            $tree = Get-Content -LiteralPath $action.afterJson -Raw | ConvertFrom-Json
+            $appTab = @($tree.nodes | Where-Object { $_.name -ceq "App" -and $_.controlType -eq "ControlType.Button" -and $_.enabled -and -not $_.offscreen })
+            if ($appTab.Count -ne 1) { throw "Expected one observed App settings tab" }
+            ./scripts/windows_update_ui.ps1 -Mode Act -ProcessId $app.Id -OutputDirectory "$root/03-app-settings" -ButtonName $appTab[0].name
+            Assert-GuiResponsive -AppProcess $app -Seconds 3
+            ./scripts/windows_update_ui.ps1 -Mode Inspect -ProcessId $app.Id -OutputDirectory "$root/04-update-status"
             Close-Gui -AppProcess $app
           }
           finally {
