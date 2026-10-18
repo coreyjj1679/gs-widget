@@ -11,6 +11,12 @@ export struct CalcChoice {
     has-icon: bool,
 }
 
+export struct CalcNestedOption {
+    id: string,
+    title: string,
+    subtitle: string,
+}
+
 export struct CalcMaterial {
     key: string,
     title: string,
@@ -19,6 +25,11 @@ export struct CalcMaterial {
     price: string,
     subtotal: string,
     missing-price: bool,
+    depth: int,
+    nested: bool,
+    can-expand: bool,
+    can-reuse: bool,
+    detail: string,
     icon: image,
     has-icon: bool,
 }
@@ -219,6 +230,211 @@ component CalcItemPicker inherits Rectangle {
     }
 }
 
+// Quiet text actions keep the material name and numeric columns prominent.
+component CalcAction inherits Rectangle {
+    in property <string> label;
+    in property <string> description;
+    in property <bool> enabled: true;
+    callback activated();
+    height: 28px;
+    min-width: 0px;
+    preferred-width: action-label.preferred-width + 16px;
+    horizontal-stretch: 0;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: action-focus.has-focus ? DesktopTheme.accent : transparent;
+    background: action-touch.has-hover && root.enabled ? DesktopTheme.hover : transparent;
+    opacity: root.enabled ? 1 : 0.5;
+    forward-focus: action-focus;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-description: root.description;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.activated(); } }
+    public function focus-action() { action-focus.focus(); }
+    action-label := Text {
+        x: 8px; width: parent.width - 16px; height: 100%;
+        text: root.label;
+        font-size: 12px; color: DesktopTheme.accent;
+        vertical-alignment: center;
+    }
+    action-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { action-focus.focus(); root.activated(); }
+    }
+    action-focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.activated(); return accept;
+            }
+            return reject;
+        }
+    }
+}
+
+// A bounded choice list for explicit recipe / saved-sheet selection, without
+// borrowing the main item search or silently picking the first available recipe.
+component CalcNestedPicker inherits Rectangle {
+    in property <bool> english;
+    in property <string> label;
+    in property <string> description;
+    in property <string> heading;
+    in property <bool> enabled: true;
+    in property <[CalcNestedOption]> options;
+    in property <length> popup-width: 420px;
+    callback request();
+    callback choose(string);
+    property <int> option-index: 0;
+    property <length> scroll-y: 0px;
+    height: 28px;
+    min-width: 0px;
+    preferred-width: action.preferred-width;
+    horizontal-stretch: 0;
+    forward-focus: action;
+    function choose-current() {
+        if (root.option-index >= 0 && root.option-index < root.options.length) {
+            root.choose(root.options[root.option-index].id);
+            popup.close();
+            action.focus-action();
+        }
+    }
+    action := CalcAction {
+        width: 100%;
+        label: root.label;
+        description: root.description;
+        enabled: root.enabled;
+        activated => {
+            root.option-index = 0;
+            root.request();
+            root.scroll-y = 0px;
+            popup.show();
+        }
+    }
+    popup := PopupWindow {
+        x: 0px; y: root.height + 4px;
+        width: max(280px, min(460px, root.popup-width));
+        height: 48px + min(max(root.options.length, 1), 4) * 84px;
+        close-policy: close-on-click-outside;
+        forward-focus: popup-focus;
+        Rectangle {
+            background: DesktopTheme.surface-alt;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: DesktopTheme.border;
+            Text {
+                x: 12px; y: 10px; width: parent.width - 24px; height: 24px;
+                text: root.heading;
+                font-size: 13px; font-weight: 600; color: DesktopTheme.text;
+                vertical-alignment: center;
+            }
+            choices := Flickable {
+                x: 4px; y: 40px; width: parent.width - 8px; height: parent.height - 48px;
+                content-width: self.width;
+                content-y <=> root.scroll-y;
+                content-height: max(root.options.length * 84px, self.height);
+                for option[i] in root.options: Rectangle {
+                    x: 0px; y: i * 84px; width: parent.width; height: 84px;
+                    border-radius: 4px;
+                    background: option-touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
+                    accessible-role: button;
+                    accessible-label: option.title;
+                    accessible-description: option.subtitle;
+                    accessible-item-selectable: true;
+                    accessible-item-selected: root.option-index == i;
+                    accessible-action-default => { root.choose(option.id); popup.close(); action.focus-action(); }
+                    Text {
+                        x: 10px; y: 7px; width: parent.width - 20px; height: 36px;
+                        text: option.title; font-size: 14px; color: DesktopTheme.text;
+                        wrap: word-wrap; overflow: elide; vertical-alignment: center;
+                    }
+                    Text {
+                        x: 10px; y: 45px; width: parent.width - 20px; height: 32px;
+                        text: option.subtitle; font-size: 12px; color: DesktopTheme.secondary;
+                        wrap: word-wrap; overflow: elide;
+                    }
+                    option-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.choose(option.id); popup.close(); action.focus-action(); }
+                    }
+                }
+                if root.options.length == 0: Text {
+                    x: 10px; width: parent.width - 20px; height: 84px;
+                    text: root.english ? "No available choices for this material." : "這項材料目前沒有可用的選項。";
+                    font-size: 13px; color: DesktopTheme.secondary;
+                    wrap: word-wrap; vertical-alignment: center;
+                }
+            }
+            popup-focus := FocusScope {
+                key-pressed(event) => {
+                    if (event.text == Key.Escape) { popup.close(); action.focus-action(); return accept; }
+                    if (event.text == Key.Return || event.text == Key.Space) { root.choose-current(); return accept; }
+                    if (event.text == Key.DownArrow || event.text == Key.UpArrow || event.text == Key.Home || event.text == Key.End) {
+                        root.option-index = event.text == Key.Home ? 0 : event.text == Key.End ? root.options.length - 1 : max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
+                        if (root.option-index * 84px < -choices.content-y) {
+                            choices.content-y = -root.option-index * 84px;
+                        } else if ((root.option-index + 1) * 84px > -choices.content-y + choices.height) {
+                            choices.content-y = choices.height - (root.option-index + 1) * 84px;
+                        }
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+        }
+    }
+}
+
+component CalcMaterialActions inherits Rectangle {
+    in property <bool> english;
+    in property <bool> enabled;
+    in property <bool> nested;
+    in property <bool> can-expand;
+    in property <bool> can-reuse;
+    in property <string> material-name;
+    in property <[CalcNestedOption]> options;
+    in property <length> popup-width;
+    callback request(bool);
+    callback choose(string);
+    callback clear();
+    property <bool> stacked: root.width < 225px;
+    height: (root.stacked ? (root.can-expand ? 28px : 0px) + (root.can-reuse ? 28px : 0px) : (root.can-expand || root.can-reuse ? 28px : 0px)) + (root.nested ? 28px : 0px);
+    if root.can-expand: CalcNestedPicker {
+        x: 0px; y: 0px;
+        width: root.stacked ? parent.width : min(self.preferred-width, parent.width);
+        english: root.english;
+        label: root.nested ? (root.english ? "Change recipe" : "更換配方") : (root.english ? "Expand recipe" : "展開配方");
+        description: root.material-name + (root.english ? ": calculate from sub-material prices" : "：依子材料價格計算");
+        heading: root.english ? "Choose a recipe" : "選擇子材料配方";
+        enabled: root.enabled;
+        options: root.options; popup-width: root.popup-width;
+        request => { root.request(false); }
+        choose(id) => { root.choose(id); }
+    }
+    if root.can-reuse: CalcNestedPicker {
+        x: root.stacked || !root.can-expand ? 0px : 116px;
+        y: root.stacked && root.can-expand ? 28px : 0px;
+        width: root.stacked ? parent.width : min(self.preferred-width, parent.width - self.x);
+        english: root.english;
+        label: root.english ? "Reuse saved" : "重用收藏";
+        description: root.material-name + (root.english ? ": copy and expand a saved cost sheet" : "：複製並展開已收藏的成本表");
+        heading: root.english ? "Choose a saved sheet" : "選擇已收藏的成本表";
+        enabled: root.enabled;
+        options: root.options; popup-width: root.popup-width;
+        request => { root.request(true); }
+        choose(id) => { root.choose(id); }
+    }
+    if root.nested: CalcAction {
+        x: 0px; y: parent.height - 28px;
+        width: min(self.preferred-width, parent.width);
+        label: root.english ? "Use unit price" : "改用單價";
+        description: root.material-name + (root.english ? ": stop using sub-material costs" : "：停止使用子材料成本，改為直接輸入單價");
+        enabled: root.enabled;
+        activated => { root.clear(); }
+    }
+}
+
 export component CalculatorPane inherits Rectangle {
     in property <bool> english;
     in property <string> selected-name;
@@ -230,6 +446,8 @@ export component CalculatorPane inherits Rectangle {
     in-out property <int> recipe-index;
     in property <string> quantity;
     in property <[CalcMaterial]> materials;
+    in property <[CalcNestedOption]> nested-options;
+    in property <bool> has-nested;
     in property <string> material-total;
     in property <string> fee;
     in property <string> total;
@@ -264,6 +482,9 @@ export component CalculatorPane inherits Rectangle {
     callback select-recipe(int);
     callback quantity-changed(string);
     callback price-changed(string, string);
+    callback request-nested-options(string, bool);
+    callback select-nested(string, string);
+    callback clear-nested(string);
     callback export-card();
     callback copy-code();
     callback import-code(string);
@@ -520,47 +741,97 @@ export component CalculatorPane inherits Rectangle {
                     Rectangle { height: 1px; background: DesktopTheme.border; }
                     for material in root.materials: Rectangle {
                         height: max(60px, material-row.preferred-height + 20px);
+                        background: material.nested ? DesktopTheme.surface-alt : transparent;
+                        // Only the description is indented: numeric columns stay aligned.
+                        // A guide joins the child text to its parent without shrinking type.
+                        if material.depth > 0: Rectangle {
+                            x: min(material.depth, 8) * 16px - 8px;
+                            y: 0px; width: 1px; height: parent.height;
+                            background: DesktopTheme.border;
+                        }
+                        if material.depth > 0: Rectangle {
+                            x: min(material.depth, 8) * 16px - 8px;
+                            y: 26px; width: 8px; height: 1px;
+                            background: DesktopTheme.border;
+                        }
                         material-row := HorizontalLayout {
                             x: 0px; y: 10px; width: parent.width - 4px;
                             height: self.preferred-height;
                             spacing: 16px;
-                            HorizontalLayout {
-                                horizontal-stretch: 1; min-width: 0px; spacing: 10px;
-                                CalcArt { icon: material.icon; has-icon: material.has-icon; }
-                                VerticalLayout {
-                                    min-width: 0px; spacing: 4px;
-                                    Text {
-                                        text: material.title;
-                                        font-size: 14px; color: DesktopTheme.text;
-                                        wrap: word-wrap;
+                            VerticalLayout {
+                                horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                                padding-left: min(material.depth, 8) * 16px;
+                                HorizontalLayout {
+                                    min-width: 0px; spacing: 10px;
+                                    CalcArt { icon: material.icon; has-icon: material.has-icon; }
+                                    VerticalLayout {
+                                        horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                                        Text {
+                                            text: material.title;
+                                            font-size: 14px; font-weight: material.nested ? 600 : 400;
+                                            color: DesktopTheme.text; wrap: word-wrap;
+                                        }
+                                        if material.subtitle != "": Text {
+                                            text: material.subtitle;
+                                            font-size: 12px; color: DesktopTheme.secondary;
+                                            wrap: word-wrap;
+                                        }
                                     }
-                                    if material.subtitle != "": Text {
-                                        text: material.subtitle;
-                                        font-size: 12px; color: DesktopTheme.secondary;
-                                        wrap: word-wrap;
-                                    }
+                                }
+                                if material.detail != "": Text {
+                                    text: material.detail;
+                                    font-size: 12px; color: DesktopTheme.secondary;
+                                    wrap: word-wrap;
+                                }
+                                if material.can-expand || material.can-reuse || material.nested: CalcMaterialActions {
+                                    english: root.english;
+                                    enabled: root.input-valid;
+                                    nested: material.nested;
+                                    can-expand: material.can-expand;
+                                    can-reuse: material.can-reuse;
+                                    material-name: material.title;
+                                    options: root.nested-options;
+                                    popup-width: root.width - 32px;
+                                    request(reuse) => { root.request-nested-options(material.key, reuse); }
+                                    choose(id) => { root.select-nested(material.key, id); }
+                                    clear => { root.clear-nested(material.key); }
                                 }
                             }
                             Text {
                                 width: root.quantity-width;
                                 text: material.quantity;
                                 font-size: 14px; color: DesktopTheme.text;
-                                vertical-alignment: center; horizontal-alignment: right;
+                                vertical-alignment: top; horizontal-alignment: right;
                                 wrap: word-wrap;
                             }
-                            CalcNumber {
+                            if !material.nested: CalcNumber {
                                 width: root.cost-width;
                                 value: material.price;
                                 label: material.title + (root.english ? " unit price" : "單價");
                                 placeholder-text: root.english ? "Not entered" : "未輸入";
                                 commit(value) => { root.price-changed(material.key, value); }
                             }
+                            if material.nested: VerticalLayout {
+                                width: root.cost-width; spacing: 4px; alignment: start;
+                                Text {
+                                    text: material.price;
+                                    font-size: 14px;
+                                    color: material.missing-price ? DesktopTheme.muted : DesktopTheme.text;
+                                    horizontal-alignment: right; wrap: word-wrap;
+                                    accessible-description: root.english ? "Calculated from sub-materials" : "依子材料計算";
+                                }
+                                Text {
+                                    text: root.english ? "Calculated" : "依子材料計算";
+                                    font-size: 12px; color: DesktopTheme.secondary;
+                                    horizontal-alignment: right; wrap: word-wrap;
+                                }
+                            }
                             Text {
                                 width: root.cost-width;
                                 text: material.subtotal;
                                 font-size: 14px;
                                 color: material.missing-price ? DesktopTheme.muted : DesktopTheme.text;
-                                vertical-alignment: center; horizontal-alignment: right;
+                                vertical-alignment: top; horizontal-alignment: right;
                                 wrap: word-wrap;
                             }
                         }
@@ -573,6 +844,10 @@ export component CalculatorPane inherits Rectangle {
                         text: root.english ? "This recipe has no listed material inputs." : "此配方沒有列出材料。";
                         color: DesktopTheme.secondary; font-size: 13px;
                     }
+                }
+                if root.has-nested: Text {
+                    text: root.english ? "Sub-materials are included in their parent subtotal; do not add them again." : "子材料已計入上層小計，毋須再次相加。";
+                    font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
                 }
                 if root.notice != "": Text {
                     text: root.notice;
@@ -609,7 +884,7 @@ export component CalculatorPane inherits Rectangle {
                 HorizontalLayout {
                     Text {
                         horizontal-stretch: 1;
-                        text: root.english ? "Crafting fee" : "合成費用";
+                        text: root.has-nested ? (root.english ? "Top-level crafting fee" : "主配方合成費") : (root.english ? "Crafting fee" : "合成費用");
                         color: DesktopTheme.secondary; font-size: 13px;
                     }
                     Text { text: root.fee; color: DesktopTheme.text; font-size: 13px; }
