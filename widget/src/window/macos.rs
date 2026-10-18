@@ -37,6 +37,20 @@ pub(crate) fn copy_to_clipboard(text: &str) {
     }
 }
 
+pub(crate) fn open_source_repository() {
+    // Wait for Launch Services on a worker so opening the browser cannot stall the UI.
+    std::thread::spawn(|| {
+        match std::process::Command::new("/usr/bin/open")
+            .arg(super::SOURCE_REPOSITORY_URL)
+            .status()
+        {
+            Ok(status) if status.success() => {}
+            Ok(status) => eprintln!("無法開啟 GitHub 原始碼：{status}"),
+            Err(error) => eprintln!("無法開啟 GitHub 原始碼：{error}"),
+        }
+    });
+}
+
 pub(crate) fn primary_screen() -> (i32, i32) {
     let mtm = main_thread();
     let screens = NSScreen::screens(mtm);

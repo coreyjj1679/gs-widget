@@ -23,7 +23,7 @@ slint::include_modules!();
 
 use alias_ui::{alias_code_list, alias_suggestions, alias_text, refresh_alias_icons, show_alias_rows};
 use icons::{image_from_icon, show_battle_frame, spawn_icon_worker};
-use list::{filter_bounds, publish, reflow_board, row_index, show_board_monsters, show_home_saved, sync_view_star};
+use list::{monster_query, publish, reflow_board, row_index, show_board_monsters, show_home_saved, sync_view_star};
 use sheet::{focus_section, open_scope, show_key};
 use window::{
     copy_to_clipboard, default_icon_size, default_main_size, enters_full, fit_on_screen, focus_window, full_window_size,
@@ -64,17 +64,20 @@ struct AnimClip {
 }
 
 fn reload_board(app: &App, catalog: &db::Catalog, session: &Session, favourites: &std::collections::HashSet<String>, cache: &RefCell<BoardList>) {
-    let key = app.get_expanded().to_string();
+    let key = if app.get_full_mode() && app.get_category() == "monster" {
+        list::monster_filter_scope(app, catalog)
+    } else {
+        app.get_expanded().to_string()
+    };
     if key.is_empty() {
         return;
     }
-    let (element, ela_min, ela_max, drop) = filter_bounds(app);
+    let query = monster_query(app);
     let lang = app.get_lang().to_string();
     let hits = if key == "saved:" {
-        let all = catalog.search("monster-all", "", &lang, "", "");
-        let saved = list::prioritize(catalog, "", all, favourites, true);
-        catalog.filter_monsters(saved, element, ela_min, ela_max, &drop)
-    } else if key.starts_with("jump:") || key.starts_with("nation:") {
+        let all = catalog.monster_records("", &lang, "", "", "");
+        list::full_monster_results(catalog, all, favourites, true, &query, false)
+    } else if key == "all:" || key.starts_with("jump:") || key.starts_with("nation:") {
         let base = {
             let mut cached = cache.borrow_mut();
             if cached.key != key || cached.lang != lang {
@@ -84,7 +87,7 @@ fn reload_board(app: &App, catalog: &db::Catalog, session: &Session, favourites:
             }
             cached.hits.clone()
         };
-        catalog.filter_monsters(base, element, ela_min, ela_max, &drop)
+        list::full_monster_results(catalog, base, favourites, false, &query, false)
     } else {
         catalog.section_records(&key, &lang)
     };
@@ -228,6 +231,7 @@ fn main() {
         Err(message) => {
             eprintln!("{message}");
             let app = App::new().expect("視窗建立失敗");
+            app.on_open_source(window::open_source_repository);
             #[cfg(target_os = "macos")]
             app.set_ui_font("PingFang TC".into());
             app.set_detail(message.into());
@@ -237,6 +241,7 @@ fn main() {
     };
 
     let app = App::new().expect("視窗建立失敗");
+    app.on_open_source(window::open_source_repository);
     #[cfg(target_os = "macos")]
     app.set_ui_font("PingFang TC".into());
     app.set_lang(db::load_lang().into());
@@ -248,7 +253,14 @@ fn main() {
     app.set_monster_gallery(view.gallery);
     app.set_animate_battle(view.animate);
     app.set_hotkeys_on(view.hotkeys);
+    app.set_legacy_mode(view.legacy);
     app.set_client_version(db::client_label().into());
+    let element_icons: Vec<Image> = (-1..=5).map(|element| {
+        catalog.element_icon_for_value(element)
+            .and_then(|(path, frame)| agf::frame_rgba(&path, frame).ok())
+            .map(image_from_icon).unwrap_or_default()
+    }).collect();
+    app.set_filter_element_icons(ModelRc::new(VecModel::from(element_icons)));
     let mut home = db::load_home();
     if !home.size_chosen {
         home.size = default_icon_size();
@@ -913,6 +925,13 @@ fn main() {
         edit_view(|view| view.hotkeys = on);
         hotkey::set_enabled(on);
     });
+    let legacy_app = app.as_weak();
+    app.on_choose_legacy(move |on| {
+        if let Some(app) = legacy_app.upgrade() {
+            app.set_legacy_mode(on);
+        }
+        edit_view(|view| view.legacy = on);
+    });
     let extra_app = app.as_weak();
     let extra_catalog = Rc::clone(&catalog);
     let extra_session = session.clone();
@@ -1027,7 +1046,15 @@ fn main() {
         if key.is_empty() {
             return;
         }
-        if app.get_expanded().as_str() == key {
+        let full_monsters = app.get_full_mode() && app.get_category() == "monster";
+        let was_global = full_monsters && app.get_filter_global();
+        if full_monsters {
+            app.set_filter_global(false);
+        }
+        if app.get_expanded().as_str() == key && !was_global {
+            if full_monsters && key == "all:" {
+                return;
+            }
             app.set_expanded("".into());
             app.set_detail_key("".into());
             app.set_detail_index(-1);
@@ -1058,6 +1085,65 @@ fn main() {
         app.set_detail_index(index);
         show_key(&app, &detail_catalog, &detail_session, &key, false);
     });
+    let inline_app = app.as_weak();
+    let inline_catalog = Rc::clone(&open_catalog);
+    let inline_session = open_session.clone();
+    app.on_reload_inline_detail(move || {
+        let Some(app) = inline_app.upgrade() else { return };
+        let key = app.get_detail_key().to_string();
+        if !key.is_empty() {
+            // A linked page replaces the shared facts and drops; restore the open row without toggling it.
+            show_key(&app, &inline_catalog, &inline_session, &key, false);
+        }
+    });
+    let suggest_app = app.as_weak();
+    let suggest_catalog = Rc::clone(&open_catalog);
+    app.on_suggest_drops(move |query| {
+        let Some(app) = suggest_app.upgrade() else { return };
+        let choices = suggest_catalog.drop_options(&query, &app.get_lang());
+        app.set_drop_options(ModelRc::new(VecModel::from(list::plain_hits(choices))));
+    });
+    let regions_app = app.as_weak();
+    let regions_catalog = Rc::clone(&open_catalog);
+    app.on_refine_regions(move || {
+        let Some(app) = regions_app.upgrade() else { return };
+        if !app.get_full_mode() || app.get_category() != "monster" {
+            return;
+        }
+        list::refresh_region_rows(&app, &regions_catalog);
+    });
+    let drop_monsters_app = app.as_weak();
+    app.on_find_drop_monsters(move |key, title| {
+        let Some(app) = drop_monsters_app.upgrade() else { return };
+        if !app.get_full_mode() || !key.strip_prefix("item:").and_then(|code| code.parse::<i64>().ok()).is_some_and(|code| code > 0) {
+            return;
+        }
+        app.set_category("monster".into());
+        app.set_nation("".into());
+        app.set_nation_name("".into());
+        app.set_area("".into());
+        app.set_area_name("".into());
+        app.set_place("".into());
+        app.set_place_name("".into());
+        app.set_query("".into());
+        app.set_search_open(false);
+        app.set_favourites_only(false);
+        app.set_filter_global(false);
+        app.set_filter_element(-1);
+        app.set_filter_ela_min("".into());
+        app.set_filter_ela_max("".into());
+        app.set_filter_hit_min("".into());
+        app.set_filter_hit_max("".into());
+        app.set_filter_magic_min("".into());
+        app.set_filter_magic_max("".into());
+        app.set_filter_drop_key(key);
+        app.set_filter_drop(title);
+        app.set_expanded("all:".into());
+        app.set_list_offset(0.0);
+        app.set_cursor(0);
+        // Reuse category navigation so an open item page and its detail history are cleared too.
+        app.invoke_query_changed("monster".into(), "".into());
+    });
     let filter_app = app.as_weak();
     let filter_catalog = Rc::clone(&open_catalog);
     let filter_session = open_session.clone();
@@ -1078,7 +1164,18 @@ fn main() {
                 return;
             }
             let Some(app) = app.upgrade() else { return };
-            reload_board(&app, &catalog, &session, &favs.borrow(), &list);
+            if !app.get_full_mode() || app.get_category() != "monster" {
+                return;
+            }
+            app.set_list_offset(0.0);
+            app.set_cursor(0);
+            if !app.get_query().trim().is_empty() || app.get_favourites_only()
+                || !app.get_place().is_empty() || !app.get_area().is_empty() || !app.get_nation().is_empty()
+            {
+                publish(&app, &catalog, &session, &favs.borrow(), "monster", &app.get_query());
+            } else {
+                reload_board(&app, &catalog, &session, &favs.borrow(), &list);
+            }
         };
         if now {
             fire();

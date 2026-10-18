@@ -131,6 +131,72 @@ fn monster_directory_groups_places_under_each_nation() {
 }
 
 #[test]
+fn full_monster_directory_starts_with_all_and_saved_and_keeps_country_groups_contiguous() {
+    let catalog = Catalog::open().expect("db");
+    let all = catalog.monster_records("", "zh-en", "", "", "");
+    for (lang, title) in [("zh-en", "所有怪物"), ("en-zh", "All monsters")] {
+        let hits = catalog.directory_hits(lang);
+        assert_eq!(hits[0].key, "all:");
+        assert_eq!(hits[0].title, title);
+        assert_eq!(hits[0].subtitle, all.len().to_string());
+        assert_eq!(hits[1].key, "saved:");
+        let mut current_nation = "";
+        for hit in hits.iter().skip(2) {
+            if let Some(nation) = hit.key.strip_prefix("nation:") {
+                current_nation = nation;
+                assert_eq!(hit.chip, "label");
+            } else {
+                assert!(!current_nation.is_empty());
+                assert!(hit.key.starts_with(&format!("jump:{current_nation}|")), "{} must stay in nation:{current_nation}", hit.key);
+                assert_ne!(hit.chip, "label");
+            }
+        }
+    }
+    let widget = catalog.search("monster", "", "zh-en", "", "");
+    assert!(widget.iter().all(|hit| hit.key.starts_with("nation:")), "widget keeps its original nation directory");
+}
+
+#[test]
+fn region_navigation_searches_both_languages_without_changing_country_membership() {
+    let catalog = Catalog::open().expect("db");
+    let keys = |rows: Vec<Hit>| rows.into_iter().map(|hit| hit.key).collect::<Vec<_>>();
+    let chinese = keys(catalog.region_rows("冰城", 3, "en-zh"));
+    let english = keys(catalog.region_rows("  ICE CASTLE  ", 3, "zh-en"));
+    assert_eq!(chinese, english);
+    assert_eq!(chinese.first().map(String::as_str), Some("nation:2"));
+    assert!(chinese.iter().any(|key| key == "jump:2|area:冰城"));
+    assert!(chinese.iter().all(|key| key == "nation:2" || key.starts_with("jump:2|")));
+    assert!(catalog.region_rows("冰城", 2, "zh-en").is_empty());
+    assert!(catalog.region_rows("zz-no-such-region", 0, "zh-en").is_empty());
+    assert!(catalog.region_rows("", 99, "zh-en").is_empty());
+    let china = keys(catalog.region_rows("", 2, "zh-en"));
+    assert_eq!(china.first().map(String::as_str), Some("nation:3"));
+    assert_eq!(keys(catalog.region_rows("China", 0, "zh-en")), china);
+    assert!(!china.iter().any(|key| key == "all:" || key == "saved:"));
+    let camp = catalog.region_rows("Dark Guild Basecamp", 0, "zh-en");
+    assert!(camp.iter().any(|hit| hit.key == "jump:1|area:黑色商團營地"));
+    assert!(camp.iter().any(|hit| hit.key == "nation:1"));
+}
+
+#[test]
+fn region_navigation_does_not_change_the_active_monster_query_or_all_scope() {
+    let catalog = Catalog::open().expect("db");
+    let query = MonsterQuery {
+        element: 4, ela_min: 300, hit_min: 400, magic_min: 400,
+        sort_key: 1, sort_desc: true, ..Default::default()
+    };
+    let before = catalog.refine_monsters(catalog.scope_monsters("all:", "", "zh-en", -1, -1, -1, ""), &query);
+    let navigation = catalog.region_rows("Ice Castle", 3, "en-zh");
+    assert!(!navigation.is_empty());
+    let after = catalog.refine_monsters(catalog.scope_monsters("all:", "", "zh-en", -1, -1, -1, ""), &query);
+    let keys = |rows: Vec<Hit>| rows.into_iter().map(|hit| hit.key).collect::<Vec<_>>();
+    assert_eq!(keys(before), keys(after));
+    let all = catalog.scope_monsters("all:", "", "zh-en", -1, -1, -1, "");
+    assert_eq!(all.len(), catalog.monster_records("", "zh-en", "", "", "").len());
+    assert!(all.len() > 300, "All must not inherit the saved-list limit");
+}
+
+#[test]
 fn full_scope_lists_monsters_instead_of_another_directory() {
     let catalog = Catalog::open().expect("db");
     let joseon = catalog.scope_monsters("nation:1", "", "zh-en", -1, -1, -1, "");

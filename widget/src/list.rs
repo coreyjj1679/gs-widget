@@ -5,7 +5,7 @@ use slint::{Image, Model, ModelRc, SharedString, VecModel};
 
 use super::db;
 use super::icons::cached_icon;
-use super::{App, Hit, IconJob, Session};
+use super::{App, Hit, IconJob, MonsterDrop, Session};
 
 fn section_key(key: &str) -> bool {
     key.starts_with("craft:")
@@ -20,23 +20,35 @@ fn section_key(key: &str) -> bool {
 pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favourites: &HashSet<String>, category: &str, text: &str) {
     let lang = app.get_lang().to_string();
     let nation = app.get_nation().to_string();
+    let full_monsters = category == "monster" && app.get_full_mode();
+    if full_monsters {
+        refresh_region_rows(app, catalog);
+    }
+    let previous_scope = app.get_expanded().to_string();
     let at_root = app.get_place().is_empty() && app.get_area().is_empty() && nation.is_empty();
     let board = category == "monster"
         && app.get_full_mode()
         && text.trim().is_empty()
         && !app.get_favourites_only()
         && app.get_place().is_empty()
-        && app.get_area().is_empty()
-        && nation.is_empty();
-    app.set_expanded("".into());
+        && app.get_area().is_empty();
+    if !full_monsters || !monster_scope_key(&previous_scope) {
+        app.set_expanded("".into());
+    }
     app.set_detail_key("".into());
     app.set_detail_index(-1);
     app.set_board_monsters(ModelRc::new(VecModel::from(Vec::new())));
-    let (element, ela_min, ela_max, drop) = filter_bounds(app);
+    let query = monster_query(app);
+    let only = category == "monster" && (app.get_favourites_only()
+        || (full_monsters && !board && !app.get_filter_global() && previous_scope == "saved:"));
     let hits = if board {
         catalog.directory_hits(&lang)
-    } else if category == "monster" && app.get_full_mode() && app.get_place().is_empty() && !app.get_area().is_empty() {
-        catalog.scope_monsters(&format!("jump:{nation}|area:{}", app.get_area()), text, &lang, element, ela_min, ela_max, &drop)
+    } else if full_monsters {
+        let records = full_monster_records(
+            catalog, text, &lang, &app.get_place(), &nation, &app.get_area(),
+            &previous_scope, app.get_filter_global(),
+        );
+        full_monster_results(catalog, records, favourites, only, &query, true)
     } else if category == "monster" && app.get_favourites_only() && at_root {
         catalog.search("monster-all", text, &lang, "", "")
     } else {
@@ -50,8 +62,9 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
             &app.get_area(),
         )
     };
-    let only = category == "monster" && app.get_favourites_only();
-    let mut hits = prioritize(catalog, &nation, hits, favourites, only);
+    // The directory keeps All/Saved first and each country's habitats together.
+    // Full-mode result rows have already applied their own favourite/sort policy above.
+    let mut hits = if full_monsters { hits } else { prioritize(catalog, &nation, hits, favourites, only) };
     let full_root = category != "monster"
         && app.get_full_mode()
         && text.trim().is_empty()
@@ -69,11 +82,59 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
         }
     }
     show_rows(app, session, catalog, &nation, hits, favourites, false);
+    if board && (monster_scope_key(&previous_scope) || app.get_filter_global() || !nation.is_empty() || query.is_active()) {
+        app.set_expanded(previous_scope.into());
+        let scope = monster_filter_scope(app, catalog);
+        let records = if scope == "saved:" {
+            let all = catalog.monster_records("", &lang, "", "", "");
+            full_monster_results(catalog, all, favourites, true, &query, false)
+        } else {
+            let all = catalog.scope_monsters(&scope, "", &lang, -1, -1, -1, "");
+            full_monster_results(catalog, all, favourites, false, &query, false)
+        };
+        show_board_monsters(app, session, catalog, &nation, records, favourites);
+    }
     if !opened.is_empty() {
         app.set_expanded(opened.clone().into());
         let records = catalog.section_records(&opened, &lang);
         show_board_monsters(app, session, catalog, &nation, records, favourites);
     }
+}
+
+fn monster_scope_key(key: &str) -> bool {
+    key == "all:" || key == "saved:" || key.starts_with("jump:") || key.starts_with("nation:")
+}
+
+pub(crate) fn refresh_region_rows(app: &App, catalog: &db::Catalog) {
+    let rows = catalog.region_rows(&app.get_region_query(), app.get_region_country(), &app.get_lang());
+    app.set_region_rows(ModelRc::new(VecModel::from(plain_hits(rows))));
+    app.set_directory_offset(0.0);
+}
+
+fn full_monster_records(catalog: &db::Catalog, query: &str, lang: &str, place: &str, nation: &str, area: &str, scope: &str, global: bool) -> Vec<db::Hit> {
+    if global {
+        return catalog.monster_records(query, lang, "", "", "");
+    }
+    // Full-mode directory selections live in expanded; widget paths use place/area/nation.
+    if place.is_empty() && area.is_empty() && monster_scope_key(scope) {
+        if scope == "saved:" {
+            return catalog.monster_records(query, lang, "", "", "");
+        }
+        return catalog.scope_monsters(scope, query, lang, -1, -1, -1, "");
+    }
+    catalog.monster_records(query, lang, place, nation, area)
+}
+
+pub(crate) fn full_monster_results(catalog: &db::Catalog, records: Vec<db::Hit>, favourites: &HashSet<String>, only: bool, query: &db::MonsterQuery, prioritize_default: bool) -> Vec<db::Hit> {
+    let mut filtered = catalog.refine_monsters(records, query);
+    if only {
+        filtered.retain(|hit| saved_row(catalog, "", &hit.key, favourites));
+        // Sort every matching favourite before applying the existing saved-list size limit.
+        filtered.truncate(300);
+    } else if prioritize_default && !query.has_sort() {
+        filtered = prioritize(catalog, "", filtered, favourites, false);
+    }
+    filtered
 }
 
 pub(crate) fn saved_row(catalog: &db::Catalog, nation: &str, key: &str, favourites: &HashSet<String>) -> bool {
@@ -159,6 +220,67 @@ mod tests {
         assert_eq!(super::number_bound("90a"), -1);
         assert_eq!(super::number_bound("-3"), -1);
     }
+
+    #[test]
+    fn full_monster_search_keeps_the_directory_scope_when_switching_global_and_back() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let all = catalog.monster_records("", "zh-en", "", "", "");
+        let (scope, region) = catalog.directory_hits("zh-en").into_iter()
+            .filter(|hit| hit.key.starts_with("jump:"))
+            .map(|hit| {
+                let rows = catalog.scope_monsters(&hit.key, "", "zh-en", -1, -1, -1, "");
+                (hit.key, rows)
+            })
+            .find(|(_, rows)| !rows.is_empty() && rows.len() < all.len())
+            .expect("populated region");
+        let expected: std::collections::HashSet<_> = region.iter().map(|hit| hit.key.clone()).collect();
+        let outside = all.iter().find(|hit| !expected.contains(&hit.key)).expect("monster outside region");
+        let query = outside.key.trim_start_matches("monster:");
+        let current = super::full_monster_records(&catalog, query, "zh-en", "", "", "", &scope, false);
+        assert!(current.iter().all(|hit| expected.contains(&hit.key)));
+        assert!(!current.iter().any(|hit| hit.key == outside.key));
+        let global = super::full_monster_records(&catalog, query, "zh-en", "", "", "", &scope, true);
+        assert!(global.iter().any(|hit| hit.key == outside.key));
+        let restored: std::collections::HashSet<_> = super::full_monster_records(&catalog, "", "zh-en", "", "", "", &scope, false)
+            .into_iter().map(|hit| hit.key).collect();
+        assert_eq!(restored, expected);
+    }
+
+    #[test]
+    fn saved_drop_filter_includes_matches_after_the_first_three_hundred_favourites() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let all = catalog.monster_records("", "zh-en", "", "", "");
+        let favourites = all.iter().map(|hit| hit.key.trim_start_matches("monster:").to_string()).collect();
+        let matching = catalog.filter_monsters(all.clone(), -1, -1, -1, "item:4106");
+        assert!(matching.len() < 300);
+        let later = all.iter().skip(300).find(|hit| matching.iter().any(|row| row.key == hit.key))
+            .expect("matching favourite beyond the old cap");
+        let query = super::db::MonsterQuery { drop: "item:4106".into(), ..Default::default() };
+        let filtered = super::full_monster_results(&catalog, all.clone(), &favourites, true, &query, false);
+        assert!(filtered.iter().any(|hit| hit.key == later.key));
+        assert_eq!(filtered.len(), matching.len());
+    }
+
+    #[test]
+    fn explicit_monster_sort_precedes_favourite_priority_and_the_saved_limit() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let all = catalog.monster_records("", "zh-en", "", "", "");
+        let query = super::db::MonsterQuery { sort_key: 4, sort_desc: true, ..Default::default() };
+        let sorted = catalog.refine_monsters(all.clone(), &query);
+        let lowest = sorted.last().expect("lowest HP");
+        let one_favourite = std::collections::HashSet::from([lowest.key.trim_start_matches("monster:").to_string()]);
+        let shown = super::full_monster_results(&catalog, all.clone(), &one_favourite, false, &query, true);
+        assert_eq!(shown.first().unwrap().key, sorted.first().unwrap().key);
+        assert_eq!(shown.last().unwrap().key, lowest.key);
+        let default = super::full_monster_results(&catalog, all.clone(), &one_favourite, false, &Default::default(), true);
+        assert_eq!(default.first().unwrap().key, lowest.key);
+        let all_favourites = all.iter().map(|hit| hit.key.trim_start_matches("monster:").to_string()).collect();
+        let shown = super::full_monster_results(&catalog, all.clone(), &all_favourites, true, &query, true);
+        let actual: Vec<_> = shown.into_iter().map(|hit| hit.key).collect();
+        let expected: Vec<_> = sorted.iter().take(300).map(|hit| hit.key.clone()).collect();
+        assert_eq!(actual, expected);
+        assert!(all.iter().skip(300).any(|hit| expected.contains(&hit.key)), "top results must include records beyond the original saved cap");
+    }
 }
 
 pub(crate) fn picture_key(key: &str) -> bool {
@@ -169,13 +291,37 @@ pub(crate) fn picture_key(key: &str) -> bool {
         || key.starts_with("hero:")
 }
 
-pub(crate) fn filter_bounds(app: &App) -> (i64, i64, i64, String) {
-    (
-        app.get_filter_element() as i64,
-        number_bound(&app.get_filter_ela_min()),
-        number_bound(&app.get_filter_ela_max()),
-        app.get_filter_drop().to_string(),
-    )
+pub(crate) fn monster_query(app: &App) -> db::MonsterQuery {
+    let drop_key = app.get_filter_drop_key();
+    db::MonsterQuery {
+        element: app.get_filter_element() as i64,
+        ela_min: number_bound(&app.get_filter_ela_min()),
+        ela_max: number_bound(&app.get_filter_ela_max()),
+        hit_min: number_bound(&app.get_filter_hit_min()),
+        hit_max: number_bound(&app.get_filter_hit_max()),
+        magic_min: number_bound(&app.get_filter_magic_min()),
+        magic_max: number_bound(&app.get_filter_magic_max()),
+        drop: if drop_key.is_empty() { app.get_filter_drop().to_string() } else { drop_key.to_string() },
+        sort_key: app.get_monster_sort_key(),
+        sort_desc: app.get_monster_sort_desc(),
+    }
+}
+
+pub(crate) fn monster_filter_scope(app: &App, catalog: &db::Catalog) -> String {
+    let mut current = app.get_expanded().to_string();
+    if !monster_scope_key(&current) {
+        let nation = app.get_nation();
+        current = if nation.is_empty() { "all:".into() } else { format!("nation:{nation}") };
+        app.set_expanded(current.clone().into());
+    }
+    let scope = if app.get_filter_global() { "all:".to_string() } else { current };
+    let lang = app.get_lang();
+    let title = catalog.directory_hits(&lang).into_iter().find(|hit| hit.key == scope).map(|hit| hit.title).unwrap_or_default();
+    app.set_legacy_place_title(title.into());
+    if app.get_legacy_mode() {
+        app.set_menu_open(false);
+    }
+    scope
 }
 
 fn number_bound(text: &str) -> i64 {
@@ -260,6 +406,32 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
             None => (Image::default(), false),
         };
         let brief = hit.key.strip_prefix("monster:").and_then(|code| cards.get(code));
+        let monster_drops = brief.map(|card| {
+            let items: Vec<MonsterDrop> = card.drop_items.iter().enumerate().map(|(slot, drop)| {
+                let icon = drop.icon.as_ref().and_then(|(path, frame)| {
+                    let cache_key = format!("{}#{frame}", path.display());
+                    let icon = session.cache.borrow().get(&cache_key).cloned();
+                    if icon.is_none() && app.get_full_mode() {
+                        jobs.push(IconJob {
+                            gen,
+                            links: false,
+                            cache_key,
+                            row_key: format!("{}#monster-drop:{slot}:{}", hit.key, drop.key),
+                            path: path.clone(),
+                            frame: *frame,
+                        });
+                    }
+                    icon
+                });
+                MonsterDrop {
+                    key: drop.key.clone().into(),
+                    title: drop.title.clone().into(),
+                    has_icon: icon.is_some(),
+                    icon: icon.unwrap_or_default(),
+                }
+            }).collect();
+            ModelRc::new(VecModel::from(items))
+        }).unwrap_or_default();
         let mut drops = vec![Image::default(); 10];
         let drop_total = brief.map(|card| card.drop_total).unwrap_or(0);
         if let Some(card) = brief {
@@ -300,8 +472,11 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
         }
         rows.push(Hit {
             title: SharedString::from(hit.title),
+            alternate_name: SharedString::from(brief.map(|card| card.alternate_name.as_str()).unwrap_or("")),
             subtitle: SharedString::from(hit.subtitle),
-            detail: SharedString::default(),
+            detail: SharedString::from(brief.map(|card| card.summary.as_str()).unwrap_or("")),
+            monster_drops,
+            spawn_places: SharedString::from(brief.map(|card| card.spawn_places.as_str()).unwrap_or("")),
             stat_kind: SharedString::from(brief.map(|card| card.kind.as_str()).unwrap_or("")),
             stat_element: SharedString::from(brief.map(|card| card.element.as_str()).unwrap_or("")),
             stat_hp: SharedString::from(brief.map(|card| card.hp.as_str()).unwrap_or("")),
@@ -426,9 +601,12 @@ pub(crate) fn reflow_board(app: &App) {
 pub(crate) fn plain_hits(hits: Vec<db::Hit>) -> Vec<Hit> {
     hits.into_iter()
         .map(|hit| Hit {
+            alternate_name: Default::default(),
             title: SharedString::from(hit.title),
             subtitle: SharedString::from(hit.subtitle),
             detail: SharedString::default(),
+            monster_drops: Default::default(),
+            spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),
             stat_hp: SharedString::default(),

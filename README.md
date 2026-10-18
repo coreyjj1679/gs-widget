@@ -17,9 +17,11 @@ Clone, build, and open:
 ```
 git clone https://github.com/coreyjj1679/gs-widget.git
 cd gs-widget\widget
-cargo build --release
+cargo build --locked --release
 target\release\gersang-widget.exe
 ```
+
+See [WINDOWS.md](WINDOWS.md) for the Windows build and display, hotkey, clipboard, and tooltip checks.
 
 ## macOS
 

@@ -283,8 +283,18 @@ impl Index {
     }
 
     pub(in crate::db) fn directory_hits(&self, lang: &str) -> Vec<Hit> {
+        let all = if lang == "en-zh" { "All monsters" } else { "所有怪物" };
         let saved = if lang == "en-zh" { "Saved" } else { "收藏" };
         let mut hits = vec![Hit {
+            title: all.into(),
+            subtitle: self.monsters.len().to_string(),
+            key: "all:".into(),
+            icon: None,
+            solo: false,
+            aside: String::new(),
+            badge: None,
+            chip: "label".into(),
+        }, Hit {
             title: saved.into(),
             subtitle: String::new(),
             key: "saved:".into(),
@@ -324,6 +334,38 @@ impl Index {
             }
         }
         hits
+    }
+
+    pub(in crate::db) fn region_rows(&self, query: &str, country: i32, lang: &str) -> Vec<Hit> {
+        let query = query.trim().to_lowercase();
+        // The picker lists China before Japan; the catalog IDs put Japan at 2 and China at 3.
+        let country = match country { 2 => 3, 3 => 2, other => other };
+        let directory = self.directory_hits(lang);
+        let alternate: HashMap<String, String> = if query.is_empty() {
+            HashMap::new()
+        } else {
+            let other_lang = if lang == "en-zh" { "zh-en" } else { "en-zh" };
+            self.directory_hits(other_lang).into_iter().map(|hit| (hit.key, hit.title.to_lowercase())).collect()
+        };
+        let matches_name = |hit: &Hit| query.is_empty() || hit.title.to_lowercase().contains(&query)
+            || alternate.get(&hit.key).is_some_and(|name| name.contains(&query));
+        let mut rows = Vec::new();
+        for heading in &directory {
+            let Some(nation) = heading.key.strip_prefix("nation:") else { continue };
+            if country != 0 && nation.parse::<i32>().ok() != Some(country) {
+                continue;
+            }
+            let heading_matches = matches_name(heading);
+            let prefix = format!("jump:{nation}|");
+            let children: Vec<Hit> = directory.iter()
+                .filter(|hit| hit.key.starts_with(&prefix) && (heading_matches || matches_name(hit)))
+                .cloned().collect();
+            if heading_matches || !children.is_empty() {
+                rows.push(heading.clone());
+                rows.extend(children);
+            }
+        }
+        rows
     }
 
     pub(in crate::db) fn scope_monsters(&self, key: &str, query: &str, lang: &str) -> Vec<Hit> {

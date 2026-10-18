@@ -77,11 +77,12 @@ pub struct ViewPref {
     pub gallery: bool,
     pub animate: bool,
     pub hotkeys: bool,
+    pub legacy: bool,
 }
 
 impl ViewPref {
     pub fn standard() -> Self {
-        Self { pin: 0, battle: true, gallery: false, animate: true, hotkeys: true }
+        Self { pin: 0, battle: true, gallery: false, animate: true, hotkeys: true, legacy: false }
     }
 }
 
@@ -106,6 +107,8 @@ pub(crate) fn parse_view(text: &str) -> ViewPref {
             pref.animate = value.trim() != "0";
         } else if let Some(value) = line.strip_prefix("hotkeys=") {
             pref.hotkeys = value.trim() != "0";
+        } else if let Some(value) = line.strip_prefix("legacy=") {
+            pref.legacy = value.trim() == "1";
         }
     }
     pref
@@ -118,11 +121,12 @@ pub(crate) fn format_view(pref: &ViewPref) -> String {
         _ => "auto",
     };
     format!(
-        "pin={pin}\nbattle={}\ngallery={}\nanimate={}\nhotkeys={}\n",
+        "pin={pin}\nbattle={}\ngallery={}\nanimate={}\nhotkeys={}\nlegacy={}\n",
         if pref.battle { "1" } else { "0" },
         if pref.gallery { "1" } else { "0" },
         if pref.animate { "1" } else { "0" },
-        if pref.hotkeys { "1" } else { "0" }
+        if pref.hotkeys { "1" } else { "0" },
+        if pref.legacy { "1" } else { "0" }
     )
 }
 
@@ -502,9 +506,24 @@ mod tests {
         assert!(custom.gallery);
         assert!(!custom.animate);
         assert!(!custom.hotkeys);
+        assert!(!custom.legacy);
         assert!(fresh.animate);
         assert!(fresh.hotkeys);
+        assert!(!fresh.legacy);
         assert_eq!(parse_view(&format_view(&custom)), custom);
         assert_eq!(parse_view("pin=later\n").pin, 0);
+    }
+
+    #[test]
+    fn legacy_mode_round_trips_without_changing_other_view_settings() {
+        let mut expected = parse_view("pin=off\nbattle=0\ngallery=1\nanimate=0\nhotkeys=0\n");
+        expected.legacy = true;
+        let saved = format_view(&expected);
+        assert_eq!(parse_view(&saved), expected);
+        assert!(saved.contains("legacy=1\n"));
+        for value in ["0", "", "invalid", "true"] {
+            assert!(!parse_view(&format!("legacy={value}\n")).legacy);
+        }
+        assert!(parse_view("legacy= 1 \n").legacy);
     }
 }

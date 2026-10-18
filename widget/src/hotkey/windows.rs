@@ -26,9 +26,14 @@ struct Msg {
     pt: Point,
 }
 
+// Match the Windows SDK's MSG layout; its lPrivate field is _MAC-only.
+const _: () = assert!(std::mem::size_of::<Msg>() == if cfg!(target_pointer_width = "64") { 48 } else { 28 });
+
 pub fn set_enabled(on: bool) {
-    ENABLED.store(on, Ordering::Relaxed);
-    let id = THREAD.load(Ordering::Relaxed);
+    // Pair with the worker's THREAD store followed by ENABLED load. A single
+    // total order prevents both sides from observing the pre-startup value.
+    ENABLED.store(on, Ordering::SeqCst);
+    let id = THREAD.load(Ordering::SeqCst);
     if id != 0 {
         unsafe {
             PostThreadMessageW(id, WM_APP, 0, 0);
@@ -37,44 +42,42 @@ pub fn set_enabled(on: bool) {
 }
 
 pub fn spawn(tx: Sender<i32>, enabled: bool) {
-    ENABLED.store(enabled, Ordering::Relaxed);
+    ENABLED.store(enabled, Ordering::SeqCst);
     thread::spawn(move || unsafe {
-        THREAD.store(GetCurrentThreadId(), Ordering::Relaxed);
+        // PostThreadMessage fails until this thread has a message queue.
+        // Create it before publishing THREAD so a settings change cannot be lost.
+        let mut msg = std::mem::zeroed::<Msg>();
+        PeekMessageW(&mut msg, 0, WM_APP, WM_APP, 0); // PM_NOREMOVE
+        THREAD.store(GetCurrentThreadId(), Ordering::SeqCst);
         let mut registered = false;
         loop {
-            let want = ENABLED.load(Ordering::Relaxed);
+            let want = ENABLED.load(Ordering::SeqCst);
             if want != registered {
                 for id in 1..=9 {
                     if want {
-                        RegisterHotKey(0, id, MOD_NOREPEAT, VK_F1 + id as u32 - 1);
+                        if RegisterHotKey(0, id, MOD_NOREPEAT, VK_F1 + id as u32 - 1) == 0 {
+                            eprintln!("Unable to register F{id} on Windows: {}", std::io::Error::last_os_error());
+                        }
                     } else {
                         UnregisterHotKey(0, id);
                     }
                 }
                 registered = want;
             }
-            let mut msg = std::mem::zeroed::<Msg>();
             let status = GetMessageW(&mut msg, 0, 0, 0);
             if status == 0 || status == -1 {
                 break;
             }
-            if msg.message == WM_HOTKEY && ENABLED.load(Ordering::Relaxed) {
+            if msg.message == WM_HOTKEY && ENABLED.load(Ordering::SeqCst) {
                 let id = msg.wparam as i32;
                 if (1..=9).contains(&id) {
-                    raise_widget();
+                    crate::window::focus_window();
                     let _ = tx.send(id);
                 }
             }
         }
+        THREAD.store(0, Ordering::SeqCst);
     });
-}
-
-unsafe fn raise_widget() {
-    let title: Vec<u16> = "巨商\0".encode_utf16().collect();
-    let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
-    if hwnd != 0 {
-        let _ = SetForegroundWindow(hwnd);
-    }
 }
 
 #[link(name = "user32")]
@@ -82,8 +85,11 @@ extern "system" {
     fn RegisterHotKey(hwnd: isize, id: i32, modifiers: u32, vk: u32) -> i32;
     fn UnregisterHotKey(hwnd: isize, id: i32) -> i32;
     fn GetMessageW(msg: *mut Msg, hwnd: isize, min: u32, max: u32) -> i32;
+    fn PeekMessageW(msg: *mut Msg, hwnd: isize, min: u32, max: u32, remove: u32) -> i32;
     fn PostThreadMessageW(id: u32, msg: u32, wparam: usize, lparam: isize) -> i32;
+}
+
+#[link(name = "kernel32")]
+extern "system" {
     fn GetCurrentThreadId() -> u32;
-    fn FindWindowW(class: *const u16, window: *const u16) -> isize;
-    fn SetForegroundWindow(hwnd: isize) -> i32;
 }

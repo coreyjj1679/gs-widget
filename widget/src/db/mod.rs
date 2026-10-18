@@ -24,6 +24,7 @@ mod work;
 
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
+pub use monster::MonsterQuery;
 pub use prefs::{DockPref, HomePref, ViewPref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_view, load_window, save_dock, save_favourites, save_full_geometry, save_home, save_lang, save_mode, save_opacity, save_set_extra, save_view, save_window};
 pub use text::{hero_land_label, hero_rank_label, hero_tier_label, item_category_label, nation_label, relation_label, source_label, weapon_family_label};
 
@@ -146,9 +147,41 @@ impl Catalog {
         self.index.directory_hits(lang)
     }
 
+    pub fn region_rows(&self, query: &str, country: i32, lang: &str) -> Vec<Hit> {
+        self.index.region_rows(query, country, lang)
+    }
+
     pub fn scope_monsters(&self, key: &str, query: &str, lang: &str, element: i64, ela_min: i64, ela_max: i64, drop: &str) -> Vec<Hit> {
-        let hits = self.index.scope_monsters(key, query, lang);
+        let query = query.trim();
+        let folded = query.to_lowercase();
+        self.index.prepare_aliases(&folded);
+        let hits = if key == "all:" {
+            self.index.monster_hits(query, &folded, lang, &[], None)
+        } else {
+            self.index.scope_monsters(key, query, lang)
+        };
         self.narrow_monsters(hits, element, ela_min, ela_max, drop)
+    }
+
+    pub fn monster_records(&self, query: &str, lang: &str, place: &str, nation: &str, area: &str) -> Vec<Hit> {
+        let query = query.trim();
+        let folded = query.to_lowercase();
+        self.index.prepare_aliases(&folded);
+        if let Some(area) = place.strip_prefix("span:") {
+            return self.index.scope_monsters(&format!("jump:{nation}|span:{area}"), query, lang);
+        }
+        if !place.is_empty() {
+            return place.parse::<i64>().ok()
+                .map(|gts| self.index.monster_hits(query, &folded, lang, &[gts], None))
+                .unwrap_or_default();
+        }
+        if !area.is_empty() {
+            return self.index.scope_monsters(&format!("jump:{nation}|area:{area}"), query, lang);
+        }
+        if !nation.is_empty() {
+            return self.index.scope_monsters(&format!("nation:{nation}"), query, lang);
+        }
+        self.index.monster_hits(query, &folded, lang, &[], None)
     }
 
     pub fn section_records(&self, key: &str, lang: &str) -> Vec<Hit> {

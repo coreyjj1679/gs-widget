@@ -47,8 +47,11 @@ pub(crate) fn alias_suggestions(catalog: &db::Catalog, query: &str, lang: &str, 
             let (image, has_icon) = alias_image(&hit.icon);
             Hit {
                 title: hit.title.into(),
+                alternate_name: Default::default(),
                 subtitle: format!("#{code}").into(),
                 detail: String::new().into(),
+                monster_drops: Default::default(),
+                spawn_places: Default::default(),
                 stat_kind: String::new().into(),
                 stat_element: String::new().into(),
                 stat_hp: String::new().into(),
@@ -94,8 +97,11 @@ pub(crate) fn refresh_alias_icons(app: &App, catalog: &db::Catalog, rows: &[(Str
             let (image, has_icon) = alias_image(&item.icon);
             icons.push(Hit {
                 title: item.title.clone().into(),
+                alternate_name: Default::default(),
                 subtitle: item.subtitle.clone().into(),
                 detail: String::new().into(),
+                monster_drops: Default::default(),
+                spawn_places: Default::default(),
                 stat_kind: String::new().into(),
                 stat_element: String::new().into(),
                 stat_hp: String::new().into(),
@@ -155,8 +161,11 @@ pub(crate) fn show_alias_rows(app: &App, catalog: &db::Catalog, rows: &[(String,
                 let (image, has_icon) = alias_image(&item.icon);
                 icons.push(Hit {
                     title: item.title.clone().into(),
+                    alternate_name: Default::default(),
                     subtitle: item.subtitle.clone().into(),
                     detail: String::new().into(),
+                    monster_drops: Default::default(),
+                    spawn_places: Default::default(),
                     stat_kind: String::new().into(),
                     stat_element: String::new().into(),
                     stat_hp: String::new().into(),

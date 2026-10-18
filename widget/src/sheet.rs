@@ -88,8 +88,11 @@ pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) {
         };
         shown.push(Hit {
             title: title.into(),
+            alternate_name: Default::default(),
             subtitle: String::new().into(),
             detail: SharedString::default(),
+            monster_drops: Default::default(),
+            spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),
             stat_hp: SharedString::default(),
@@ -171,8 +174,11 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
         let open = header.key.as_str() == pick;
         shown.push(Hit {
             title: header.title,
+            alternate_name: Default::default(),
             subtitle: header.subtitle,
             detail: SharedString::default(),
+            monster_drops: Default::default(),
+            spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),
             stat_hp: SharedString::default(),
@@ -508,8 +514,11 @@ pub(crate) fn link_rows(
         let no_image = !has_icon && (hit.key.starts_with("item:") || hit.key.starts_with("recipe:"));
         rows.push(Hit {
             title: SharedString::from(hit.title),
+            alternate_name: Default::default(),
             subtitle: SharedString::from(hit.subtitle),
             detail: SharedString::default(),
+            monster_drops: Default::default(),
+            spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),
             stat_hp: SharedString::default(),

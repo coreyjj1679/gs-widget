@@ -1,8 +1,16 @@
 import { Palette, LineEdit, TextEdit } from "std-widgets.slint";
 import { DesktopTheme, DesktopNavRow, DesktopEntry, DesktopIcon } from "desktop.slint";
 
+export struct MonsterDrop {
+    key: string,
+    title: string,
+    icon: image,
+    has-icon: bool,
+}
+
 export struct Hit {
     title: string,
+    alternate-name: string,
     subtitle: string,
     detail: string,
     stat-kind: string,
@@ -24,6 +32,8 @@ export struct Hit {
     drop9: image,
     drop10: image,
     drop-total: int,
+    monster-drops: [MonsterDrop],
+    spawn-places: string,
     battle: image,
     has-battle: bool,
     key: string,
@@ -84,7 +94,7 @@ component NoImage inherits Rectangle {
 component WinButton inherits Rectangle {
     in property <string> glyph;
     accessible-role: button;
-    accessible-label: glyph == "×" ? "關閉 / Close" : glyph == "–" ? "收合 / Collapse" : glyph == "←" ? "返回 / Back" : glyph;
+    accessible-label: glyph == "×" ? "關閉 / Close" : glyph == "–" ? "收合 / Collapse" : glyph == "←" ? "返回 / Back" : glyph == "⚙️" ? "設定 / Settings" : glyph;
     accessible-action-default => { root.clicked(); }
     in property <bool> danger: false;
     callback clicked();
@@ -95,7 +105,7 @@ component WinButton inherits Rectangle {
     Text {
         text: root.glyph;
         color: DesktopTheme.text;
-        font-size: 12px;
+        font-size: root.glyph == "⚙️" ? 17px : 12px;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -104,6 +114,236 @@ component WinButton inherits Rectangle {
         height: 100%;
         clicked => { root.clicked(); }
         mouse-cursor: pointer;
+    }
+}
+
+component OpenSourceLink inherits Rectangle {
+    in property <bool> english;
+    callback clicked();
+    width: label.preferred-width + 40px;
+    height: 24px;
+    border-radius: 4px;
+    background: area.has-hover ? DesktopTheme.hover : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    property <color> ink: area.has-hover || focus.has-focus ? DesktopTheme.accent : DesktopTheme.secondary;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: root.english ? "Open source on GitHub" : "在 GitHub 查看開源專案";
+    accessible-description: "https://github.com/coreyjj1679/gs-widget";
+    accessible-action-default => { root.clicked(); }
+    Path {
+        x: 8px;
+        y: 4px;
+        width: 16px;
+        height: 16px;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: root.ink;
+        commands: "M12 0C5.37 0 0 5.373 0 12c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.043-1.61-4.043-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.729.083-.729 1.205.084 1.838 1.237 1.838 1.237 1.07 1.835 2.809 1.305 3.495.998.108-.776.418-1.305.762-1.605-2.665-.304-5.467-1.334-5.467-5.931 0-1.31.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.52 11.52 0 0 1 12 5.8c1.02.005 2.045.138 3.003.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.652.242 2.873.119 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.015 2.898-.015 3.293 0 .322.216.694.825.576C20.565 21.795 24 17.299 24 12c0-6.627-5.373-12-12-12Z";
+    }
+    label := Text {
+        x: 30px;
+        height: 100%;
+        text: root.english ? "Open source" : "開源專案";
+        font-size: 11px;
+        color: root.ink;
+        vertical-alignment: center;
+    }
+    focus := FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    area := TouchArea {
+        width: 100%; height: 100%;
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+}
+
+component WindowModeSwitch inherits Rectangle {
+    in property <bool> full;
+    in property <bool> english;
+    callback choose(bool);
+    width: root.english ? 108px : 88px;
+    height: 28px;
+    border-radius: 7px;
+    background: DesktopTheme.sidebar;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: root.english ? "Window mode" : "視窗模式";
+    accessible-description: root.full ? (root.english ? "Full mode selected" : "目前為完整模式") : (root.english ? "Widget mode selected" : "目前為小窗模式");
+    accessible-action-default => { root.choose(!root.full); }
+    Rectangle {
+        x: root.full ? parent.width / 2 : 2px;
+        y: 2px;
+        width: parent.width / 2 - 2px;
+        height: parent.height - 4px;
+        border-radius: 5px;
+        background: DesktopTheme.raised;
+    }
+    Text {
+        x: 0px; y: 0px;
+        width: parent.width / 2;
+        height: 100%;
+        text: root.english ? "Widget" : "小窗";
+        color: root.full ? DesktopTheme.muted : DesktopTheme.text;
+        font-size: 11px;
+        font-weight: root.full ? 400 : 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Text {
+        x: parent.width / 2; y: 0px;
+        width: parent.width / 2;
+        height: 100%;
+        text: root.english ? "Full" : "完整";
+        color: root.full ? DesktopTheme.text : DesktopTheme.muted;
+        font-size: 11px;
+        font-weight: root.full ? 600 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    focus := FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.choose(!root.full);
+                return accept;
+            }
+            if (event.text == Key.LeftArrow || event.text == Key.RightArrow) {
+                root.choose(event.text == Key.RightArrow);
+                return accept;
+            }
+            return reject;
+        }
+    }
+    TouchArea {
+        x: 0px; y: 0px;
+        width: parent.width / 2;
+        height: 100%;
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); if (root.full) { root.choose(false); } }
+    }
+    TouchArea {
+        x: parent.width / 2; y: 0px;
+        width: parent.width / 2;
+        height: 100%;
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); if (!root.full) { root.choose(true); } }
+    }
+}
+
+component SidebarCategoryRow inherits Rectangle {
+    in property <image> logo;
+    in property <string> glyph;
+    in property <string> label;
+    in property <string> shortcut;
+    in property <bool> selected;
+    in property <bool> lifted;
+    in property <bool> english;
+    callback clicked();
+    callback drag-start();
+    callback drag-move(length);
+    callback drag-end(bool);
+    callback shift(int);
+    property <length> press-y;
+    property <bool> moved-far: false;
+    height: 40px;
+    border-radius: 7px;
+    background: root.lifted ? DesktopTheme.raised : root.selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus || root.lifted ? DesktopTheme.accent : transparent;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-description: root.english ? "Drag to reorder. Control plus up or down also changes the order." : "拖曳可調整順序，也可按 Control 加上或下方向鍵。";
+    accessible-action-default => { root.clicked(); }
+    if root.glyph == "": Image {
+        x: 10px; y: 9px;
+        width: 22px; height: 22px;
+        source: root.logo;
+        image-fit: contain;
+    }
+    if root.glyph != "": Text {
+        x: 10px; y: 0px;
+        width: 22px; height: 100%;
+        text: root.glyph;
+        font-size: 15px;
+        color: root.selected ? DesktopTheme.accent : DesktopTheme.secondary;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Text {
+        x: 42px; y: 0px;
+        width: max(parent.width - 98px, 20px);
+        height: 100%;
+        text: root.label;
+        font-size: 13px;
+        font-weight: root.selected ? 600 : 400;
+        color: root.selected ? DesktopTheme.text : DesktopTheme.secondary;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    Text {
+        x: parent.width - 50px; y: 0px;
+        width: 24px; height: 100%;
+        text: root.shortcut;
+        font-size: 11px;
+        color: DesktopTheme.muted;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+    DesktopIcon {
+        x: parent.width - 20px; y: 12px;
+        width: 12px; height: 16px;
+        ink: area.has-hover || root.lifted ? DesktopTheme.secondary : DesktopTheme.border;
+        path: "M8 5 L8 6 M16 5 L16 6 M8 11 L8 12 M16 11 L16 12 M8 17 L8 18 M16 17 L16 18";
+    }
+    focus := FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.modifiers.control && (event.text == Key.UpArrow || event.text == Key.DownArrow)) {
+                root.shift(event.text == Key.UpArrow ? -1 : 1);
+                return accept;
+            }
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    area := TouchArea {
+        width: 100%; height: 100%;
+        mouse-cursor: self.pressed && root.moved-far ? grabbing : pointer;
+        clicked => { if (!root.moved-far) { focus.focus(); root.clicked(); } }
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                root.press-y = self.mouse-y;
+                root.moved-far = false;
+                root.drag-start();
+            }
+            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
+                root.drag-end(root.moved-far);
+            }
+            if (event.kind == PointerEventKind.cancel) {
+                root.drag-end(false);
+            }
+        }
+        moved => {
+            if (!self.pressed) { return; }
+            if (abs(self.mouse-y - root.press-y) >= 5px) { root.moved-far = true; }
+            if (root.moved-far) { root.drag-move(self.mouse-y); }
+        }
     }
 }
 
@@ -133,6 +373,8 @@ component SearchToggle inherits Rectangle {
 
 component StarMark inherits Rectangle {
     in property <bool> filled;
+    in property <color> ink: DesktopTheme.accent;
+    in property <color> outline: root.filled ? #e6c98a : DesktopTheme.muted;
     callback clicked();
     width: 32px;
     height: 32px;
@@ -141,8 +383,8 @@ component StarMark inherits Rectangle {
         y: 5px;
         width: 20px;
         height: 20px;
-        fill: root.filled ? DesktopTheme.accent : transparent;
-        stroke: root.filled ? #e6c98a : DesktopTheme.muted;
+        fill: root.filled ? root.ink : transparent;
+        stroke: root.outline;
         stroke-width: 1.4px;
         commands: "M 10 0.6 L 12.7 6.4 L 19 6.9 L 14.2 11.1 L 15.8 17.4 L 10 14 L 4.2 17.4 L 5.8 11.1 L 1 6.9 L 7.3 6.4 Z";
     }
@@ -274,6 +516,121 @@ component ChoiceBar inherits Rectangle {
                 clicked => { root.pick(2); }
                 mouse-cursor: pointer;
             }
+        }
+    }
+}
+
+component MonsterPageSettings inherits Rectangle {
+    in property <bool> english;
+    in property <bool> open;
+    in property <bool> legacy;
+    in property <bool> battle;
+    in property <bool> motion;
+    callback toggle();
+    callback dismiss();
+    callback choose-legacy(bool);
+    callback choose-battle(bool);
+    callback choose-animate(bool);
+
+    if root.open: TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        clicked => { root.dismiss(); }
+    }
+    if root.open: Rectangle {
+        x: parent.width - self.width - 24px;
+        y: 54px;
+        width: min(320px, parent.width - 48px);
+        height: settings-content.preferred-height + 74px;
+        background: DesktopTheme.surface-alt;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: DesktopTheme.border;
+        TouchArea { x: 0px; y: 0px; width: 100%; height: 100%; }
+        Text {
+            x: 16px; y: 12px;
+            width: parent.width - 64px; height: 22px;
+            text: root.english ? "Monster display" : "怪物頁設定";
+            font-size: 15px; font-weight: 600; color: DesktopTheme.text;
+        }
+        WinButton {
+            x: parent.width - 42px; y: 10px;
+            glyph: "×";
+            clicked => { root.dismiss(); }
+        }
+        Rectangle {
+            x: 16px; y: 46px;
+            width: parent.width - 32px; height: 1px;
+            background: DesktopTheme.border;
+        }
+        settings-content := VerticalLayout {
+            x: 16px; y: 58px;
+            width: parent.width - 32px;
+            height: self.preferred-height;
+            spacing: 16px;
+            VerticalLayout {
+                spacing: 8px;
+                Text { height: 18px; text: "Legacy mode"; font-size: 13px; color: DesktopTheme.text; }
+                ChoiceBar {
+                    first: root.english ? "Off" : "關閉";
+                    second: root.english ? "On" : "開啟";
+                    picked: root.legacy ? 1 : 0;
+                    pick(index) => { root.choose-legacy(index == 1); }
+                }
+                Text {
+                    text: root.english ? "Classic region index and three-column records in full mode." : "完整模式使用傳統地區索引與三欄資料表。";
+                    height: self.preferred-height;
+                    font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                }
+            }
+            VerticalLayout {
+                spacing: 8px;
+                Text { height: 18px; text: root.english ? "Monster image" : "怪物圖片"; font-size: 13px; color: DesktopTheme.text; }
+                ChoiceBar {
+                    first: root.english ? "Portrait" : "大頭像";
+                    second: root.english ? "Battle" : "戰鬥圖";
+                    picked: root.battle ? 1 : 0;
+                    pick(index) => { root.choose-battle(index == 1); }
+                }
+            }
+            VerticalLayout {
+                spacing: 8px;
+                Text { height: 18px; text: root.english ? "Battle animation" : "戰鬥動畫"; font-size: 13px; color: DesktopTheme.text; }
+                ChoiceBar {
+                    first: root.english ? "Play" : "播放";
+                    second: root.english ? "Still" : "靜止";
+                    picked: root.motion ? 0 : 1;
+                    pick(index) => { root.choose-animate(index == 0); }
+                }
+            }
+        }
+    }
+    Rectangle {
+        x: parent.width - 58px; y: 10px;
+        width: 34px; height: 32px;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: entry-focus.has-focus || root.open ? DesktopTheme.accent : DesktopTheme.border;
+        background: root.open ? DesktopTheme.control : entry-tap.has-hover ? DesktopTheme.hover : transparent;
+        forward-focus: entry-focus;
+        accessible-role: button;
+        accessible-label: root.english ? "Monster page settings" : "怪物頁設定";
+        accessible-action-default => { root.toggle(); }
+        Text {
+            x: 0px; y: 0px; width: 100%; height: 100%;
+            text: "⚙️"; font-size: 17px; color: DesktopTheme.text;
+            horizontal-alignment: center; vertical-alignment: center;
+        }
+        entry-focus := FocusScope {
+            x: 0px; y: 0px; width: 100%; height: 100%;
+            key-pressed(event) => {
+                if (event.text == Key.Return || event.text == Key.Space) { root.toggle(); return accept; }
+                if (event.text == Key.Escape && root.open) { root.dismiss(); return accept; }
+                return reject;
+            }
+        }
+        entry-tap := TouchArea {
+            x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+            clicked => { entry-focus.focus(); root.toggle(); }
         }
     }
 }
@@ -1337,171 +1694,718 @@ component MonsterCard inherits Rectangle {
     }
 }
 
+component MonsterTool inherits Rectangle {
+    in property <string> label;
+    in property <length> label-size: 13px;
+    in property <bool> active;
+    callback clicked();
+    height: 28px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    background: active ? DesktopTheme.control : tap.has-hover ? DesktopTheme.hover : transparent;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: label;
+    accessible-action-default => { root.clicked(); }
+    Text {
+        width: 100%; height: 100%;
+        text: root.label;
+        font-size: root.label-size;
+        color: root.active ? DesktopTheme.text : DesktopTheme.secondary;
+        horizontal-alignment: center; vertical-alignment: center;
+    }
+    tap := TouchArea {
+        width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+}
+
+component MonsterDropPicker inherits Rectangle {
+    in property <string> query;
+    in property <string> selected-key;
+    in property <[Hit]> options;
+    in property <bool> english;
+    in-out property <bool> open: false;
+    property <int> option-index: 0;
+    property <bool> popup-visible: popup.is-open;
+    callback request(string);
+    callback edit(string);
+    callback choose(string, string);
+    callback clear();
+    height: 32px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: root.open || focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    background: DesktopTheme.control;
+    accessible-role: button;
+    accessible-label: (root.english ? "Find monsters by drop: " : "依掉落物找怪物：") + root.query;
+    accessible-action-default => { root.show-options(); }
+    forward-focus: focus;
+    function show-options() {
+        root.option-index = 0;
+        root.request(root.query);
+        // Show synchronously, as Slint's ComboBox does. The shared flag follows
+        // the actual popup instead of scheduling a second show via `changed`.
+        popup.show();
+        root.open = popup.is-open;
+    }
+    changed open => { if (!root.open && popup.is-open) { popup.close(); } }
+    changed popup-visible => { root.open = root.popup-visible; }
+    Text {
+        x: 10px; y: 0px; width: parent.width - (root.query == "" ? 42px : 72px); height: 100%;
+        text: root.query == "" ? (root.english ? "Search or choose an item…" : "搜尋或選擇掉落物…") : root.query;
+        color: root.query == "" ? DesktopTheme.secondary : DesktopTheme.text;
+        font-size: 13px; overflow: elide; vertical-alignment: center;
+    }
+    DesktopIcon {
+        x: parent.width - 24px; y: 9px; width: 14px; height: 14px;
+        path: root.open ? "M6 15 L12 9 L18 15" : "M6 9 L12 15 L18 9";
+        ink: DesktopTheme.secondary;
+    }
+    TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { root.show-options(); }
+    }
+    if root.query != "": MonsterTool {
+        x: parent.width - 60px; y: 2px; width: 28px; height: 28px;
+        label: "×";
+        accessible-label: root.english ? "Clear drop" : "清除掉落物";
+        clicked => { root.clear(); }
+    }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow) {
+                root.show-options(); return accept;
+            }
+            return reject;
+        }
+    }
+    popup := PopupWindow {
+        x: 0px; y: root.height + 4px;
+        width: max(root.width, 320px);
+        height: 64px + min(max(root.options.length, 1), 6) * 36px;
+        close-policy: close-on-click-outside;
+        forward-focus: query-input;
+        Rectangle {
+            x: 0px; y: 0px; width: 100%; height: 100%;
+            background: DesktopTheme.surface-alt;
+            border-radius: 6px; border-width: 1px; border-color: DesktopTheme.border;
+            query-input := LineEdit {
+                x: 8px; y: 8px; width: parent.width - 16px; height: 32px;
+                text: root.query;
+                placeholder-text: root.english ? "Type an item name…" : "輸入道具名稱…";
+                edited => { root.option-index = 0; root.edit(self.text); }
+                accepted => {
+                    if (root.option-index >= 0 && root.option-index < root.options.length) {
+                        root.choose(root.options[root.option-index].key, root.options[root.option-index].title);
+                        root.open = false;
+                    }
+                }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape) { root.open = false; return accept; }
+                    if (event.text == Key.DownArrow || event.text == Key.UpArrow) {
+                        root.option-index = max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
+                        if (root.option-index * 36px < -options-scroll.content-y) { options-scroll.content-y = -root.option-index * 36px; }
+                        else if ((root.option-index + 1) * 36px > -options-scroll.content-y + options-scroll.height) {
+                            options-scroll.content-y = options-scroll.height - (root.option-index + 1) * 36px;
+                        }
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+            options-scroll := Flickable {
+                x: 4px; y: 48px; width: parent.width - 8px; height: parent.height - 56px;
+                content-width: self.width;
+                content-height: max(root.options.length * 36px, self.height);
+                for option[i] in root.options: Rectangle {
+                    x: 0px; y: i * 36px; width: parent.width; height: 36px;
+                    border-radius: 3px;
+                    background: option-touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
+                    accessible-role: button;
+                    accessible-label: option.title + " · " + option.subtitle + (root.english ? " monsters" : " 隻怪物");
+                    accessible-action-default => { root.choose(option.key, option.title); root.open = false; }
+                    Text {
+                        x: 10px; y: 0px; width: parent.width - 112px; height: 100%;
+                        text: option.title; font-size: 13px; color: DesktopTheme.text;
+                        overflow: elide; vertical-alignment: center;
+                    }
+                    Text {
+                        x: parent.width - 98px; y: 0px; width: 88px; height: 100%;
+                        text: option.subtitle + (root.english ? " monsters" : " 隻怪物");
+                        font-size: 12px; color: DesktopTheme.secondary;
+                        horizontal-alignment: right; vertical-alignment: center;
+                    }
+                    option-touch := TouchArea {
+                        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+                        clicked => { root.choose(option.key, option.title); root.open = false; }
+                    }
+                }
+                if root.options.length == 0: Text {
+                    x: 10px; y: 0px; width: parent.width - 20px; height: 36px;
+                    text: root.english ? "No matching drops" : "找不到符合的掉落物";
+                    font-size: 13px; color: DesktopTheme.secondary; vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+component MonsterElementOption inherits Rectangle {
+    in property <string> title;
+    in property <image> icon;
+    in property <bool> selected;
+    callback clicked();
+    width: root.icon.width > 0 ? 32px : max(40px, label.preferred-width + 16px);
+    height: 32px;
+    border-radius: 4px; border-width: 1px;
+    border-color: root.selected || focus.has-focus ? DesktopTheme.accent : transparent;
+    background: root.selected ? DesktopTheme.control : touch.has-hover ? DesktopTheme.hover : transparent;
+    accessible-role: button;
+    accessible-label: root.title;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus;
+    if root.icon.width > 0: Image {
+        x: 4px; y: 4px; width: 24px; height: 24px;
+        source: root.icon; image-fit: contain;
+    }
+    label := Text {
+        x: 0px; y: 0px; width: 100%; height: 100%; visible: root.icon.width == 0;
+        text: root.title; font-size: 13px;
+        color: root.selected ? DesktopTheme.text : DesktopTheme.secondary;
+        horizontal-alignment: center; vertical-alignment: center;
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    touch := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+    Tooltip {
+        Rectangle {
+            width: tip.preferred-width + 20px; height: 32px;
+            background: DesktopTheme.raised; border-radius: 4px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            tip := Text {
+                x: 10px; y: 0px; width: parent.width - 20px; height: 100%;
+                text: root.title; font-size: 13px; color: DesktopTheme.text; vertical-alignment: center;
+            }
+        }
+    }
+}
+
+component MonsterSortPicker inherits Rectangle {
+    in property <[string]> labels;
+    in property <int> selected;
+    in-out property <bool> open: false;
+    property <bool> popup-visible: popup.is-open;
+    property <int> option-index;
+    callback pick(int);
+    height: 32px;
+    border-radius: 4px; border-width: 1px;
+    border-color: root.open || focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    background: DesktopTheme.control;
+    accessible-role: combobox;
+    accessible-label: root.labels[root.selected];
+    accessible-expandable: true; accessible-expanded: root.open;
+    accessible-action-expand => { root.show-options(); }
+    forward-focus: focus;
+    function show-options() {
+        root.option-index = root.selected;
+        popup.show();
+        root.open = popup.is-open;
+    }
+    changed open => { if (!root.open && popup.is-open) { popup.close(); } }
+    changed popup-visible => { root.open = root.popup-visible; }
+    Text {
+        x: 10px; y: 0px; width: parent.width - 38px; height: 100%;
+        text: root.labels[root.selected]; color: DesktopTheme.text; font-size: 13px;
+        overflow: elide; vertical-alignment: center;
+    }
+    DesktopIcon {
+        x: parent.width - 24px; y: 9px; width: 14px; height: 14px;
+        path: root.open ? "M6 15 L12 9 L18 15" : "M6 9 L12 15 L18 9";
+        ink: DesktopTheme.secondary;
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow) { root.show-options(); return accept; }
+            return reject;
+        }
+    }
+    TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { root.show-options(); }
+    }
+    popup := PopupWindow {
+        x: 0px; y: root.height + 4px; width: root.width;
+        height: root.labels.length * 32px + 8px;
+        close-policy: close-on-click-outside;
+        forward-focus: popup-focus;
+        Rectangle {
+            x: 0px; y: 0px; width: 100%; height: 100%;
+            background: DesktopTheme.surface-alt; border-radius: 4px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            popup-focus := FocusScope {
+                x: 0px; y: 0px; width: 100%; height: 100%;
+                key-pressed(event) => {
+                    if (event.text == Key.Escape) { root.open = false; return accept; }
+                    if (event.text == Key.UpArrow || event.text == Key.DownArrow) {
+                        root.option-index = max(0, min(root.labels.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
+                        return accept;
+                    }
+                    if (event.text == Key.Return || event.text == Key.Space) { root.pick(root.option-index); root.open = false; return accept; }
+                    return reject;
+                }
+            }
+            for label[i] in root.labels: Rectangle {
+                x: 4px; y: 4px + i * 32px; width: parent.width - 8px; height: 32px;
+                border-radius: 3px;
+                background: touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
+                accessible-role: button; accessible-label: label;
+                accessible-action-default => { root.pick(i); root.open = false; }
+                Text {
+                    x: 8px; y: 0px; width: parent.width - 16px; height: 100%;
+                    text: label; font-size: 13px; color: DesktopTheme.text; vertical-alignment: center;
+                }
+                touch := TouchArea {
+                    x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+                    clicked => { root.pick(i); root.open = false; }
+                }
+            }
+        }
+    }
+}
+
+// The region directory stays separate from the monster search and filters.
+component MonsterRegionLink inherits Rectangle {
+    in property <string> title;
+    in property <string> short-title: root.title;
+    in property <bool> heading;
+    in property <bool> selected;
+    in property <bool> keyboard-current;
+    callback clicked();
+    callback step(int);
+    height: 34px;
+    border-radius: 5px;
+    background: root.selected ? DesktopTheme.selected : touch.has-hover ? DesktopTheme.hover : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus || root.keyboard-current ? DesktopTheme.accent : transparent;
+    accessible-role: button;
+    accessible-label: root.title;
+    accessible-description: root.selected ? "Selected" : "";
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus;
+    Text {
+        x: 10px; y: 0px; width: parent.width - 20px; height: 100%;
+        text: root.short-title; overflow: elide; vertical-alignment: center;
+        font-size: 13px; font-weight: root.heading || root.selected ? 600 : 400;
+        color: root.selected ? DesktopTheme.accent : root.heading ? DesktopTheme.text : DesktopTheme.secondary;
+    }
+    focus := FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            if (event.text == Key.UpArrow || event.text == Key.DownArrow) { root.step(event.text == Key.DownArrow ? 1 : -1); return accept; }
+            return reject;
+        }
+    }
+    touch := TouchArea {
+        width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+    Tooltip {
+        Rectangle {
+            width: min(tip.preferred-width + 20px, 420px); height: tip.preferred-height + 16px;
+            background: DesktopTheme.raised; border-radius: 4px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            tip := Text {
+                x: 10px; y: 8px; width: parent.width - 20px;
+                text: root.title; wrap: word-wrap; font-size: 13px; color: DesktopTheme.text;
+            }
+        }
+    }
+}
+
+component MonsterRangeField inherits Rectangle {
+    in property <string> label;
+    in property <string> minimum;
+    in property <string> maximum;
+    in property <bool> english;
+    in property <color> ink: DesktopTheme.secondary;
+    callback edit-min(string);
+    callback edit-max(string);
+    height: 54px;
+    Text {
+        x: 0px; y: 0px; width: 100%; height: 18px;
+        text: root.label; font-size: 12px; color: root.ink;
+    }
+    LineEdit {
+        x: 0px; y: 22px; width: (parent.width - 24px) / 2; height: 32px;
+        text: root.minimum; placeholder-text: root.english ? "Min" : "最低（不限）";
+        accessible-label: root.label + (root.english ? " minimum" : "最低值");
+        edited => { root.edit-min(self.text); }
+    }
+    Text {
+        x: (parent.width - 24px) / 2; y: 22px; width: 24px; height: 32px;
+        text: "–"; horizontal-alignment: center; vertical-alignment: center; color: DesktopTheme.secondary;
+    }
+    LineEdit {
+        x: (parent.width + 24px) / 2; y: 22px; width: (parent.width - 24px) / 2; height: 32px;
+        text: root.maximum; placeholder-text: root.english ? "Max" : "最高（不限）";
+        accessible-label: root.label + (root.english ? " maximum" : "最高值");
+        edited => { root.edit-max(self.text); }
+    }
+}
+
 component BoardFilter inherits Rectangle {
     in property <bool> open;
     in property <bool> menu-open: true;
+    in property <bool> show-menu: true;
     in property <bool> active;
     in property <int> element: -1;
+    in property <[image]> element-icons;
+    in property <string> hit-min;
+    in property <string> hit-max;
+    in property <string> magic-min;
+    in property <string> magic-max;
+    in-out property <bool> advanced-open: false;
+    in property <int> sort-key: 0;
+    in property <bool> sort-desc: true;
+    in-out property <bool> sort-open: false;
     in property <string> ela-min;
     in property <string> ela-max;
     in property <string> drop;
+    in property <string> drop-key;
+    in property <[Hit]> drop-options;
+    in-out property <bool> drop-open: false;
+    in property <bool> global-scope;
+    in property <bool> scoped: true;
+    in property <int> result-count;
+    in property <bool> result-known: true;
     in property <bool> english;
+    in property <string> current-label: root.english ? "Current region" : "目前地區";
+    in property <string> scope-title: root.current-label;
+    property <[string]> element-labels: root.english ? ["All", "None", "Fire", "Water", "Wind", "Thunder", "Earth"] : ["全部", "無", "火", "水", "風", "雷", "地"];
+    property <length> drop-width: (root.width - 20px) * 0.55;
+    property <length> sort-width: root.width < 620px ? 168px : 200px;
+    property <[string]> sort-labels: root.english ? ["Default order", "ELA", "Hit resist", "Magic resist", "HP", "MP", "Experience", "Name"] : ["原排序", "屬性值（ELA）", "打擊抗性", "魔法抗性", "體力", "魔力", "經驗", "名稱"];
+    property <string> sort-direction: root.sort-desc ? "↓" : "↑";
+    property <string> sort-direction-description: root.sort-key == 7 ? (root.sort-desc ? "Z → A" : "A → Z") : root.sort-desc ? (root.english ? "High → low" : "由高至低") : (root.english ? "Low → high" : "由低至高");
+    property <int> advanced-count: (root.hit-min != "" || root.hit-max != "" ? 1 : 0) + (root.magic-min != "" || root.magic-max != "" ? 1 : 0);
+    property <string> summary: (root.sort-key > 0 ? root.sort-labels[root.sort-key] + " " + root.sort-direction + " · " : "")
+        + (root.global-scope ? (root.english ? "All monsters" : "所有怪物") : root.scope-title)
+        + (root.element >= 0 ? " · " + root.element-labels[root.element + 1] : "")
+        + (root.ela-min != "" || root.ela-max != "" ? " · " + (root.english ? "Value " : "屬性值 ") + (root.ela-min == "" ? "0" : root.ela-min) + "–" + (root.ela-max == "" ? "∞" : root.ela-max) : "")
+        + (root.drop != "" ? " · " + root.drop : "")
+        + (root.hit-min != "" || root.hit-max != "" ? " · " + (root.english ? "Hit " : "打抗 ") + (root.hit-min == "" ? "0" : root.hit-min) + "–" + (root.hit-max == "" ? "∞" : root.hit-max) : "")
+        + (root.magic-min != "" || root.magic-max != "" ? " · " + (root.english ? "Magic " : "魔抗 ") + (root.magic-min == "" ? "0" : root.magic-min) + "–" + (root.magic-max == "" ? "∞" : root.magic-max) : "");
     callback toggle();
     callback toggle-menu();
-    in property <bool> battle-view: true;
-    in property <bool> pictures: false;
-    callback pick-view(bool);
     callback clear();
     callback pick(int);
+    callback pick-scope(bool);
     callback edit-min(string);
     callback edit-max(string);
+    callback edit-hit-min(string);
+    callback edit-hit-max(string);
+    callback edit-magic-min(string);
+    callback edit-magic-max(string);
+    callback pick-sort(int);
+    callback toggle-sort-direction();
     callback edit-drop(string);
-    height: open ? 112px : 32px;
-    VerticalLayout {
-        width: 100%;
-        spacing: 6px;
+    callback request-drops(string);
+    callback select-drop(string, string);
+    callback clear-drop();
+    height: open ? 212px + (root.advanced-open ? 76px : 0px) : 32px;
+    if root.show-menu: MonsterTool {
+        x: 0px; y: 0px; width: 64px; height: 30px;
+        label: root.english ? "Regions" : "目錄"; active: root.menu-open;
+        clicked => { root.toggle-menu(); }
+    }
+    MonsterTool {
+        x: root.show-menu ? 72px : 0px; y: 0px; width: 64px; height: 30px;
+        label: root.english ? "Filters" : "篩選"; active: root.open || root.active;
+        clicked => { root.toggle(); }
+    }
+    Text {
+        x: root.show-menu ? 148px : 76px; y: 0px;
+        width: max(16px, parent.width - self.x - 116px - (root.active ? 72px : 0px)); height: 30px;
+        text: root.summary; font-size: 12px; color: DesktopTheme.secondary;
+        overflow: elide; vertical-alignment: center;
+    }
+    Text {
+        x: parent.width - 112px - (root.active ? 72px : 0px); y: 0px; width: 112px; height: 30px;
+        text: !root.result-known || root.result-count < 0 ? ""
+            : root.result-count == 0 ? (root.english ? "No matches" : "沒有符合的怪物")
+            : root.result-count + (root.english ? " monsters" : " 隻怪物");
+        font-size: 12px; color: root.result-count == 0 && root.result-known ? DesktopTheme.text : DesktopTheme.secondary;
+        horizontal-alignment: right; vertical-alignment: center;
+    }
+    if root.active: MonsterTool {
+        x: parent.width - 64px; y: 0px; width: 64px; height: 30px;
+        label: root.english ? "Reset" : "重設";
+        clicked => { root.drop-open = false; root.sort-open = false; root.clear(); }
+    }
+    if root.open: Rectangle {
+        x: 0px; y: 40px; width: 100%; height: root.height - 40px;
+        Text { x: 0px; y: 0px; width: 56px; height: 28px; text: root.english ? "Scope" : "範圍"; color: DesktopTheme.secondary; font-size: 12px; vertical-alignment: center; }
+        if root.scoped: MonsterTool { x: 64px; y: 0px; width: 124px; label: root.current-label; active: !root.global-scope; clicked => { root.pick-scope(false); } }
+        MonsterTool { x: root.scoped ? 192px : 64px; y: 0px; width: 124px; label: root.english ? "All monsters" : "所有怪物"; active: root.global-scope; clicked => { root.pick-scope(true); } }
+        Text { x: 0px; y: 36px; width: 56px; height: 28px; text: root.english ? "Element" : "屬性"; color: DesktopTheme.secondary; font-size: 12px; vertical-alignment: center; }
         HorizontalLayout {
-            height: 28px;
-            spacing: 6px;
-            alignment: start;
-            FilterChip {
-                horizontal-stretch: 0;
-                width: 64px;
-                label: root.english ? "Menu" : "目錄";
-                active: root.menu-open;
-                clicked => { root.toggle-menu(); }
-            }
-            if root.pictures: FilterChip {
-                horizontal-stretch: 0;
-                width: 64px;
-                label: root.english ? "Filter" : "篩選";
-                active: root.open || root.active;
-                clicked => { root.toggle(); }
-            }
-            if root.pictures && root.active: FilterChip {
-                horizontal-stretch: 0;
-                width: 64px;
-                label: root.english ? "Clear" : "清除";
-                active: false;
-                clicked => { root.clear(); }
-            }
-            Rectangle { horizontal-stretch: 1; }
-            if root.pictures: FilterChip {
-                horizontal-stretch: 0;
-                width: 52px;
-                label: root.english ? "Face" : "頭像";
-                active: !root.battle-view;
-                clicked => { root.pick-view(false); }
-            }
-            if root.pictures: FilterChip {
-                horizontal-stretch: 0;
-                width: 52px;
-                label: root.english ? "Battle" : "戰鬥";
-                active: root.battle-view;
-                clicked => { root.pick-view(true); }
+            x: 64px; y: 34px; width: parent.width - 64px; height: 32px;
+            spacing: 6px; alignment: start;
+            for label[i] in root.element-labels: MonsterElementOption {
+                title: label; icon: root.element-icons[i]; selected: root.element == i - 1;
+                clicked => { root.pick(i - 1); }
             }
         }
-        if root.open: HorizontalLayout {
-            height: 28px;
-            spacing: 6px;
-            alignment: start;
-            FilterChip { horizontal-stretch: 0; width: 52px; label: root.english ? "All" : "全部"; active: root.element < 0; clicked => { root.pick(-1); } }
-            FilterChip { horizontal-stretch: 0; width: 44px; label: root.english ? "None" : "無"; active: root.element == 0; clicked => { root.pick(0); } }
-            FilterChip { horizontal-stretch: 0; width: 44px; label: root.english ? "Fire" : "火"; active: root.element == 1; clicked => { root.pick(1); } }
-            FilterChip { horizontal-stretch: 0; width: 52px; label: root.english ? "Water" : "水"; active: root.element == 2; clicked => { root.pick(2); } }
-            FilterChip { horizontal-stretch: 0; width: 52px; label: root.english ? "Wind" : "風"; active: root.element == 3; clicked => { root.pick(3); } }
-            FilterChip { horizontal-stretch: 0; width: 72px; label: root.english ? "Thunder" : "雷"; active: root.element == 4; clicked => { root.pick(4); } }
-            FilterChip { horizontal-stretch: 0; width: 56px; label: root.english ? "Earth" : "地"; active: root.element == 5; clicked => { root.pick(5); } }
+        Text { x: 0px; y: 72px; width: root.drop-width; height: 18px; text: root.english ? "Drop item" : "掉落物"; font-size: 12px; color: DesktopTheme.secondary; }
+        MonsterDropPicker {
+            x: 0px; y: 94px; width: root.drop-width;
+            query: root.drop; selected-key: root.drop-key; options: root.drop-options;
+            english: root.english; open <=> root.drop-open;
+            request(text) => { root.request-drops(text); }
+            edit(text) => { root.edit-drop(text); }
+            choose(key, title) => { root.select-drop(key, title); }
+            clear => { root.clear-drop(); }
         }
-        if root.open: HorizontalLayout {
-            height: 28px;
-            spacing: 8px;
-            alignment: start;
-            LineEdit {
-                width: 180px;
-                placeholder-text: root.english ? "Drop" : "掉落物";
-                text: root.drop;
-                edited => { root.edit-drop(self.text); }
+        Text { x: root.drop-width + 20px; y: 72px; width: parent.width - self.x; height: 18px; text: root.english ? "ELA · min / max" : "屬性值（ELA）· 最低／最高"; font-size: 12px; color: DesktopTheme.secondary; }
+        LineEdit {
+            x: root.drop-width + 20px; y: 94px; width: (parent.width - self.x - 24px) / 2; height: 32px;
+            placeholder-text: root.english ? "Min" : "不限"; text: root.ela-min;
+            edited => { root.edit-min(self.text); }
+        }
+        Text { x: root.drop-width + 20px + (parent.width - root.drop-width - 44px) / 2; y: 94px; width: 24px; height: 32px; text: "–"; horizontal-alignment: center; vertical-alignment: center; color: DesktopTheme.secondary; }
+        LineEdit {
+            x: root.drop-width + 44px + (parent.width - root.drop-width - 44px) / 2; y: 94px; width: (parent.width - root.drop-width - 44px) / 2; height: 32px;
+            placeholder-text: root.english ? "Max" : "不限"; text: root.ela-max;
+            edited => { root.edit-max(self.text); }
+        }
+        Text { x: 0px; y: 136px; width: 56px; height: 32px; text: root.english ? "Sort" : "排序"; font-size: 12px; color: DesktopTheme.secondary; vertical-alignment: center; }
+        MonsterSortPicker {
+            x: 64px; y: 136px; width: root.sort-width;
+            labels: root.sort-labels; selected: root.sort-key; open <=> root.sort-open;
+            pick(key) => { root.pick-sort(key); }
+        }
+        if root.sort-key != 0: MonsterTool {
+            x: 72px + root.sort-width; y: 136px; width: 36px; height: 32px;
+            label: root.sort-direction; label-size: 18px; active: true;
+            accessible-label: (root.english ? "Sort direction: " : "排序方向：") + root.sort-direction-description;
+            clicked => { root.toggle-sort-direction(); }
+            Tooltip {
+                Rectangle {
+                    width: direction-tip.preferred-width + 20px; height: 32px;
+                    background: DesktopTheme.raised; border-radius: 4px;
+                    border-width: 1px; border-color: DesktopTheme.border;
+                    direction-tip := Text {
+                        x: 10px; width: parent.width - 20px; height: 100%;
+                        text: root.sort-direction-description;
+                        font-size: 13px; color: DesktopTheme.text; vertical-alignment: center;
+                    }
+                }
             }
-            Text {
-                text: root.english ? "ELA" : "屬性值";
-                color: DesktopTheme.secondary;
-                vertical-alignment: center;
-            }
-            LineEdit {
-                width: 72px;
-                placeholder-text: root.english ? "Min" : "最小";
-                text: root.ela-min;
-                edited => { root.edit-min(self.text); }
-            }
-            Text {
-                text: "–";
-                color: DesktopTheme.secondary;
-                vertical-alignment: center;
-            }
-            LineEdit {
-                width: 72px;
-                placeholder-text: root.english ? "Max" : "最大";
-                text: root.ela-max;
-                edited => { root.edit-max(self.text); }
-            }
+        }
+        MonsterTool {
+            x: parent.width - 140px; y: 136px; width: 140px; height: 32px;
+            label: (root.advanced-open ? (root.english ? "Less filters" : "收起進階條件") : (root.english ? "Advanced" : "進階條件")) + (root.advanced-count > 0 ? " · " + root.advanced-count : "");
+            active: root.advanced-open || root.advanced-count > 0;
+            clicked => { root.drop-open = false; root.sort-open = false; root.advanced-open = !root.advanced-open; }
+        }
+        if root.advanced-open: MonsterRangeField {
+            x: 0px; y: 176px; width: (parent.width - 20px) / 2;
+            label: root.english ? "Hit resist (%) · min / max" : "打擊抗性（%）· 最低／最高";
+            minimum: root.hit-min; maximum: root.hit-max; english: root.english; ink: #e3a1a1;
+            edit-min(text) => { root.edit-hit-min(text); }
+            edit-max(text) => { root.edit-hit-max(text); }
+        }
+        if root.advanced-open: MonsterRangeField {
+            x: (parent.width + 20px) / 2; y: 176px; width: (parent.width - 20px) / 2;
+            label: root.english ? "Magic resist (%) · min / max" : "魔法抗性（%）· 最低／最高";
+            minimum: root.magic-min; maximum: root.magic-max; english: root.english; ink: #a4c4e8;
+            edit-min(text) => { root.edit-magic-min(text); }
+            edit-max(text) => { root.edit-magic-max(text); }
         }
     }
 }
 
-component PlaceLink inherits Rectangle {
-    in property <string> title;
-    in property <bool> heading: false;
-    in property <bool> open: false;
-    in property <bool> selected: false;
-    in property <length> chip-w: 80px;
-    callback clicked();
-    width: chip-w;
-    height: 28px;
-    border-radius: 6px;
-    background: heading ? (open ? DesktopTheme.hover : transparent) : selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
-    area := TouchArea {
-        width: 100%;
-        height: 100%;
-        clicked => { root.clicked(); }
-        mouse-cursor: pointer;
-        Text {
-            x: heading ? 0px : 8px;
-            width: max(parent.width - (heading ? 0px : 16px), 8px);
-            height: 100%;
-            text: root.title;
-            font-size: heading ? 13px : 12px;
-            font-weight: heading ? 600 : 400;
-            color: heading ? DesktopTheme.text : selected ? DesktopTheme.accent : DesktopTheme.secondary;
-            vertical-alignment: center;
-            overflow: elide;
-        }
-    }
-}
-
-component TableStat inherits Rectangle {
+// Full mode keeps one monster per row, with combat values always visible.
+component MonsterStat inherits Rectangle {
     in property <string> label;
     in property <string> value;
-    height: 16px;
-    HorizontalLayout {
-        width: 100%;
-        height: 100%;
-        spacing: 8px;
-        Text {
-            width: 52px;
-            text: root.label;
-            font-size: 12px;
-            color: DesktopTheme.muted;
-            vertical-alignment: center;
-            overflow: elide;
+    in property <color> ink: DesktopTheme.text;
+    in property <color> label-ink: DesktopTheme.secondary;
+    height: 36px;
+    Text {
+        x: 0px; y: 0px; width: 100%; height: 16px;
+        text: root.label; font-size: 12px; color: root.label-ink;
+    }
+    Text {
+        x: 0px; y: 17px; width: 100%; height: 19px;
+        text: root.value; font-size: 13px; font-weight: 600; color: root.ink;
+        overflow: elide;
+    }
+}
+
+component DropContextMenu inherits PopupWindow {
+    in property <bool> english;
+    callback find-monsters();
+    property <string> action-title: root.english ? "Find monsters with this drop" : "查看掉落此道具的所有怪物";
+    width: max(260px, action-label.preferred-width + 32px);
+    height: 40px;
+    close-policy: close-on-click-outside;
+    forward-focus: menu-focus;
+    function activate() {
+        root.close();
+        root.find-monsters();
+    }
+    Rectangle {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        background: DesktopTheme.raised; border-radius: 5px;
+        border-width: 1px; border-color: DesktopTheme.border;
+        menu-focus := FocusScope {
+            x: 0px; y: 0px; width: 100%; height: 100%;
+            key-pressed(event) => {
+                if (event.text == Key.Escape) { root.close(); return accept; }
+                if (event.text == Key.Return || event.text == Key.Space) { root.activate(); return accept; }
+                return reject;
+            }
         }
-        Text {
-            horizontal-stretch: 1;
-            text: root.value;
-            font-size: 12px;
-            color: DesktopTheme.text;
-            vertical-alignment: center;
-            overflow: elide;
+        Rectangle {
+            x: 4px; y: 4px; width: parent.width - 8px; height: 32px;
+            border-radius: 3px;
+            background: action-touch.has-hover || menu-focus.has-focus ? DesktopTheme.hover-strong : transparent;
+            accessible-role: button;
+            accessible-label: root.action-title;
+            accessible-action-default => { root.activate(); }
+            action-label := Text {
+                x: 12px; y: 0px; width: parent.width - 24px; height: 100%;
+                text: root.action-title; font-size: 13px; color: DesktopTheme.text;
+                vertical-alignment: center;
+            }
+            action-touch := TouchArea {
+                x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+                clicked => { root.activate(); }
+            }
+        }
+    }
+}
+
+component MonsterDropIcon inherits Rectangle {
+    in property <MonsterDrop> drop;
+    in property <bool> english;
+    callback open(string);
+    callback find-monsters(string, string);
+    property <length> context-x: 0px;
+    property <length> context-y: root.height;
+    function show-context(x: length, y: length) {
+        root.context-x = x; root.context-y = y;
+        context.show();
+    }
+    width: 28px; height: 28px;
+    border-radius: 4px;
+    background: touch.has-hover ? DesktopTheme.hover-strong : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    accessible-role: button;
+    accessible-label: drop.title;
+    accessible-action-default => { root.open(root.drop.key); }
+    forward-focus: focus;
+    if root.drop.has-icon: Image {
+        x: 3px; y: 3px; width: 22px; height: 22px;
+        source: root.drop.icon; image-fit: contain;
+    }
+    if !root.drop.has-icon: DesktopIcon {
+        x: 6px; y: 6px; width: 16px; height: 16px;
+        path: "M4 6 L12 2 L20 6 L20 18 L12 22 L4 18 Z M4 6 L12 10 L20 6 M12 10 L12 22";
+        ink: DesktopTheme.secondary;
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Menu || (event.modifiers.shift && event.text == Key.F10)) {
+                root.show-context(0px, root.height); return accept;
+            }
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.open(root.drop.key); return accept;
+            }
+            return reject;
+        }
+    }
+    touch := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { focus.focus(); root.open(root.drop.key); }
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                focus.focus(); root.show-context(self.mouse-x, self.mouse-y);
+            }
+        }
+    }
+    context := DropContextMenu {
+        x: root.context-x; y: root.context-y; english: root.english;
+        find-monsters => { root.find-monsters(root.drop.key, root.drop.title); }
+    }
+    Tooltip {
+        Rectangle {
+            width: min(tip.preferred-width + 20px, 320px);
+            height: tip.preferred-height + 16px;
+            background: DesktopTheme.raised;
+            border-radius: 5px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            tip := Text {
+                x: 10px; y: 8px; width: parent.width - 20px;
+                height: self.preferred-height;
+                text: root.drop.title; font-size: 13px;
+                color: DesktopTheme.text; wrap: word-wrap;
+            }
+        }
+    }
+}
+
+component MonsterNames inherits Rectangle {
+    in property <string> title;
+    in property <string> alternate;
+    in property <bool> compact: false;
+    height: root.compact ? (root.alternate != "" ? 40px : 22px) : primary.preferred-height + (root.alternate != "" ? secondary.preferred-height + 4px : 0px);
+    accessible-role: text;
+    accessible-label: root.title;
+    accessible-description: root.alternate;
+    primary := Text {
+        x: 0px; y: 0px; width: 100%; height: root.compact ? 22px : self.preferred-height;
+        text: root.title; font-size: 15px; font-weight: 600; color: DesktopTheme.text;
+        wrap: word-wrap; overflow: elide;
+    }
+    secondary := Text {
+        x: 0px; y: root.compact ? 22px : primary.height + 4px;
+        width: 100%; height: root.compact ? 18px : self.preferred-height;
+        visible: root.alternate != "";
+        text: root.alternate; font-size: 12px; color: DesktopTheme.secondary;
+        wrap: word-wrap; overflow: elide;
+    }
+    Tooltip {
+        Rectangle {
+            width: min(380px, tip.preferred-width + 24px); height: tip.preferred-height + 20px;
+            background: DesktopTheme.raised; border-radius: 5px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            tip := Text {
+                x: 12px; y: 10px; width: parent.width - 24px; height: self.preferred-height;
+                text: root.title + (root.alternate != "" ? "\n" + root.alternate : "");
+                font-size: 13px; color: DesktopTheme.text; wrap: word-wrap;
+            }
         }
     }
 }
@@ -1509,140 +2413,536 @@ component TableStat inherits Rectangle {
 component MonsterTableRow inherits Rectangle {
     in property <Hit> hit;
     in property <bool> selected: false;
+    in property <bool> expanded: false;
     in property <string> no-image-label: "沒有圖片";
     in property <bool> english: false;
     in property <bool> portrait: false;
     callback clicked();
     callback favourite-clicked();
-    height: 104px;
-    border-radius: 8px;
+    callback open-drop(string);
+    callback find-drop-monsters(string, string);
+    height: 128px;
+    border-radius: 6px;
     border-width: 1px;
     border-color: selected ? DesktopTheme.accent : transparent;
-    background: selected ? DesktopTheme.selected : (area.has-hover ? DesktopTheme.hover : DesktopTheme.surface-alt);
+    background: selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : DesktopTheme.surface-alt;
+    property <length> identity-w: root.width < 660px ? 132px : 196px;
+    property <length> stats-x: 76px + identity-w + 16px;
+    property <length> stat-w: (root.width - stats-x - 48px) / 3;
+    property <color> element-ink: hit.stat-element.starts-with("火") || hit.stat-element.starts-with("Fire") ? #e3a18b
+        : hit.stat-element.starts-with("水") || hit.stat-element.starts-with("Water") ? #a4c4e8
+        : hit.stat-element.starts-with("風") || hit.stat-element.starts-with("Wind") ? #b3ceaa
+        : hit.stat-element.starts-with("雷") || hit.stat-element.starts-with("Thunder") ? #ccb2e3
+        : hit.stat-element.starts-with("地") || hit.stat-element.starts-with("Earth") ? #ddc18e
+        : DesktopTheme.secondary;
+    accessible-role: button;
+    accessible-label: hit.title;
+    accessible-description: hit.alternate-name;
+    accessible-action-default => { root.clicked(); }
     area := TouchArea {
-        width: parent.width - 40px;
-        height: 100%;
-        clicked => { root.clicked(); }
-        mouse-cursor: pointer;
-        HorizontalLayout {
-            width: 100%;
-            height: 100%;
-            padding-left: 10px;
-            padding-right: 8px;
-            padding-top: 8px;
-            padding-bottom: 8px;
-            spacing: root.width < 680px ? 12px : 16px;
-            alignment: start;
-            Rectangle {
-                width: root.width < 680px ? 64px : 72px;
-                height: 88px;
-                if root.hit.has-icon && (!root.hit.has-battle || root.portrait): Image {
-                    x: (parent.width - 64px) / 2;
-                    y: (parent.height - 64px) / 2;
-                    width: 64px;
-                    height: 64px;
-                    source: root.hit.icon;
-                    image-fit: contain;
-                }
-                if root.hit.no-image && !root.hit.has-battle: NoImage {
-                    x: (parent.width - 64px) / 2;
-                    y: (parent.height - 64px) / 2;
-                    side: 64px;
-                    label: root.no-image-label;
-                }
-                if root.hit.has-battle && !root.portrait: Image {
-                    x: (parent.width - 72px) / 2;
-                    y: (parent.height - 80px) / 2;
-                    width: 72px;
-                    height: 80px;
-                    source: root.hit.battle;
-                    image-fit: contain;
-                }
-            }
-            VerticalLayout {
-                width: root.width < 680px ? 148px : 200px;
-                alignment: start;
-                spacing: 2px;
-                Text {
-                    text: root.hit.title;
-                    font-size: 15px;
-                    font-weight: 600;
-                    color: DesktopTheme.text;
-                    overflow: elide;
-                }
-                if root.hit.subtitle != "": Text {
-                    text: root.hit.subtitle;
-                    font-size: 13px;
-                    color: DesktopTheme.accent;
-                    overflow: elide;
-                }
-                if root.hit.stat-kind != "": Text {
-                    text: root.hit.stat-kind;
-                    font-size: 12px;
-                    color: DesktopTheme.secondary;
-                    overflow: elide;
-                }
-                if root.hit.stat-element != "": Text {
-                    text: root.hit.stat-element;
-                    font-size: 12px;
-                    color: DesktopTheme.secondary;
-                    overflow: elide;
-                }
-            }
-            VerticalLayout {
-                width: root.width < 680px ? 122px : 166px;
-                alignment: start;
-                spacing: 0px;
-                TableStat { label: root.english ? "HP" : "體力"; value: root.hit.stat-hp; }
-                TableStat { label: root.english ? "Hit" : "打擊"; value: root.hit.stat-hit; }
-                TableStat { label: root.english ? "Magic" : "魔法"; value: root.hit.stat-magic; }
-                TableStat { label: root.english ? "Attack" : "攻擊"; value: root.hit.stat-atk; }
-                TableStat { label: root.english ? "Exp" : "經驗"; value: root.hit.stat-exp; }
-            }
-            if root.width >= 620px: VerticalLayout {
-                horizontal-stretch: 1;
-                alignment: start;
-                spacing: 4px;
-                Text {
-                    height: 16px;
-                    text: root.english ? "Drops" : "掉落";
-                    font-size: 12px;
-                    color: DesktopTheme.muted;
-                    vertical-alignment: center;
-                }
-                HorizontalLayout {
-                    height: 28px;
-                    spacing: 4px;
-                    alignment: start;
-                    if root.hit.drop1.width > 0: Image { source: root.hit.drop1; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop2.width > 0: Image { source: root.hit.drop2; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop3.width > 0: Image { source: root.hit.drop3; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop4.width > 0: Image { source: root.hit.drop4; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop5.width > 0: Image { source: root.hit.drop5; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                }
-                if root.hit.drop6.width > 0: HorizontalLayout {
-                    height: 28px;
-                    spacing: 4px;
-                    alignment: start;
-                    if root.hit.drop6.width > 0: Image { source: root.hit.drop6; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop7.width > 0: Image { source: root.hit.drop7; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop8.width > 0: Image { source: root.hit.drop8; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop9.width > 0: Image { source: root.hit.drop9; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                    if root.hit.drop10.width > 0: Image { source: root.hit.drop10; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
-                }
-                if root.hit.drop-total == 0: Text {
-                    text: "—";
-                    font-size: 12px;
-                    color: DesktopTheme.muted;
-                }
-            }
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        clicked => { root.clicked(); } mouse-cursor: pointer;
+    }
+    Rectangle {
+        x: 12px; y: 12px; width: 52px; height: 72px;
+        if root.hit.has-icon && (!root.hit.has-battle || root.portrait): Image {
+            x: 0px; y: 6px; width: 52px; height: 52px;
+            source: root.hit.icon; image-fit: contain;
+        }
+        if root.hit.no-image && !root.hit.has-battle: NoImage {
+            x: 0px; y: 6px; side: 52px; label: root.no-image-label;
+        }
+        if root.hit.has-battle && !root.portrait: Image {
+            x: 0px; y: 0px; width: 52px; height: 72px;
+            source: root.hit.battle; image-fit: contain;
+        }
+    }
+    MonsterNames {
+        x: 76px; y: 10px; width: root.identity-w;
+        title: root.hit.title; alternate: root.hit.alternate-name; compact: true;
+    }
+    Text {
+        x: 76px; y: root.hit.alternate-name != "" ? 52px : 40px; width: root.identity-w; height: 18px;
+        text: root.hit.stat-kind; font-size: 12px; color: DesktopTheme.secondary; overflow: elide;
+    }
+    if root.hit.has-badge: Image {
+        x: 76px; y: root.hit.alternate-name != "" ? 72px : 62px; width: 18px; height: 18px;
+        source: root.hit.badge; image-fit: contain;
+    }
+    Text {
+        x: 76px + (root.hit.has-badge ? 24px : 0px); y: root.hit.alternate-name != "" ? 72px : 62px;
+        width: root.identity-w - (root.hit.has-badge ? 24px : 0px); height: 18px;
+        text: root.hit.stat-element; font-size: 12px; color: root.element-ink; overflow: elide;
+    }
+    MonsterStat { x: root.stats-x; y: 10px; width: root.stat-w; label: root.english ? "HP" : "體力"; value: root.hit.stat-hp; ink: #e3a1a1; }
+    MonsterStat { x: root.stats-x + root.stat-w + 8px; y: 10px; width: root.stat-w; label: root.english ? "MP" : "魔力"; value: root.hit.stat-mp; ink: #a4c4e8; }
+    MonsterStat { x: root.stats-x + 2 * (root.stat-w + 8px); y: 10px; width: root.stat-w; label: root.english ? "Attack" : "攻擊"; value: root.hit.stat-atk; }
+    MonsterStat { x: root.stats-x; y: 52px; width: root.stat-w; label: root.english ? "Hit resist" : "打擊抗性"; value: root.hit.stat-hit; ink: #e3a1a1; label-ink: #e3a1a1; }
+    MonsterStat { x: root.stats-x + root.stat-w + 8px; y: 52px; width: root.stat-w; label: root.english ? "Magic resist" : "魔法抗性"; value: root.hit.stat-magic; ink: #a4c4e8; label-ink: #a4c4e8; }
+    MonsterStat { x: root.stats-x + 2 * (root.stat-w + 8px); y: 52px; width: root.stat-w; label: root.english ? "Exp" : "經驗"; value: root.hit.stat-exp; }
+    Text {
+        x: 12px; y: 99px; width: 64px; height: 22px;
+        text: (root.english ? "Drops " : "掉落 ") + root.hit.drop-total;
+        font-size: 12px; color: DesktopTheme.secondary; vertical-alignment: center;
+    }
+    HorizontalLayout {
+        x: 80px; y: 96px; width: parent.width - 124px; height: 28px;
+        spacing: 2px; alignment: start;
+        for drop in root.hit.monster-drops: MonsterDropIcon {
+            drop: drop; english: root.english;
+            open(key) => { root.open-drop(key); }
+            find-monsters(key, title) => { root.find-drop-monsters(key, title); }
         }
     }
     StarMark {
-        x: parent.width - 36px;
-        y: 8px;
-        filled: root.hit.favourite;
+        x: parent.width - 32px; y: 6px; filled: root.hit.favourite;
         clicked => { root.favourite-clicked(); }
+    }
+    DesktopIcon {
+        x: parent.width - 27px; y: 102px; width: 16px; height: 16px;
+        path: root.expanded ? "M6 9 L12 15 L18 9" : "M9 6 L15 12 L9 18";
+        ink: DesktopTheme.secondary;
+    }
+}
+
+component CompactRecordLink inherits Rectangle {
+    in property <string> title;
+    in property <image> icon;
+    in property <bool> has-icon;
+    in property <bool> drop-context-enabled: false;
+    in property <bool> english;
+    callback clicked();
+    callback find-monsters();
+    property <length> context-x: 0px;
+    property <length> context-y: root.height;
+    function show-context(x: length, y: length) {
+        if (!root.drop-context-enabled) { return; }
+        root.context-x = x; root.context-y = y;
+        context.show();
+    }
+    height: max(30px, label.preferred-height + 10px);
+    border-radius: 4px;
+    background: tap.has-hover ? DesktopTheme.hover-strong : transparent;
+    accessible-role: button;
+    accessible-label: title;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus;
+    if root.has-icon: Image {
+        x: 4px; y: (parent.height - 22px) / 2; width: 22px; height: 22px;
+        source: root.icon; image-fit: contain;
+    }
+    label := Text {
+        x: root.has-icon ? 32px : 4px; y: 5px;
+        width: parent.width - self.x - 4px; height: self.preferred-height;
+        text: root.title; font-size: 13px; color: DesktopTheme.accent;
+        wrap: word-wrap;
+    }
+    if root.drop-context-enabled && focus.has-focus: Rectangle {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        border-radius: 4px; border-width: 1px; border-color: DesktopTheme.accent;
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        enabled: root.drop-context-enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Menu || (event.modifiers.shift && event.text == Key.F10)) {
+                root.show-context(0px, root.height); return accept;
+            }
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked(); return accept;
+            }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { if (root.drop-context-enabled) { focus.focus(); } root.clicked(); }
+        pointer-event(event) => {
+            if (root.drop-context-enabled && event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                focus.focus(); root.show-context(self.mouse-x, self.mouse-y);
+            }
+        }
+    }
+    context := DropContextMenu {
+        x: root.context-x; y: root.context-y; english: root.english;
+        find-monsters => { root.find-monsters(); }
+    }
+}
+
+// Classic reference-page structure using the app’s existing desktop palette.
+component LegacyPlace inherits Rectangle {
+    in property <string> title;
+    in property <bool> heading;
+    in property <bool> selected;
+    callback clicked();
+    height: 30px;
+    background: selected ? DesktopTheme.selected : heading ? DesktopTheme.control : tap.has-hover ? DesktopTheme.hover : transparent;
+    accessible-role: button;
+    accessible-label: title;
+    accessible-action-default => { root.clicked(); }
+    Text {
+        x: 8px; width: parent.width - 16px; height: 100%;
+        text: root.title;
+        font-size: root.heading ? 14px : 13px;
+        font-weight: root.heading ? 600 : 400;
+        color: DesktopTheme.text;
+        vertical-alignment: center; overflow: elide;
+    }
+    tap := TouchArea {
+        width: 100%; height: 100%;
+        mouse-cursor: root.heading ? default : pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component LegacyDropLink inherits Rectangle {
+    in property <string> title;
+    in property <string> separator;
+    in property <length> available-width;
+    in property <bool> english;
+    callback clicked();
+    callback find-monsters();
+    property <length> context-x: 0px;
+    property <length> context-y: root.height;
+    function show-context(x: length, y: length) {
+        root.context-x = x; root.context-y = y;
+        context.show();
+    }
+    width: min(label.preferred-width, max(1px, root.available-width));
+    height: max(20px, label.preferred-height);
+    accessible-role: button;
+    accessible-label: root.title;
+    accessible-action-default => { root.clicked(); }
+    forward-focus: focus;
+    label := Text {
+        x: 0px; y: 0px; width: parent.width; height: self.preferred-height;
+        text: root.title + root.separator;
+        font-size: 13px; wrap: word-wrap;
+        color: tap.has-hover || focus.has-focus ? DesktopTheme.text : DesktopTheme.accent;
+    }
+    if focus.has-focus: Rectangle {
+        x: 0px; y: parent.height - 1px; width: 100%; height: 1px;
+        background: DesktopTheme.accent;
+    }
+    focus := FocusScope {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Menu || (event.modifiers.shift && event.text == Key.F10)) {
+                root.show-context(0px, root.height); return accept;
+            }
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked(); return accept;
+            }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                focus.focus(); root.show-context(self.mouse-x, self.mouse-y);
+            }
+        }
+    }
+    context := DropContextMenu {
+        x: root.context-x; y: root.context-y; english: root.english;
+        find-monsters => { root.find-monsters(); }
+    }
+}
+
+component LegacyRegionNavigator inherits Rectangle {
+    in property <[Hit]> rows;
+    in property <[int]> flow-x;
+    in property <[int]> flow-y;
+    in property <[int]> flow-w;
+    in property <int> flow-h;
+    in property <string> selected-key;
+    in property <string> current-title;
+    in property <bool> english;
+    in property <bool> open;
+    in property <length> top-gap: 44px;
+    callback toggle();
+    callback dismiss();
+    callback choose(int);
+    callback reflow(length);
+
+    if root.open: TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        clicked => { root.dismiss(); }
+    }
+    if root.open: Rectangle {
+        x: parent.width - self.width - 12px;
+        y: parent.height - self.height - 60px;
+        width: min(520px, parent.width - 24px);
+        height: min(430px, max(160px, parent.height - root.top-gap - 68px));
+        background: DesktopTheme.surface-alt;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: DesktopTheme.border;
+        clip: true;
+        TouchArea { x: 0px; y: 0px; width: 100%; height: 100%; }
+        Text {
+            x: 16px; y: 12px;
+            width: parent.width - 64px; height: 22px;
+            text: root.english ? "Monster regions" : "地區目錄";
+            font-size: 15px; font-weight: 600; color: DesktopTheme.text;
+        }
+        Text {
+            x: 16px; y: 38px;
+            width: parent.width - 32px; height: 18px;
+            text: (root.english ? "Current: " : "目前：") + root.current-title;
+            font-size: 12px; color: DesktopTheme.secondary; overflow: elide;
+        }
+        WinButton {
+            x: parent.width - 42px; y: 10px;
+            glyph: "×";
+            clicked => { root.dismiss(); }
+        }
+        Rectangle {
+            x: 12px; y: 64px;
+            width: parent.width - 24px; height: 1px;
+            background: DesktopTheme.border;
+        }
+        Flickable {
+            x: 12px; y: 76px;
+            width: parent.width - 24px; height: parent.height - 88px;
+            property <length> span: self.width;
+            init => { root.reflow(self.span); }
+            changed span => { root.reflow(self.span); }
+            content-width: self.width;
+            content-height: max(root.flow-h * 1px + 8px, 1px);
+            for row[i] in root.rows: LegacyPlace {
+                x: root.flow-x[i] * 1px; y: root.flow-y[i] * 1px;
+                width: root.flow-w[i] * 1px;
+                title: row.title;
+                heading: row.chip == "label";
+                selected: row.key != "" && root.selected-key == row.key;
+                clicked => { if (row.key != "") { root.choose(i); } }
+            }
+        }
+    }
+    MonsterTool {
+        x: parent.width - self.width - 12px;
+        y: parent.height - self.height - 12px;
+        width: root.english ? 148px : 112px;
+        height: 36px;
+        border-radius: 6px;
+        active: true;
+        label: root.open ? (root.english ? "Close regions" : "收起目錄") : (root.english ? "Monster regions" : "地區目錄");
+        clicked => { root.toggle(); }
+    }
+}
+
+component LegacyMonsterRow inherits Rectangle {
+    in property <Hit> hit;
+    in property <bool> alternate;
+    in property <bool> selected;
+    in property <bool> english;
+    in property <bool> portrait;
+    in property <string> no-image-label;
+    callback clicked();
+    callback favourite-clicked();
+    callback open-drop(string);
+    callback find-drop-monsters(string, string);
+    property <length> picture-w: root.width < 850px ? 88px : 112px;
+    property <length> name-w: root.width < 850px ? 180px : 224px;
+    height: max(180px, max(description.preferred-height, name-column.preferred-height) + 24px);
+    background: root.selected ? DesktopTheme.selected : root.alternate ? DesktopTheme.surface : DesktopTheme.surface-alt;
+    accessible-role: button;
+    accessible-label: hit.title;
+    accessible-description: hit.alternate-name;
+    accessible-action-default => { root.clicked(); }
+    tap := TouchArea {
+        width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    Rectangle {
+        x: 0px; y: 0px; width: root.picture-w; height: parent.height;
+        if root.hit.has-icon && (!root.hit.has-battle || root.portrait): Image {
+            x: (parent.width - 64px) / 2; y: 24px;
+            width: 64px; height: 64px; source: root.hit.icon; image-fit: contain;
+        }
+        if root.hit.has-battle && !root.portrait: Image {
+            x: (parent.width - 72px) / 2; y: 16px;
+            width: 72px; height: 88px; source: root.hit.battle; image-fit: contain;
+        }
+        if root.hit.no-image && !root.hit.has-battle: Text {
+            x: 8px; y: 32px; width: parent.width - 16px;
+            text: root.no-image-label; wrap: word-wrap;
+            font-size: 12px; color: DesktopTheme.secondary; horizontal-alignment: center;
+        }
+        StarMark {
+            x: (parent.width - 32px) / 2; y: 112px;
+            filled: root.hit.favourite; ink: DesktopTheme.accent; outline: DesktopTheme.accent;
+            clicked => { root.favourite-clicked(); }
+        }
+    }
+    name-column := VerticalLayout {
+        x: root.picture-w + 12px; y: 12px; width: root.name-w - 24px;
+        height: self.preferred-height; spacing: 6px;
+        MonsterNames {
+            width: parent.width;
+            title: root.hit.title; alternate: root.hit.alternate-name;
+        }
+        Text {
+            height: 20px;
+            text: (root.english ? "HP  " : "體力  ") + root.hit.stat-hp;
+            font-size: 13px; color: #e3a1a1;
+        }
+        Text {
+            height: 20px;
+            text: (root.english ? "MP  " : "魔力  ") + root.hit.stat-mp;
+            font-size: 13px; color: #a4c4e8;
+        }
+        Text {
+            height: 20px;
+            text: (root.english ? "Attack  " : "攻擊  ") + root.hit.stat-atk;
+            font-size: 13px; color: DesktopTheme.text;
+        }
+        Text {
+            height: 20px;
+            text: root.english ? "View details" : "查看詳情";
+            font-size: 12px; color: DesktopTheme.accent;
+        }
+    }
+    description := VerticalLayout {
+        x: root.picture-w + root.name-w + 16px; y: 12px;
+        width: parent.width - self.x - 16px; height: self.preferred-height; spacing: 4px;
+        FlexboxLayout {
+            width: description.width; height: self.preferred-height;
+            flex-direction: row; flex-wrap: wrap;
+            alignment: start; cross-axis-alignment: start; cross-axis-line-alignment: start;
+            spacing-horizontal: 12px; spacing-vertical: 2px;
+            Text {
+                width: min(self.preferred-width, description.width); height: self.preferred-height;
+                text: root.hit.stat-kind; wrap: word-wrap;
+                font-size: 13px; color: DesktopTheme.text;
+            }
+            Rectangle {
+                width: min(element-label.preferred-width + (root.hit.has-badge ? 24px : 0px), description.width);
+                height: max(18px, element-label.preferred-height);
+                if root.hit.has-badge: Image {
+                    x: 0px; y: 0px; width: 18px; height: 18px;
+                    source: root.hit.badge; image-fit: contain;
+                }
+                element-label := Text {
+                    x: root.hit.has-badge ? 24px : 0px; y: 0px;
+                    width: parent.width - self.x; height: self.preferred-height;
+                    text: root.hit.stat-element; wrap: word-wrap;
+                    font-size: 13px; color: DesktopTheme.text;
+                }
+            }
+        }
+        FlexboxLayout {
+            width: description.width; height: self.preferred-height;
+            flex-direction: row; flex-wrap: wrap;
+            alignment: start; cross-axis-alignment: start; cross-axis-line-alignment: start;
+            spacing-horizontal: 12px; spacing-vertical: 2px;
+            Text {
+                width: min(self.preferred-width, description.width); height: self.preferred-height;
+                text: (root.english ? "Exp: " : "經驗：") + root.hit.stat-exp;
+                wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary;
+            }
+            Text {
+                width: min(self.preferred-width, description.width); height: self.preferred-height;
+                text: (root.english ? "Hit resist: " : "打擊抗性：") + root.hit.stat-hit;
+                wrap: word-wrap; font-size: 13px; color: #e3a1a1;
+            }
+            Text {
+                width: min(self.preferred-width, description.width); height: self.preferred-height;
+                text: (root.english ? "Magic resist: " : "魔法抗性：") + root.hit.stat-magic;
+                wrap: word-wrap; font-size: 13px; color: #a4c4e8;
+            }
+        }
+        Text {
+            text: (root.english ? "Found in: " : "出沒地：") + root.hit.spawn-places;
+            wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary;
+        }
+        FlexboxLayout {
+            width: description.width; height: self.preferred-height;
+            flex-direction: row; flex-wrap: wrap;
+            alignment: start; cross-axis-alignment: start; cross-axis-line-alignment: start;
+            spacing-horizontal: 0px; spacing-vertical: 2px;
+            Text {
+                width: self.preferred-width; height: 20px;
+                text: root.english ? "Drops: " : "掉落物：";
+                font-size: 13px; color: DesktopTheme.secondary;
+            }
+            if root.hit.monster-drops.length == 0: Text {
+                width: self.preferred-width; height: 20px;
+                text: root.english ? "Not recorded" : "未記錄";
+                font-size: 13px; color: DesktopTheme.muted;
+            }
+            for drop[i] in root.hit.monster-drops: LegacyDropLink {
+                available-width: description.width;
+                title: drop.title; english: root.english;
+                separator: i + 1 < root.hit.monster-drops.length ? (root.english ? ", " : "、") : "";
+                clicked => { root.open-drop(drop.key); }
+                find-monsters => { root.find-drop-monsters(drop.key, drop.title); }
+            }
+        }
+    }
+    Rectangle { x: root.picture-w; width: 1px; height: 100%; background: DesktopTheme.border; }
+    Rectangle { x: root.picture-w + root.name-w; width: 1px; height: 100%; background: DesktopTheme.border; }
+    Rectangle { y: parent.height - 1px; width: 100%; height: 1px; background: DesktopTheme.border; }
+}
+
+component LegacyMonsterTable inherits Rectangle {
+    in property <[Hit]> rows;
+    in property <int> cursor: -1;
+    in property <string> title;
+    in property <bool> english;
+    in property <bool> portrait;
+    in property <string> no-image-label;
+    in-out property <length> scroll-y;
+    callback open(int, string);
+    callback favourite(string);
+    callback open-drop(string);
+    callback find-drop-monsters(string, string);
+    background: DesktopTheme.surface-alt;
+    function reveal(y: length, h: length) {
+        if (y < -root.scroll-y) { root.scroll-y = -y; }
+        else if (y + h > -root.scroll-y + rows-scroll.height) { root.scroll-y = min(0px, rows-scroll.height - y - h); }
+    }
+    Rectangle {
+        x: 0px; y: 0px; width: 100%; height: 36px; background: DesktopTheme.control;
+        Text {
+            x: 12px; width: parent.width - 24px; height: 100%;
+            text: root.title + "  (" + root.rows.length + ")";
+            font-size: 14px; font-weight: 600; color: DesktopTheme.text; vertical-alignment: center;
+        }
+    }
+    Rectangle {
+        y: 36px; width: 100%; height: 30px; background: DesktopTheme.surface;
+        property <length> picture-w: root.width < 850px ? 88px : 112px;
+        property <length> name-w: root.width < 850px ? 180px : 224px;
+        Text { x: 0px; width: parent.picture-w; height: 100%; text: root.english ? "Image" : "圖片"; color: DesktopTheme.text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+        Text { x: parent.picture-w; width: parent.name-w; height: 100%; text: root.english ? "Name / Stats" : "名稱／能力"; color: DesktopTheme.text; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+        Text { x: parent.picture-w + parent.name-w + 16px; height: 100%; text: root.english ? "Description" : "說明"; color: DesktopTheme.text; font-size: 12px; vertical-alignment: center; }
+    }
+    rows-scroll := Flickable {
+        y: 66px; width: 100%; height: parent.height - 66px;
+        content-width: self.width;
+        content-height: max(list.preferred-height, self.height);
+        content-y <=> root.scroll-y;
+        list := VerticalLayout {
+            x: 0px; y: 0px; width: parent.width; spacing: 0px;
+            for mon[i] in root.rows: LegacyMonsterRow {
+                hit: mon; alternate: mod(i, 2) == 1; selected: root.cursor == i;
+                english: root.english; portrait: root.portrait; no-image-label: root.no-image-label;
+                changed selected => { if (self.selected) { root.reveal(self.y, self.height); } }
+                clicked => { root.open(i, mon.key); }
+                favourite-clicked => { root.favourite(mon.key); }
+                open-drop(key) => { root.open-drop(key); }
+                find-drop-monsters(key, title) => { root.find-drop-monsters(key, title); }
+            }
+        }
+    }
+    if root.rows.length == 0: Text {
+        x: 20px; y: 90px; width: parent.width - 40px;
+        text: root.english ? "No matches. Try another region or clear your filters." : "沒有符合的怪物，請選擇其他地區或清除篩選。";
+        wrap: word-wrap; font-size: 14px; color: DesktopTheme.secondary;
     }
 }
 
@@ -2095,6 +3395,26 @@ component FullMonsterSheet inherits Flickable {
     }
 }
 
+component MonsterFact inherits Rectangle {
+    in property <Fact> fact;
+    callback open();
+    height: max(28px, value-text.preferred-height + 8px);
+    Text {
+        x: 0px; y: 4px; width: 72px; height: 20px;
+        text: root.fact.label; font-size: 12px; color: DesktopTheme.secondary; overflow: elide;
+    }
+    value-text := Text {
+        x: 84px; y: 4px; width: parent.width - 84px; height: self.preferred-height;
+        text: root.fact.value; font-size: 13px;
+        color: root.fact.key == "" ? DesktopTheme.text : DesktopTheme.accent;
+        wrap: word-wrap;
+    }
+    if root.fact.key != "": TouchArea {
+        x: 0px; y: 0px; width: 100%; height: 100%;
+        mouse-cursor: pointer; clicked => { root.open(); }
+    }
+}
+
 component InlineMonster inherits Rectangle {
     in property <[Fact]> facts;
     in property <[Hit]> drops;
@@ -2102,75 +3422,62 @@ component InlineMonster inherits Rectangle {
     in property <bool> english;
     in property <string> no-image-label;
     in property <string> note: "";
+    in property <string> alt;
+    in property <string> code;
+    in property <string> places;
+    out property <length> content-height: column.preferred-height;
+    callback measured(length);
+    init => { root.measured(root.content-height); }
+    changed content-height => { root.measured(root.content-height); }
     callback open-key(string);
-    property <int> fact-rows: facts.length == 0 ? 0 : floor((facts.length + 1) / 2);
-    property <length> list-top: 8px + fact-rows * 30px + (fact-rows > 0 ? 8px : 0px);
+    callback find-drop-monsters(string, string);
+    property <int> drop-columns: root.width >= 800px ? 3 : 2;
+    property <int> drop-rows: ceil(drops.length / drop-columns);
     background: DesktopTheme.surface;
-    border-radius: 10px;
-    border-width: 1px;
-    border-color: DesktopTheme.border;
-    if root.facts.length == 0 && root.note != "": Text {
-        x: 12px;
-        y: 10px;
-        width: parent.width - 24px;
-        text: root.note;
-        wrap: word-wrap;
-        font-size: 13px;
-        color: DesktopTheme.text;
-    }
-    for fact[i] in root.facts: FactLine {
-        x: mod(i, 2) == 0 ? 8px : parent.width / 2;
-        y: 6px + floor(i / 2) * 30px;
-        width: parent.width / 2 - 12px;
-        label: fact.label;
-        value: fact.value;
-        key: fact.key;
-        last: true;
-        open => {
-            if (fact.key != "") {
-                root.open-key(fact.key);
+    column := VerticalLayout {
+        x: 0px; y: 0px; width: parent.width; height: self.preferred-height;
+        padding: 12px; spacing: 4px;
+        if root.alt != "" || root.code != "": HorizontalLayout {
+            spacing: 12px;
+            Text {
+                horizontal-stretch: 1; min-width: 0px;
+                text: root.alt; font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+            }
+            Text { text: root.code; font-size: 12px; color: DesktopTheme.muted; }
+        }
+        if root.facts.length == 0 && root.note != "": Text {
+            text: root.note; wrap: word-wrap; font-size: 13px; color: DesktopTheme.text;
+        }
+        MonsterFact {
+            fact: { label: root.english ? "Found in" : "出沒地", value: root.places };
+        }
+        if root.drops.length > 0: Text {
+            height: 24px; text: (root.english ? "Drops " : "掉落物 ") + root.drops.length;
+            font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; vertical-alignment: center;
+        }
+        for r in root.drop-rows: HorizontalLayout {
+            height: self.preferred-height; spacing: 12px; cross-axis-alignment: start;
+            for c in root.drop-columns: Rectangle {
+                width: (root.width - 24px - (root.drop-columns - 1) * 12px) / root.drop-columns; height: link.height;
+                link := CompactRecordLink {
+                    x: 0px; y: 0px; width: parent.width;
+                    visible: r * root.drop-columns + c < root.drops.length;
+                    title: root.drops[r * root.drop-columns + c].title;
+                    icon: root.drops[r * root.drop-columns + c].icon;
+                    has-icon: root.drops[r * root.drop-columns + c].has-icon;
+                    drop-context-enabled: root.drops[r * root.drop-columns + c].key.starts-with("item:");
+                    english: root.english;
+                    clicked => { root.open-key(root.drops[r * root.drop-columns + c].key); }
+                    find-monsters => { root.find-drop-monsters(root.drops[r * root.drop-columns + c].key, root.drops[r * root.drop-columns + c].title); }
+                }
             }
         }
-    }
-    if root.drops.length > 0: Text {
-        x: 10px;
-        y: root.list-top;
-        text: root.english ? "Drops" : "掉落";
-        font-size: 12px;
-        color: DesktopTheme.secondary;
-    }
-    if root.related.length > 0: Text {
-        x: root.drops.length > 0 ? parent.width / 2 + 8px : 10px;
-        y: root.list-top;
-        text: root.english ? "Related" : "相關";
-        font-size: 12px;
-        color: DesktopTheme.secondary;
-    }
-    if root.drops.length > 0: Rectangle {
-        x: 6px;
-        y: root.list-top + 20px;
-        width: root.related.length > 0 ? parent.width / 2 - 10px : parent.width - 12px;
-        height: root.drops.length * 36px;
-        for row[i] in root.drops: HitRow {
-            y: i * 36px;
-            width: parent.width;
-            compact: true;
-            hit: row;
-            no-image-label: root.no-image-label;
-            title-color: DesktopTheme.accent;
-            clicked => { root.open-key(row.key); }
+        if root.related.length > 0: Text {
+            height: 24px; text: root.english ? "Related" : "相關";
+            font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; vertical-alignment: center;
         }
-    }
-    if root.related.length > 0: Rectangle {
-        x: root.drops.length > 0 ? parent.width / 2 + 4px : 6px;
-        y: root.list-top + 20px;
-        width: root.drops.length > 0 ? parent.width / 2 - 10px : parent.width - 12px;
-        height: root.related.length * 52px;
-        for row[i] in root.related: HitRow {
-            y: i * 52px;
-            width: parent.width;
-            hit: row;
-            no-image-label: root.no-image-label;
+        for row in root.related: CompactRecordLink {
+            title: row.title; icon: row.icon; has-icon: row.has-icon;
             clicked => { root.open-key(row.key); }
         }
     }
@@ -2289,7 +3596,7 @@ export component App inherits Window {
     in-out property <[int]> dock-draft: [0, 1, 2, 3, 4, 5, 6, 7, 8];
     in-out property <[int]> dock-shown: [0, 1, 2, 3, 4, 5, 6, 7, 8];
     in-out property <bool> dock-editing: false;
-    in-out property <bool> nav-editing: false;
+    property <bool> nav-dragging: false;
     in-out property <int> settings-tab: 0;
     in-out property <bool> arranging: false;
     in-out property <int> hotkey-nth: 0;
@@ -2299,8 +3606,8 @@ export component App inherits Window {
     property <int> home-span: max(1, min(root.home-order.length, max(1, round(max(root.pane-w - 16px, 40px) / (root.icon-base + root.home-gap) - 0.5))));
     in-out property <int> saved-cursor: 0;
     in-out property <length> list-offset: 0px;
-    property <length> directory-offset: 0px;
-    property <length> directory-view: max(root.list-view - root.filter-h - 32px, 1px);
+    in-out property <length> directory-offset: 0px;
+    property <length> directory-view: max(root.list-view - root.filter-h - 24px, 1px);
     in-out property <length> drop-offset: 0px;
     in-out property <length> task-offset: 0px;
     in-out property <length> form-offset: 0px;
@@ -2323,6 +3630,7 @@ export component App inherits Window {
     callback restore-view() -> bool;
     callback forget-view();
     callback request-close();
+    callback open-source();
     callback went-home();
     callback home-open(string);
     callback lang-changed(string);
@@ -2709,6 +4017,18 @@ export component App inherits Window {
     }
 
     function go-back() {
+        if (root.monster-page-settings-open) {
+            root.monster-page-settings-open = false;
+            return;
+        }
+        if (root.legacy-nav-open) {
+            root.legacy-nav-open = false;
+            return;
+        }
+        if (root.monster-board && root.legacy-mode && !root.menu-open) {
+            root.menu-open = true;
+            return;
+        }
         if (root.viewing != "") {
             if (root.restore-view()) {
                 return;
@@ -2728,6 +4048,9 @@ export component App inherits Window {
             root.show-icon = false;
             root.show-battle = false;
             root.show-element = false;
+            if (root.full-mode && !root.legacy-mode && root.detail-key != "") {
+                root.reload-inline-detail();
+            }
         } else if (root.category == "quest" && root.area != "") {
             root.search-open = false;
             root.area = "";
@@ -2895,16 +4218,25 @@ export component App inherits Window {
         if (root.hits.length == 0) {
             return;
         }
+        if (root.monster-board && root.legacy-mode) {
+            let row = root.flow-y[index] * 1px;
+            let view = max(root.list-view - root.filter-h - 60px, 1px);
+            if (row < -root.directory-offset) { root.directory-offset = -row; }
+            else if (row + 32px > -root.directory-offset + view) { root.directory-offset = view - row - 32px; }
+            root.directory-offset = clamp(root.directory-offset, min(0px, view - root.flow-h * 1px), 0px);
+            return;
+        }
+        if (root.full-mode && root.legacy-mode && root.monster-cards) { return; }
         if (root.monster-board) {
-            let row = index * 32px;
+            let row = index * 40px;
             let view = root.directory-view;
             let top = -root.directory-offset;
             if (row < top) {
                 root.directory-offset = -row;
-            } else if (row + 28px > top + view) {
-                root.directory-offset = view - row - 28px;
+            } else if (row + 36px > top + view) {
+                root.directory-offset = view - row - 36px;
             }
-            root.directory-offset = clamp(root.directory-offset, min(0px, view - root.hits.length * 32px + 4px), 0px);
+            root.directory-offset = clamp(root.directory-offset, min(0px, view - root.hits.length * 40px + 4px), 0px);
             return;
         }
         if (root.full-board) {
@@ -2923,7 +4255,8 @@ export component App inherits Window {
             }
             return;
         }
-        let row = index * root.list-row;
+        let columns = root.full-mode && root.monster-cards ? root.monster-list-columns : 1;
+        let row = floor(index / columns) * root.list-row;
         let view = root.list-view;
         let top = -root.list-offset;
         if (row < top) {
@@ -2931,7 +4264,7 @@ export component App inherits Window {
         } else if (row + root.list-row > top + view) {
             root.list-offset = view - row - root.list-row;
         }
-        let floor = min(0px, view - root.hits.length * root.list-row);
+        let floor = min(0px, view - ceil(root.hits.length / columns) * root.list-row);
         if (root.list-offset < floor) {
             root.list-offset = floor;
         }
@@ -3085,6 +4418,7 @@ export component App inherits Window {
     }
 
     function move-list(delta: int) {
+        if (root.monster-board && !root.legacy-mode && root.menu-open) { root.move-region(delta); return; }
         if (root.quest-sheet) {
             root.move-quest(delta);
             return;
@@ -3304,6 +4638,7 @@ export component App inherits Window {
     }
 
     function activate() {
+        if (root.monster-board && !root.legacy-mode && root.menu-open) { root.activate-region(); return; }
         if (root.collapsed) {
             root.open-dock(root.home-cursor);
             return;
@@ -3319,7 +4654,14 @@ export component App inherits Window {
             if (root.cursor >= 0 && root.cursor < root.hits.length) {
                 if (root.monster-board || (root.full-board && root.hits[root.cursor].chip == "label")) {
                     root.list-offset = 0px;
-                    root.toggle-board(root.hits[root.cursor].key);
+                    if (root.monster-board && root.legacy-mode) {
+                        if (root.hits[root.cursor].key == "") { return; }
+                        if (root.expanded != root.hits[root.cursor].key) { root.toggle-board(root.hits[root.cursor].key); }
+                        root.legacy-place-title = root.hits[root.cursor].title;
+                        root.menu-open = false;
+                    } else {
+                        root.toggle-board(root.hits[root.cursor].key);
+                    }
                 } else if (root.full-board) {
                     root.toggle-detail(root.hits[root.cursor].key, root.cursor);
                 } else {
@@ -3381,6 +4723,14 @@ export component App inherits Window {
     }
 
     function handle-key(event: KeyEvent) -> EventResult {
+        if (root.monster-page-settings-open && event.text == Key.Escape) {
+            root.monster-page-settings-open = false;
+            return accept;
+        }
+        if (root.legacy-nav-open && event.text == Key.Escape) {
+            root.legacy-nav-open = false;
+            return accept;
+        }
         if (event.modifiers.control && event.text == "-") {
             root.shrink-window();
             return accept;
@@ -3459,6 +4809,7 @@ export component App inherits Window {
             return accept;
         }
         if ((event.text == Key.Tab || event.text == Key.Backtab) && root.category == "monster") {
+            if (root.full-mode) { return reject; }
             root.toggle-saved();
             return accept;
         }
@@ -3734,6 +5085,8 @@ export component App inherits Window {
     property <bool> set-browser: category == "item" && place == "set" && viewing == "";
     property <bool> monster-cards: category == "monster" && viewing == "" && (place != "" || favourites-only || (hits.length > 0 && hits[0].key.starts-with("monster:")));
     property <bool> monster-board: full-mode && category == "monster" && viewing == "" && place == "" && area == "" && !favourites-only && query == "";
+    property <bool> monster-results-filter: full-mode && category == "monster" && viewing == "" && !monster-board;
+    property <bool> monster-filter-scoped: root.place != "" || root.area != "" || root.nation != "" || root.expanded == "saved:" || root.expanded.starts-with("jump:") || root.expanded.starts-with("nation:");
     property <bool> full-board: full-mode && category != "" && category != "monster" && viewing == "" && query == "" && place == "" && area == "";
     property <bool> full-flat: full-board && hits.length > 0 && hits[0].chip != "label";
     property <length> record-row: 72px;
@@ -3743,6 +5096,33 @@ export component App inherits Window {
     in-out property <[int]> flow-w;
     in-out property <int> flow-h: 0;
     callback reflow(length);
+    in-out property <bool> legacy-mode: false;
+    callback choose-legacy(bool);
+    property <bool> monster-page-settings-open: false;
+    property <bool> monster-page-settings-visible: root.full-mode && root.category == "monster" && !root.settings-open && !root.collapsed;
+    changed monster-page-settings-visible => {
+        if (!root.monster-page-settings-visible) { root.monster-page-settings-open = false; }
+    }
+    in-out property <string> legacy-place-title: "";
+    property <bool> legacy-nav-open: false;
+    property <bool> legacy-nav-visible: root.monster-board && root.legacy-mode && !root.menu-open && root.expanded != "" && !root.settings-open;
+    changed legacy-nav-visible => {
+        if (!root.legacy-nav-visible) { root.legacy-nav-open = false; }
+    }
+    function choose-legacy-region(index: int) {
+        if (index < 0 || index >= root.hits.length || root.hits[index].key == "") { return; }
+        root.cursor = index;
+        root.legacy-place-title = root.hits[index].title;
+        root.list-offset = 0px;
+        if (root.expanded != root.hits[index].key || root.filter-global) { root.toggle-board(root.hits[index].key); }
+        root.menu-open = false;
+        root.legacy-nav-open = false;
+    }
+    changed legacy-mode => {
+        root.list-offset = 0px; root.directory-offset = 0px;
+        root.menu-open = true;
+        root.detail-key = ""; root.detail-index = -1;
+    }
     in-out property <bool> menu-open: true;
     in-out property <int> pin-top: 0;
     in-out property <bool> battle-view: true;
@@ -3753,22 +5133,125 @@ export component App inherits Window {
     in-out property <int> detail-index: -1;
     in-out property <bool> filter-open: false;
     in-out property <int> filter-element: -1;
+    in-out property <[image]> filter-element-icons;
+    in-out property <string> filter-hit-min: "";
+    in-out property <string> filter-hit-max: "";
+    in-out property <string> filter-magic-min: "";
+    in-out property <string> filter-magic-max: "";
+    in-out property <bool> filter-advanced-open: false;
+    in-out property <int> monster-sort-key: 0;
+    in-out property <bool> monster-sort-desc: true;
+    in-out property <bool> filter-sort-open: false;
     in-out property <string> filter-ela-min: "";
     in-out property <string> filter-ela-max: "";
     in-out property <string> filter-drop: "";
+    in-out property <string> filter-drop-key: "";
+    in-out property <[Hit]> drop-options;
+    in-out property <bool> filter-global: false;
+    in-out property <bool> filter-drop-open: false;
+    callback suggest-drops(string);
+    callback find-drop-monsters(string, string);
+    changed filter-open => {
+        if (root.filter-open) { root.monster-page-settings-open = false; }
+        else { root.filter-drop-open = false; root.filter-sort-open = false; }
+    }
+    changed filter-drop-open => {
+        if (root.filter-drop-open) { root.region-country-open = false; root.filter-sort-open = false; root.monster-page-settings-open = false; root.legacy-nav-open = false; }
+    }
+    changed filter-sort-open => {
+        if (root.filter-sort-open) { root.region-country-open = false; root.filter-drop-open = false; root.monster-page-settings-open = false; root.legacy-nav-open = false; }
+    }
+    changed monster-page-settings-open => {
+        if (root.monster-page-settings-open) { root.filter-sort-open = false; }
+    }
+    property <bool> monster-filter-visible: root.full-mode && !root.collapsed && root.category == "monster" && root.viewing == "" && !root.settings-open;
+    changed monster-filter-visible => {
+        if (!root.monster-filter-visible) { root.filter-drop-open = false; root.filter-sort-open = false; }
+    }
+    function clear-monster-filters() {
+        root.filter-element = -1;
+        root.filter-hit-min = ""; root.filter-hit-max = "";
+        root.filter-magic-min = ""; root.filter-magic-max = "";
+        root.filter-advanced-open = false;
+        root.monster-sort-key = 0; root.monster-sort-desc = true;
+        root.filter-sort-open = false;
+        root.filter-ela-min = "";
+        root.filter-ela-max = "";
+        root.filter-drop = "";
+        root.filter-drop-key = "";
+        root.filter-drop-open = false;
+        root.apply-filter(true);
+    }
+    function edit-monster-drop(text: string) {
+        root.filter-drop = text;
+        root.filter-drop-key = "";
+        root.suggest-drops(text);
+        root.apply-filter(false);
+    }
+    function select-monster-drop(key: string, title: string) {
+        root.filter-drop-key = key;
+        root.filter-drop = title;
+        root.filter-drop-open = false;
+        root.apply-filter(true);
+    }
+    function clear-monster-drop() {
+        root.filter-drop = "";
+        root.filter-drop-key = "";
+        root.suggest-drops("");
+        root.apply-filter(true);
+    }
     callback toggle-detail(string, int);
+    callback reload-inline-detail();
     callback apply-filter(bool);
     in-out property <[Hit]> board-monsters;
+    in-out property <[Hit]> region-rows;
+    in-out property <string> region-query: "";
+    in-out property <int> region-country: 0;
+    property <int> region-cursor: -1;
+    property <bool> region-country-open: false;
+    property <length> region-directory-view: max(root.directory-view - 128px, 1px);
+    callback refine-regions();
+    function choose-monster-place(key: string, title: string) {
+        root.legacy-place-title = title;
+        root.list-offset = 0px;
+        if (root.expanded != key || root.filter-global) { root.toggle-board(key); }
+    }
+    function move-region(delta: int) {
+        root.region-cursor = clamp(root.region-cursor + delta, 0, root.region-rows.length + 1);
+        if (root.region-cursor >= 2) {
+            let row = (root.region-cursor - 2) * 36px;
+            let view = root.region-directory-view;
+            if (row < -root.directory-offset) { root.directory-offset = -row; }
+            else if (row + 34px > -root.directory-offset + view) { root.directory-offset = view - row - 34px; }
+            root.directory-offset = clamp(root.directory-offset, min(0px, view - root.region-rows.length * 36px), 0px);
+        }
+        keys.focus();
+    }
+    function activate-region() {
+        if (root.region-cursor == 0) { root.choose-monster-place("all:", root.lang == "en-zh" ? "All monsters" : "所有怪物"); }
+        else if (root.region-cursor == 1) { root.choose-monster-place("saved:", root.lang == "en-zh" ? "Favourites" : "收藏怪物"); }
+        else if (root.region-cursor >= 2 && root.region-cursor - 2 < root.region-rows.length) {
+            root.choose-monster-place(root.region-rows[root.region-cursor - 2].key, root.region-rows[root.region-cursor - 2].title);
+        }
+    }
+    changed region-rows => { root.region-cursor = -1; }
+    changed menu-open => { if (!root.menu-open) { root.region-country-open = false; } }
+    changed region-country-open => {
+        if (root.region-country-open) { root.filter-drop-open = false; root.filter-sort-open = false; root.monster-page-settings-open = false; }
+    }
     callback toggle-board(string);
-    property <length> monster-row: 108px;
-    property <int> inline-fact-rows: facts.length == 0 ? 0 : floor((facts.length + 1) / 2);
-    property <length> detail-h: detail-index < 0 ? 0px : (facts.length == 0 && links.length == 0 && related.length == 0 ? 180px : 8px + (facts.length > 0 ? inline-fact-rows * 30px + 8px : 0px) + (links.length > 0 || related.length > 0 ? 24px + max(links.length * 36px, related.length * 52px) : 0px));
-    property <length> filter-h: filter-open ? 112px : 32px;
-    property <bool> filter-active: filter-element >= 0 || filter-ela-min != "" || filter-ela-max != "" || filter-drop != "";
-    property <length> board-monsters-h: board-monsters.length * monster-row + detail-h;
-    property <length> list-row: full-mode && monster-cards ? 108px : monster-gallery && monster-cards ? 220px : 52px;
+    property <length> monster-row: 136px;
+    property <length> monster-board-width: pane-w - 2 * page-pad - (menu-open ? (pane-w < 900px ? 176px : 192px) + 24px : 0px);
+    property <int> monster-board-columns: 1;
+    property <int> monster-list-columns: 1;
+    property <length> detail-content-height;
+    property <length> detail-h: detail-index < 0 ? 0px : detail-content-height + 8px;
+    property <length> filter-h: filter-open ? 212px + (filter-advanced-open ? 76px : 0px) : 32px;
+    property <bool> filter-active: filter-element >= 0 || filter-ela-min != "" || filter-ela-max != "" || filter-drop != "" || filter-drop-key != "" || filter-hit-min != "" || filter-hit-max != "" || filter-magic-min != "" || filter-magic-max != "" || monster-sort-key != 0;
+    property <length> board-monsters-h: ceil(board-monsters.length / monster-board-columns) * monster-row + detail-h;
+    property <length> list-row: full-mode && monster-cards ? root.monster-row : monster-gallery && monster-cards ? 220px : 52px;
     property <length> search-y: category == "patch" ? 128px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 86px : 50px;
-    property <length> list-y: full-mode ? search-y + 16px : search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
+    property <length> list-y: full-mode ? search-y + 16px + (monster-results-filter ? filter-h + 16px : 0px) : search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
     property <length> foot: 26px;
     property <length> list-view: max(root.height - list-y - 68px, 80px);
     in-out property <bool> form-open: false;
@@ -4030,6 +5513,7 @@ export component App inherits Window {
                     height: max(root.height - 200px, 80px);
                     clip: true;
                 nav-scroll := Flickable {
+                    interactive: !root.nav-dragging;
                     width: 100%;
                     height: 100%;
                         content-width: self.width;
@@ -4047,107 +5531,59 @@ export component App inherits Window {
                                 selected: root.category == "" && !root.settings-open;
                                 clicked => { root.go-home(); }
                             }
-                            if !root.nav-editing: VerticalLayout {
-                                spacing: 4px;
-                                width: root.nav-w - 24px;
-                                for slot in root.dock-shown: DesktopNavRow {
-                                    width: root.nav-w - 24px;
-                                    logo: root.category-logo(slot);
-                                    glyph: root.category-glyph(slot);
-                                    show-logo: root.category-glyph(slot) == "";
-                                    label: root.category-short(slot);
-                                    shortcut: "F" + root.visible-index(slot);
-                                    selected: !root.settings-open && root.category == root.categories[slot].id;
-                                    clicked => { root.open-dock(slot); keys.focus(); }
-                                }
-                            }
-                            if root.nav-editing: nav-drag := Rectangle {
+                            nav-drag := Rectangle {
                                 height: root.dock-shown.length * 44px;
                                 width: 100%;
                                 property <int> from-row: -1;
                                 property <int> over-row: -1;
-                                property <length> grab-y: 0px;
-                                property <length> nudge: 0px;
-                                for slot[i] in root.dock-shown: Rectangle {
-                                    y: nav-drag.from-row == i ? max(0px, i * 44px + nav-drag.nudge) : i * 44px;
+                                property <bool> moving: false;
+                                for slot[i] in root.dock-shown: SidebarCategoryRow {
+                                    x: 0px;
+                                    y: i * 44px;
                                     width: parent.width;
-                                    height: 40px;
-                                    border-radius: 8px;
-                                    background: nav-drag.from-row == i ? DesktopTheme.raised : nav-drag.over-row == i && nav-drag.from-row != i ? DesktopTheme.selection-low : DesktopTheme.surface;
-                                    border-width: 1px;
-                                    border-color: nav-drag.from-row == i || nav-drag.over-row == i ? DesktopTheme.accent : DesktopTheme.border;
-                                    HorizontalLayout {
-                                        width: 100%;
-                                        height: 100%;
-                                        padding-left: 8px;
-                                        padding-right: 8px;
-                                        spacing: 8px;
-                                        alignment: start;
-                                        Text {
-                                            width: 16px;
-                                            text: "⋮⋮";
-                                            font-size: 14px;
-                                            color: DesktopTheme.muted;
-                                            vertical-alignment: center;
-                                        }
-                                        if root.category-glyph(slot) == "": Image {
-                                            source: root.category-logo(slot);
-                                            width: 22px;
-                                            height: 22px;
-                                            image-fit: contain;
-                                        }
-                                        if root.category-glyph(slot) != "": Text {
-                                            width: 22px;
-                                            text: root.category-glyph(slot);
-                                            font-size: 14px;
-                                            color: DesktopTheme.accent;
-                                            horizontal-alignment: center;
-                                            vertical-alignment: center;
-                                        }
-                                        Text {
-                                            horizontal-stretch: 1;
-                                            text: root.category-short(slot);
-                                            font-size: 14px;
-                                            color: DesktopTheme.text;
-                                            vertical-alignment: center;
-                                            overflow: elide;
+                                    logo: root.category-logo(slot);
+                                    glyph: root.category-glyph(slot);
+                                    label: root.category-short(slot);
+                                    shortcut: "F" + root.visible-index(slot);
+                                    selected: !root.settings-open && root.category == root.categories[slot].id;
+                                    lifted: nav-drag.moving && nav-drag.from-row == i;
+                                    english: root.lang == "en-zh";
+                                    clicked => { root.open-dock(slot); keys.focus(); }
+                                    shift(delta) => {
+                                        let next = max(0, min(root.dock-shown.length - 1, i + delta));
+                                        if (next != i) { root.dock-moved(i, next); }
+                                    }
+                                    drag-start => {
+                                        root.nav-dragging = true;
+                                        nav-drag.from-row = i;
+                                        nav-drag.over-row = i;
+                                        nav-drag.moving = false;
+                                    }
+                                    drag-move(py) => {
+                                        if (nav-drag.from-row != i) { return; }
+                                        nav-drag.moving = true;
+                                        let row = floor((i * 44px + py) / 44px);
+                                        nav-drag.over-row = max(0, min(root.dock-shown.length - 1, row));
+                                    }
+                                    drag-end(moved) => {
+                                        root.nav-dragging = false;
+                                        let from = nav-drag.from-row;
+                                        let to = nav-drag.over-row;
+                                        nav-drag.from-row = -1;
+                                        nav-drag.over-row = -1;
+                                        nav-drag.moving = false;
+                                        if (moved && from >= 0 && to >= 0 && from != to) {
+                                            root.dock-moved(from, to);
                                         }
                                     }
-                                    TouchArea {
-                                        width: 100%;
-                                        height: 100%;
-                                        mouse-cursor: grab;
-                                        pointer-event(event) => {
-                                            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
-                                                nav-drag.from-row = i;
-                                                nav-drag.over-row = i;
-                                                nav-drag.grab-y = self.mouse-y;
-                                                nav-drag.nudge = 0px;
-                                            }
-                                            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.up) {
-                                                if (nav-drag.from-row >= 0 && nav-drag.over-row >= 0 && nav-drag.from-row != nav-drag.over-row) {
-                                                    root.dock-moved(nav-drag.from-row, nav-drag.over-row);
-                                                }
-                                                nav-drag.from-row = -1;
-                                                nav-drag.over-row = -1;
-                                                nav-drag.nudge = 0px;
-                                            }
-                                        }
-                                        moved => {
-                                            if (!self.pressed || nav-drag.from-row != i) {
-                                                return;
-                                            }
-                                            nav-drag.nudge = self.mouse-y - nav-drag.grab-y;
-                                            let row = round((i * 44px + nav-drag.nudge) / 44px - 0.5);
-                                            if (row < 0) {
-                                                nav-drag.over-row = 0;
-                                            } else if (row >= root.dock-shown.length) {
-                                                nav-drag.over-row = root.dock-shown.length - 1;
-                                            } else {
-                                                nav-drag.over-row = row;
-                                            }
-                                        }
-                                    }
+                                }
+                                if nav-drag.moving && nav-drag.over-row != nav-drag.from-row: Rectangle {
+                                    x: 4px;
+                                    y: nav-drag.over-row * 44px + (nav-drag.over-row > nav-drag.from-row ? 42px : -2px);
+                                    width: parent.width - 8px;
+                                    height: 2px;
+                                    border-radius: 1px;
+                                    background: DesktopTheme.accent;
                                 }
                             }
                         }
@@ -4163,24 +5599,24 @@ export component App inherits Window {
                             height: 1px;
                             background: DesktopTheme.border;
                         }
-                        DesktopNavRow {
-                            x: 12px;
-                            y: 12px;
-                            width: root.nav-w - 24px;
-                            icon-path: "M4 7 L20 7 M4 12 L16 12 M4 17 L12 17";
-                            label: root.nav-editing ? (root.lang == "en-zh" ? "Done" : "完成") : (root.lang == "en-zh" ? "Order" : "順序");
-                            selected: root.nav-editing;
-                            clicked => { root.nav-editing = !root.nav-editing; }
+                        Text {
+                            x: 20px; y: 20px;
+                            width: parent.width - 40px;
+                            height: 22px;
+                            text: root.lang == "en-zh" ? "Drag categories to reorder" : "拖曳分類可調整順序";
+                            font-size: 11px;
+                            color: DesktopTheme.muted;
+                            vertical-alignment: center;
                         }
                         DesktopNavRow {
                             x: 12px;
                             y: 56px;
                             width: root.nav-w - 24px;
-                            icon-path: "M8 4 L8 20 M16 4 L16 20 M4 8 L12 8 M12 16 L20 16";
+                            glyph: "⚙️";
                             label: root.lang == "en-zh" ? "Settings" : "設定";
                             selected: root.settings-open;
                             clicked => {
-                                root.nav-editing = false;
+                                root.nav-dragging = false;
                                 if (root.settings-open) {
                                     root.close-settings();
                                 } else {
@@ -4212,7 +5648,8 @@ export component App inherits Window {
                     padding-right: 8px;
                     spacing: 4px;
                     Text {
-                        text: root.full-mode ? (root.lang == "en-zh" ? "Reference workspace" : "圖鑑工作台") : (root.lang == "en-zh" ? "GERSANG" : "巨商");
+                        visible: root.full-mode || root.pane-w >= 340px;
+                        text: root.full-mode && root.category == "monster" ? "" : root.full-mode ? (root.lang == "en-zh" ? "Reference workspace" : "圖鑑工作台") : (root.lang == "en-zh" ? "GERSANG" : "巨商");
                         font-size: 13px;
                         font-weight: 600;
                         color: DesktopTheme.accent;
@@ -4228,9 +5665,9 @@ export component App inherits Window {
                     }
                 }
                 if !root.full-mode: WinButton {
-                    x: 96px;
+                    x: parent.width < 340px ? 16px : 84px;
                     y: 9px;
-                    glyph: root.lang == "en-zh" ? "Setting" : "設定";
+                    glyph: "⚙️";
                     clicked => {
                         if (root.settings-open) {
                             root.close-settings();
@@ -4239,14 +5676,16 @@ export component App inherits Window {
                         }
                     }
                 }
-                WinButton {
-                    x: parent.width - 156px;
-                    y: 9px;
-                    glyph: root.full-mode ? (root.lang == "en-zh" ? "Widget" : "小窗") : (root.lang == "en-zh" ? "Full" : "完整");
-                    clicked => {
-                        root.nav-editing = false;
-                        root.full-mode = !root.full-mode;
-                        root.mode-changed(root.full-mode);
+                WindowModeSwitch {
+                    x: parent.width - self.width - 88px;
+                    y: 7px;
+                    full: root.full-mode;
+                    english: root.lang == "en-zh";
+                    choose(full) => {
+                        if (root.full-mode == full) { return; }
+                        root.nav-dragging = false;
+                        root.full-mode = full;
+                        root.mode-changed(full);
                     }
                 }
                 WinButton {
@@ -4490,7 +5929,7 @@ export component App inherits Window {
                     Text {
                         x: root.full-mode ? 66px : 52px;
                         y: root.full-mode ? 13px : 16px;
-                        width: root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px);
+                        width: root.full-mode && root.category == "monster" ? max(root.pane-w - (root.viewing == "" ? 434px : 146px), 40px) : root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px);
                         overflow: elide;
                         text: root.favourites-only && root.category == "monster" ? (root.lang == "en-zh" ? "Favourites" : "收藏") : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.categories[3].name;
                         font-size: root.full-mode ? 21px : 16px;
@@ -4772,7 +6211,7 @@ export component App inherits Window {
                         }
                     }
                     if root.viewing == "" && (root.search-open || root.full-mode): search := LineEdit {
-                        x: root.full-mode ? root.pane-w - 304px : root.page-pad;
+                        x: root.full-mode ? root.pane-w - (root.category == "monster" ? 348px : 304px) : root.page-pad;
                         y: root.full-mode ? 10px : root.search-y;
                         width: root.full-mode ? 280px : max(root.pane-w - 2 * root.page-pad, 40px);
                         placeholder-text: root.full-mode ? (root.lang == "en-zh" ? "Search this category…" : "搜尋此分類…") : (root.lang == "en-zh" ? "Search" : "搜尋");
@@ -4811,77 +6250,163 @@ export component App inherits Window {
                             return reject;
                         }
                     }
-                    if root.viewing == "" && root.monster-board: Rectangle {
+                    if root.monster-results-filter: BoardFilter {
+                        x: root.page-pad; y: root.search-y + 16px;
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
+                        show-menu: false; open: root.filter-open;
+                        active: root.filter-active;
+                        element: root.filter-element;
+                        element-icons: root.filter-element-icons;
+                        hit-min: root.filter-hit-min; hit-max: root.filter-hit-max;
+                        magic-min: root.filter-magic-min; magic-max: root.filter-magic-max;
+                        advanced-open <=> root.filter-advanced-open;
+                        sort-key: root.monster-sort-key; sort-desc: root.monster-sort-desc;
+                        sort-open <=> root.filter-sort-open;
+                        ela-min: root.filter-ela-min; ela-max: root.filter-ela-max;
+                        drop: root.filter-drop; drop-key: root.filter-drop-key;
+                        drop-options: root.drop-options; drop-open <=> root.filter-drop-open;
+                        scoped: root.monster-filter-scoped;
+                        global-scope: root.filter-global || !root.monster-filter-scoped;
+                        current-label: root.expanded == "saved:" ? (root.lang == "en-zh" ? "Favourites" : "收藏怪物") : (root.lang == "en-zh" ? "Current region" : "目前地區");
+                        result-count: root.hits.length;
+                        english: root.lang == "en-zh";
+                        toggle => { root.filter-open = !root.filter-open; }
+                        clear => { root.clear-monster-filters(); }
+                        pick(kind) => { root.filter-element = kind; root.apply-filter(true); }
+                        pick-scope(all-monsters) => { root.filter-global = all-monsters; root.apply-filter(true); }
+                        edit-min(text) => { root.filter-ela-min = text; root.apply-filter(false); }
+                        edit-max(text) => { root.filter-ela-max = text; root.apply-filter(false); }
+                        edit-hit-min(text) => { root.filter-hit-min = text; root.apply-filter(false); }
+                        edit-hit-max(text) => { root.filter-hit-max = text; root.apply-filter(false); }
+                        edit-magic-min(text) => { root.filter-magic-min = text; root.apply-filter(false); }
+                        edit-magic-max(text) => { root.filter-magic-max = text; root.apply-filter(false); }
+                        pick-sort(key) => { root.monster-sort-key = key; root.apply-filter(true); }
+                        toggle-sort-direction => { root.monster-sort-desc = !root.monster-sort-desc; root.apply-filter(true); }
+                        edit-drop(text) => { root.edit-monster-drop(text); }
+                        request-drops(text) => { root.suggest-drops(text); }
+                        select-drop(key, title) => { root.select-monster-drop(key, title); }
+                        clear-drop => { root.clear-monster-drop(); }
+                    }
+                    if root.viewing == "" && root.monster-board && !root.legacy-mode: Rectangle {
                         x: root.page-pad; y: root.list-y;
                         width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.list-view;
                         BoardFilter {
-                            x: 0px;
-                            y: 0px;
-                            width: parent.width;
-                            open: root.filter-open;
-                            menu-open: root.menu-open;
+                            x: 0px; y: 0px; width: parent.width;
+                            open: root.filter-open; menu-open: root.menu-open;
                             active: root.filter-active;
-                            battle-view: root.battle-view;
-                            pictures: true;
                             element: root.filter-element;
-                            ela-min: root.filter-ela-min;
-                            ela-max: root.filter-ela-max;
-                            drop: root.filter-drop;
+                            element-icons: root.filter-element-icons;
+                            hit-min: root.filter-hit-min; hit-max: root.filter-hit-max;
+                            magic-min: root.filter-magic-min; magic-max: root.filter-magic-max;
+                            advanced-open <=> root.filter-advanced-open;
+                            sort-key: root.monster-sort-key; sort-desc: root.monster-sort-desc;
+                            sort-open <=> root.filter-sort-open;
+                            ela-min: root.filter-ela-min; ela-max: root.filter-ela-max;
+                            drop: root.filter-drop; drop-key: root.filter-drop-key;
+                            drop-options: root.drop-options; drop-open <=> root.filter-drop-open;
+                            scoped: root.expanded != "" && root.expanded != "all:";
+                            scope-title: root.legacy-place-title != "" ? root.legacy-place-title : (root.lang == "en-zh" ? "Current region" : "目前地區");
+                            global-scope: root.filter-global || root.expanded == "" || root.expanded == "all:";
+                            result-count: root.board-monsters.length;
+                            result-known: root.expanded != "";
                             english: root.lang == "en-zh";
                             toggle => { root.filter-open = !root.filter-open; }
                             toggle-menu => { root.menu-open = !root.menu-open; }
-                            pick-view(battle) => { root.choose-battle(battle); }
-                            clear => {
-                                root.filter-element = -1;
-                                root.filter-ela-min = "";
-                                root.filter-ela-max = "";
-                                root.filter-drop = "";
-                                root.apply-filter(true);
-                            }
-                            pick(kind) => {
-                                root.filter-element = kind;
-                                root.apply-filter(true);
-                            }
-                            edit-min(text) => {
-                                root.filter-ela-min = text;
-                                root.apply-filter(false);
-                            }
-                            edit-max(text) => {
-                                root.filter-ela-max = text;
-                                root.apply-filter(false);
-                            }
-                            edit-drop(text) => {
-                                root.filter-drop = text;
-                                root.apply-filter(false);
-                            }
+                            clear => { root.clear-monster-filters(); }
+                            pick(kind) => { root.filter-element = kind; root.apply-filter(true); }
+                            pick-scope(all-monsters) => { root.filter-global = all-monsters; root.apply-filter(true); }
+                            edit-min(text) => { root.filter-ela-min = text; root.apply-filter(false); }
+                            edit-max(text) => { root.filter-ela-max = text; root.apply-filter(false); }
+                            edit-hit-min(text) => { root.filter-hit-min = text; root.apply-filter(false); }
+                            edit-hit-max(text) => { root.filter-hit-max = text; root.apply-filter(false); }
+                            edit-magic-min(text) => { root.filter-magic-min = text; root.apply-filter(false); }
+                            edit-magic-max(text) => { root.filter-magic-max = text; root.apply-filter(false); }
+                            pick-sort(key) => { root.monster-sort-key = key; root.apply-filter(true); }
+                            toggle-sort-direction => { root.monster-sort-desc = !root.monster-sort-desc; root.apply-filter(true); }
+                            edit-drop(text) => { root.edit-monster-drop(text); }
+                            request-drops(text) => { root.suggest-drops(text); }
+                            select-drop(key, title) => { root.select-monster-drop(key, title); }
+                            clear-drop => { root.clear-monster-drop(); }
                         }
                         HorizontalLayout {
-                            y: root.filter-h + 12px;
+                            y: root.filter-h + 24px;
                             width: parent.width;
-                            height: parent.height - root.filter-h - 12px;
-                            spacing: 12px;
+                            height: parent.height - root.filter-h - 24px;
+                            spacing: 24px;
                             if root.menu-open: Rectangle {
                                 width: root.pane-w < 900px ? 176px : 192px;
-                                background: DesktopTheme.surface-alt;
-                                border-radius: 8px;
+                                Rectangle { x: parent.width - 1px; width: 1px; height: 100%; background: DesktopTheme.border; }
+                                HorizontalLayout {
+                                    x: 0px; y: 0px; width: parent.width - 16px; height: 34px; spacing: 4px;
+                                    MonsterRegionLink {
+                                        horizontal-stretch: 1;
+                                        title: root.lang == "en-zh" ? "All monsters" : "所有怪物";
+                                        short-title: root.lang == "en-zh" ? "All" : "所有怪物";
+                                        selected: root.expanded == "all:" || root.filter-global;
+                                        keyboard-current: root.region-cursor == 0;
+                                        clicked => { root.region-cursor = 0; root.choose-monster-place("all:", self.title); }
+                                        step(delta) => { root.region-cursor = 0; root.move-region(delta); }
+                                    }
+                                    MonsterRegionLink {
+                                        horizontal-stretch: 1;
+                                        title: root.lang == "en-zh" ? "Favourites" : "收藏怪物";
+                                        short-title: root.lang == "en-zh" ? "Saved" : "收藏";
+                                        selected: root.expanded == "saved:" && !root.filter-global;
+                                        keyboard-current: root.region-cursor == 1;
+                                        clicked => { root.region-cursor = 1; root.choose-monster-place("saved:", self.title); }
+                                        step(delta) => { root.region-cursor = 1; root.move-region(delta); }
+                                    }
+                                }
+                                MonsterSortPicker {
+                                    x: 0px; y: 44px; width: parent.width - 16px;
+                                    labels: root.lang == "en-zh" ? ["All countries", "Joseon", "China", "Japan", "Taiwan", "India", "Special"] : ["全部國家", "朝鮮", "中國", "日本", "台灣", "印度", "特殊"];
+                                    selected: root.region-country;
+                                    open <=> root.region-country-open;
+                                    pick(country) => { root.region-country = country; root.refine-regions(); }
+                                }
+                                region-search := LineEdit {
+                                    x: 0px; y: 84px; width: parent.width - 16px; height: 32px;
+                                    placeholder-text: root.lang == "en-zh" ? "Find a region…" : "搜尋地區…";
+                                    accessible-label: root.lang == "en-zh" ? "Find a region" : "搜尋地區";
+                                    text <=> root.region-query;
+                                    edited => { root.refine-regions(); }
+                                    accepted => { if (root.region-rows.length > 0) { root.region-cursor = 1; root.move-region(1); } }
+                                    key-pressed(event) => {
+                                        if (event.text == Key.Escape) {
+                                            root.region-query = ""; root.refine-regions(); keys.focus(); return accept;
+                                        }
+                                        if (event.text == Key.DownArrow) { if (root.region-rows.length > 0) { root.region-cursor = 1; root.move-region(1); } return accept; }
+                                        if (event.text == Key.UpArrow) { return accept; }
+                                        return reject;
+                                    }
+                                }
                                 Flickable {
-                                    x: 8px; y: 10px; width: parent.width - 16px; height: parent.height - 20px;
+                                    x: 0px; y: 128px; width: parent.width - 16px; height: max(parent.height - 128px, 1px);
                                     content-width: self.width;
-                                    content-height: max(directory.preferred-height, 1px);
+                                    content-height: max(root.region-rows.length * 36px, self.height);
                                     content-y <=> root.directory-offset;
-                                    directory := VerticalLayout {
-                                        width: parent.width; spacing: 4px;
-                                        for row[i] in root.hits: PlaceLink {
-                                            width: parent.width; chip-w: parent.width;
-                                            heading: row.chip == "label";
-                                            open: root.expanded == row.key;
-                                            selected: root.expanded == row.key || root.cursor == i;
-                                            title: row.title;
-                                            clicked => {
-                                                root.cursor = i;
-                                                if (row.key != "") { root.list-offset = 0px; root.toggle-board(row.key); keys.focus(); }
-                                            }
+                                    for row[i] in root.region-rows: MonsterRegionLink {
+                                        x: 0px; y: i * 36px; width: parent.width;
+                                        heading: row.chip == "label";
+                                        selected: root.expanded == row.key && !root.filter-global;
+                                        keyboard-current: root.region-cursor == i + 2;
+                                        title: row.title;
+                                        clicked => {
+                                            root.region-cursor = i + 2;
+                                            root.choose-monster-place(row.key, row.title);
+                                        }
+                                        step(delta) => { root.region-cursor = i + 2; root.move-region(delta); }
+                                    }
+                                    if root.region-rows.length == 0: VerticalLayout {
+                                        x: 8px; y: 4px; width: parent.width - 16px; spacing: 8px;
+                                        Text {
+                                            text: root.lang == "en-zh" ? "No matching regions" : "沒有符合的地區";
+                                            wrap: word-wrap; font-size: 12px; color: DesktopTheme.secondary;
+                                        }
+                                        MonsterTool {
+                                            label: root.lang == "en-zh" ? "Reset directory" : "重設地區目錄";
+                                            clicked => { root.region-country = 0; root.region-query = ""; root.refine-regions(); }
                                         }
                                     }
                                 }
@@ -4891,42 +6416,157 @@ export component App inherits Window {
                                 if root.expanded == "": Rectangle {
                                     width: 100%; height: 100%; background: DesktopTheme.surface; border-radius: 8px;
                                     DesktopIcon { x: 28px; y: 34px; width: 28px; height: 28px; path: "M4 4 L10 4 L12 6 L20 6 L20 20 L4 20 Z M8 11 L16 11 M8 15 L14 15"; ink: DesktopTheme.accent; }
-                                    Text { x: 28px; y: 82px; text: root.lang == "en-zh" ? "Where do you want to explore?" : "從一個地區開始探索"; font-size: 18px; font-weight: 600; color: DesktopTheme.text; }
-                                    Text { x: 28px; y: 116px; width: parent.width - 56px; text: root.lang == "en-zh" ? "Choose a region or habitat to compare monsters, attributes and drops." : "選擇左側的地區或出沒地，一起查看怪物能力與掉落物。"; wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary; }
+                                    Text { x: 28px; y: 82px; text: root.lang == "en-zh" ? "Browse the monster compendium" : "瀏覽怪物圖鑑"; font-size: 18px; font-weight: 600; color: DesktopTheme.text; }
+                                    Text { x: 28px; y: 116px; width: parent.width - 56px; text: root.lang == "en-zh" ? "Start with all monsters, or choose a country and region from the directory." : "直接查看所有怪物，或從左側按國家與地區尋找。"; wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary; }
+                                    MonsterTool {
+                                        x: 28px; y: 168px; width: 144px; active: true;
+                                        label: root.lang == "en-zh" ? "All monsters" : "所有怪物";
+                                        clicked => { root.choose-monster-place("all:", self.label); }
+                                    }
                                 }
                                 if root.expanded != "" && root.board-monsters.length == 0: Text {
                                     x: 20px; y: 28px; width: parent.width - 40px;
                                     text: root.expanded == "saved:" ? (root.lang == "en-zh" ? "Star a monster to add it to your favourites." : "在怪物旁點星號，就能加入收藏。") : (root.lang == "en-zh" ? "No matches. Try clearing your filters." : "沒有符合的怪物，試試清除篩選條件。" );
                                     wrap: word-wrap; color: DesktopTheme.secondary; font-size: 13px;
                                 }
-                                if root.expanded != "": Flickable {
+                                if root.expanded != "": monster-board-list := Flickable {
                                     width: 100%; height: 100%;
                                     content-width: self.width;
                                     content-height: max(root.board-monsters-h, 1px);
                                     content-y <=> root.list-offset;
-                                    for mon[i] in root.board-monsters: MonsterTableRow {
-                                        y: i * root.monster-row + (root.detail-index >= 0 && i > root.detail-index ? root.detail-h : 0px);
-                                        width: parent.width; hit: mon;
-                                        english: root.lang == "en-zh"; no-image-label: root.no-image-label;
-                                        selected: root.detail-key == mon.key; portrait: !root.battle-view;
-                                        clicked => {
-                                            if (root.detail-key != mon.key) { root.list-offset = -(i * root.monster-row); }
-                                            root.toggle-detail(mon.key, i); keys.focus();
+                                    // Keep scroll geometry for every result, but only construct
+                                    // expensive row controls near the viewport or open detail.
+                                    for mon[i] in root.board-monsters: board-row-slot := Rectangle {
+                                        x: mod(i, root.monster-board-columns) * (self.width + 16px);
+                                        y: floor(i / root.monster-board-columns) * root.monster-row + (root.detail-index >= 0 && floor(i / root.monster-board-columns) > floor(root.detail-index / root.monster-board-columns) ? root.detail-h : 0px);
+                                        width: (parent.width - (root.monster-board-columns - 1) * 16px) / root.monster-board-columns;
+                                        height: 128px;
+                                        if root.detail-key == mon.key || (board-row-slot.y + board-row-slot.height >= -root.list-offset - 2 * root.monster-row && board-row-slot.y <= -root.list-offset + monster-board-list.height + 2 * root.monster-row): MonsterTableRow {
+                                            x: 0px; y: 0px; width: parent.width;
+                                            hit: mon;
+                                            english: root.lang == "en-zh"; no-image-label: root.no-image-label;
+                                            selected: root.detail-key == mon.key; expanded: root.detail-key == mon.key; portrait: !root.battle-view;
+                                            clicked => {
+                                                root.toggle-detail(mon.key, i); keys.focus();
+                                            }
+                                            favourite-clicked => { root.toggle-favourite(mon.key); }
+                                            open-drop(key) => { if (key != "") { root.open-hit(key); } }
+                                            find-drop-monsters(key, title) => { if (key != "") { root.find-drop-monsters(key, title); keys.focus(); } }
                                         }
-                                        favourite-clicked => { root.toggle-favourite(mon.key); }
                                     }
                                     if root.detail-index >= 0: InlineMonster {
-                                        y: root.detail-index * root.monster-row + root.monster-row;
-                                        width: parent.width; height: max(root.detail-h - 6px, 0px);
+                                        x: 0px; y: (floor(root.detail-index / root.monster-board-columns) + 1) * root.monster-row;
+                                        width: parent.width; height: max(root.detail-h - 8px, 0px);
+                                        alt: root.sheet-alt; code: root.sheet-code;
+                                        places: root.board-monsters[root.detail-index].spawn-places;
+                                        measured(value) => { root.detail-content-height = value; }
                                         facts: root.facts; drops: root.links; related: root.related;
                                         english: root.lang == "en-zh"; no-image-label: root.no-image-label; note: root.detail;
                                         open-key(key) => {
                                             if (key.starts-with("monster:")) { root.toggle-detail(key, root.detail-index); }
                                             else if (key != "") { root.open-hit(key); }
                                         }
+                                        find-drop-monsters(key, title) => { if (key != "") { root.find-drop-monsters(key, title); keys.focus(); } }
                                     }
                                 }
                             }
+                        }
+                    }
+                    if root.monster-board && root.legacy-mode: Rectangle {
+                        x: root.page-pad; y: root.list-y;
+                        width: max(root.pane-w - 2 * root.page-pad, 40px); height: root.list-view;
+                        BoardFilter {
+                            x: 0px; y: 0px; width: parent.width;
+                            open: root.filter-open; menu-open: root.menu-open;
+                            active: root.filter-active;
+                            element: root.filter-element;
+                            element-icons: root.filter-element-icons;
+                            hit-min: root.filter-hit-min; hit-max: root.filter-hit-max;
+                            magic-min: root.filter-magic-min; magic-max: root.filter-magic-max;
+                            advanced-open <=> root.filter-advanced-open;
+                            sort-key: root.monster-sort-key; sort-desc: root.monster-sort-desc;
+                            sort-open <=> root.filter-sort-open;
+                            ela-min: root.filter-ela-min; ela-max: root.filter-ela-max;
+                            drop: root.filter-drop; drop-key: root.filter-drop-key;
+                            drop-options: root.drop-options; drop-open <=> root.filter-drop-open;
+                            scoped: root.expanded != "" && root.expanded != "all:";
+                            scope-title: root.legacy-place-title != "" ? root.legacy-place-title : (root.lang == "en-zh" ? "Current region" : "目前地區");
+                            global-scope: root.filter-global || root.expanded == "" || root.expanded == "all:";
+                            result-count: root.board-monsters.length;
+                            result-known: root.expanded != "";
+                            english: root.lang == "en-zh";
+                            toggle => { root.filter-open = !root.filter-open; }
+                            toggle-menu => { root.menu-open = !root.menu-open; }
+                            clear => { root.clear-monster-filters(); }
+                            pick(kind) => { root.filter-element = kind; root.apply-filter(true); }
+                            pick-scope(all-monsters) => { root.filter-global = all-monsters; root.apply-filter(true); }
+                            edit-min(text) => { root.filter-ela-min = text; root.apply-filter(false); }
+                            edit-max(text) => { root.filter-ela-max = text; root.apply-filter(false); }
+                            edit-hit-min(text) => { root.filter-hit-min = text; root.apply-filter(false); }
+                            edit-hit-max(text) => { root.filter-hit-max = text; root.apply-filter(false); }
+                            edit-magic-min(text) => { root.filter-magic-min = text; root.apply-filter(false); }
+                            edit-magic-max(text) => { root.filter-magic-max = text; root.apply-filter(false); }
+                            pick-sort(key) => { root.monster-sort-key = key; root.apply-filter(true); }
+                            toggle-sort-direction => { root.monster-sort-desc = !root.monster-sort-desc; root.apply-filter(true); }
+                            edit-drop(text) => { root.edit-monster-drop(text); }
+                            request-drops(text) => { root.suggest-drops(text); }
+                            select-drop(key, title) => { root.select-monster-drop(key, title); }
+                            clear-drop => { root.clear-monster-drop(); }
+                        }
+                        if root.menu-open || root.expanded == "": Rectangle {
+                            y: root.filter-h + 12px; width: 100%; height: parent.height - root.filter-h - 12px;
+                            background: DesktopTheme.surface-alt;
+                            Text {
+                                x: 16px; y: 12px; height: 24px;
+                                text: root.lang == "en-zh" ? "Monster regions" : "怪物分類";
+                                font-size: 16px; font-weight: 600; color: DesktopTheme.text;
+                            }
+                            Flickable {
+                                x: 16px; y: 48px; width: parent.width - 32px; height: parent.height - 48px;
+                                property <length> span: self.width;
+                                init => { root.reflow(self.span); }
+                                changed span => { root.reflow(self.span); }
+                                content-width: self.width; content-height: max(root.flow-h * 1px + 12px, 1px);
+                                content-y <=> root.directory-offset;
+                                for row[i] in root.hits: LegacyPlace {
+                                    x: root.flow-x[i] * 1px; y: root.flow-y[i] * 1px; width: root.flow-w[i] * 1px;
+                                    title: row.title; heading: row.chip == "label";
+                                    selected: root.expanded == row.key || root.cursor == i;
+                                    clicked => {
+                                        if (row.key != "") {
+                                            root.cursor = i; root.legacy-place-title = row.title;
+                                            root.list-offset = 0px;
+                                            if (root.expanded != row.key || root.filter-global) { root.toggle-board(row.key); }
+                                            root.menu-open = false; keys.focus();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if !root.menu-open && root.expanded != "": LegacyMonsterTable {
+                            y: root.filter-h + 12px; width: 100%; height: parent.height - root.filter-h - 12px;
+                            rows: root.board-monsters;
+                            title: root.legacy-place-title != "" ? root.legacy-place-title : (root.lang == "en-zh" ? "Monsters" : "怪物資料");
+                            english: root.lang == "en-zh"; portrait: !root.battle-view; no-image-label: root.no-image-label;
+                            scroll-y <=> root.list-offset;
+                            open(index, key) => { root.open-hit(key); }
+                            favourite(key) => { root.toggle-favourite(key); }
+                            open-drop(key) => { if (key != "") { root.open-hit(key); } }
+                            find-drop-monsters(key, title) => { if (key != "") { root.find-drop-monsters(key, title); keys.focus(); } }
+                        }
+                        if root.legacy-nav-visible: LegacyRegionNavigator {
+                            x: 0px; y: 0px; width: 100%; height: 100%;
+                            rows: root.hits;
+                            flow-x: root.flow-x; flow-y: root.flow-y; flow-w: root.flow-w; flow-h: root.flow-h;
+                            selected-key: root.filter-global ? "all:" : root.expanded;
+                            current-title: root.legacy-place-title;
+                            english: root.lang == "en-zh";
+                            open: root.legacy-nav-open;
+                            top-gap: root.filter-h + 12px;
+                            reflow(span) => { root.reflow(span); }
+                            toggle => { root.legacy-nav-open = !root.legacy-nav-open; keys.focus(); }
+                            dismiss => { root.legacy-nav-open = false; keys.focus(); }
+                            choose(index) => { root.choose-legacy-region(index); keys.focus(); }
                         }
                     }
                     if root.full-board: Rectangle {
@@ -5077,31 +6717,49 @@ export component App inherits Window {
                             favourite-clicked => { root.toggle-favourite(row.key); }
                         }
                     }
-                    if root.viewing == "" && root.full-mode && root.monster-cards: table := Flickable {
+                    if root.viewing == "" && root.full-mode && root.monster-cards && !root.legacy-mode: table := Flickable {
                         x: root.page-pad;
                         y: root.list-y;
                         width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.list-view;
                         content-width: self.width;
-                        content-height: max(root.hits.length * root.list-row, 1px);
+                        content-height: max(ceil(root.hits.length / root.monster-list-columns) * root.list-row, 1px);
                         content-y <=> root.list-offset;
-                        for row[i] in root.hits: MonsterTableRow {
-                            x: 0px;
-                            y: i * root.list-row;
-                            width: max(root.pane-w - 2 * root.page-pad, 40px);
-                            selected: root.cursor == i;
-                            hit: row;
-                            english: root.lang == "en-zh";
-                            portrait: !root.battle-view;
-                            no-image-label: root.no-image-label;
-                            clicked => {
-                                root.cursor = i;
-                                root.open-hit(row.key);
+                        for row[i] in root.hits: search-row-slot := Rectangle {
+                            x: mod(i, root.monster-list-columns) * (self.width + 16px);
+                            y: floor(i / root.monster-list-columns) * root.list-row;
+                            width: (parent.width - (root.monster-list-columns - 1) * 16px) / root.monster-list-columns;
+                            height: 128px;
+                            if root.cursor == i || root.detail-key == row.key || (search-row-slot.y + search-row-slot.height >= -root.list-offset - 2 * root.list-row && search-row-slot.y <= -root.list-offset + table.height + 2 * root.list-row): MonsterTableRow {
+                                x: 0px; y: 0px; width: parent.width;
+                                selected: root.cursor == i;
+                                hit: row;
+                                english: root.lang == "en-zh";
+                                portrait: !root.battle-view;
+                                no-image-label: root.no-image-label;
+                                clicked => {
+                                    root.cursor = i;
+                                    root.open-hit(row.key);
+                                }
+                                favourite-clicked => { root.toggle-favourite(row.key); }
+                                open-drop(key) => { if (key != "") { root.cursor = i; root.open-hit(key); } }
+                                find-drop-monsters(key, title) => { if (key != "") { root.find-drop-monsters(key, title); keys.focus(); } }
                             }
-                            favourite-clicked => { root.toggle-favourite(row.key); }
                         }
                     }
-                    if root.favourites-only && root.viewing == "" && root.hits.length == 0: Text {
+                    if root.full-mode && root.monster-cards && root.legacy-mode: LegacyMonsterTable {
+                        x: root.page-pad; y: root.list-y;
+                        width: max(root.pane-w - 2 * root.page-pad, 40px); height: root.list-view;
+                        rows: root.hits; cursor: root.cursor;
+                        title: root.favourites-only ? (root.lang == "en-zh" ? "Favourites" : "收藏") : (root.lang == "en-zh" ? "Monsters" : "怪物資料");
+                        english: root.lang == "en-zh"; portrait: !root.battle-view; no-image-label: root.no-image-label;
+                        scroll-y <=> root.list-offset;
+                        open(index, key) => { root.cursor = index; root.open-hit(key); }
+                        favourite(key) => { root.toggle-favourite(key); }
+                            open-drop(key) => { if (key != "") { root.open-hit(key); } }
+                            find-drop-monsters(key, title) => { if (key != "") { root.find-drop-monsters(key, title); keys.focus(); } }
+                    }
+                    if root.favourites-only && root.viewing == "" && root.hits.length == 0 && !(root.full-mode && root.legacy-mode): Text {
                         x: 18px;
                         y: root.list-y;
                         text: root.query == "" ? (root.lang == "en-zh" ? "No favourites yet. Press Enter on a monster." : "還沒有收藏。在怪物上按 Enter。") : (root.lang == "en-zh" ? "No matches" : "沒有符合的收藏");
@@ -5862,6 +7520,26 @@ export component App inherits Window {
                             init => { self.focus(); }
                         }
                     }
+                    if root.monster-page-settings-visible: MonsterPageSettings {
+                        x: 0px; y: 0px; width: 100%; height: 100%;
+                        english: root.lang == "en-zh";
+                        open: root.monster-page-settings-open;
+                        legacy: root.legacy-mode;
+                        battle: root.battle-view;
+                        motion: root.animate-battle;
+                        toggle => {
+                            root.monster-page-settings-open = !root.monster-page-settings-open;
+                            if (root.monster-page-settings-open) {
+                                root.legacy-nav-open = false;
+                                root.filter-drop-open = false;
+                            }
+                            keys.focus();
+                        }
+                        dismiss => { root.monster-page-settings-open = false; keys.focus(); }
+                        choose-legacy(on) => { root.choose-legacy(on); }
+                        choose-battle(on) => { root.choose-battle(on); }
+                        choose-animate(on) => { root.choose-animate(on); }
+                    }
                 }
             }
             Rectangle {
@@ -5871,14 +7549,27 @@ export component App inherits Window {
                     height: 1px;
                     background: #3a342c88;
                 }
-                Text {
+                HorizontalLayout {
                     width: 100%;
                     height: 100%;
-                    text: (root.lang == "en-zh" ? "Client  " : "對應版本  ") + root.client-version;
-                    font-size: 11px;
-                    color: DesktopTheme.secondary;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+                    alignment: center;
+                    spacing: 8px;
+                    Text {
+                        text: (root.lang == "en-zh" ? "Client  " : "對應版本  ") + root.client-version;
+                        font-size: 11px;
+                        color: DesktopTheme.secondary;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "·";
+                        font-size: 11px;
+                        color: DesktopTheme.muted;
+                        vertical-alignment: center;
+                    }
+                    OpenSourceLink {
+                        english: root.lang == "en-zh";
+                        clicked => { root.open-source(); }
+                    }
                 }
             }
             }
@@ -6108,34 +7799,7 @@ export component App inherits Window {
                     }
                 }
                 if root.full-mode && root.settings-tab == 0: FormBlock {
-                    title: root.lang == "en-zh" ? "Monsters" : "怪物";
-                    Text {
-                        text: root.lang == "en-zh" ? "Picture" : "圖片";
-                        font-size: 13px;
-                        color: DesktopTheme.secondary;
-                    }
-                    ChoiceBar {
-                        first: root.lang == "en-zh" ? "Face" : "頭像";
-                        second: root.lang == "en-zh" ? "Battle" : "戰鬥";
-                        picked: root.battle-view ? 1 : 0;
-                        pick(index) => { root.choose-battle(index == 1); }
-                    }
-                    Text {
-                        text: root.lang == "en-zh" ? "Battle motion" : "戰鬥動畫";
-                        font-size: 13px;
-                        color: DesktopTheme.secondary;
-                    }
-                    ChoiceBar {
-                        first: root.lang == "en-zh" ? "Play" : "播放";
-                        second: root.lang == "en-zh" ? "Still" : "靜止";
-                        picked: root.animate-battle ? 0 : 1;
-                        pick(index) => { root.choose-animate(index == 0); }
-                    }
-                    Text {
-                        text: root.lang == "en-zh" ? "Small window" : "小窗排列";
-                        font-size: 13px;
-                        color: DesktopTheme.secondary;
-                    }
+                    title: root.lang == "en-zh" ? "Widget monster layout" : "小窗怪物排列";
                     ChoiceBar {
                         first: root.lang == "en-zh" ? "List" : "清單";
                         second: root.lang == "en-zh" ? "Gallery" : "圖鑑";

@@ -1,17 +1,19 @@
 use super::db;
 use super::window_logical;
 
+const SOURCE_REPOSITORY_URL: &str = "https://github.com/coreyjj1679/gs-widget";
+
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(windows)]
 mod windows;
 
 #[cfg(target_os = "macos")]
-pub(crate) use macos::{copy_to_clipboard, focus_window, primary_screen, work_area_at};
+pub(crate) use macos::{copy_to_clipboard, focus_window, open_source_repository, primary_screen, work_area_at};
 #[cfg(target_os = "macos")]
 pub(crate) use macos::position_scale;
 #[cfg(windows)]
-pub(crate) use windows::{copy_to_clipboard, focus_window, primary_screen, work_area_at};
+pub(crate) use windows::{copy_to_clipboard, focus_window, open_source_repository, primary_screen, work_area_at};
 
 #[cfg(test)]
 mod tests {
@@ -42,6 +44,32 @@ mod tests {
     }
 
     #[test]
+    fn saved_window_on_a_left_hand_monitor_keeps_negative_coordinates() {
+        let position = fit_on_screen(-1800, 120, 560, 740, 560, 740, (-1920, 0, 0, 1040));
+        assert_eq!(position, (-1800, 120));
+    }
+
+    #[test]
+    fn restored_window_avoids_the_taskbar_and_a_disconnected_monitor() {
+        assert_eq!(
+            fit_on_screen(1400, 500, 560, 740, 560, 740, (0, 0, 1920, 1040)),
+            (1360, 300)
+        );
+        assert_eq!(
+            fit_on_screen(-1800, -800, 560, 740, 560, 740, (0, 40, 1920, 1080)),
+            (0, 40)
+        );
+    }
+
+    #[test]
+    fn rescaled_window_is_fitted_using_its_actual_physical_size() {
+        assert_eq!(
+            fit_on_screen(3280, 600, 1120, 1480, 1120, 1480, (1920, 0, 4480, 1400)),
+            (3280, 0)
+        );
+    }
+
+    #[test]
     fn full_span_is_1280_by_800_unless_the_work_area_is_smaller() {
         assert_eq!(super::full_span(1920.0, 1080.0), (1280.0, 800.0));
         assert_eq!(super::full_span(1100.0, 700.0), (1100.0, 700.0));
@@ -63,15 +91,20 @@ mod tests {
 #[cfg(windows)]
 pub(crate) fn place_window(window: &slint::Window, width: f32, height: f32, at: Option<(i32, i32)>) {
     let scale = window.scale_factor().max(1.0);
-    let (screen_w, screen_h) = primary_screen();
     let pixel_w = (width * scale).round() as i32;
     let pixel_h = (height * scale).round() as i32;
-    let (x, y) = match at {
-        Some((x, y)) if x > -80 && y > -40 && x + 120 < screen_w && y + 80 < screen_h => (x, y),
-        _ => ((screen_w - pixel_w).max(0) / 2, (screen_h - pixel_h).max(0) / 2),
-    };
+    let work = at
+        .map(|(x, y)| work_area_at(x, y, pixel_w, pixel_h))
+        .unwrap_or_else(|| work_area_at(0, 0, 1, 1));
+    let (left, top, right, bottom) = work;
+    let (x, y) = at.unwrap_or_else(|| {
+        (left + (right - left - pixel_w).max(0) / 2, top + (bottom - top - pixel_h).max(0) / 2)
+    });
+    let (x, y) = fit_on_screen(x, y, pixel_w, pixel_h, pixel_w, pixel_h, work);
     window.set_size(slint::LogicalSize::new(width, height));
     window.set_position(slint::PhysicalPosition::new(x, y));
+    // Crossing to another-DPI monitor can resize the native window immediately.
+    let _ = windows::fit_current_window();
 }
 
 pub(crate) fn default_main_size(scale: f32) -> (f32, f32) {
@@ -118,7 +151,10 @@ pub(crate) fn leaves_full(width: f32, height: f32) -> bool {
 
 pub(crate) fn full_window_size(scale: f32) -> (f32, f32) {
     let scale = scale.max(1.0);
+    #[cfg(target_os = "macos")]
     let (left, top, right, bottom) = work_area_at(0, 0, 1, 1);
+    #[cfg(windows)]
+    let (left, top, right, bottom) = windows::current_work_area();
     let logical_w = (right - left).max(1) as f32 / scale;
     let logical_h = (bottom - top).max(1) as f32 / scale;
     full_span((logical_w - 48.0).max(1.0), (logical_h - 48.0).max(1.0))
@@ -133,7 +169,6 @@ pub(crate) fn place_fitted(window: &slint::Window, width: f32, height: f32, pref
     let old_w = (size.width as i32).max(1);
     let old_h = (size.height as i32).max(1);
     let work = work_area_at(pos.x, pos.y, old_w, old_h);
-    #[cfg(target_os = "macos")]
     let work = prefer.map(|(x, y)| work_area_at(x, y, new_w, new_h)).unwrap_or(work);
     let (x, y) = match prefer {
         Some((px, py)) => fit_on_screen(px, py, new_w, new_h, new_w, new_h, work),
@@ -149,7 +184,9 @@ pub(crate) fn place_fitted(window: &slint::Window, width: f32, height: f32, pref
         return (position.x, position.y);
     }
     #[cfg(windows)]
-    (x, y)
+    {
+        windows::fit_current_window().unwrap_or((x, y))
+    }
 }
 
 /// Shift an expanded window back inside `work` (left, top, right, bottom).
