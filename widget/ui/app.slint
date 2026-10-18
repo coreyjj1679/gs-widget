@@ -38,6 +38,8 @@ component ChangelogHistory inherits Rectangle {
                 color: DesktopTheme.text;
             }
             Text {
+                width: root.width;
+                height: self.preferred-height;
                 text: root.english ? "Release history included with this app. Available offline." : "此版本附帶的更新紀錄，離線也能閱讀。";
                 wrap: word-wrap;
                 font-size: 12px;
@@ -45,6 +47,8 @@ component ChangelogHistory inherits Rectangle {
             }
         }
         if root.releases.length == 0: Text {
+            width: root.width;
+            height: self.preferred-height;
             text: root.english ? "No release notes are included with this version." : "此版本尚未附帶更新日誌。";
             wrap: word-wrap;
             font-size: 13px;
@@ -79,28 +83,30 @@ component ChangelogHistory inherits Rectangle {
             for section in release.sections: VerticalLayout {
                 spacing: 7px;
                 Text {
+                    width: root.width;
+                    height: self.preferred-height;
                     text: root.english ? section.heading-en : section.heading-zh;
                     font-size: 13px;
                     font-weight: 600;
                     color: DesktopTheme.text;
                     wrap: word-wrap;
                 }
-                for entry in section.entries: HorizontalLayout {
-                    spacing: 8px;
-                    alignment: start;
+                for entry in section.entries: Rectangle {
+                    width: root.width;
+                    // Measure after applying the available width so wrapped
+                    // lines contribute to the enclosing scroll content height.
+                    height: entry-text.preferred-height;
                     Rectangle {
-                        width: 4px;
-                        Rectangle {
-                            y: 7px;
-                            width: 3px;
-                            height: 3px;
-                            border-radius: 2px;
-                            background: DesktopTheme.secondary;
-                        }
+                        y: 7px;
+                        width: 3px;
+                        height: 3px;
+                        border-radius: 2px;
+                        background: DesktopTheme.secondary;
                     }
-                    Text {
-                        horizontal-stretch: 1;
-                        min-width: 0px;
+                    entry-text := Text {
+                        x: 12px;
+                        width: parent.width - self.x;
+                        height: self.preferred-height;
                         text: root.english ? entry.text-en : entry.text-zh;
                         font-size: 13px;
                         color: DesktopTheme.text;
