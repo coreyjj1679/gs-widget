@@ -260,22 +260,30 @@ pub(in crate::db) fn bounded_edit(query: &[char], text: &str, budget: u8) -> Opt
     }
     let width = query.len();
     let max = budget as usize;
-    let mut prev = [0u8; 49];
-    for index in 0..=width {
+    let length = text.chars().count();
+    // Length alone rules out most full names when matching an individual word.
+    if width.abs_diff(length) > max {
+        return None;
+    }
+    let outside = budget.saturating_add(1);
+    let mut prev = [outside; 49];
+    for index in 0..=width.min(max) {
         prev[index] = index as u8;
     }
-    let mut length = 0usize;
-    for ch in text.chars() {
-        length += 1;
-        if length > width + max {
-            return None;
-        }
-        let mut curr = [0u8; 49];
-        curr[0] = length as u8;
+    for (offset, ch) in text.chars().enumerate() {
+        let length = offset + 1;
+        let mut curr = [outside; 49];
+        curr[0] = length.min(outside as usize) as u8;
         let mut row_min = curr[0];
-        for index in 1..=width {
+        // Any path outside this diagonal band already exceeds the edit budget.
+        // Search only allows one or two edits, even for much longer names.
+        let start = length.saturating_sub(max).max(1);
+        let end = (length + max).min(width);
+        for index in start..=end {
             let cost = if query[index - 1] == ch { 0 } else { 1 };
-            let value = (prev[index] + 1).min(curr[index - 1] + 1).min(prev[index - 1] + cost);
+            let value = prev[index].saturating_add(1)
+                .min(curr[index - 1].saturating_add(1))
+                .min(prev[index - 1].saturating_add(cost));
             curr[index] = value;
             row_min = row_min.min(value);
         }
@@ -283,9 +291,6 @@ pub(in crate::db) fn bounded_edit(query: &[char], text: &str, budget: u8) -> Opt
             return None;
         }
         prev = curr;
-    }
-    if (width as i32 - length as i32).unsigned_abs() > max as u32 {
-        return None;
     }
     let dist = prev[width];
     if dist == 0 || dist > budget {

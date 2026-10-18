@@ -13,6 +13,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from release_notes import DEFAULT_NOTES, load_notes, render_english
+
 API = "https://api.github.com"
 
 
@@ -46,7 +48,7 @@ class GitHub:
             return json.load(response)
 
 
-def publish(github: GitHub, repository: str, tag: str, commit: str, archive: Path, *, sleep=time.sleep):
+def publish(github: GitHub, repository: str, tag: str, commit: str, archive: Path, *, notes_file=DEFAULT_NOTES, sleep=time.sleep):
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise ValueError("Invalid owner/repository")
     if not re.fullmatch(r"v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", tag):
@@ -57,6 +59,10 @@ def publish(github: GitHub, repository: str, tag: str, commit: str, archive: Pat
         raise ValueError("ZIP filename must match the release tag")
     if not archive.is_file() or not 0 < archive.stat().st_size < 2 * 1024**3:
         raise ValueError("Missing or invalid release ZIP")
+    # Validate every translation and the selected version before any API call.
+    # Both the app and GitHub use this file; no generated commit messages leak
+    # into the user-facing notes, and a missing translation blocks publication.
+    body = render_english(load_notes(notes_file), tag[1:])
 
     base = f"{API}/repos/{repository}/releases"
     try:
@@ -88,12 +94,14 @@ def publish(github: GitHub, repository: str, tag: str, commit: str, archive: Pat
         "tag_name": tag,
         "target_commitish": commit,
         "name": tag,
-        "body": "",
+        "body": body,
         "draft": True,
         "prerelease": False,
         "generate_release_notes": False,
     })
     # Any later failure intentionally leaves a draft; users never see a partial update.
+    if release.get("draft") is not True or release.get("body") != body:
+        raise ValueError("Draft release returned unexpected notes or state; draft kept unpublished")
     release_url = f"{base}/{release['id']}"
     upload_url = release["upload_url"].split("{", 1)[0]
     archive_bytes = archive.read_bytes()
@@ -113,12 +121,12 @@ def publish(github: GitHub, repository: str, tag: str, commit: str, archive: Pat
 
     result = github.request("PATCH", release_url, {
         "name": tag,
-        "body": "",
+        "body": body,
         "draft": False,
         "prerelease": False,
         "make_latest": "legacy",
     })
-    if result.get("draft") or result.get("body") not in (None, ""):
+    if result.get("draft") is not False or result.get("body") != body:
         raise ValueError("Published release returned unexpected metadata; inspect it in GitHub")
     return result["html_url"]
 
@@ -129,11 +137,12 @@ def main():
     parser.add_argument("--tag", required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--archive", type=Path, required=True)
+    parser.add_argument("--notes-file", type=Path, default=DEFAULT_NOTES)
     args = parser.parse_args()
     token = os.environ.get("GH_TOKEN")
     if not token:
         raise ValueError("GH_TOKEN must be provided by GitHub Actions")
-    print(publish(GitHub(token), args.repository, args.tag, args.commit, args.archive))
+    print(publish(GitHub(token), args.repository, args.tag, args.commit, args.archive, notes_file=args.notes_file))
 
 
 if __name__ == "__main__":

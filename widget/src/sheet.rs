@@ -7,8 +7,8 @@ use slint::{Image, Model, ModelRc, SharedString, VecModel};
 use super::db;
 use super::agf;
 use super::icons::{cached_icon, image_from_icon, note_lines};
-use super::list::{picture_key, plain_hits, publish};
-use super::{App, Fact, Hit, IconJob, Session};
+use super::list::{item_row_names, picture_key, plain_hits, publish};
+use super::{App, Fact, Hit, IconJob, Session, QuestMapNode, QuestMapSegment};
 
 pub(crate) fn open_scope(
     app: &App,
@@ -239,6 +239,8 @@ pub(crate) fn focus_section(app: &App, key: &str) {
 }
 
 pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key: &str, keep_sheet: bool) {
+    super::perf::begin_update();
+    let _timer = super::perf::Span::new("detail.open", 1);
     if !keep_sheet {
         app.set_item_tab("".into());
         app.set_item_source("".into());
@@ -254,8 +256,8 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
         .strip_prefix("monster:")
         .map(|code| catalog.monster_quests(code, &app.get_lang()))
         .unwrap_or_default();
-    let (rows, mut jobs) = link_rows(cache, links, gen);
-    let (related_rows, related_jobs) = link_rows(cache, related_hits, gen);
+    let (rows, mut jobs) = link_rows(cache, links, gen, catalog, &app.get_lang());
+    let (related_rows, related_jobs) = link_rows(cache, related_hits, gen, catalog, &app.get_lang());
     jobs.extend(related_jobs);
     app.set_related(ModelRc::new(VecModel::from(related_rows)));
     if key.starts_with("item:") || key.starts_with("set:") {
@@ -404,9 +406,18 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
             app.set_sheet_code(code.into());
             let mut facts = Vec::new();
             let mut picks = Vec::new();
-            for (index, (label, value, key)) in tasks.into_iter().enumerate() {
+            let alternate_tasks = if app.get_full_mode() {
+                let alternate_lang = if lang.starts_with("en") { "zh-en" } else { "en-zh" };
+                catalog.quest_sheet(quest_id, alternate_lang).map(|sheet| sheet.3).unwrap_or_default()
+            } else { Vec::new() };
+            for (index, (label, mut value, key)) in tasks.into_iter().enumerate() {
                 if !key.is_empty() {
                     picks.push(index as i32);
+                    if let Some((_, alternate, alternate_key)) = alternate_tasks.get(index) {
+                        if alternate_key == &key && !alternate.is_empty() && alternate != &value {
+                            value = format!("{value}\n{alternate}");
+                        }
+                    }
                 }
                 let (icon, has_icon) = catalog
                     .linked_icon(&key)
@@ -440,6 +451,52 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                 })
                 .collect();
             app.set_reward_facts(ModelRc::new(VecModel::from(rewards)));
+            let classification: Vec<_> = catalog.quest_classification_facts(quest_id, &lang).into_iter()
+                .map(|(label, value, key)| Fact {
+                    label: label.into(), value: value.into(), key: key.into(),
+                    icon: Image::default(), has_icon: false, section: Default::default(),
+                }).collect();
+            app.set_quest_classification(ModelRc::new(VecModel::from(classification)));
+            let (dependencies, note) = catalog.quest_dependency_rows(quest_id, &lang);
+            app.set_quest_dependencies(ModelRc::new(VecModel::from(plain_hits(dependencies))));
+            app.set_quest_dependency_note(note.into());
+            let graph = catalog.quest_dependency_graph(quest_id, &lang);
+            let ids = graph.nodes.iter().filter_map(|node| node.hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok())).collect::<Vec<_>>();
+            let item_previews = catalog.quest_item_previews(&ids, &lang);
+            let mut pending_items = HashSet::new();
+            let mut item_jobs = Vec::new();
+            app.set_quest_map_nodes(ModelRc::new(VecModel::from(graph.nodes.into_iter().map(|node| {
+                let items = node.hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok())
+                    .and_then(|id| item_previews.get(&id)).cloned().unwrap_or_default();
+                let preview = node.hit.key.strip_prefix("quest:")
+                    .and_then(|id| id.parse::<i64>().ok())
+                    .map(|id| catalog.quest_map_preview(id, &lang))
+                    .unwrap_or_default();
+                let alternate = node.hit.key.strip_prefix("quest:")
+                    .and_then(|id| id.parse::<i64>().ok())
+                    .map(|id| catalog.quest_alternate_title(id, &lang)).unwrap_or_default();
+                QuestMapNode {
+                    key: node.hit.key.into(), title: node.hit.title.into(), subtitle: node.hit.subtitle.into(),
+                    relation: node.hit.aside.into(), x: node.x, y: node.y, state: node.state, cyclic: node.cyclic,
+                    summary: preview.summary.into(), objectives: preview.objectives.into(),
+                    rewards: preview.rewards.into(), brief: preview.brief.into(),
+                    reward_items: preview.reward_items.into(), reward_stats: preview.reward_stats.into(),
+                    required_items: super::quest_icons::item_chips(catalog, session, &items.required, gen, true, &mut pending_items, &mut item_jobs),
+                    reward_icons: super::quest_icons::item_chips(catalog, session, &items.rewards, gen, true, &mut pending_items, &mut item_jobs),
+                    other_objectives: items.other_objectives.into(),
+                    alternate: alternate.into(),
+                }
+            }).collect::<Vec<_>>())));
+            for job in item_jobs { let _ = session.jobs.send(job); }
+            app.set_quest_map_segments(ModelRc::new(VecModel::from(graph.segments.into_iter().map(|line| QuestMapSegment {
+                x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2,
+                cyclic: line.cyclic, unresolved: line.unresolved, highlighted: line.highlighted, arrow: line.arrow,
+            }).collect::<Vec<_>>())));
+            app.set_quest_map_width(graph.width);
+            app.set_quest_map_height(graph.height);
+            app.set_quest_map_focus_x(graph.selected_x);
+            app.set_quest_map_focus_y(graph.selected_y);
+            app.set_quest_map_note(graph.note.into());
             let (prev, next) = catalog.quest_chain(quest_id, &lang);
             app.set_chain_prev(ModelRc::new(VecModel::from(plain_hits(prev.into_iter().collect()))));
             app.set_chain_next(ModelRc::new(VecModel::from(plain_hits(next))));
@@ -478,6 +535,11 @@ pub(crate) fn apply_sheet(app: &App, name: String, alt: String, id: String, line
 }
 
 pub(crate) fn clear_quest_nav(app: &App) {
+    app.set_quest_map_nodes(ModelRc::new(VecModel::from(Vec::<QuestMapNode>::new())));
+    app.set_quest_map_segments(ModelRc::new(VecModel::from(Vec::<QuestMapSegment>::new())));
+    app.set_quest_dependencies(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
+    app.set_quest_classification(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_quest_dependency_note("".into());
     app.set_chain_prev(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
     app.set_chain_next(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
     app.set_reward_facts(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
@@ -490,6 +552,8 @@ pub(crate) fn link_rows(
     cache: &RefCell<HashMap<String, Image>>,
     hits: Vec<db::Hit>,
     gen: u64,
+    catalog: &db::Catalog,
+    lang: &str,
 ) -> (Vec<Hit>, Vec<IconJob>) {
     let mut rows = Vec::with_capacity(hits.len());
     let mut jobs = Vec::new();
@@ -512,10 +576,11 @@ pub(crate) fn link_rows(
             }
         }
         let no_image = !has_icon && (hit.key.starts_with("item:") || hit.key.starts_with("recipe:"));
+        let (alternate_name, subtitle) = item_row_names(catalog, &hit.key, &hit.subtitle, lang);
         rows.push(Hit {
             title: SharedString::from(hit.title),
-            alternate_name: Default::default(),
-            subtitle: SharedString::from(hit.subtitle),
+            alternate_name: SharedString::from(alternate_name),
+            subtitle: SharedString::from(subtitle),
             detail: SharedString::default(),
             monster_drops: Default::default(),
             spawn_places: Default::default(),
@@ -554,4 +619,29 @@ pub(crate) fn link_rows(
         });
     }
     (rows, jobs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn item_source_links_show_both_names_and_keep_the_quantity() {
+        let catalog = db::Catalog::open().expect("db");
+        let cache = RefCell::new(HashMap::new());
+        for lang in ["zh-en", "en-zh"] {
+            let mut item = catalog.search("item", "11656", lang, "", "").into_iter()
+                .find(|row| row.key == "item:11656").expect("item");
+            let expected_alternate = catalog.item_alternate_name(&item.key, lang);
+            item.subtitle = format!("{expected_alternate} · × 3");
+            let monster = catalog.monster_records("M24", lang, "", "", "").into_iter()
+                .find(|row| row.key == "monster:M24").expect("deer");
+            let monster_subtitle = monster.subtitle.clone();
+            let (rows, _) = link_rows(&cache, vec![item, monster], 1, &catalog, lang);
+            assert_eq!(rows[0].alternate_name.as_str(), expected_alternate);
+            assert_eq!(rows[0].subtitle.as_str(), "× 3");
+            assert_eq!(rows[1].alternate_name.as_str(), "");
+            assert_eq!(rows[1].subtitle.as_str(), monster_subtitle);
+        }
+    }
 }

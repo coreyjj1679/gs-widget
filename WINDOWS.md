@@ -2,7 +2,7 @@
 
 ## Install and update
 
-Download `gs-widget-v1.0.0-windows-x64.zip` (or a newer version) from [GitHub Releases](https://github.com/coreyjj1679/gs-widget/releases/latest). Extract the whole archive into a writable folder such as `%LOCALAPPDATA%\Programs\gs-widget`, then open `gersang-widget.exe`. The ZIP contains the executable, `data/gersang.db`, `data/client-version.txt`, and the bundled `data/client` pictures. GitHub's automatically generated **Source code** ZIP is not the runnable app.
+Download `gs-widget-v1.1.0-windows-x64.zip` (or a newer version) from [GitHub Releases](https://github.com/coreyjj1679/gs-widget/releases/latest). Extract the whole archive into a writable folder such as `%LOCALAPPDATA%\Programs\gs-widget`, then open `gersang-widget.exe`. The ZIP contains the executable, `data/gersang.db`, `data/client-version.txt`, and the bundled `data/client` pictures. GitHub's automatically generated **Source code** ZIP is not the runnable app.
 
 Each launch checks for updates in the background and shows a notice at the bottom left of the navigation bar when a newer stable version is available. Offline or failed startup checks remain quiet and do not affect the local catalog, pictures or personal settings. Open **Settings → App / 設定 → 程式** to see the installed app version or check manually; a failed manual check displays an error and a retry option.
 
@@ -18,22 +18,32 @@ The updater temporarily keeps the previous executable and catalog assets in `.gs
 
 The workflow is `.github/workflows/windows.yml`. Only a **push of a `v*` tag** triggers it; ordinary branch pushes (including `main`, feature and development branches), pull requests, and manual dispatch do not. Before building, it fetches complete history and verifies the checked-out tag's commit is already part of `origin/main` using Git ancestry. A tag on an unmerged feature commit fails the gate. A tagged ancestor of the current `main` tip is eligible, including an annotated tag.
 
-An eligible tag builds and tests Windows x64, creates the ZIP, checks its contents and PE imports, runs the extracted app's headless installation check and offline GUI smoke check, and stores a `windows-x64` Actions artifact for 14 days. The GUI check uses software rendering and a refused loopback proxy; it requires a live window and initialized alias profile, then closes the app normally. The publication job rechecks the tag against the built commit and the freshly fetched `origin/main` before creating the Release.
+An eligible tag first validates its package version and bilingual release notes, then builds and tests Windows x64, creates the ZIP, checks its contents and PE imports, runs the extracted app's headless installation check and offline GUI smoke check, and stores a `windows-x64` Actions artifact for 14 days. The GUI check uses software rendering and a refused loopback proxy; it requires a live window and initialized alias profile, then closes the app normally. The publication job rechecks the tag against the built commit and the freshly fetched `origin/main` before creating the Release.
 
-For the first release, review and validate the implementation from `feat/full-mode`, ensure `widget/Cargo.toml` contains `version = "1.0.0"` and `widget/Cargo.lock` contains the matching package version, then merge and push that work to `main`. Tag only after the release commit is present on the remote main branch:
+For each new release, add its changes to the top of `release-notes.json`. Use the stable package version without the `v` prefix, a real `YYYY-MM-DD` date, and one or more sections with kind `added`, `improved`, or `fixed`. Write a complete English (`en`) list and a Traditional Chinese (`zh-TW`) list with a matching translation at each position. Keep previous version entries in descending numeric version order; historical entries must describe only what actually shipped in those versions. The app embeds this file for offline release history and follows the player's interface language. GitHub receives only the selected version's English entries.
+
+Bump `widget/Cargo.toml` and the `gersang-widget` package entry in `widget/Cargo.lock` to the new version. Validate the notes and preview the English Release description before merging, substituting the intended version for `1.1.0`:
+
+```sh
+python scripts/release_notes.py --version 1.1.0
+python scripts/release_notes.py --version 1.1.0 --render
+python -m unittest discover -s scripts/tests -v
+```
+
+Review and validate the app, then merge and push the release commit to `main`. Tag only after that commit is present on the remote main branch:
 
 ```sh
 git switch main
 git pull --ff-only origin main
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
-For `v1.1.0`, update `widget/Cargo.toml` to `1.1.0`, refresh and commit `widget/Cargo.lock` with the change, run the local checks below, and merge and push the changes to `main` before tagging that release commit as `v1.1.0`. The tag-triggered workflow runs all Windows checks before publication. Use all three version components: `v1.1.0`, not `v1.1`. Tag/version mismatches and prerelease versions fail validation. To check ancestry locally after fetching the remote branches and tags, run `python scripts/check_release_ref.py --tag v1.1.0` with that tagged commit checked out; this command verifies eligibility without publishing anything.
+The tag-triggered workflow runs all Windows checks before publication. Use all three version components: `v1.1.0`, not `v1.0`. Tag/version mismatches, prerelease versions, missing changelog entries, invalid dates, and incomplete translations fail validation before the Windows build. To check ancestry locally after fetching the remote branches and tags, run `python scripts/check_release_ref.py --tag v1.1.0` with that tagged commit checked out; this command verifies eligibility without publishing anything.
 
 The workflow uses Rust **1.92.0**, `--locked`, the MSVC x64 target and a static C runtime. Python **3.12** performs packaging and publication. The ZIP is named `gs-widget-v<version>-windows-x64.zip`; an explicit file allowlist prevents personal preferences, aliases, source code, caches and game notice files from being included. The tests skip only the existing optional `battle_frames_skip_blanks_and_reuse_the_decoded_frame` test, which needs an unbundled game sprite.
 
-The release job uses GitHub Actions' built-in token with `contents: write`; no PAT or extra signing secret is needed. The Release title is exactly the tag and its description is empty (`generate_release_notes: false`). It creates a draft, uploads the ZIP, checks GitHub's SHA-256 asset digest against the local archive, and only then publishes. Existing releases are never overwritten. If a job fails after creating a draft, inspect that draft and the failed run, delete the incomplete draft if appropriate, and rerun the job. Do not replace an already published version's assets; publish a new patch version instead. GitHub's API digest verifies the downloaded bytes; the EXE is not Authenticode-signed.
+The release job uses GitHub Actions' built-in token with `contents: write`; no PAT or extra signing secret is needed. The Release title is exactly the tag. Its English description comes from `release-notes.json`, grouped under **Added**, **Improvements**, and/or **Fixes**. Commit-based notes generation remains disabled (`generate_release_notes: false`). The publisher validates the notes before making any API request, creates a draft with that exact English text, uploads the ZIP, checks GitHub's SHA-256 asset digest against the local archive, and only then publishes. It checks that the draft and final descriptions match the rendered text. Existing releases are never overwritten; the already-published `v1.0.0` and `v1.0.1` descriptions remain empty. If a job fails after creating a draft, inspect that draft and the failed run, delete the incomplete draft if appropriate, and rerun the job. Do not replace an already published version's assets; publish a new patch version instead. GitHub's API digest verifies the downloaded bytes; the EXE is not Authenticode-signed.
 
 Relevant API contracts: [creating and updating Releases](https://docs.github.com/en/rest/releases/releases), [Release asset metadata and digests](https://docs.github.com/en/rest/releases/assets), and [Rust static C runtimes](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes).
 

@@ -578,6 +578,7 @@ pub(in crate::db) fn load_items(conn: &Connection, texts: &HashMap<String, Strin
         let en = online(texts, name_gts, "en").to_string();
         let zh = online(texts, name_gts, "zh").to_string();
         items.push(ItemRow {
+            code,
             names: haystack(&[&ko, &en, &zh]),
             code_str: code.to_string(),
             en,
@@ -802,6 +803,21 @@ impl Catalog {
         (text, links, icon)
     }
 
+    /// Alternate names for item browsing come from the loaded index, not one SQL query per row.
+    pub fn item_alternate_name(&self, key: &str, lang: &str) -> String {
+        let Some((kind, id)) = key.split_once(':') else { return String::new() };
+        let names = match kind {
+            "item" => id.parse().ok().and_then(|code| self.index.find_item(code))
+                .map(|item| (item.en.as_str(), item.zh.as_str())),
+            "set" => id.parse::<i64>().ok().and_then(|code| self.index.sets.iter().find(|set| set.code == code))
+                .map(|set| (set.en.as_str(), set.zh.as_str())),
+            "icat" => Some(item_category_pair(id)),
+            "isub" => Some(weapon_family_pair(id)),
+            _ => None,
+        };
+        names.map(|(en, zh)| trail(lang, en, zh)).unwrap_or_default()
+    }
+
     pub fn item_sheet(&self, code: i64, lang: &str) -> Option<(String, String, String, Vec<(String, String)>, String)> {
         let row = self.conn.query_row(
             "SELECT i.name_ko, IFNULL(se.text, ''), IFNULL(sz.text, ''), price, weight, description, IFNULL(desc_gts, 0)
@@ -828,7 +844,7 @@ impl Catalog {
         };
         Some((
             lead(lang, &en, &zh),
-            String::new(),
+            trail(lang, &en, &zh),
             format!("#{code}"),
             self.item_lines(code, lang, price, weight),
             self.item_note(desc_gts, &description, lang),
@@ -1249,7 +1265,7 @@ impl Catalog {
         lines.extend(self.set_breakdown(code, lang));
         Some((
             set_title_lang(lang, &set.ko, &set.en, &set.zh),
-            String::new(),
+            trail(lang, &set.en, &set.zh),
             format!("#{code}"),
             lines,
             String::new(),

@@ -1,6 +1,6 @@
 [package]
 name = "gersang-widget"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 rust-version = "1.92"
 description = "Small dark Gersang reference widget"
@@ -13,9 +13,14 @@ unicode-normalization = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rmcp = { version = "3.5.1", default-features = false, features = ["server", "transport-io"] }
+schemars = "1"
+tokio = { version = "1", features = ["rt", "io-std"] }
 semver = "1"
 sha2 = "0.10"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 global-hotkey = "0.8"

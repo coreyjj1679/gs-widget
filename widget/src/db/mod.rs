@@ -8,12 +8,20 @@ mod alias;
 mod hero;
 mod item;
 mod load;
+pub(crate) mod mcp;
 mod monster;
 mod names;
 mod npc;
 mod paths;
+mod planner;
+mod calculator;
+mod calculator_library;
 mod prefs;
 mod quest;
+mod quest_catalog;
+mod quest_graph;
+mod quest_groups;
+mod quest_items;
 mod recipe;
 mod rows;
 mod search;
@@ -25,6 +33,9 @@ mod work;
 
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
+pub use quest_items::{QuestItemRef, QuestItemSet};
+pub use calculator::{CalcCatalog, CalcDocument, CalcLine, CalcBreakdown, MAX_NESTED_DEPTH, MAX_TOTAL_MATERIALS, decode_calculator, encode_calculator, load_calculator, save_calculator, calculator_export_dir};
+pub use calculator_library::{CalcLibrary, load_calculator_library, save_calculator_library, encode_calculator_folder, decode_calculator_folder};
 pub use user_data::initialize_user_data;
 pub use monster::MonsterQuery;
 pub use prefs::{DockPref, HomePref, ViewPref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_view, load_window, save_dock, save_favourites, save_full_geometry, save_home, save_lang, save_mode, save_opacity, save_set_extra, save_view, save_window};
@@ -81,7 +92,8 @@ impl Catalog {
         let client_root = locate_client(stored, db.parent().unwrap_or(Path::new(".")));
         let characters = characters_dir(&client_root, db.parent().unwrap_or(Path::new(".")));
         let pictures = choose_pictures(&client_root, &load_sprites(&conn), &load_portraits(&conn));
-        let index = Index::load(&conn, &client_root, &pictures, &user_data::preferences_dir())?;
+        let aliases = alias::alias_editor_text_in(&user_data::preferences_dir());
+        let index = Index::load(&conn, &client_root, &pictures, &aliases)?;
         Ok(Self {
             conn,
             client_root,
@@ -104,7 +116,7 @@ impl Catalog {
             .filter(|code| !code.is_empty())
             .filter_map(|code| {
                 let id = code.trim_start_matches('#').parse::<i64>().ok()?;
-                let item = self.index.items.iter().find(|item| item.code_str == id.to_string())?;
+                let item = self.index.find_item(id)?;
                 let name = lead(lang, &item.en, &item.zh);
                 Some(Hit {
                     title: if name.is_empty() { format!("#{id}") } else { name },

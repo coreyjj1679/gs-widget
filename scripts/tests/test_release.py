@@ -1,4 +1,5 @@
 import hashlib
+import json
 import sqlite3
 import struct
 import sys
@@ -93,13 +94,15 @@ class PackagingTests(unittest.TestCase):
 
 
 class FakeGitHub:
-    def __init__(self, existing=None, digest=None, pending=0, release_pages=None):
+    def __init__(self, existing=None, digest=None, pending=0, release_pages=None, wrong_draft_body=False, wrong_final_body=False):
         self.existing = existing
         self.digest = digest
         self.pending = pending
         self.release_pages = release_pages or [[]]
         self.calls = []
         self.archive = b""
+        self.wrong_draft_body = wrong_draft_body
+        self.wrong_final_body = wrong_final_body
 
     def request(self, method, url, payload=None, *, binary=False):
         self.calls.append((method, url, payload))
@@ -111,7 +114,11 @@ class FakeGitHub:
             page = int(url.rsplit("=", 1)[1])
             return self.release_pages[page - 1] if page <= len(self.release_pages) else []
         if method == "POST" and url.endswith("/releases"):
-            return {"id": 1, "upload_url": "https://uploads.github.com/repos/owner/repo/releases/1/assets{?name,label}"}
+            return {
+                "id": 1, "draft": True,
+                "body": "unexpected notes" if self.wrong_draft_body else payload["body"],
+                "upload_url": "https://uploads.github.com/repos/owner/repo/releases/1/assets{?name,label}",
+            }
         if binary:
             self.archive = payload
             return {"id": 2}
@@ -122,7 +129,11 @@ class FakeGitHub:
             digest = self.digest if self.digest is not None else "sha256:" + hashlib.sha256(self.archive).hexdigest()
             return {"state": "uploaded", "digest": digest, "size": len(self.archive)}
         if method == "PATCH":
-            return {"draft": False, "body": "", "html_url": "https://github.com/owner/repo/releases/tag/v1.0.0"}
+            return {
+                "draft": False,
+                "body": "unexpected notes" if self.wrong_final_body else payload["body"],
+                "html_url": "https://github.com/owner/repo/releases/tag/v1.0.0",
+            }
         raise AssertionError((method, url))
 
 
@@ -132,21 +143,67 @@ class PublicationTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.archive = Path(self.temp.name) / "gs-widget-v1.0.0-windows-x64.zip"
         self.archive.write_bytes(b"verified archive content")
+        self.notes_file = Path(self.temp.name) / "release-notes.json"
+        self.notes = {"schema_version": 1, "releases": [{
+            "version": "1.0.0", "date": "2026-10-18", "sections": [
+                {"kind": "added", "en": ["Windows downloads."], "zh-TW": ["Windows 下載。"]},
+                {"kind": "improved", "en": ["Faster browsing."], "zh-TW": ["瀏覽更流暢。"]},
+                {"kind": "fixed", "en": ["Saved window size."], "zh-TW": ["保留視窗大小。"]},
+            ],
+        }]}
+        self.notes_file.write_text(json.dumps(self.notes), encoding="utf-8")
 
     def run_publish(self, github):
-        return publish(github, "owner/repo", "v1.0.0", "a" * 40, self.archive, sleep=lambda _: None)
+        return publish(github, "owner/repo", "v1.0.0", "a" * 40, self.archive, notes_file=self.notes_file, sleep=lambda _: None)
 
-    def test_publish_is_last_and_release_notes_remain_empty(self):
+    def test_publish_is_last_and_notes_are_exactly_the_english_translation(self):
         github = FakeGitHub(pending=2)
         self.run_publish(github)
         creation = next(payload for method, url, payload in github.calls if method == "POST" and url.endswith("/releases"))
         self.assertTrue(creation["draft"])
-        self.assertEqual(creation["body"], "")
+        expected = "## Added\n\n- Windows downloads.\n\n## Improvements\n\n- Faster browsing.\n\n## Fixes\n\n- Saved window size.\n"
+        self.assertEqual(creation["body"], expected)
         self.assertFalse(creation["generate_release_notes"])
         method, _, publication = github.calls[-1]
         self.assertEqual(method, "PATCH")
         self.assertFalse(publication["draft"])
-        self.assertEqual(publication["body"], "")
+        self.assertEqual(publication["body"], expected)
+
+    def test_missing_translation_never_contacts_github(self):
+        del self.notes["releases"][0]["sections"][0]["zh-TW"]
+        self.notes_file.write_text(json.dumps(self.notes), encoding="utf-8")
+        github = FakeGitHub()
+        with self.assertRaisesRegex(ValueError, "zh-TW"):
+            self.run_publish(github)
+        self.assertEqual(github.calls, [])
+
+    def test_missing_release_version_never_contacts_github(self):
+        self.notes["releases"][0]["version"] = "1.0.1"
+        self.notes_file.write_text(json.dumps(self.notes), encoding="utf-8")
+        github = FakeGitHub()
+        with self.assertRaisesRegex(ValueError, "Missing bilingual changelog entry"):
+            self.run_publish(github)
+        self.assertEqual(github.calls, [])
+
+    def test_invalid_schema_never_contacts_github(self):
+        self.notes["schema_version"] = 2
+        self.notes_file.write_text(json.dumps(self.notes), encoding="utf-8")
+        github = FakeGitHub()
+        with self.assertRaisesRegex(ValueError, "schema_version"):
+            self.run_publish(github)
+        self.assertEqual(github.calls, [])
+
+    def test_draft_notes_mismatch_blocks_upload_and_publication(self):
+        github = FakeGitHub(wrong_draft_body=True)
+        with self.assertRaisesRegex(ValueError, "Draft release returned unexpected notes"):
+            self.run_publish(github)
+        self.assertEqual(github.archive, b"")
+        self.assertFalse(any(method == "PATCH" for method, _, _ in github.calls))
+
+    def test_final_notes_mismatch_is_reported(self):
+        github = FakeGitHub(wrong_final_body=True)
+        with self.assertRaisesRegex(ValueError, "Published release returned unexpected metadata"):
+            self.run_publish(github)
 
     def test_digest_mismatch_never_publishes(self):
         github = FakeGitHub(digest="sha256:" + "0" * 64)

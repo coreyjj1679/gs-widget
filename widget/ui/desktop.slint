@@ -1,27 +1,26 @@
-// Full-window presentation. The inactive palette keeps the compact widget's
-// existing colors so shared controls can use the same semantic tokens safely.
+// Shared slate-and-bronze palette for full, widget and collapsed modes.
+// Modes change layout and density, never the meaning or hue of UI colors.
 export global DesktopTheme {
-    in-out property <bool> active: false;
-    out property <color> text: active ? #edf1f7 : #f3efe8;
-    out property <color> secondary: active ? #a8b2c1 : #a3988c;
-    out property <color> muted: active ? #929dad : #8a8076;
-    out property <color> accent: active ? #d8b77b : #d4b483;
-    out property <color> soft: active ? #c9d2df : #e6d7bc;
-    out property <color> border: active ? #303945 : #3a342c;
-    out property <color> selected: active ? #33312c : #2a241e;
-    out property <color> hover: active ? #29313c : #241f1b;
-    out property <color> surface: active ? #1d232c : #1c1916;
-    out property <color> surface-alt: active ? #1a2028 : #1c1914;
-    out property <color> sidebar: active ? #11151b : #100e0c;
-    out property <color> control: active ? #27303b : #3f362c;
-    out property <color> hover-strong: active ? #374251 : #5c4e3a;
-    out property <color> inset: active ? #15191f : #141210;
-    out property <color> raised: active ? #303945 : #3a3228;
-    out property <color> selection-low: active ? #292721 : #241c14;
-    out property <color> on-accent: active ? #211b12 : #1a140e;
-    out property <color> chrome: active ? #15191f : #100e0ce8;
-    out property <color> canvas: active ? #15191f : #141210e8;
-    out property <color> detail: active ? #192029 : #161310;
+    out property <color> text: #edf1f7;
+    out property <color> secondary: #a8b2c1;
+    out property <color> muted: #929dad;
+    out property <color> accent: #d8b77b;
+    out property <color> soft: #c9d2df;
+    out property <color> border: #303945;
+    out property <color> selected: #33312c;
+    out property <color> hover: #29313c;
+    out property <color> surface: #1d232c;
+    out property <color> surface-alt: #1a2028;
+    out property <color> sidebar: #11151b;
+    out property <color> control: #27303b;
+    out property <color> hover-strong: #374251;
+    out property <color> inset: #15191f;
+    out property <color> raised: #303945;
+    out property <color> selection-low: #292721;
+    out property <color> on-accent: #211b12;
+    out property <color> chrome: #15191f;
+    out property <color> canvas: #15191f;
+    out property <color> detail: #192029;
 }
 
 // Simple interface symbols use a shared 24-unit viewport and stroke weight.
