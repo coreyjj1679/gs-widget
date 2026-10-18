@@ -6,6 +6,7 @@ use super::search::{is_floor_suffix, place_split};
 use super::*;
 
 mod browse;
+mod items_bilingual;
 mod performance;
 
 #[test]

@@ -207,6 +207,43 @@ mod tests {
     }
 
     #[test]
+    fn item_rows_separate_the_translation_without_losing_metadata() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let rows = catalog.search("item", "11656", "zh-en", "", "");
+        let row = rows.iter().find(|row| row.key == "item:11656").expect("Essence of Stars");
+        let (alternate, metadata) = super::item_row_names(&catalog, &row.key, &row.subtitle, "zh-en");
+        assert!(!alternate.is_empty());
+        assert_eq!(metadata, "#11656");
+        assert_eq!(super::item_row_names(&catalog, &row.key, "Cost · 100", "zh-en").1, "Cost · 100");
+        assert_eq!(super::item_row_names(&catalog, &row.key, &alternate, "zh-en").1, "");
+        assert_eq!(super::item_row_names(&catalog, "quest:1", "Quest description", "zh-en"), (String::new(), "Quest description".into()));
+        for lang in ["zh-en", "en-zh"] {
+            for row in catalog.search("item", "", lang, "", "") {
+                let (alternate, metadata) = super::item_row_names(&catalog, &row.key, &row.subtitle, lang);
+                assert!(!alternate.is_empty(), "{}", row.key);
+                assert!(!metadata.is_empty(), "{} count", row.key);
+                assert!(!metadata.contains(&alternate), "{}", row.key);
+            }
+        }
+    }
+
+    #[test]
+    fn monster_row_metadata_keeps_the_location_without_repeating_its_name() {
+        let catalog = super::db::Catalog::open().expect("db");
+        for lang in ["zh-en", "en-zh"] {
+            let hit = catalog.monster_records("M24", lang, "", "", "").into_iter()
+                .find(|row| row.key == "monster:M24").expect("deer");
+            let cards = catalog.monster_cards(&["M24".into()], lang);
+            let alternate = &cards.get("M24").expect("deer card").alternate_name;
+            assert!(!alternate.is_empty());
+            let metadata = super::name_metadata(alternate, &hit.subtitle);
+            assert!(metadata.contains("M24"));
+            assert_eq!(format!("{alternate} · {metadata}"), hit.subtitle);
+        }
+        assert_eq!(super::name_metadata("Deer", "Deer Forest"), "Deer Forest");
+    }
+
+    #[test]
     fn place_names_sit_beside_the_nation_and_wrap() {
         let titles = vec!["朝鮮:".into(), "朝鮮地面".into(), "大觀嶺".into(), "高手洞窟".into()];
         let chips = vec!["label".into(), "".into(), "".into(), "".into()];
@@ -366,6 +403,26 @@ pub(crate) fn show_board_monsters(app: &App, session: &Session, catalog: &db::Ca
     show_rows(app, session, catalog, nation, hits, favourites, true);
 }
 
+fn name_metadata<'a>(alternate: &str, subtitle: &'a str) -> &'a str {
+    // Older catalog hits put the translation before the row's code/count. Keep that
+    // metadata, while the dedicated alternate-name line displays the translation once.
+    if alternate.is_empty() {
+        subtitle
+    } else if subtitle == alternate {
+        ""
+    } else {
+        subtitle.strip_prefix(alternate)
+            .and_then(|rest| rest.strip_prefix(" · "))
+            .unwrap_or(subtitle)
+    }
+}
+
+pub(crate) fn item_row_names(catalog: &db::Catalog, key: &str, subtitle: &str, lang: &str) -> (String, String) {
+    let alternate = catalog.item_alternate_name(key, lang);
+    let metadata = name_metadata(&alternate, subtitle).to_string();
+    (alternate, metadata)
+}
+
 fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, hits: Vec<db::Hit>, favourites: &HashSet<String>, board: bool) {
     let _timer = super::perf::Span::new("list.rows", hits.len());
     let cards_timer = super::perf::Span::new("list.monster_cards", hits.len());
@@ -384,6 +441,7 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
     let flow_chips: Vec<String> = hits.iter().map(|hit| hit.chip.clone()).collect();
     let mut rows = Vec::with_capacity(hits.len());
     let mut jobs = Vec::new();
+    let lang = app.get_lang().to_string();
     for hit in hits {
         let mut icon = Image::default();
         let mut has_icon = false;
@@ -478,10 +536,13 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
                 });
             }
         }
+        let alternate_name = brief.map(|card| card.alternate_name.clone())
+            .unwrap_or_else(|| catalog.item_alternate_name(&hit.key, &lang));
+        let subtitle = name_metadata(&alternate_name, &hit.subtitle);
         rows.push(Hit {
             title: SharedString::from(hit.title),
-            alternate_name: SharedString::from(brief.map(|card| card.alternate_name.as_str()).unwrap_or("")),
-            subtitle: SharedString::from(hit.subtitle),
+            alternate_name: SharedString::from(alternate_name),
+            subtitle: SharedString::from(subtitle),
             detail: SharedString::from(brief.map(|card| card.summary.as_str()).unwrap_or("")),
             monster_drops,
             spawn_places: SharedString::from(brief.map(|card| card.spawn_places.as_str()).unwrap_or("")),

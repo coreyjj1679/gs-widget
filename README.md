@@ -29,6 +29,8 @@ cargo build --locked --release --manifest-path widget/Cargo.toml --target x86_64
 .\widget\target\x86_64-pc-windows-msvc\release\gersang-widget.exe
 ```
 
+Day-to-day development happens directly on `develop` while this project has one developer. Keep `main` as the released baseline; move changes from `develop` to `main` only when preparing a release. A normal push to `develop` does not publish a release.
+
 For maintainers, write the next version's user-facing changes in [`release-notes.json`](release-notes.json), with paired English (`en`) and Traditional Chinese (`zh-TW`) entries. Put the newest stable version first, use a `YYYY-MM-DD` release date, and group changes under `added`, `improved`, or `fixed`. Each English bullet must have its Chinese counterpart at the same position. Keep earlier entries so the app can show its bundled release history offline. Do not describe unshipped work as part of an older release.
 
 Bump the package version in `widget/Cargo.toml` and its `gersang-widget` entry in `widget/Cargo.lock`, then validate the notes with `python scripts/release_notes.py --version 1.0.2` (substitute the version being released). Add `--render` to preview the exact English GitHub Release description. Merge and push that release commit to `main`, then create and push the matching stable tag, such as `v1.0.2`.
@@ -54,6 +56,10 @@ The F1–F9 shortcuts may require holding Fn/Globe, depending on your keyboard s
 Use **Full / 完整** for the desktop workspace: persistent category navigation, category search, monster comparisons, and a list beside the selected record's details. The overview provides quick entries and saved monsters. Full mode supports windows down to 960 × 640 logical pixels.
 
 Use **Widget / 小窗** for the compact interface, or **–** for the floating category bar. Full and widget modes share the same slate colors, bronze accents and control styling while keeping their different layouts and density. The floating bar uses the same palette with a translucent background; your window opacity setting still applies. Both systems share the Slint interface; macOS uses PingFang TC and Windows uses Microsoft JhengHei UI. See [DESIGN.md](DESIGN.md) for the implemented design tokens and layout rules.
+
+Item names use a primary line and a smaller alternate-language line, following your Chinese-first or English-first language setting. Missing or identical translations are shown only once. Widget mode keeps compact **Details / Related** tabs (or **Pieces** for sets).
+
+In full mode, open an item or set to see its picture and bilingual name in a horizontal header, with attributes on the left and sources or pieces on the right. Both columns stay visible and scroll independently. **Tab** switches keyboard focus between them without resetting their scroll positions. The catalog preview also provides **Open details** to reach this page.
 
 ## Data
 

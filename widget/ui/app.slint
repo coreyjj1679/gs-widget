@@ -1521,10 +1521,10 @@ component HitRow inherits Rectangle {
                     vertical-alignment: center;
                     color: root.hit.chip == "section" || root.heading ? DesktopTheme.accent : root.hit.solo ? #e24b4b : root.title-color;
                 }
-                if root.hit.subtitle != "": Text {
+                if root.hit.alternate-name != "" || root.hit.subtitle != "": Text {
                     horizontal-stretch: 1;
                     min-width: 0px;
-                    text: root.hit.subtitle;
+                    text: root.hit.alternate-name == "" ? root.hit.subtitle : root.hit.alternate-name + (root.hit.subtitle == "" ? "" : " · " + root.hit.subtitle);
                     overflow: elide;
                     font-size: root.compact ? 11px : 12px;
                     horizontal-alignment: left;
@@ -3099,7 +3099,7 @@ component CatalogRow inherits Rectangle {
     callback clicked();
     accessible-role: button;
     accessible-label: hit.title;
-    accessible-description: hit.subtitle;
+    accessible-description: hit.alternate-name + " " + hit.subtitle;
     accessible-action-default => { root.clicked(); }
     height: 58px;
     border-radius: 6px;
@@ -3133,8 +3133,8 @@ component CatalogRow inherits Rectangle {
                     color: DesktopTheme.text;
                     overflow: elide;
                 }
-                if root.hit.subtitle != "": Text {
-                    text: root.hit.subtitle;
+                if root.hit.alternate-name != "" || root.hit.subtitle != "": Text {
+                    text: root.hit.alternate-name == "" ? root.hit.subtitle : root.hit.alternate-name + (root.hit.subtitle == "" ? "" : " · " + root.hit.subtitle);
                     font-size: 12px;
                     color: DesktopTheme.secondary;
                     overflow: elide;
@@ -3940,6 +3940,8 @@ export component App inherits Window {
             return;
         }
         root.item-tab = mode;
+        // Full mode shows both columns; Tab only changes keyboard focus.
+        if (root.full-item-sheet) { return; }
         root.drop-offset = 0px;
         root.form-offset = 0px;
         root.cursor = 0;
@@ -3973,6 +3975,7 @@ export component App inherits Window {
     }
 
     function focus-fold(key: string) {
+        if (root.full-item-sheet) { root.item-tab = ""; }
         if (key == "fold:item") {
             root.fold-focus = 0;
         } else if (key == "fold:set") {
@@ -4862,6 +4865,9 @@ export component App inherits Window {
             }
             return;
         }
+        if (root.full-item-sheet && !root.item-links) {
+            return;
+        }
         if ((root.item-links || root.viewing-hero) && root.cursor >= 0 && root.cursor < root.links.length && root.links[root.cursor].chip == "section") {
             root.source-changed(root.links[root.cursor].key);
             return;
@@ -5446,15 +5452,33 @@ export component App inherits Window {
     property <length> link-row: 52px;
     property <bool> record-sheet: item-sheet || recipe-sheet;
     property <bool> card-sheet: record-sheet || quest-sheet;
+    property <bool> full-item-sheet: full-mode && viewing-item && viewing != "" && record-sheet;
+    property <length> item-gap: full-item-sheet ? 24px : side-gap;
+    property <length> item-columns-w: max(pane-w - 48px, 80px);
+    property <length> item-attributes-w: full-item-sheet ? (item-columns-w - 16px) * 0.55 : max(pane-w - 2 * side-gap, 80px);
+    property <length> item-sources-x: full-item-sheet ? 24px + item-attributes-w + 16px : side-gap;
+    property <length> item-sources-w: full-item-sheet ? item-columns-w - item-attributes-w - 16px : max(pane-w - 2 * side-gap, 40px);
     property <length> item-icon-y: 56px;
     property <length> item-icon-side: 96px;
-    property <length> item-form-y: (sheet-alt == "" ? 206px : 222px) + (viewing-item ? 40px : 0px);
-    property <length> item-form-room: max(root.height - foot - item-form-y - 16px, 80px);
-    property <length> item-form-h: item-links ? 0px : min(max(form-body, 36px), item-form-room);
+    property <length> item-header-h: 165px;
+    property <length> item-source-text-h: 0px;
+    property <length> item-form-y: item-icon-y + item-header-h + (full-item-sheet ? 44px : viewing-item ? 56px : 16px);
+    property <length> item-form-room: max(root.height - foot - 42px - item-form-y - 16px, 80px);
+    property <length> item-form-h: item-links && !full-item-sheet ? 0px : min(max(form-body, 36px), item-form-room);
+    changed item-form-h => {
+        if (root.viewing-item && self.item-form-h > 0px) {
+            root.form-offset = max(-root.form-span, min(root.form-offset, 0px));
+        }
+    }
     property <length> item-note-h: 0px;
-    property <length> source-note-h: item-links && source-note-lines > 0 ? source-note-lines * 22px : 0px;
-    property <length> item-list-y: item-links ? item-form-y + source-note-h : item-form-y + item-form-h + item-note-h + 28px;
+    property <length> source-note-h: (item-links || full-item-sheet) && source-note != "" ? item-source-text-h + 12px : 0px;
+    property <length> item-list-y: item-links || full-item-sheet ? item-form-y + source-note-h : item-form-y + item-form-h + item-note-h + 28px;
     property <length> item-list-h: max(root.height - foot - 42px - item-list-y - 16px, 72px);
+    changed item-list-h => {
+        if (root.full-item-sheet || root.item-links) {
+            root.drop-offset = max(-max(root.links.length * root.link-row - root.item-list-h, 0px), min(root.drop-offset, 0px));
+        }
+    }
     property <length> quest-title-y: 56px;
     property <length> quest-code-y: quest-title-y + (sheet-alt == "" ? 26px : 46px);
     property <length> quest-note-y: quest-code-y + 22px;
@@ -6884,8 +6908,15 @@ export component App inherits Window {
                                     text: root.lang == "en-zh" ? "Select a record to see its attributes and related items here." : "選擇一筆資料，在這裡查看能力、材料與相關內容。";
                                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
+                                property <bool> item-preview: root.detail-index >= 0 && (root.detail-key.starts-with("item:") || root.detail-key.starts-with("set:"));
+                                if self.item-preview: Button {
+                                    x: 12px; y: 48px; width: parent.width - 24px; height: 30px;
+                                    text: root.lang == "en-zh" ? "Open details" : "展開詳細資料";
+                                    clicked => { root.open-hit(root.detail-key); keys.focus(); }
+                                }
                                 if root.detail-index >= 0: RecordDetail {
-                                    y: 48px; width: parent.width; height: parent.height - 56px;
+                                    y: parent.item-preview ? 90px : 48px;
+                                    width: parent.width; height: parent.height - self.y - 8px;
                                     facts: root.facts; links: root.links; note: root.sheet-note; body: root.detail;
                                     link-label: root.category == "recipe" ? (root.lang == "en-zh" ? "Materials" : "材料") : (root.lang == "en-zh" ? "Related" : "相關");
                                     no-image-label: root.no-image-label;
@@ -7060,14 +7091,6 @@ export component App inherits Window {
                         width: 108px;
                         height: root.stage-h - 12px;
                         source: root.battle-icon;
-                        image-fit: contain;
-                    }
-                    if root.record-sheet && root.show-icon: Image {
-                        x: (parent.width - root.item-icon-side) / 2;
-                        y: root.item-icon-y;
-                        width: root.item-icon-side;
-                        height: root.item-icon-side;
-                        source: root.item-icon;
                         image-fit: contain;
                     }
                     if root.viewing != "" && !root.viewing-monster && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.show-icon: Image {
@@ -7264,44 +7287,60 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.record-sheet && root.viewing-no-image: NoImage {
-                        x: (parent.width - 96px) / 2;
-                        y: root.item-icon-y;
-                        side: 96px;
-                        label: root.no-image-label;
+                    record-identity := Rectangle {
+                        changed height => { root.item-header-h = self.height; }
+                        visible: root.record-sheet;
+                        x: root.item-gap; y: root.item-icon-y;
+                        width: max(parent.width - 2 * root.item-gap, 80px);
+                        height: root.full-item-sheet ? max(root.item-icon-side, identity-copy.preferred-height) : root.item-icon-side + 12px + identity-copy.preferred-height;
+                        if root.show-icon: Image {
+                            x: root.full-item-sheet ? 0px : (parent.width - root.item-icon-side) / 2;
+                            y: 0px;
+                            width: root.item-icon-side; height: root.item-icon-side;
+                            source: root.item-icon; image-fit: contain;
+                        }
+                        if root.viewing-no-image: NoImage {
+                            x: root.full-item-sheet ? 0px : (parent.width - root.item-icon-side) / 2;
+                            y: 0px;
+                            side: root.item-icon-side; label: root.no-image-label;
+                        }
+                        identity-copy := VerticalLayout {
+                            x: root.full-item-sheet ? root.item-icon-side + 24px : 0px;
+                            y: root.full-item-sheet ? max((parent.height - self.preferred-height) / 2, 0px) : root.item-icon-side + 12px;
+                            width: parent.width - self.x;
+                            height: self.preferred-height;
+                            spacing: 4px;
+                            Text {
+                                text: root.sheet-title; wrap: word-wrap;
+                                font-size: root.full-item-sheet ? 22px : 16px; font-weight: 600;
+                                color: DesktopTheme.text;
+                                horizontal-alignment: root.full-item-sheet ? left : center;
+                            }
+                            if root.sheet-alt != "": Text {
+                                text: root.sheet-alt; wrap: word-wrap;
+                                font-size: root.full-item-sheet ? 15px : 13px;
+                                color: DesktopTheme.soft;
+                                horizontal-alignment: root.full-item-sheet ? left : center;
+                            }
+                            Text {
+                                text: root.sheet-code; font-size: 12px; color: DesktopTheme.secondary;
+                                horizontal-alignment: root.full-item-sheet ? left : center;
+                            }
+                        }
                     }
-                    if root.record-sheet: Text {
-                        x: root.side-gap;
-                        y: root.item-icon-y + root.item-icon-side + 10px;
-                        width: max(parent.width - 2 * root.side-gap, 40px);
-                        text: root.sheet-title;
-                        font-size: 16px;
-                        font-weight: 600;
-                        color: DesktopTheme.text;
-                        horizontal-alignment: center;
-                        overflow: elide;
+                    if root.full-item-sheet: Text {
+                        x: root.item-gap; y: root.item-form-y - 28px;
+                        width: root.item-attributes-w; height: 20px;
+                        text: root.lang == "en-zh" ? "Attributes & description" : "屬性與說明";
+                        font-size: 14px; font-weight: 600; color: DesktopTheme.text;
                     }
-                    if root.record-sheet && root.sheet-alt != "": Text {
-                        x: root.side-gap;
-                        y: root.item-icon-y + root.item-icon-side + 32px;
-                        width: max(parent.width - 2 * root.side-gap, 40px);
-                        text: root.sheet-alt;
-                        font-size: 13px;
-                        color: DesktopTheme.accent;
-                        horizontal-alignment: center;
-                        overflow: elide;
+                    if root.full-item-sheet: Text {
+                        x: root.item-sources-x; y: root.item-form-y - 28px;
+                        width: root.item-sources-w; height: 20px;
+                        text: root.viewing-set ? (root.lang == "en-zh" ? "Set pieces" : "套裝部件") : (root.lang == "en-zh" ? "Sources & uses" : "取得方式與用途");
+                        font-size: 14px; font-weight: 600; color: DesktopTheme.text;
                     }
-                    if root.record-sheet: Text {
-                        x: root.side-gap;
-                        y: root.item-icon-y + root.item-icon-side + (root.sheet-alt == "" ? 34px : 50px);
-                        width: max(parent.width - 2 * root.side-gap, 40px);
-                        text: root.sheet-code;
-                        font-size: 12px;
-                        color: DesktopTheme.secondary;
-                        horizontal-alignment: center;
-                        overflow: elide;
-                    }
-                    if root.viewing-item && root.viewing != "": Rectangle {
+                    if root.viewing-item && root.viewing != "" && !root.full-item-sheet: Rectangle {
                         x: root.side-gap;
                         y: root.item-form-y - 40px;
                         width: max(parent.width - 2 * root.side-gap, 40px);
@@ -7326,11 +7365,11 @@ export component App inherits Window {
                         }
                     }
                     form-card := Rectangle {
-                        x: root.side-gap;
+                        x: root.item-gap;
                         y: root.item-form-y;
-                        width: max(parent.width - 2 * root.side-gap, 80px);
+                        width: root.item-attributes-w;
                         height: root.item-form-h;
-                        visible: root.record-sheet && !root.item-links;
+                        visible: root.record-sheet && (!root.item-links || root.full-item-sheet);
                         background: DesktopTheme.surface;
                         border-radius: 10px;
                         border-width: 1px;
@@ -7366,7 +7405,7 @@ export component App inherits Window {
                                         width: parent.width;
                                         label: fact.label;
                                         open: root.fold-open(fact.key);
-                                        picked: (fact.key == "fold:item" && root.fold-focus == 0) || (fact.key == "fold:set" && root.fold-focus == 1) || (fact.key == "fold:total" && root.fold-focus == 2);
+                                        picked: (!root.full-item-sheet || !root.item-links) && ((fact.key == "fold:item" && root.fold-focus == 0) || (fact.key == "fold:set" && root.fold-focus == 1) || (fact.key == "fold:total" && root.fold-focus == 2));
                                         clicked => {
                                             root.focus-fold(fact.key);
                                             root.toggle-fold(fact.key);
@@ -7374,7 +7413,7 @@ export component App inherits Window {
                                         }
                                     }
                                     if !root.fold-row(fact.key) && root.section-open(fact.section): FactLine {
-                                        wrap-value: fact.has-icon;
+                                        wrap-value: root.full-item-sheet || fact.has-icon;
                                         label-width: fact.value == "" || fact.has-icon ? 0px : 120px;
                                         line-height: fact.has-icon ? 40px : 32px;
                                         label: fact.label;
@@ -7566,9 +7605,11 @@ export component App inherits Window {
                         font-size: 12px;
                         color: DesktopTheme.secondary;
                     }
-                    if root.card-sheet && !root.quest-sheet && root.links.length == 0 && root.category != "hero" && (!root.viewing-item || root.item-links): Text {
-                        x: root.side-gap;
+                    if root.card-sheet && !root.quest-sheet && root.links.length == 0 && root.category != "hero" && (!root.viewing-item || root.item-links || root.full-item-sheet): Text {
+                        x: root.item-sources-x;
                         y: root.card-list-y;
+                        width: root.item-sources-w;
+                        wrap: word-wrap;
                         text: root.quest-sheet ? (root.lang == "en-zh" ? "No links" : "沒有連結") : root.viewing-npc ? (root.lang == "en-zh" ? "No quests" : "沒有任務") : root.recipe-sheet ? (root.lang == "en-zh" ? "No materials" : "沒有材料") : root.viewing-set ? (root.lang == "en-zh" ? "No pieces" : "沒有部件") : root.viewing-item ? (root.lang == "en-zh" ? "Nothing related" : "沒有相關") : (root.lang == "en-zh" ? "No monsters drop this" : "沒有怪物掉落");
                         font-size: 13px;
                         color: DesktopTheme.text;
@@ -7594,21 +7635,22 @@ export component App inherits Window {
                             color: DesktopTheme.text;
                         }
                     }
-                    if root.item-links && root.source-note != "": Text {
-                        x: root.side-gap;
+                    item-source-note := Text {
+                        changed preferred-height => { root.item-source-text-h = self.preferred-height; }
+                        visible: (root.item-links || root.full-item-sheet) && root.source-note != "";
+                        x: root.item-sources-x;
                         y: root.item-form-y;
-                        width: max(parent.width - 2 * root.side-gap, 40px);
-                        height: max(root.source-note-h - 8px, 0px);
+                        width: root.item-sources-w;
                         text: root.source-note;
                         wrap: word-wrap;
                         overflow: elide;
                         font-size: 13px;
                         color: DesktopTheme.soft;
                     }
-                    if root.card-sheet && !root.quest-sheet && root.links.length > 0 && (!root.viewing-item || root.item-links): Rectangle {
-                        x: root.side-gap;
+                    if root.card-sheet && !root.quest-sheet && root.links.length > 0 && (!root.viewing-item || root.item-links || root.full-item-sheet): Rectangle {
+                        x: root.item-sources-x;
                         y: root.card-list-y;
-                        width: max(parent.width - 2 * root.side-gap, 40px);
+                        width: root.item-sources-w;
                         height: root.card-list-h;
                         background: DesktopTheme.surface;
                         border-radius: 10px;
@@ -7627,10 +7669,11 @@ export component App inherits Window {
                                 height: 52px;
                                 if root.cursor == i || (source-slot.y + source-slot.height >= -item-drops.content-y - 2 * root.link-row && source-slot.y <= -item-drops.content-y + item-drops.height + 2 * root.link-row): HitRow {
                                     x: 0px; y: 0px; width: parent.width;
-                                    selected: root.cursor == i;
+                                    selected: root.cursor == i && (!root.full-item-sheet || root.item-links);
                                     hit: row;
                                     no-image-label: root.no-image-label;
                                     clicked => {
+                                        if (root.full-item-sheet) { root.item-tab = "links"; keys.focus(); }
                                         if (row.chip == "section") {
                                             root.source-changed(row.key);
                                             return;
