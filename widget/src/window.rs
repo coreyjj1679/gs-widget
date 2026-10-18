@@ -1,6 +1,18 @@
 use super::db;
 use super::window_logical;
 
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(windows)]
+mod windows;
+
+#[cfg(target_os = "macos")]
+pub(crate) use macos::{copy_to_clipboard, focus_window, primary_screen, work_area_at};
+#[cfg(target_os = "macos")]
+pub(crate) use macos::position_scale;
+#[cfg(windows)]
+pub(crate) use windows::{copy_to_clipboard, focus_window, primary_screen, work_area_at};
+
 #[cfg(test)]
 mod tests {
     use super::fit_on_screen;
@@ -48,6 +60,7 @@ mod tests {
     }
 }
 
+#[cfg(windows)]
 pub(crate) fn place_window(window: &slint::Window, width: f32, height: f32, at: Option<(i32, i32)>) {
     let scale = window.scale_factor().max(1.0);
     let (screen_w, screen_h) = primary_screen();
@@ -120,27 +133,23 @@ pub(crate) fn place_fitted(window: &slint::Window, width: f32, height: f32, pref
     let old_w = (size.width as i32).max(1);
     let old_h = (size.height as i32).max(1);
     let work = work_area_at(pos.x, pos.y, old_w, old_h);
+    #[cfg(target_os = "macos")]
+    let work = prefer.map(|(x, y)| work_area_at(x, y, new_w, new_h)).unwrap_or(work);
     let (x, y) = match prefer {
         Some((px, py)) => fit_on_screen(px, py, new_w, new_h, new_w, new_h, work),
         None => fit_on_screen(pos.x, pos.y, old_w, old_h, new_w, new_h, work),
     };
     window.set_position(slint::PhysicalPosition::new(x, y));
     window.set_size(slint::LogicalSize::new(width, height));
-    (x, y)
-}
-
-pub(crate) fn focus_window() {
-    let title: Vec<u16> = "巨商\0".encode_utf16().collect();
-    unsafe {
-        let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
-        if hwnd != 0 {
-            let _ = SetForegroundWindow(hwnd);
-        }
+    #[cfg(target_os = "macos")]
+    {
+        // Moving to another display can change the backing scale immediately.
+        // Return coordinates in that new scale for the preference writer.
+        let position = window.position();
+        return (position.x, position.y);
     }
-}
-
-pub(crate) fn primary_screen() -> (i32, i32) {
-    unsafe { (GetSystemMetrics(0), GetSystemMetrics(1)) }
+    #[cfg(windows)]
+    (x, y)
 }
 
 /// Shift an expanded window back inside `work` (left, top, right, bottom).
@@ -172,97 +181,18 @@ pub(crate) fn fit_on_screen(
     (nx.clamp(left, max_x), ny.clamp(top, max_y))
 }
 
-pub(crate) fn work_area_at(x: i32, y: i32, w: i32, h: i32) -> (i32, i32, i32, i32) {
-    let point = WinPoint {
-        x: x.saturating_add(w / 2),
-        y: y.saturating_add(h / 2),
-    };
-    unsafe {
-        let monitor = MonitorFromPoint(point, 2);
-        let mut info = MonitorInfo {
-            cb_size: std::mem::size_of::<MonitorInfo>() as u32,
-            rc_monitor: WinRect::default(),
-            rc_work: WinRect::default(),
-            dw_flags: 0,
-        };
-        if monitor != 0 && GetMonitorInfoW(monitor, &mut info) != 0 {
-            let area = info.rc_work;
-            if area.right > area.left && area.bottom > area.top {
-                return (area.left, area.top, area.right, area.bottom);
-            }
-        }
-    }
-    let (width, height) = primary_screen();
-    (0, 0, width.max(1), height.max(1))
-}
 
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-struct WinPoint {
-    x: i32,
-    y: i32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-struct WinRect {
-    left: i32,
-    top: i32,
-    right: i32,
-    bottom: i32,
-}
-
-#[repr(C)]
-struct MonitorInfo {
-    cb_size: u32,
-    rc_monitor: WinRect,
-    rc_work: WinRect,
-    dw_flags: u32,
-}
-
-#[link(name = "user32")]
-extern "system" {
-    fn GetSystemMetrics(index: i32) -> i32;
-    fn MonitorFromPoint(point: WinPoint, flags: u32) -> isize;
-    fn GetMonitorInfoW(monitor: isize, info: *mut MonitorInfo) -> i32;
-    fn FindWindowW(class: *const u16, window: *const u16) -> isize;
-    fn SetForegroundWindow(hwnd: isize) -> i32;
-    fn OpenClipboard(hwnd: isize) -> i32;
-    fn CloseClipboard() -> i32;
-    fn EmptyClipboard() -> i32;
-    fn SetClipboardData(format: u32, mem: isize) -> isize;
-}
-
-#[link(name = "kernel32")]
-extern "system" {
-    fn GlobalAlloc(flags: u32, bytes: usize) -> isize;
-    fn GlobalLock(mem: isize) -> *mut u16;
-    fn GlobalUnlock(mem: isize) -> i32;
-    fn GlobalFree(mem: isize) -> isize;
-}
-
-pub(crate) fn copy_to_clipboard(text: &str) {
-    let mut wide: Vec<u16> = text.encode_utf16().collect();
-    wide.push(0);
-    let bytes = wide.len() * std::mem::size_of::<u16>();
-    unsafe {
-        if OpenClipboard(0) == 0 {
-            return;
-        }
-        EmptyClipboard();
-        let mem = GlobalAlloc(0x0002, bytes);
-        if mem != 0 {
-            let ptr = GlobalLock(mem);
-            if !ptr.is_null() {
-                std::ptr::copy_nonoverlapping(wide.as_ptr(), ptr, wide.len());
-                GlobalUnlock(mem);
-                if SetClipboardData(13, mem) == 0 {
-                    GlobalFree(mem);
-                }
-            } else {
-                GlobalFree(mem);
-            }
-        }
-        CloseClipboard();
-    }
+#[cfg(target_os = "macos")]
+pub(crate) fn place_window(window: &slint::Window, width: f32, height: f32, at: Option<(i32, i32)>) {
+    let scale = window.scale_factor().max(1.0);
+    let pixel_w = (width * scale).round() as i32;
+    let pixel_h = (height * scale).round() as i32;
+    let (x, y) = at.unwrap_or_else(|| {
+        let (left, top, right, bottom) = work_area_at(0, 0, 1, 1);
+        (left + (right - left - pixel_w).max(0) / 2, top + (bottom - top - pixel_h).max(0) / 2)
+    });
+    let work = work_area_at(x, y, pixel_w, pixel_h);
+    let (x, y) = fit_on_screen(x, y, pixel_w, pixel_h, pixel_w, pixel_h, work);
+    window.set_size(slint::LogicalSize::new(width, height));
+    window.set_position(slint::PhysicalPosition::new(x, y));
 }

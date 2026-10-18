@@ -333,16 +333,57 @@ pub(crate) fn format_window(pref: &WindowPref) -> String {
     text
 }
 
+#[cfg(not(target_os = "macos"))]
 pub fn load_window() -> Option<WindowPref> {
     let text = std::fs::read_to_string(data_dir().join("window.txt")).ok()?;
     parse_window(&text)
 }
 
+#[cfg(target_os = "macos")]
+pub fn load_window() -> Option<WindowPref> {
+    let text = std::fs::read_to_string(data_dir().join("window-macos.txt")).ok()?;
+    parse_macos_window(&text, crate::window::position_scale())
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn parse_macos_window(text: &str, current_scale: f64) -> Option<WindowPref> {
+    let mut pref = parse_window(text)?;
+    let saved_scale = text
+        .lines()
+        .find_map(|line| line.strip_prefix("scale="))
+        .and_then(|value| value.trim().parse::<f64>().ok());
+    if let Some(saved_scale) = saved_scale.filter(|scale| scale.is_finite() && *scale > 0.0) {
+        if current_scale.is_finite() && current_scale > 0.0 {
+            // Winit's macOS positions use the current window's backing scale,
+            // including coordinates on other screens. Sizes are already logical.
+            let rescale = |position: i32| {
+                (position as f64 / saved_scale * current_scale).round() as i32
+            };
+            pref.x = rescale(pref.x);
+            pref.y = rescale(pref.y);
+            pref.full_x = rescale(pref.full_x);
+            pref.full_y = rescale(pref.full_y);
+        }
+    }
+    Some(pref)
+}
+
+#[cfg(not(target_os = "macos"))]
 pub fn save_window(pref: &WindowPref) {
     if pref.width < 280.0 || pref.height < 360.0 {
         return;
     }
     let _ = std::fs::write(data_dir().join("window.txt"), format_window(pref));
+}
+
+#[cfg(target_os = "macos")]
+pub fn save_window(pref: &WindowPref) {
+    if pref.width < 280.0 || pref.height < 360.0 {
+        return;
+    }
+    let mut text = format_window(pref);
+    text.push_str(&format!("scale={}\n", crate::window::position_scale()));
+    let _ = std::fs::write(data_dir().join("window-macos.txt"), text);
 }
 
 pub fn save_mode(full: bool, full_pos: Option<(i32, i32)>) {
@@ -397,7 +438,33 @@ pub(in crate::db) fn opacity_file() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_view, format_window, parse_view, parse_window, ViewPref};
+    use super::{format_view, format_window, parse_macos_window, parse_view, parse_window, ViewPref};
+
+    #[test]
+    fn macos_positions_follow_the_current_display_scale() {
+        let text = "size=560,740\npos=-1920,100\nmode=full\nfull-pos=1600,-900\nfull-size=1280,800\nscale=1\n";
+        let retina = parse_macos_window(text, 2.0).expect("Retina window");
+        assert_eq!((retina.x, retina.y), (-3840, 200));
+        assert_eq!((retina.full_x, retina.full_y), (3200, -1800));
+        assert_eq!((retina.width, retina.height), (560.0, 740.0));
+        assert_eq!((retina.full_width, retina.full_height), (1280.0, 800.0));
+
+        let saved = format!("{}scale=2\n", format_window(&retina));
+        let external = parse_macos_window(&saved, 1.0).expect("external display window");
+        assert_eq!(external, parse_window(text).expect("original window"));
+    }
+
+    #[test]
+    fn macos_invalid_or_missing_scale_keeps_existing_coordinates() {
+        let text = "size=560,740\npos=-1920,100\nfull-pos=1600,-900\n";
+        let original = parse_window(text).expect("window");
+        for scale in ["", "scale=0\n", "scale=-2\n", "scale=NaN\n", "scale=inf\n", "scale=invalid\n"] {
+            assert_eq!(parse_macos_window(&format!("{text}{scale}"), 2.0), Some(original.clone()));
+        }
+        for current_scale in [0.0, -2.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(parse_macos_window(&format!("{text}scale=1\n"), current_scale), Some(original.clone()));
+        }
+    }
 
     #[test]
     fn old_window_file_stays_in_widget_mode() {

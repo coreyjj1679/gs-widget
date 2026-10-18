@@ -1,0 +1,254 @@
+// Full-window presentation. The inactive palette keeps the compact widget's
+// existing colors so shared controls can use the same semantic tokens safely.
+export global DesktopTheme {
+    in-out property <bool> active: false;
+    out property <color> text: active ? #edf1f7 : #f3efe8;
+    out property <color> secondary: active ? #a8b2c1 : #a3988c;
+    out property <color> muted: active ? #929dad : #8a8076;
+    out property <color> accent: active ? #d8b77b : #d4b483;
+    out property <color> soft: active ? #c9d2df : #e6d7bc;
+    out property <color> border: active ? #303945 : #3a342c;
+    out property <color> selected: active ? #33312c : #2a241e;
+    out property <color> hover: active ? #29313c : #241f1b;
+    out property <color> surface: active ? #1d232c : #1c1916;
+    out property <color> surface-alt: active ? #1a2028 : #1c1914;
+    out property <color> sidebar: active ? #11151b : #100e0c;
+    out property <color> control: active ? #27303b : #3f362c;
+    out property <color> hover-strong: active ? #374251 : #5c4e3a;
+    out property <color> inset: active ? #15191f : #141210;
+    out property <color> raised: active ? #303945 : #3a3228;
+    out property <color> selection-low: active ? #292721 : #241c14;
+    out property <color> on-accent: active ? #211b12 : #1a140e;
+    out property <color> chrome: active ? #15191f : #100e0ce8;
+    out property <color> canvas: active ? #15191f : #141210e8;
+    out property <color> detail: active ? #192029 : #161310;
+}
+
+// Simple interface symbols use a shared 24-unit viewport and stroke weight.
+// Game categories continue to display their existing source assets.
+export component DesktopIcon inherits Rectangle {
+    in property <string> path;
+    in property <color> ink: DesktopTheme.secondary;
+    width: 20px;
+    height: 20px;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: root.path;
+        fill: transparent;
+        stroke: root.ink;
+        stroke-width: 1.6px;
+    }
+}
+
+export component DesktopNavRow inherits Rectangle {
+    in property <image> logo;
+    in property <bool> show-logo: false;
+    in property <string> glyph: "";
+    in property <string> label;
+    in property <bool> selected: false;
+    in property <string> shortcut: "";
+    in property <string> icon-path: "";
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: 40px;
+    border-radius: 7px;
+    background: selected ? DesktopTheme.selected : area.has-hover && enabled ? DesktopTheme.hover : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    opacity: enabled ? 1 : 0.5;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: label;
+    accessible-enabled: enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+
+    HorizontalLayout {
+        width: 100%;
+        height: 100%;
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 10px;
+        alignment: start;
+        Rectangle {
+            width: 22px;
+            height: 100%;
+            if root.icon-path != "": DesktopIcon {
+                x: 1px;
+                y: (parent.height - self.height) / 2;
+                path: root.icon-path;
+                ink: root.selected ? DesktopTheme.accent : DesktopTheme.secondary;
+            }
+            if root.icon-path == "" && root.show-logo: Image {
+                y: (parent.height - self.height) / 2;
+                width: 22px;
+                height: 22px;
+                source: root.logo;
+                image-fit: contain;
+            }
+            if root.icon-path == "" && !root.show-logo && root.glyph != "": Text {
+                width: 100%;
+                height: 100%;
+                text: root.glyph;
+                font-size: 15px;
+                color: root.selected ? DesktopTheme.accent : DesktopTheme.secondary;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Text {
+            horizontal-stretch: 1;
+            min-width: 0px;
+            text: root.label;
+            font-size: 13px;
+            font-weight: root.selected ? 600 : 400;
+            color: root.selected ? DesktopTheme.text : DesktopTheme.secondary;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        if root.shortcut != "": Text {
+            text: root.shortcut;
+            font-size: 11px;
+            color: DesktopTheme.muted;
+            vertical-alignment: center;
+        }
+    }
+    focus := FocusScope {
+        width: 100%;
+        height: 100%;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    area := TouchArea {
+        width: 100%;
+        height: 100%;
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+}
+
+export component DesktopEntry inherits Rectangle {
+    in property <string> title;
+    in property <string> description;
+    in property <image> logo;
+    in property <string> glyph: "";
+    in property <string> action-label: "";
+    in property <bool> prominent: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: 80px;
+    border-radius: 8px;
+    background: area.has-hover && enabled ? DesktopTheme.hover : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    opacity: enabled ? 1 : 0.5;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: title;
+    accessible-description: description;
+    accessible-enabled: enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+
+    HorizontalLayout {
+        width: 100%;
+        height: 100%;
+        padding-left: 12px;
+        padding-right: 14px;
+        spacing: 16px;
+        Rectangle {
+            width: 46px;
+            height: 100%;
+            if root.logo.width > 0: Image {
+                x: 1px;
+                y: (parent.height - self.height) / 2;
+                width: 44px;
+                height: 44px;
+                source: root.logo;
+                image-fit: contain;
+            }
+            if root.logo.width == 0 && root.glyph != "": Text {
+                width: 100%;
+                height: 100%;
+                text: root.glyph;
+                font-size: 24px;
+                font-weight: 600;
+                color: DesktopTheme.accent;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            min-width: 0px;
+            spacing: 4px;
+            alignment: center;
+            Text {
+                text: root.title;
+                font-size: root.prominent ? 17px : 15px;
+                font-weight: 600;
+                color: DesktopTheme.text;
+                overflow: elide;
+            }
+            if root.description != "": Text {
+                text: root.description;
+                font-size: 12px;
+                color: DesktopTheme.secondary;
+                overflow: elide;
+            }
+        }
+        if root.action-label != "" && root.width > 380px: Text {
+            text: root.action-label;
+            font-size: 12px;
+            color: root.prominent ? DesktopTheme.accent : DesktopTheme.secondary;
+            vertical-alignment: center;
+        }
+        Rectangle {
+            width: 16px;
+            height: 100%;
+            DesktopIcon {
+                y: (parent.height - self.height) / 2;
+                width: 16px;
+                height: 16px;
+                path: "M 9 5 L 16 12 L 9 19";
+                ink: area.has-hover ? DesktopTheme.accent : DesktopTheme.muted;
+            }
+        }
+    }
+    Rectangle {
+        x: 74px;
+        y: parent.height - 1px;
+        width: max(parent.width - 88px, 0px);
+        height: 1px;
+        background: DesktopTheme.border;
+    }
+    focus := FocusScope {
+        width: 100%;
+        height: 100%;
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    area := TouchArea {
+        width: 100%;
+        height: 100%;
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+}

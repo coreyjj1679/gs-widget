@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod agf;
 mod alias_ui;
@@ -228,6 +228,8 @@ fn main() {
         Err(message) => {
             eprintln!("{message}");
             let app = App::new().expect("視窗建立失敗");
+            #[cfg(target_os = "macos")]
+            app.set_ui_font("PingFang TC".into());
             app.set_detail(message.into());
             app.run().expect("視窗執行失敗");
             return;
@@ -235,6 +237,8 @@ fn main() {
     };
 
     let app = App::new().expect("視窗建立失敗");
+    #[cfg(target_os = "macos")]
+    app.set_ui_font("PingFang TC".into());
     app.set_lang(db::load_lang().into());
     app.set_window_opacity(db::load_opacity());
     app.set_show_set_extra(db::load_set_extra());

@@ -1,4 +1,5 @@
 import { Palette, LineEdit, TextEdit } from "std-widgets.slint";
+import { DesktopTheme, DesktopNavRow, DesktopEntry, DesktopIcon } from "desktop.slint";
 
 export struct Hit {
     title: string,
@@ -65,16 +66,16 @@ component NoImage inherits Rectangle {
     width: side;
     height: side;
     border-radius: 4px;
-    background: #1c1916;
+    background: DesktopTheme.surface;
     border-width: 1px;
-    border-color: #3a342c;
+    border-color: DesktopTheme.border;
     Text {
         width: parent.width - 4px;
         height: parent.height - 2px;
         text: root.label;
         wrap: word-wrap;
         font-size: root.side >= 56px ? 12px : 8px;
-        color: #a3988c;
+        color: DesktopTheme.secondary;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -82,15 +83,18 @@ component NoImage inherits Rectangle {
 
 component WinButton inherits Rectangle {
     in property <string> glyph;
+    accessible-role: button;
+    accessible-label: glyph == "×" ? "關閉 / Close" : glyph == "–" ? "收合 / Collapse" : glyph == "←" ? "返回 / Back" : glyph;
+    accessible-action-default => { root.clicked(); }
     in property <bool> danger: false;
     callback clicked();
     width: glyph == "Setting" || glyph == "Widget" ? 64px : glyph == "設定" || glyph == "完整" || glyph == "小窗" ? 48px : glyph == "Full" ? 44px : glyph == "EN" ? 34px : 30px;
-    height: 24px;
-    border-radius: 6px;
-    background: tap.has-hover ? (danger ? #7f1d1d : #5c4e3a) : (danger ? #4a3030 : #3f362c);
+    height: DesktopTheme.active ? 26px : 24px;
+    border-radius: DesktopTheme.active ? 5px : 6px;
+    background: tap.has-hover ? (danger ? #7f1d1d : DesktopTheme.hover-strong) : (danger ? (DesktopTheme.active ? transparent : #4a3030) : (DesktopTheme.active ? transparent : DesktopTheme.control));
     Text {
         text: root.glyph;
-        color: #f3efe8;
+        color: DesktopTheme.text;
         font-size: 12px;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -109,11 +113,11 @@ component SearchToggle inherits Rectangle {
     callback clicked();
     height: 28px;
     border-radius: 7px;
-    background: open ? #d4b483 : (tap.has-hover ? #5c4e3a : #3f362c);
+    background: open ? DesktopTheme.accent : (tap.has-hover ? DesktopTheme.hover-strong : DesktopTheme.control);
     label-text := Text {
         x: 12px;
         text: root.label;
-        color: open ? #1a140e : #f3efe8;
+        color: open ? DesktopTheme.on-accent : DesktopTheme.text;
         font-size: 12px;
         font-weight: 600;
         vertical-alignment: center;
@@ -137,8 +141,8 @@ component StarMark inherits Rectangle {
         y: 5px;
         width: 20px;
         height: 20px;
-        fill: root.filled ? #d4b483 : transparent;
-        stroke: root.filled ? #e6c98a : #8a8076;
+        fill: root.filled ? DesktopTheme.accent : transparent;
+        stroke: root.filled ? #e6c98a : DesktopTheme.muted;
         stroke-width: 1.4px;
         commands: "M 10 0.6 L 12.7 6.4 L 19 6.9 L 14.2 11.1 L 15.8 17.4 L 10 14 L 4.2 17.4 L 5.8 11.1 L 1 6.9 L 7.3 6.4 Z";
     }
@@ -157,12 +161,12 @@ component FilterChip inherits Rectangle {
     height: 28px;
     horizontal-stretch: 1;
     border-radius: 7px;
-    background: active ? #d4b483 : #1c1916;
+    background: active ? DesktopTheme.accent : DesktopTheme.surface;
     border-width: 1px;
-    border-color: active ? #d4b483 : #3a342c;
+    border-color: active ? DesktopTheme.accent : DesktopTheme.border;
     Text {
         text: root.label;
-        color: active ? #1a140e : #f3efe8;
+        color: active ? DesktopTheme.on-accent : DesktopTheme.text;
         font-size: 12px;
         font-weight: 600;
         horizontal-alignment: center;
@@ -182,11 +186,11 @@ component DockMenuButton inherits Rectangle {
     callback clicked();
     height: 22px;
     border-radius: 6px;
-    background: danger ? (tap.has-hover ? #7f1d1d : #4a3030) : (tap.has-hover ? #5c4e3a : #3f362c);
+    background: danger ? (tap.has-hover ? #7f1d1d : #4a3030) : (tap.has-hover ? DesktopTheme.hover-strong : DesktopTheme.control);
     label-text := Text {
         x: 8px;
         text: root.label;
-        color: #f3efe8;
+        color: DesktopTheme.text;
         font-size: 11px;
         font-weight: 600;
         vertical-alignment: center;
@@ -209,20 +213,20 @@ component ChoiceBar inherits Rectangle {
     height: 32px;
     border-radius: 6px;
     clip: true;
-    background: #100e0c;
+    background: DesktopTheme.sidebar;
     border-width: 1px;
-    border-color: #3a342c;
+    border-color: DesktopTheme.border;
     HorizontalLayout {
         spacing: 1px;
         Rectangle {
             horizontal-stretch: 1;
-            background: root.picked == 0 ? #3a3228 : transparent;
+            background: root.picked == 0 ? DesktopTheme.raised : transparent;
             Text {
                 width: 100%;
                 height: 100%;
                 text: root.first;
                 font-size: 13px;
-                color: root.picked == 0 ? #f3efe8 : #a3988c;
+                color: root.picked == 0 ? DesktopTheme.text : DesktopTheme.secondary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -235,13 +239,13 @@ component ChoiceBar inherits Rectangle {
         }
         Rectangle {
             horizontal-stretch: 1;
-            background: root.picked == 1 ? #3a3228 : transparent;
+            background: root.picked == 1 ? DesktopTheme.raised : transparent;
             Text {
                 width: 100%;
                 height: 100%;
                 text: root.second;
                 font-size: 13px;
-                color: root.picked == 1 ? #f3efe8 : #a3988c;
+                color: root.picked == 1 ? DesktopTheme.text : DesktopTheme.secondary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -254,13 +258,13 @@ component ChoiceBar inherits Rectangle {
         }
         if root.third != "": Rectangle {
             horizontal-stretch: 1;
-            background: root.picked == 2 ? #3a3228 : transparent;
+            background: root.picked == 2 ? DesktopTheme.raised : transparent;
             Text {
                 width: 100%;
                 height: 100%;
                 text: root.third;
                 font-size: 13px;
-                color: root.picked == 2 ? #f3efe8 : #a3988c;
+                color: root.picked == 2 ? DesktopTheme.text : DesktopTheme.secondary;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
@@ -276,10 +280,10 @@ component ChoiceBar inherits Rectangle {
 
 component FormBlock inherits Rectangle {
     in property <string> title;
-    background: #1c1916;
+    background: DesktopTheme.surface;
     border-radius: 8px;
     border-width: 1px;
-    border-color: #3a342c;
+    border-color: DesktopTheme.border;
     VerticalLayout {
         padding: 14px;
         spacing: 10px;
@@ -287,7 +291,7 @@ component FormBlock inherits Rectangle {
             text: root.title;
             font-size: 13px;
             font-weight: 600;
-            color: #d4b483;
+            color: DesktopTheme.accent;
         }
         @children
     }
@@ -300,10 +304,10 @@ component LangChip inherits Rectangle {
     height: 30px;
     horizontal-stretch: 1;
     border-radius: 7px;
-    background: active ? #d4b483 : (tap.has-hover ? #2a2622 : #141210);
+    background: active ? DesktopTheme.accent : (tap.has-hover ? #2a2622 : DesktopTheme.inset);
     Text {
         text: root.label;
-        color: active ? #1a140e : #f3efe8;
+        color: active ? DesktopTheme.on-accent : DesktopTheme.text;
         font-size: 12px;
         font-weight: 600;
         horizontal-alignment: center;
@@ -322,10 +326,10 @@ component PatchTab inherits Rectangle {
     in property <bool> active;
     callback clicked();
     horizontal-stretch: 1;
-    background: active ? #d4b483 : (tap.has-hover ? #2a2622 : transparent);
+    background: active ? DesktopTheme.accent : (tap.has-hover ? #2a2622 : transparent);
     Text {
         text: root.label;
-        color: active ? #1a140e : #f3efe8;
+        color: active ? DesktopTheme.on-accent : DesktopTheme.text;
         font-size: 12px;
         font-weight: 600;
         horizontal-alignment: center;
@@ -345,16 +349,16 @@ component PatchPill inherits Rectangle {
     callback clicked();
     height: 26px;
     border-radius: 13px;
-    background: active ? #d4b483 : #1c1916;
+    background: active ? DesktopTheme.accent : DesktopTheme.surface;
     border-width: 1px;
-    border-color: active ? #d4b483 : #3a342c;
+    border-color: active ? DesktopTheme.accent : DesktopTheme.border;
     label-text := Text {
         x: 12px;
         height: 100%;
         text: root.label;
         font-size: 12px;
         font-weight: 600;
-        color: active ? #1a140e : #c8bfb4;
+        color: active ? DesktopTheme.on-accent : #c8bfb4;
         vertical-alignment: center;
     }
     width: label-text.preferred-width + 24px;
@@ -384,13 +388,13 @@ component OpacitySlider inherits Rectangle {
         width: 100%;
         height: 6px;
         border-radius: 3px;
-        background: #3a342c;
+        background: DesktopTheme.border;
         Rectangle {
             x: 0px;
             width: parent.width * root.ratio;
             height: 100%;
             border-radius: 3px;
-            background: #d4b483;
+            background: DesktopTheme.accent;
         }
         Rectangle {
             width: 14px;
@@ -398,9 +402,9 @@ component OpacitySlider inherits Rectangle {
             border-radius: 7px;
             y: -4px;
             x: min(max(0px, parent.width * root.ratio - 7px), max(0px, parent.width - 14px));
-            background: #f3efe8;
+            background: DesktopTheme.text;
             border-width: 1px;
-            border-color: #d4b483;
+            border-color: DesktopTheme.accent;
         }
         TouchArea {
             y: -10px;
@@ -457,9 +461,9 @@ component AliasCard inherits Rectangle {
     changed name => { root.name-draft = root.name; }
     changed codes => { root.codes-draft = root.codes; }
     border-radius: 8px;
-    background: #1c1916;
+    background: DesktopTheme.surface;
     border-width: 1px;
-    border-color: #3a342c;
+    border-color: DesktopTheme.border;
     clip: true;
     VerticalLayout {
         padding: 8px;
@@ -476,7 +480,7 @@ component AliasCard inherits Rectangle {
                 horizontal-stretch: 0;
                 font-size: 14px;
                 font-weight: 700;
-                color: #d4b483;
+                color: DesktopTheme.accent;
                 vertical-alignment: center;
                 overflow: elide;
             }
@@ -502,13 +506,13 @@ component AliasCard inherits Rectangle {
                 width: 52px;
                 height: 28px;
                 border-radius: 7px;
-                background: edit-tap.has-hover ? #5c4e3a : #3f362c;
+                background: edit-tap.has-hover ? DesktopTheme.hover-strong : DesktopTheme.control;
                 Text {
                     width: 100%;
                     height: 100%;
                     text: root.edit-label;
                     font-size: 12px;
-                    color: #f3efe8;
+                    color: DesktopTheme.text;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -584,14 +588,14 @@ component AliasCard inherits Rectangle {
                 if icon.aside == root.row-mark: Text {
                     text: icon.subtitle;
                     font-size: 12px;
-                    color: #d4b483;
+                    color: DesktopTheme.accent;
                     vertical-alignment: center;
                 }
                 if icon.aside == root.row-mark: Text {
                     horizontal-stretch: 1;
                     text: icon.title;
                     font-size: 13px;
-                    color: #f3efe8;
+                    color: DesktopTheme.text;
                     vertical-alignment: center;
                     overflow: elide;
                 }
@@ -603,7 +607,7 @@ component AliasCard inherits Rectangle {
                         height: 100%;
                         text: "×";
                         font-size: 14px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -622,9 +626,9 @@ component AliasCard inherits Rectangle {
             for hit[j] in root.hits: Rectangle {
                 height: 36px;
                 border-radius: 6px;
-                background: j == root.pick ? #2a241e : #100e0c;
+                background: j == root.pick ? DesktopTheme.selected : DesktopTheme.sidebar;
                 border-width: 1px;
-                border-color: hit.chip == "yes" ? #d4b483 : #3a342c;
+                border-color: hit.chip == "yes" ? DesktopTheme.accent : DesktopTheme.border;
                 HorizontalLayout {
                     padding-left: 8px;
                     padding-right: 8px;
@@ -641,8 +645,8 @@ component AliasCard inherits Rectangle {
                             y: (parent.height - self.height) / 2;
                             border-radius: 3px;
                             border-width: 1px;
-                            border-color: #d4b483;
-                            background: hit.chip == "yes" ? #d4b483 : transparent;
+                            border-color: DesktopTheme.accent;
+                            background: hit.chip == "yes" ? DesktopTheme.accent : transparent;
                         }
                     }
                     if hit.has-icon: Image {
@@ -655,14 +659,14 @@ component AliasCard inherits Rectangle {
                         horizontal-stretch: 1;
                         text: hit.title;
                         font-size: 13px;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                         vertical-alignment: center;
                         overflow: elide;
                     }
                     Text {
                         text: hit.subtitle;
                         font-size: 12px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         vertical-alignment: center;
                     }
                 }
@@ -684,16 +688,16 @@ component SectionToggle inherits Rectangle {
     callback clicked();
     height: 36px;
     border-radius: 8px;
-    background: open ? #2a241e : #1c1916;
+    background: open ? DesktopTheme.selected : DesktopTheme.surface;
     border-width: picked ? 2px : 1px;
-    border-color: picked ? #d4b483 : #3a342c;
+    border-color: picked ? DesktopTheme.accent : DesktopTheme.border;
     Text {
         x: 12px;
         width: parent.width - 40px;
         height: 100%;
         text: root.label;
         font-size: 13px;
-        color: #f3efe8;
+        color: DesktopTheme.text;
         vertical-alignment: center;
         overflow: elide;
     }
@@ -703,7 +707,7 @@ component SectionToggle inherits Rectangle {
         height: 100%;
         text: open ? "–" : "+";
         font-size: 16px;
-        color: #d4b483;
+        color: DesktopTheme.accent;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -729,9 +733,9 @@ component DockSortRow inherits Rectangle {
     callback grip-released();
     height: 44px;
     border-radius: 8px;
-    background: lifted ? #2c261f : (marked ? #241c14 : #1c1916);
+    background: lifted ? #2c261f : (marked ? DesktopTheme.selection-low : DesktopTheme.surface);
     border-width: 1px;
-    border-color: marked || lifted ? #d4b483 : #3a342c;
+    border-color: marked || lifted ? DesktopTheme.accent : DesktopTheme.border;
     HorizontalLayout {
         width: 100%;
         padding-left: 4px;
@@ -749,7 +753,7 @@ component DockSortRow inherits Rectangle {
                     width: 16px;
                     text: "⋮⋮";
                     font-size: 14px;
-                    color: #8a8076;
+                    color: DesktopTheme.muted;
                     vertical-alignment: center;
                 }
                 Rectangle {
@@ -772,7 +776,7 @@ component DockSortRow inherits Rectangle {
                         height: 100%;
                         text: root.glyph;
                         font-size: 16px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
@@ -782,13 +786,13 @@ component DockSortRow inherits Rectangle {
                     text: root.badge;
                     font-size: 12px;
                     font-weight: 700;
-                    color: root.on ? #d4b483 : #6f675e;
+                    color: root.on ? DesktopTheme.accent : #6f675e;
                     vertical-alignment: center;
                 }
                 Text {
                     text: root.label;
                     font-size: 14px;
-                    color: root.on ? #f3efe8 : #8a8076;
+                    color: root.on ? DesktopTheme.text : DesktopTheme.muted;
                     vertical-alignment: center;
                 }
             }
@@ -815,14 +819,14 @@ component DockSortRow inherits Rectangle {
             width: 36px;
             height: 20px;
             border-radius: 10px;
-            background: root.on ? #d4b483 : #3a342c;
+            background: root.on ? DesktopTheme.accent : DesktopTheme.border;
             Rectangle {
                 width: 14px;
                 height: 14px;
                 border-radius: 7px;
                 x: root.on ? 19px : 3px;
                 y: 3px;
-                background: root.on ? #1a140e : #c8bfb4;
+                background: root.on ? DesktopTheme.on-accent : #c8bfb4;
             }
             TouchArea {
                 width: 100%;
@@ -849,7 +853,7 @@ component KeyLine inherits Rectangle {
                 text: root.keys;
                 font-size: 13px;
                 font-weight: 600;
-                color: #d4b483;
+                color: DesktopTheme.accent;
                 vertical-alignment: center;
                 overflow: elide;
             }
@@ -896,9 +900,9 @@ component CategoryTile inherits Rectangle {
         }
     }
     border-radius: min(16px, root.width * 0.12);
-    background: lifted ? #3a3228 : (selected || drop-target || area.has-hover ? #2a241e : #1c1916);
+    background: lifted ? DesktopTheme.raised : (selected || drop-target || area.has-hover ? DesktopTheme.selected : DesktopTheme.surface);
     border-width: selected || drop-target || lifted ? 2px : 1px;
-    border-color: selected || drop-target || lifted ? #d4b483 : arranging ? #8a7048 : (area.has-hover ? #8a7048 : #3a342c);
+    border-color: selected || drop-target || lifted ? DesktopTheme.accent : arranging ? #8a7048 : (area.has-hover ? #8a7048 : DesktopTheme.border);
     opacity: lifted ? 0.72 : 1;
     VerticalLayout {
         alignment: center;
@@ -925,7 +929,7 @@ component CategoryTile inherits Rectangle {
                     height: 100%;
                     text: root.glyph;
                     font-size: root.badge * 0.38;
-                    color: #d4b483;
+                    color: DesktopTheme.accent;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -936,7 +940,7 @@ component CategoryTile inherits Rectangle {
             text: root.name;
             font-size: root.width < 120px ? 12px : 14px;
             font-weight: 600;
-            color: #f3efe8;
+            color: DesktopTheme.text;
             horizontal-alignment: center;
             overflow: elide;
         }
@@ -984,7 +988,7 @@ component CategoryTile inherits Rectangle {
 
 component HitRow inherits Rectangle {
     in property <Hit> hit;
-    in property <color> title-color: #f3efe8;
+    in property <color> title-color: DesktopTheme.text;
     in property <bool> selected: false;
     in property <bool> compact: false;
     in property <string> no-image-label: "沒有圖片";
@@ -993,9 +997,9 @@ component HitRow inherits Rectangle {
     height: compact ? 36px : 52px;
     border-radius: 8px;
     border-width: 1px;
-    border-color: selected ? #d4b483 : transparent;
+    border-color: selected ? DesktopTheme.accent : transparent;
     property <bool> heading: hit.chip == "label";
-    background: selected ? #2a241e : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? #2c261f : #1c1914) : (area.has-hover ? #241f1b : transparent);
+    background: selected ? DesktopTheme.selected : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? #2c261f : DesktopTheme.surface-alt) : (area.has-hover ? DesktopTheme.hover : transparent);
     property <bool> marked: hit.can-favourite || hit.favourite;
     property <length> tail: (marked ? 62px : 0px) + (!marked && hit.has-badge ? 26px : 0px);
     property <bool> show-chip: hit.chip == "yes" || hit.chip == "no";
@@ -1041,7 +1045,7 @@ component HitRow inherits Rectangle {
                     font-weight: root.heading ? 600 : 400;
                     horizontal-alignment: left;
                     vertical-alignment: center;
-                    color: root.hit.chip == "section" || root.heading ? #d4b483 : root.hit.solo ? #e24b4b : root.title-color;
+                    color: root.hit.chip == "section" || root.heading ? DesktopTheme.accent : root.hit.solo ? #e24b4b : root.title-color;
                 }
                 if root.hit.subtitle != "": Text {
                     horizontal-stretch: 1;
@@ -1051,7 +1055,7 @@ component HitRow inherits Rectangle {
                     font-size: root.compact ? 11px : 12px;
                     horizontal-alignment: left;
                     vertical-alignment: center;
-                    color: root.hit.solo ? #e24b4b : #a3988c;
+                    color: root.hit.solo ? #e24b4b : DesktopTheme.secondary;
                 }
             }
         }
@@ -1079,7 +1083,7 @@ component HitRow inherits Rectangle {
         y: (parent.height - 10px) / 2;
         width: 10px;
         height: 10px;
-        stroke: #8a8076;
+        stroke: DesktopTheme.muted;
         stroke-width: 1.6px;
         commands: root.disclosure-open ? "M 1 3 L 5 7 L 9 3" : "M 3 1 L 7 5 L 3 9";
     }
@@ -1091,7 +1095,7 @@ component HitRow inherits Rectangle {
         text: root.hit.aside;
         font-size: 13px;
         font-weight: 600;
-        color: #d4b483;
+        color: DesktopTheme.accent;
         horizontal-alignment: right;
         vertical-alignment: center;
         overflow: elide;
@@ -1131,7 +1135,7 @@ component MetaRow inherits Rectangle {
             width: 52px;
             text: root.label;
             font-size: 11px;
-            color: #8a8076;
+            color: DesktopTheme.muted;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1139,7 +1143,7 @@ component MetaRow inherits Rectangle {
             horizontal-stretch: 1;
             text: root.value;
             font-size: 12px;
-            color: #f3efe8;
+            color: DesktopTheme.text;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1154,10 +1158,10 @@ component ModeButton inherits Rectangle {
     width: 36px;
     height: 28px;
     border-radius: 7px;
-    background: active ? #d4b483 : #1c1916;
+    background: active ? DesktopTheme.accent : DesktopTheme.surface;
     border-width: 1px;
-    border-color: active ? #d4b483 : #3a342c;
-    property <color> ink: active ? #1a140e : #d4b483;
+    border-color: active ? DesktopTheme.accent : DesktopTheme.border;
+    property <color> ink: active ? DesktopTheme.on-accent : DesktopTheme.accent;
     if !root.gallery: Rectangle {
         x: 10px;
         y: 7px;
@@ -1233,8 +1237,8 @@ component MonsterCard inherits Rectangle {
     height: 214px;
     border-radius: 10px;
     border-width: 1px;
-    border-color: selected ? #d4b483 : #3a342c;
-    background: selected ? #2a241e : (area.has-hover ? #241f1b : #1c1914);
+    border-color: selected ? DesktopTheme.accent : DesktopTheme.border;
+    background: selected ? DesktopTheme.selected : (area.has-hover ? DesktopTheme.hover : DesktopTheme.surface-alt);
     area := TouchArea {
         width: parent.width - 40px;
         height: 100%;
@@ -1283,13 +1287,13 @@ component MonsterCard inherits Rectangle {
                     text: root.hit.title;
                     font-size: 15px;
                     font-weight: 600;
-                    color: #f3efe8;
+                    color: DesktopTheme.text;
                     overflow: elide;
                 }
                 if root.hit.subtitle != "": Text {
                     text: root.hit.subtitle;
                     font-size: 12px;
-                    color: #d4b483;
+                    color: DesktopTheme.accent;
                     overflow: elide;
                 }
                 MetaRow { label: root.english ? "Type" : "種類"; value: root.hit.stat-kind; }
@@ -1308,7 +1312,7 @@ component MonsterCard inherits Rectangle {
                         width: 52px;
                         text: root.english ? "Drops" : "掉落";
                         font-size: 11px;
-                        color: #8a8076;
+                        color: DesktopTheme.muted;
                         vertical-alignment: center;
                     }
                     if root.hit.drop1.width > 0: Image { source: root.hit.drop1; width: 22px; height: 22px; image-fit: contain; }
@@ -1318,7 +1322,7 @@ component MonsterCard inherits Rectangle {
                     if root.hit.drop-total > 4: Text {
                         text: "+" + (root.hit.drop-total - 4);
                         font-size: 11px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         vertical-alignment: center;
                     }
                 }
@@ -1330,62 +1334,6 @@ component MonsterCard inherits Rectangle {
         y: 8px;
         filled: root.hit.favourite;
         clicked => { root.favourite-clicked(); }
-    }
-}
-
-component NavRow inherits Rectangle {
-    in property <image> logo;
-    in property <bool> show-logo: false;
-    in property <string> glyph: "";
-    in property <string> label;
-    in property <bool> selected: false;
-    callback clicked();
-    height: 40px;
-    border-radius: 8px;
-    background: selected ? #2a241e : (area.has-hover ? #241f1b : transparent);
-    area := TouchArea {
-        width: parent.width;
-        height: 100%;
-        clicked => { root.clicked(); }
-        mouse-cursor: pointer;
-        HorizontalLayout {
-            width: 100%;
-            height: 100%;
-            padding-left: 10px;
-            padding-right: 8px;
-            spacing: 8px;
-            alignment: start;
-            if root.show-logo || root.glyph != "": VerticalLayout {
-                width: 22px;
-                alignment: center;
-                if root.show-logo: Image {
-                    source: root.logo;
-                    width: 22px;
-                    height: 22px;
-                    image-fit: contain;
-                }
-                if !root.show-logo && root.glyph != "": Text {
-                    width: 22px;
-                    height: 22px;
-                    text: root.glyph;
-                    font-size: 14px;
-                    color: #d4b483;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-            }
-            VerticalLayout {
-                horizontal-stretch: 1;
-                alignment: center;
-                Text {
-                    text: root.label;
-                    font-size: 14px;
-                    font-weight: root.selected ? 600 : 400;
-                    color: root.selected ? #f3efe8 : #d4b483;
-                    overflow: elide;
-                }
-            }
-        }
     }
 }
 
@@ -1477,7 +1425,7 @@ component BoardFilter inherits Rectangle {
             }
             Text {
                 text: root.english ? "ELA" : "屬性值";
-                color: #a3988c;
+                color: DesktopTheme.secondary;
                 vertical-alignment: center;
             }
             LineEdit {
@@ -1488,7 +1436,7 @@ component BoardFilter inherits Rectangle {
             }
             Text {
                 text: "–";
-                color: #a3988c;
+                color: DesktopTheme.secondary;
                 vertical-alignment: center;
             }
             LineEdit {
@@ -1511,7 +1459,7 @@ component PlaceLink inherits Rectangle {
     width: chip-w;
     height: 28px;
     border-radius: 6px;
-    background: heading ? (open ? #241f1b : transparent) : selected ? #2a241e : area.has-hover ? #241f1b : transparent;
+    background: heading ? (open ? DesktopTheme.hover : transparent) : selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
     area := TouchArea {
         width: 100%;
         height: 100%;
@@ -1522,9 +1470,9 @@ component PlaceLink inherits Rectangle {
             width: max(parent.width - (heading ? 0px : 16px), 8px);
             height: 100%;
             text: root.title;
-            font-size: heading ? 16px : 14px;
-            font-weight: heading ? 700 : 500;
-            color: heading ? #d4b483 : selected ? #f3efe8 : #e6d7bc;
+            font-size: heading ? 13px : 12px;
+            font-weight: heading ? 600 : 400;
+            color: heading ? DesktopTheme.text : selected ? DesktopTheme.accent : DesktopTheme.secondary;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1543,7 +1491,7 @@ component TableStat inherits Rectangle {
             width: 52px;
             text: root.label;
             font-size: 12px;
-            color: #8a8076;
+            color: DesktopTheme.muted;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1551,7 +1499,7 @@ component TableStat inherits Rectangle {
             horizontal-stretch: 1;
             text: root.value;
             font-size: 12px;
-            color: #f3efe8;
+            color: DesktopTheme.text;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1567,10 +1515,10 @@ component MonsterTableRow inherits Rectangle {
     callback clicked();
     callback favourite-clicked();
     height: 104px;
-    border-radius: 10px;
+    border-radius: 8px;
     border-width: 1px;
-    border-color: selected ? #d4b483 : #3a342c;
-    background: selected ? #2a241e : (area.has-hover ? #241f1b : #1c1914);
+    border-color: selected ? DesktopTheme.accent : transparent;
+    background: selected ? DesktopTheme.selected : (area.has-hover ? DesktopTheme.hover : DesktopTheme.surface-alt);
     area := TouchArea {
         width: parent.width - 40px;
         height: 100%;
@@ -1583,10 +1531,10 @@ component MonsterTableRow inherits Rectangle {
             padding-right: 8px;
             padding-top: 8px;
             padding-bottom: 8px;
-            spacing: 12px;
+            spacing: root.width < 680px ? 12px : 16px;
             alignment: start;
             Rectangle {
-                width: 88px;
+                width: root.width < 680px ? 64px : 72px;
                 height: 88px;
                 if root.hit.has-icon && (!root.hit.has-battle || root.portrait): Image {
                     x: (parent.width - 64px) / 2;
@@ -1612,37 +1560,37 @@ component MonsterTableRow inherits Rectangle {
                 }
             }
             VerticalLayout {
-                width: 210px;
+                width: root.width < 680px ? 148px : 200px;
                 alignment: start;
                 spacing: 2px;
                 Text {
                     text: root.hit.title;
                     font-size: 15px;
                     font-weight: 600;
-                    color: #f3efe8;
+                    color: DesktopTheme.text;
                     overflow: elide;
                 }
                 if root.hit.subtitle != "": Text {
                     text: root.hit.subtitle;
                     font-size: 13px;
-                    color: #d4b483;
+                    color: DesktopTheme.accent;
                     overflow: elide;
                 }
                 if root.hit.stat-kind != "": Text {
                     text: root.hit.stat-kind;
                     font-size: 12px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                     overflow: elide;
                 }
                 if root.hit.stat-element != "": Text {
                     text: root.hit.stat-element;
                     font-size: 12px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                     overflow: elide;
                 }
             }
             VerticalLayout {
-                width: 188px;
+                width: root.width < 680px ? 122px : 166px;
                 alignment: start;
                 spacing: 0px;
                 TableStat { label: root.english ? "HP" : "體力"; value: root.hit.stat-hp; }
@@ -1651,7 +1599,7 @@ component MonsterTableRow inherits Rectangle {
                 TableStat { label: root.english ? "Attack" : "攻擊"; value: root.hit.stat-atk; }
                 TableStat { label: root.english ? "Exp" : "經驗"; value: root.hit.stat-exp; }
             }
-            VerticalLayout {
+            if root.width >= 620px: VerticalLayout {
                 horizontal-stretch: 1;
                 alignment: start;
                 spacing: 4px;
@@ -1659,33 +1607,33 @@ component MonsterTableRow inherits Rectangle {
                     height: 16px;
                     text: root.english ? "Drops" : "掉落";
                     font-size: 12px;
-                    color: #8a8076;
+                    color: DesktopTheme.muted;
                     vertical-alignment: center;
                 }
                 HorizontalLayout {
                     height: 28px;
                     spacing: 4px;
                     alignment: start;
-                    if root.hit.drop1.width > 0: Image { source: root.hit.drop1; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop2.width > 0: Image { source: root.hit.drop2; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop3.width > 0: Image { source: root.hit.drop3; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop4.width > 0: Image { source: root.hit.drop4; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop5.width > 0: Image { source: root.hit.drop5; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop1.width > 0: Image { source: root.hit.drop1; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop2.width > 0: Image { source: root.hit.drop2; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop3.width > 0: Image { source: root.hit.drop3; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop4.width > 0: Image { source: root.hit.drop4; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop5.width > 0: Image { source: root.hit.drop5; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
                 }
                 if root.hit.drop6.width > 0: HorizontalLayout {
                     height: 28px;
                     spacing: 4px;
                     alignment: start;
-                    if root.hit.drop6.width > 0: Image { source: root.hit.drop6; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop7.width > 0: Image { source: root.hit.drop7; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop8.width > 0: Image { source: root.hit.drop8; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop9.width > 0: Image { source: root.hit.drop9; width: 28px; height: 28px; image-fit: contain; }
-                    if root.hit.drop10.width > 0: Image { source: root.hit.drop10; width: 28px; height: 28px; image-fit: contain; }
+                    if root.hit.drop6.width > 0: Image { source: root.hit.drop6; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop7.width > 0: Image { source: root.hit.drop7; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop8.width > 0: Image { source: root.hit.drop8; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop9.width > 0: Image { source: root.hit.drop9; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
+                    if root.hit.drop10.width > 0: Image { source: root.hit.drop10; width: root.width < 680px ? 20px : 28px; height: root.width < 680px ? 20px : 28px; image-fit: contain; }
                 }
                 if root.hit.drop-total == 0: Text {
                     text: "—";
                     font-size: 12px;
-                    color: #8a8076;
+                    color: DesktopTheme.muted;
                 }
             }
         }
@@ -1703,37 +1651,28 @@ component SectionPick inherits Rectangle {
     in property <string> count;
     in property <bool> selected: false;
     callback clicked();
-    height: 36px;
+    height: 48px;
     border-radius: 6px;
-    background: selected ? #2a241e : area.has-hover ? #241f1b : transparent;
+    background: selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
+    accessible-role: button;
+    accessible-label: title;
+    accessible-description: count;
+    accessible-action-default => { root.clicked(); }
+    Text {
+        x: 10px; y: 5px; width: parent.width - 20px;
+        text: root.title; font-size: 13px; font-weight: root.selected ? 600 : 400;
+        color: root.selected ? DesktopTheme.text : DesktopTheme.soft;
+        overflow: elide;
+    }
+    Text {
+        x: 10px; y: 25px; width: parent.width - 20px;
+        text: root.count; font-size: 11px; color: DesktopTheme.muted;
+        overflow: elide;
+    }
     area := TouchArea {
-        width: 100%;
-        height: 100%;
+        width: 100%; height: 100%;
         clicked => { root.clicked(); }
         mouse-cursor: pointer;
-        HorizontalLayout {
-            width: 100%;
-            height: 100%;
-            padding-left: 10px;
-            padding-right: 8px;
-            spacing: 8px;
-            alignment: start;
-            Text {
-                horizontal-stretch: 1;
-                text: root.title;
-                font-size: 14px;
-                font-weight: root.selected ? 600 : 400;
-                color: root.selected ? #f3efe8 : #e6d7bc;
-                vertical-alignment: center;
-                overflow: elide;
-            }
-            if root.count != "": Text {
-                text: root.count;
-                font-size: 12px;
-                color: #8a8076;
-                vertical-alignment: center;
-            }
-        }
     }
 }
 
@@ -1741,8 +1680,13 @@ component CatalogRow inherits Rectangle {
     in property <Hit> hit;
     in property <bool> selected: false;
     callback clicked();
-    height: 46px;
-    background: selected ? #2a241e : area.has-hover ? #241f1b : transparent;
+    accessible-role: button;
+    accessible-label: hit.title;
+    accessible-description: hit.subtitle;
+    accessible-action-default => { root.clicked(); }
+    height: 58px;
+    border-radius: 6px;
+    background: selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
     area := TouchArea {
         width: 100%;
         height: 100%;
@@ -1754,7 +1698,6 @@ component CatalogRow inherits Rectangle {
             padding-left: 10px;
             padding-right: 12px;
             spacing: 10px;
-            alignment: center;
             if root.hit.has-icon: Image {
                 source: root.hit.icon;
                 width: 32px;
@@ -1763,26 +1706,27 @@ component CatalogRow inherits Rectangle {
             }
             VerticalLayout {
                 horizontal-stretch: 1;
+                min-width: 0px;
                 alignment: center;
                 spacing: 1px;
                 Text {
                     text: root.hit.title;
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: #f3efe8;
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: DesktopTheme.text;
                     overflow: elide;
                 }
                 if root.hit.subtitle != "": Text {
                     text: root.hit.subtitle;
                     font-size: 12px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                     overflow: elide;
                 }
             }
-            if root.hit.aside != "": Text {
+            if root.hit.aside != "" && root.width > 360px: Text {
                 text: root.hit.aside;
                 font-size: 12px;
-                color: #d4b483;
+                color: DesktopTheme.accent;
                 vertical-alignment: center;
             }
         }
@@ -1791,7 +1735,7 @@ component CatalogRow inherits Rectangle {
         y: parent.height - 1px;
         width: 100%;
         height: 1px;
-        background: #2a241e;
+        background: DesktopTheme.border;
     }
 }
 
@@ -1809,7 +1753,7 @@ component DockChip inherits Rectangle {
     border-radius: side * 0.22;
     background: #120f0ce6;
     border-width: selected || tap.has-hover ? 2px : 1px;
-    border-color: selected || tap.has-hover ? #d4b483 : #5a4a34;
+    border-color: selected || tap.has-hover ? DesktopTheme.accent : #5a4a34;
     if root.glyph == "": Image {
         source: root.logo;
         width: side - 16px;
@@ -1823,7 +1767,7 @@ component DockChip inherits Rectangle {
         height: 100%;
         text: root.glyph;
         font-size: side * 0.42;
-        color: #d4b483;
+        color: DesktopTheme.accent;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -1840,7 +1784,7 @@ component DockChip inherits Rectangle {
             text: "F" + root.mark;
             font-size: 9px;
             font-weight: 700;
-            color: #d4b483;
+            color: DesktopTheme.accent;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
@@ -1874,8 +1818,8 @@ component FactLine inherits Rectangle {
     height: heading ? 28px : wrap-value ? max(line-height, value-text.preferred-height + 8px) : line-height;
     border-radius: 8px;
     border-width: 1px;
-    border-color: selected ? #d4b483 : transparent;
-    background: selected ? #2a241e : transparent;
+    border-color: selected ? DesktopTheme.accent : transparent;
+    background: selected ? DesktopTheme.selected : transparent;
     HorizontalLayout {
         width: parent.width;
         height: 100%;
@@ -1889,7 +1833,7 @@ component FactLine inherits Rectangle {
             text: root.label;
             font-size: root.heading ? 13px : 12px;
             font-weight: root.heading ? 600 : 400;
-            color: root.heading ? #d4b483 : #a3988c;
+            color: root.heading ? DesktopTheme.accent : DesktopTheme.secondary;
             overflow: elide;
             vertical-alignment: center;
         }
@@ -1904,7 +1848,7 @@ component FactLine inherits Rectangle {
             width: max(parent.width - root.label-width - (root.has-icon ? 64px : 28px), 24px);
             text: root.value;
             font-size: 13px;
-            color: root.key == "" ? #f3efe8 : #e6d7bc;
+            color: root.key == "" ? DesktopTheme.text : DesktopTheme.soft;
             horizontal-alignment: root.has-icon ? left : right;
             wrap: root.wrap-value ? word-wrap : no-wrap;
             overflow: elide;
@@ -1914,7 +1858,7 @@ component FactLine inherits Rectangle {
     if !root.last: Rectangle {
         y: root.height - 1px;
         height: 1px;
-        background: #2a241e;
+        background: DesktopTheme.selected;
     }
     if root.key != "": TouchArea {
         width: 100%;
@@ -1932,7 +1876,7 @@ component RecordDetail inherits Rectangle {
     in property <string> link-label;
     in property <string> no-image-label;
     callback open-key(string);
-    background: #161310;
+    background: DesktopTheme.detail;
     Flickable {
         width: 100%;
         height: 100%;
@@ -1947,18 +1891,20 @@ component RecordDetail inherits Rectangle {
                 text: root.note;
                 wrap: word-wrap;
                 font-size: 13px;
-                color: #f3efe8;
+                color: DesktopTheme.text;
             }
             if root.body != "" && root.facts.length == 0: Text {
                 width: parent.width - 24px;
                 text: root.body;
                 wrap: word-wrap;
                 font-size: 13px;
-                color: #f3efe8;
+                color: DesktopTheme.text;
             }
             for fact in root.facts: FactLine {
                 width: parent.width - 24px;
                 label: fact.label;
+                label-width: 80px;
+                wrap-value: true;
                 value: fact.value;
                 key: fact.key;
                 icon: fact.icon;
@@ -1973,7 +1919,7 @@ component RecordDetail inherits Rectangle {
             if root.links.length > 0: Text {
                 text: root.link-label;
                 font-size: 12px;
-                color: #a3988c;
+                color: DesktopTheme.secondary;
             }
             if root.links.length > 0: VerticalLayout {
                 spacing: 0px;
@@ -1981,7 +1927,7 @@ component RecordDetail inherits Rectangle {
                     compact: true;
                     hit: row;
                     no-image-label: root.no-image-label;
-                    title-color: #d4b483;
+                    title-color: DesktopTheme.accent;
                     clicked => {
                         if (row.key != "" && row.chip != "section") {
                             root.open-key(row.key);
@@ -2028,9 +1974,9 @@ component FullMonsterSheet inherits Flickable {
         width: parent.width;
         height: root.stage-h;
         border-radius: 12px;
-        background: #1c1916;
+        background: DesktopTheme.surface;
         border-width: 1px;
-        border-color: #3a342c;
+        border-color: DesktopTheme.border;
         if root.show-icon: Image {
             x: 16px;
             y: (root.stage-h - 148px) / 2;
@@ -2062,7 +2008,7 @@ component FullMonsterSheet inherits Flickable {
             text: root.title;
             font-size: 22px;
             font-weight: 600;
-            color: #f3efe8;
+            color: DesktopTheme.text;
             overflow: elide;
         }
         if root.alt != "": Text {
@@ -2071,7 +2017,7 @@ component FullMonsterSheet inherits Flickable {
             width: max(parent.width - root.text-x - 16px, 48px);
             text: root.alt;
             font-size: 15px;
-            color: #d4b483;
+            color: DesktopTheme.accent;
             overflow: elide;
         }
         Text {
@@ -2080,7 +2026,7 @@ component FullMonsterSheet inherits Flickable {
             width: max(parent.width - root.text-x - 16px, 48px);
             text: root.code;
             font-size: 13px;
-            color: #a3988c;
+            color: DesktopTheme.secondary;
             overflow: elide;
         }
     }
@@ -2088,10 +2034,10 @@ component FullMonsterSheet inherits Flickable {
         y: root.fact-top;
         width: parent.width;
         height: root.fact-h;
-        background: #1c1916;
+        background: DesktopTheme.surface;
         border-radius: 10px;
         border-width: 1px;
-        border-color: #3a342c;
+        border-color: DesktopTheme.border;
         for fact[i] in root.facts: FactLine {
             x: mod(i, 2) == 0 ? 4px : parent.width / 2;
             y: floor(i / 2) * 32px;
@@ -2108,14 +2054,14 @@ component FullMonsterSheet inherits Flickable {
         y: root.lists-top;
         text: root.english ? "Drops" : "掉落";
         font-size: 13px;
-        color: #a3988c;
+        color: DesktopTheme.secondary;
     }
     if root.related.length > 0: Text {
         x: root.split ? parent.width / 2 + 8px : 4px;
         y: root.lists-top;
         text: root.english ? "Related" : "相關";
         font-size: 13px;
-        color: #a3988c;
+        color: DesktopTheme.secondary;
     }
     if root.drops.length > 0: Rectangle {
         x: 0px;
@@ -2129,7 +2075,7 @@ component FullMonsterSheet inherits Flickable {
             selected: root.cursor == i;
             hit: row;
             no-image-label: root.no-image-label;
-            title-color: #d4b483;
+            title-color: DesktopTheme.accent;
             clicked => { root.open-drop(i); }
         }
     }
@@ -2159,10 +2105,10 @@ component InlineMonster inherits Rectangle {
     callback open-key(string);
     property <int> fact-rows: facts.length == 0 ? 0 : floor((facts.length + 1) / 2);
     property <length> list-top: 8px + fact-rows * 30px + (fact-rows > 0 ? 8px : 0px);
-    background: #1c1916;
+    background: DesktopTheme.surface;
     border-radius: 10px;
     border-width: 1px;
-    border-color: #3a342c;
+    border-color: DesktopTheme.border;
     if root.facts.length == 0 && root.note != "": Text {
         x: 12px;
         y: 10px;
@@ -2170,7 +2116,7 @@ component InlineMonster inherits Rectangle {
         text: root.note;
         wrap: word-wrap;
         font-size: 13px;
-        color: #f3efe8;
+        color: DesktopTheme.text;
     }
     for fact[i] in root.facts: FactLine {
         x: mod(i, 2) == 0 ? 8px : parent.width / 2;
@@ -2191,14 +2137,14 @@ component InlineMonster inherits Rectangle {
         y: root.list-top;
         text: root.english ? "Drops" : "掉落";
         font-size: 12px;
-        color: #a3988c;
+        color: DesktopTheme.secondary;
     }
     if root.related.length > 0: Text {
         x: root.drops.length > 0 ? parent.width / 2 + 8px : 10px;
         y: root.list-top;
         text: root.english ? "Related" : "相關";
         font-size: 12px;
-        color: #a3988c;
+        color: DesktopTheme.secondary;
     }
     if root.drops.length > 0: Rectangle {
         x: 6px;
@@ -2211,7 +2157,7 @@ component InlineMonster inherits Rectangle {
             compact: true;
             hit: row;
             no-image-label: root.no-image-label;
-            title-color: #d4b483;
+            title-color: DesktopTheme.accent;
             clicked => { root.open-key(row.key); }
         }
     }
@@ -2238,9 +2184,9 @@ component ChainButton inherits Rectangle {
     callback clicked();
     height: 40px;
     border-radius: 8px;
-    background: root.picked ? #2a241e : tap.has-hover ? #3a3228 : #1c1916;
+    background: root.picked ? DesktopTheme.selected : tap.has-hover ? DesktopTheme.raised : DesktopTheme.surface;
     border-width: 1px;
-    border-color: root.picked || tap.has-hover ? #d4b483 : #3a342c;
+    border-color: root.picked || tap.has-hover ? DesktopTheme.accent : DesktopTheme.border;
     VerticalLayout {
         width: 100%;
         padding-left: 10px;
@@ -2251,7 +2197,7 @@ component ChainButton inherits Rectangle {
             text: root.caption;
             font-size: 10px;
             font-weight: 700;
-            color: #d4b483;
+            color: DesktopTheme.accent;
             horizontal-alignment: root.end ? right : left;
             overflow: elide;
         }
@@ -2259,7 +2205,7 @@ component ChainButton inherits Rectangle {
             width: 100%;
             text: root.name;
             font-size: 12px;
-            color: #f3efe8;
+            color: DesktopTheme.text;
             horizontal-alignment: root.end ? right : left;
             overflow: elide;
         }
@@ -2286,7 +2232,8 @@ export component App inherits Window {
     in-out property <bool> collapsed: false;
     in-out property <bool> full-mode: false;
     callback mode-changed(bool);
-    property <length> nav-w: 188px;
+    property <length> nav-w: root.width < 1100px ? 176px : 208px;
+    property <length> page-pad: root.full-mode ? 24px : 14px;
     property <length> pane-w: full-mode && !collapsed ? max(root.width - nav-w, 280px) : root.width;
     in-out property <bool> dock-menu: false;
     callback dock-drag(length, length);
@@ -2352,6 +2299,8 @@ export component App inherits Window {
     property <int> home-span: max(1, min(root.home-order.length, max(1, round(max(root.pane-w - 16px, 40px) / (root.icon-base + root.home-gap) - 0.5))));
     in-out property <int> saved-cursor: 0;
     in-out property <length> list-offset: 0px;
+    property <length> directory-offset: 0px;
+    property <length> directory-view: max(root.list-view - root.filter-h - 32px, 1px);
     in-out property <length> drop-offset: 0px;
     in-out property <length> task-offset: 0px;
     in-out property <length> form-offset: 0px;
@@ -2434,7 +2383,8 @@ export component App inherits Window {
     no-frame: true;
     always-on-top: pin-top == 1 || (pin-top == 0 && !full-mode);
     icon: @image-url("app-icon.png");
-    default-font-family: "Microsoft JhengHei UI";
+    in property <string> ui-font: "Microsoft JhengHei UI";
+    default-font-family: root.ui-font;
     default-font-size: 14px;
     default-font-weight: 400;
     background: transparent;
@@ -2945,21 +2895,31 @@ export component App inherits Window {
         if (root.hits.length == 0) {
             return;
         }
-        if (root.monster-board && index < root.flow-y.length) {
-            let row = root.flow-y[index] * 1px;
-            let view = root.list-view;
-            let top = -root.list-offset;
+        if (root.monster-board) {
+            let row = index * 32px;
+            let view = root.directory-view;
+            let top = -root.directory-offset;
             if (row < top) {
-                root.list-offset = -row;
-            } else if (row + 32px > top + view) {
-                root.list-offset = view - row - 32px;
+                root.directory-offset = -row;
+            } else if (row + 28px > top + view) {
+                root.directory-offset = view - row - 28px;
             }
-            let floor = min(0px, view - root.flow-h * 1px);
-            if (root.list-offset < floor) {
-                root.list-offset = floor;
-            }
-            if (root.list-offset > 0px) {
-                root.list-offset = 0px;
+            root.directory-offset = clamp(root.directory-offset, min(0px, view - root.hits.length * 32px + 4px), 0px);
+            return;
+        }
+        if (root.full-board) {
+            let stride = root.full-flat ? 60px : 50px;
+            let row-height = stride - 2px;
+            let row = index * stride;
+            let view = max(root.list-view - (root.full-flat ? 56px : 16px), 1px);
+            let offset = root.full-flat ? root.list-offset : root.directory-offset;
+            let top = -offset;
+            let next = row < top ? -row : row + row-height > top + view ? view - row - row-height : offset;
+            let bounded = clamp(next, min(0px, view - root.hits.length * stride + 2px), 0px);
+            if (root.full-flat) {
+                root.list-offset = bounded;
+            } else {
+                root.directory-offset = bounded;
             }
             return;
         }
@@ -3358,6 +3318,7 @@ export component App inherits Window {
         if (root.viewing == "") {
             if (root.cursor >= 0 && root.cursor < root.hits.length) {
                 if (root.monster-board || (root.full-board && root.hits[root.cursor].chip == "label")) {
+                    root.list-offset = 0px;
                     root.toggle-board(root.hits[root.cursor].key);
                 } else if (root.full-board) {
                     root.toggle-detail(root.hits[root.cursor].key, root.cursor);
@@ -3493,7 +3454,7 @@ export component App inherits Window {
             root.set-hero-group(root.hero-group == "land" ? "rank" : "land");
             return accept;
         }
-        if ((event.text == Key.Tab || event.text == Key.Backtab) && root.viewing-item) {
+        if ((event.text == Key.Tab || event.text == Key.Backtab) && root.viewing-item && root.viewing != "") {
             root.set-item-tab(root.item-tab == "links" ? "" : "links");
             return accept;
         }
@@ -3632,6 +3593,7 @@ export component App inherits Window {
     }
 
     changed hits => {
+        root.directory-offset = 0px;
         if (root.stick-cursor) {
             root.stick-cursor = false;
             return;
@@ -3806,7 +3768,7 @@ export component App inherits Window {
     property <length> board-monsters-h: board-monsters.length * monster-row + detail-h;
     property <length> list-row: full-mode && monster-cards ? 108px : monster-gallery && monster-cards ? 220px : 52px;
     property <length> search-y: category == "patch" ? 128px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 86px : 50px;
-    property <length> list-y: search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
+    property <length> list-y: full-mode ? search-y + 16px : search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
     property <length> foot: 26px;
     property <length> list-view: max(root.height - list-y - 68px, 80px);
     in-out property <bool> form-open: false;
@@ -3817,7 +3779,7 @@ export component App inherits Window {
     property <bool> recipe-sheet: viewing-recipe && viewing != "" && facts.length > 0;
     property <bool> quest-sheet: viewing-quest && viewing != "";
     property <bool> item-sheet: !viewing-hero && !viewing-monster && !viewing-recipe && !viewing-quest && viewing != "" && facts.length > 0;
-    property <bool> item-links: viewing-item && item-tab == "links";
+    property <bool> item-links: viewing-item && viewing != "" && item-tab == "links";
     property <length> link-row: 52px;
     property <bool> record-sheet: item-sheet || recipe-sheet;
     property <bool> card-sheet: record-sheet || quest-sheet;
@@ -3890,7 +3852,10 @@ export component App inherits Window {
         { id: "atlas", name: root.lang == "en-zh" ? "Shop · 商店" : "商店 · Shop" },
     ];
 
+    changed full-mode => { DesktopTheme.active = root.full-mode && !root.collapsed; }
+
     changed collapsed => {
+        DesktopTheme.active = root.full-mode && !root.collapsed;
         root.collapse-changed(root.collapsed);
     }
 
@@ -3903,6 +3868,7 @@ export component App inherits Window {
 
     init => {
         Palette.color-scheme = ColorScheme.dark;
+        DesktopTheme.active = root.full-mode && !root.collapsed;
         keys.focus();
     }
 
@@ -3918,11 +3884,11 @@ export component App inherits Window {
         width: 100%;
         height: 100%;
         opacity: root.window-opacity;
-        background: root.collapsed ? transparent : #141210e8;
-        border-radius: root.collapsed ? 0px : 20px;
+        background: root.collapsed ? transparent : DesktopTheme.canvas;
+        border-radius: root.collapsed ? 0px : root.full-mode ? 12px : 20px;
         clip: !root.collapsed;
         border-width: root.collapsed ? 0px : 1px;
-        border-color: #3a342c;
+        border-color: DesktopTheme.border;
 
         if root.collapsed: dock-bar := TouchArea {
             width: 100%;
@@ -4048,11 +4014,20 @@ export component App inherits Window {
                 horizontal-stretch: 0;
                 height: 100%;
                 clip: true;
-                background: #100e0c;
+                background: DesktopTheme.sidebar;
                 Rectangle {
-                    y: 0px;
+                    x: 0px; y: 0px;
                     width: root.nav-w;
-                    height: max(root.height - 96px, 80px);
+                    height: 88px;
+                    Image { x: 20px; y: 25px; width: 32px; height: 32px; source: @image-url("app-icon.png"); image-fit: contain; }
+                    Text { x: 62px; y: 23px; text: root.lang == "en-zh" ? "Gersang" : "巨商圖鑑"; font-size: 17px; font-weight: 600; color: DesktopTheme.text; }
+                    Text { x: 62px; y: 48px; text: root.lang == "en-zh" ? "Game companion" : "Gersang companion"; font-size: 11px; color: DesktopTheme.muted; }
+                    WindowMoveArea { width: 100%; height: 100%; }
+                }
+                Rectangle {
+                    y: 88px;
+                    width: root.nav-w;
+                    height: max(root.height - 200px, 80px);
                     clip: true;
                 nav-scroll := Flickable {
                     width: 100%;
@@ -4061,27 +4036,29 @@ export component App inherits Window {
                         content-height: max(nav-col.preferred-height + 8px, 1px);
                         nav-col := VerticalLayout {
                             width: parent.width;
-                            padding-left: 8px;
-                            padding-right: 8px;
+                            padding-left: 12px;
+                            padding-right: 12px;
                             padding-top: 8px;
                             spacing: 4px;
-                            NavRow {
-                                width: root.nav-w - 16px;
-                                label: root.lang == "en-zh" ? "Home" : "首頁";
+                            DesktopNavRow {
+                                width: root.nav-w - 24px;
+                                label: root.lang == "en-zh" ? "Overview" : "圖鑑總覽";
+                                icon-path: "M3 10 L12 3 L21 10 M5 9 L5 21 L10 21 L10 14 L14 14 L14 21 L19 21 L19 9";
                                 selected: root.category == "" && !root.settings-open;
                                 clicked => { root.go-home(); }
                             }
                             if !root.nav-editing: VerticalLayout {
                                 spacing: 4px;
-                                width: root.nav-w - 16px;
-                                for slot in root.dock-shown: NavRow {
-                                    width: root.nav-w - 16px;
+                                width: root.nav-w - 24px;
+                                for slot in root.dock-shown: DesktopNavRow {
+                                    width: root.nav-w - 24px;
                                     logo: root.category-logo(slot);
                                     glyph: root.category-glyph(slot);
                                     show-logo: root.category-glyph(slot) == "";
                                     label: root.category-short(slot);
+                                    shortcut: "F" + root.visible-index(slot);
                                     selected: !root.settings-open && root.category == root.categories[slot].id;
-                                    clicked => { root.open-dock(slot); }
+                                    clicked => { root.open-dock(slot); keys.focus(); }
                                 }
                             }
                             if root.nav-editing: nav-drag := Rectangle {
@@ -4096,9 +4073,9 @@ export component App inherits Window {
                                     width: parent.width;
                                     height: 40px;
                                     border-radius: 8px;
-                                    background: nav-drag.from-row == i ? #3a3228 : nav-drag.over-row == i && nav-drag.from-row != i ? #241c14 : #1c1916;
+                                    background: nav-drag.from-row == i ? DesktopTheme.raised : nav-drag.over-row == i && nav-drag.from-row != i ? DesktopTheme.selection-low : DesktopTheme.surface;
                                     border-width: 1px;
-                                    border-color: nav-drag.from-row == i || nav-drag.over-row == i ? #d4b483 : #3a342c;
+                                    border-color: nav-drag.from-row == i || nav-drag.over-row == i ? DesktopTheme.accent : DesktopTheme.border;
                                     HorizontalLayout {
                                         width: 100%;
                                         height: 100%;
@@ -4110,7 +4087,7 @@ export component App inherits Window {
                                             width: 16px;
                                             text: "⋮⋮";
                                             font-size: 14px;
-                                            color: #8a8076;
+                                            color: DesktopTheme.muted;
                                             vertical-alignment: center;
                                         }
                                         if root.category-glyph(slot) == "": Image {
@@ -4123,7 +4100,7 @@ export component App inherits Window {
                                             width: 22px;
                                             text: root.category-glyph(slot);
                                             font-size: 14px;
-                                            color: #d4b483;
+                                            color: DesktopTheme.accent;
                                             horizontal-alignment: center;
                                             vertical-alignment: center;
                                         }
@@ -4131,7 +4108,7 @@ export component App inherits Window {
                                             horizontal-stretch: 1;
                                             text: root.category-short(slot);
                                             font-size: 14px;
-                                            color: #f3efe8;
+                                            color: DesktopTheme.text;
                                             vertical-alignment: center;
                                             overflow: elide;
                                         }
@@ -4177,27 +4154,29 @@ export component App inherits Window {
                     }
                     }
                     Rectangle {
-                        y: root.height - 96px;
-                        height: 96px;
+                        y: root.height - 112px;
+                        height: 112px;
                         width: root.nav-w;
-                        background: #100e0c;
+                        background: DesktopTheme.sidebar;
                         Rectangle {
                             width: 100%;
                             height: 1px;
-                            background: #3a342c;
+                            background: DesktopTheme.border;
                         }
-                        NavRow {
-                            x: 8px;
-                            y: 8px;
-                            width: root.nav-w - 16px;
+                        DesktopNavRow {
+                            x: 12px;
+                            y: 12px;
+                            width: root.nav-w - 24px;
+                            icon-path: "M4 7 L20 7 M4 12 L16 12 M4 17 L12 17";
                             label: root.nav-editing ? (root.lang == "en-zh" ? "Done" : "完成") : (root.lang == "en-zh" ? "Order" : "順序");
                             selected: root.nav-editing;
                             clicked => { root.nav-editing = !root.nav-editing; }
                         }
-                        NavRow {
-                            x: 8px;
-                            y: 52px;
-                            width: root.nav-w - 16px;
+                        DesktopNavRow {
+                            x: 12px;
+                            y: 56px;
+                            width: root.nav-w - 24px;
+                            icon-path: "M8 4 L8 20 M16 4 L16 20 M4 8 L12 8 M12 16 L20 16";
                             label: root.lang == "en-zh" ? "Settings" : "設定";
                             selected: root.settings-open;
                             clicked => {
@@ -4214,7 +4193,7 @@ export component App inherits Window {
                         x: parent.width - 1px;
                         width: 1px;
                         height: 100%;
-                        background: #3a342c;
+                        background: DesktopTheme.border;
                     }
                 }
             VerticalLayout {
@@ -4225,7 +4204,7 @@ export component App inherits Window {
             Rectangle {
                 width: root.pane-w;
                 height: 42px;
-                background: #100e0ce8;
+                background: DesktopTheme.chrome;
                 HorizontalLayout {
                     width: 100%;
                     height: 100%;
@@ -4233,10 +4212,10 @@ export component App inherits Window {
                     padding-right: 8px;
                     spacing: 4px;
                     Text {
-                        text: root.lang == "en-zh" ? "GERSANG" : "巨商";
+                        text: root.full-mode ? (root.lang == "en-zh" ? "Reference workspace" : "圖鑑工作台") : (root.lang == "en-zh" ? "GERSANG" : "巨商");
                         font-size: 13px;
                         font-weight: 600;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         vertical-alignment: center;
                     }
                     Rectangle {
@@ -4248,7 +4227,7 @@ export component App inherits Window {
                         }
                     }
                 }
-                WinButton {
+                if !root.full-mode: WinButton {
                     x: 96px;
                     y: 9px;
                     glyph: root.lang == "en-zh" ? "Setting" : "設定";
@@ -4317,7 +4296,7 @@ export component App inherits Window {
                         overflow: elide;
                         text: root.arranging ? (root.lang == "en-zh" ? "Drag to move. Tap empty space when done." : "拖曳換位，點空白處完成") : (root.lang == "en-zh" ? "Browse" : "分類");
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         vertical-alignment: center;
                     }
                     if root.arranging: done-btn := LangChip {
@@ -4405,92 +4384,91 @@ export component App inherits Window {
                     }
                 }
 
-                if root.category == "" && !root.settings-open && root.full-mode: Rectangle {
+                if root.category == "" && !root.settings-open && root.full-mode: Flickable {
+                    x: 0px; y: 0px;
                     width: 100%;
-                    height: 100%;
+                    height: parent.height - root.foot;
+                    content-width: self.width;
+                    content-height: max(self.height, 550px);
                     Text {
-                        x: 28px;
-                        y: 18px;
-                        text: root.lang == "en-zh" ? "Home" : "首頁";
-                        font-size: 22px;
-                        font-weight: 600;
-                        color: #f3efe8;
+                        x: 28px; y: 26px;
+                        text: root.lang == "en-zh" ? "Explore the compendium" : "探索巨商圖鑑";
+                        font-size: 27px; font-weight: 600; color: DesktopTheme.text;
+                    }
+                    Text {
+                        x: 28px; y: 66px; width: parent.width - 56px;
+                        text: root.lang == "en-zh" ? "Monsters, equipment and the paths that connect them." : "從怪物、裝備到任務，找到下一步需要的資料。";
+                        font-size: 13px; color: DesktopTheme.secondary; overflow: elide;
                     }
                     Rectangle {
-                        x: 28px;
-                        y: 64px;
-                        width: 300px;
-                        height: parent.height - 88px;
-                        background: #1c1916;
-                        border-radius: 8px;
-                        border-width: 1px;
-                        border-color: #3a342c;
-                        clip: true;
-                        Text {
-                            x: 14px;
-                            y: 12px;
-                            text: root.lang == "en-zh" ? "Categories" : "分類";
-                            font-size: 13px;
-                            font-weight: 600;
-                            color: #d4b483;
+                        x: 28px; y: 116px;
+                        width: (parent.width - 72px) * 0.56;
+                        height: 402px;
+                        DesktopEntry {
+                            x: 0px; y: 0px; width: parent.width; height: 112px;
+                            title: root.lang == "en-zh" ? "Monster compendium" : "怪物圖鑑";
+                            description: root.lang == "en-zh" ? "Attributes, habitats and drops" : "查屬性、找出沒地，比較掉落物";
+                            logo: root.category-logo(0); prominent: true;
+                            action-label: root.lang == "en-zh" ? "Browse" : "瀏覽";
+                            clicked => { root.open-category("monster"); keys.focus(); }
                         }
-                        Flickable {
-                            x: 8px;
-                            y: 40px;
-                            width: parent.width - 16px;
-                            height: parent.height - 52px;
-                            content-width: self.width;
-                            content-height: max(root.dock-shown.length * 44px, 1px);
-                            for slot[i] in root.dock-shown: NavRow {
-                                y: i * 44px;
-                                width: parent.width;
-                                logo: root.category-logo(slot);
-                                glyph: root.category-glyph(slot);
-                                show-logo: root.category-glyph(slot) == "";
-                                label: root.category-short(slot);
-                                clicked => { root.open-dock(slot); }
+                        DesktopEntry {
+                            y: 126px; width: parent.width; height: 88px;
+                            title: root.lang == "en-zh" ? "Equipment & items" : "裝備與道具";
+                            description: root.lang == "en-zh" ? "Stats, sets and ways to obtain them" : "查看能力、套裝效果與取得方式";
+                            logo: root.category-logo(1);
+                            clicked => { root.open-category("item"); keys.focus(); }
+                        }
+                        DesktopEntry {
+                            y: 220px; width: parent.width; height: 88px;
+                            title: root.lang == "en-zh" ? "Quests & crafting" : "任務與製作";
+                            description: root.lang == "en-zh" ? "Follow quest chains and their rewards" : "追蹤任務流程、條件與獎勵";
+                            logo: root.category-logo(3);
+                            clicked => { root.open-category("quest"); keys.focus(); }
+                        }
+                        HorizontalLayout {
+                            y: 338px; width: parent.width; height: 32px; spacing: 8px;
+                            FilterChip { label: root.lang == "en-zh" ? "Recipes" : "合成配方"; clicked => { root.open-category("recipe"); keys.focus(); } }
+                            FilterChip { label: root.lang == "en-zh" ? "Production" : "生產"; clicked => { root.open-category("works"); keys.focus(); } }
+                            FilterChip { label: root.lang == "en-zh" ? "Shops" : "商店"; clicked => { root.open-category("atlas"); keys.focus(); } }
+                        }
+                    }
+                    Rectangle {
+                        x: 44px + (parent.width - 72px) * 0.56;
+                        y: 116px;
+                        width: (parent.width - 72px) * 0.44;
+                        height: max(parent.height - 144px, 380px);
+                        background: DesktopTheme.surface;
+                        border-radius: 12px;
+                        Text {
+                            x: 20px; y: 18px;
+                            text: root.lang == "en-zh" ? "Your favourites" : "我的收藏";
+                            font-size: 15px; font-weight: 600; color: DesktopTheme.text;
+                        }
+                        if root.hits.length > 0: Text {
+                            x: parent.width - 60px; y: 20px; width: 40px;
+                            text: root.hits.length; color: DesktopTheme.muted; font-size: 12px;
+                            horizontal-alignment: right;
+                        }
+                        Rectangle { x: 20px; y: 50px; width: parent.width - 40px; height: 1px; background: DesktopTheme.border; }
+                        if root.hits.length == 0: Rectangle {
+                            y: 88px; width: parent.width; height: 228px;
+                            DesktopIcon {
+                                x: (parent.width - 32px) / 2; y: 22px; width: 32px; height: 32px;
+                                ink: DesktopTheme.accent;
+                                path: "M12 2 L15 8.5 L22 9.3 L17 14.2 L18.3 21 L12 17.6 L5.7 21 L7 14.2 L2 9.3 L9 8.5 Z";
                             }
-                        }
-                    }
-                    Rectangle {
-                        x: 344px;
-                        y: 64px;
-                        width: parent.width - 372px;
-                        height: parent.height - 88px;
-                        background: #1c1916;
-                        border-radius: 8px;
-                        border-width: 1px;
-                        border-color: #3a342c;
-                        clip: true;
-                        Text {
-                            x: 14px;
-                            y: 12px;
-                            text: root.hits.length == 0 ? (root.lang == "en-zh" ? "Favourites" : "收藏") : (root.lang == "en-zh" ? "Favourites  " : "收藏  ") + root.hits.length;
-                            font-size: 13px;
-                            font-weight: 600;
-                            color: #d4b483;
-                        }
-                        if root.hits.length == 0: Text {
-                            x: 14px;
-                            y: 44px;
-                            width: parent.width - 28px;
-                            text: root.lang == "en-zh" ? "No favourites yet. Open a monster and click the star." : "還沒有收藏。打開怪物，點星號就會出現在這裡。";
-                            wrap: word-wrap;
-                            font-size: 13px;
-                            color: #8a8076;
+                            Text { x: 20px; y: 76px; width: parent.width - 40px; text: root.lang == "en-zh" ? "Keep your next target close" : "把常看的怪物留在這裡"; horizontal-alignment: center; font-size: 14px; font-weight: 500; color: DesktopTheme.text; }
+                            Text { x: 28px; y: 108px; width: parent.width - 56px; text: root.lang == "en-zh" ? "Star a monster to return to its stats and drops in one click." : "在怪物旁點星號，下次直接查看能力與掉落物。"; horizontal-alignment: center; wrap: word-wrap; font-size: 12px; color: DesktopTheme.secondary; }
+                            SearchToggle { x: (parent.width - self.width) / 2; y: 168px; label: root.lang == "en-zh" ? "Explore monsters" : "瀏覽怪物"; clicked => { root.open-category("monster"); keys.focus(); } }
                         }
                         if root.hits.length > 0: Flickable {
-                            x: 8px;
-                            y: 40px;
-                            width: parent.width - 16px;
-                            height: parent.height - 52px;
+                            x: 12px; y: 60px; width: parent.width - 24px; height: parent.height - 72px;
                             content-width: self.width;
-                            content-height: max(root.hits.length * 48px, 1px);
+                            content-height: max(root.hits.length * 56px, 1px);
                             for row[i] in root.hits: HitRow {
-                                y: i * 48px;
-                                width: parent.width;
-                                hit: row;
-                                selected: root.cursor == i;
+                                y: i * 56px; width: parent.width; height: 54px;
+                                hit: row; selected: root.cursor == i;
                                 no-image-label: root.no-image-label;
                                 clicked => { root.home-open(row.key); }
                                 favourite-clicked => { root.toggle-favourite(row.key); }
@@ -4504,23 +4482,23 @@ export component App inherits Window {
                     height: 100%;
 
                     WinButton {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 14px;
                         glyph: "←";
                         clicked => { root.go-back(); }
                     }
                     Text {
-                        x: 52px;
-                        y: 16px;
-                        width: root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px);
+                        x: root.full-mode ? 66px : 52px;
+                        y: root.full-mode ? 13px : 16px;
+                        width: root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px);
                         overflow: elide;
                         text: root.favourites-only && root.category == "monster" ? (root.lang == "en-zh" ? "Favourites" : "收藏") : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.categories[3].name;
-                        font-size: 16px;
+                        font-size: root.full-mode ? 21px : 16px;
                         font-weight: 600;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                     }
-                    if root.viewing == "": SearchToggle {
-                        x: root.pane-w - self.width - 14px;
+                    if root.viewing == "" && !root.full-mode: SearchToggle {
+                        x: root.pane-w - self.width - root.page-pad;
                         y: 12px;
                         open: root.search-open;
                         label: root.lang == "en-zh" ? "Search" : "搜尋";
@@ -4536,15 +4514,15 @@ export component App inherits Window {
                         clicked => { root.copy-note(); }
                     }
                     if root.category == "patch" && root.viewing == "": Rectangle {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 48px;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: 32px;
                         border-radius: 8px;
                         clip: true;
-                        background: #141210;
+                        background: DesktopTheme.inset;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         HorizontalLayout {
                             spacing: 1px;
                             PatchTab {
@@ -4582,9 +4560,9 @@ export component App inherits Window {
                         }
                     }
                     if root.category == "patch" && root.viewing == "": HorizontalLayout {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 88px;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         spacing: 6px;
                         alignment: start;
                         PatchPill {
@@ -4614,15 +4592,15 @@ export component App inherits Window {
                         }
                     }
                     if root.category == "hero" && root.viewing == "": Rectangle {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 48px;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: 32px;
                         border-radius: 8px;
                         clip: true;
-                        background: #141210;
+                        background: DesktopTheme.inset;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         HorizontalLayout {
                             spacing: 1px;
                             PatchTab {
@@ -4638,7 +4616,7 @@ export component App inherits Window {
                         }
                     }
                     if root.category == "quest" && root.place == "main" && root.viewing == "": HorizontalLayout {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 48px;
                         width: max(parent.width - 28px, 40px);
                         height: 28px;
@@ -4687,9 +4665,9 @@ export component App inherits Window {
                         }
                     }
                     if root.category == "monster" && root.viewing == "" && !root.full-mode: HorizontalLayout {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 48px;
-                        width: max(root.pane-w - 28px, 160px);
+                        width: max(root.pane-w - 2 * root.page-pad, 160px);
                         height: 28px;
                         spacing: 6px;
                         FilterChip {
@@ -4765,15 +4743,15 @@ export component App inherits Window {
                         clicked => { root.toggle-favourite(root.viewing); }
                     }
                     if root.set-browser: Rectangle {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 48px;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: 32px;
                         border-radius: 8px;
                         clip: true;
-                        background: #141210;
+                        background: DesktopTheme.inset;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         HorizontalLayout {
                             spacing: 1px;
                             PatchTab {
@@ -4793,13 +4771,15 @@ export component App inherits Window {
                             }
                         }
                     }
-                    if root.viewing == "" && root.search-open: search := LineEdit {
-                        x: 14px;
-                        y: root.search-y;
-                        width: max(root.pane-w - 28px, 40px);
-                        placeholder-text: root.lang == "en-zh" ? "Search" : "搜尋";
+                    if root.viewing == "" && (root.search-open || root.full-mode): search := LineEdit {
+                        x: root.full-mode ? root.pane-w - 304px : root.page-pad;
+                        y: root.full-mode ? 10px : root.search-y;
+                        width: root.full-mode ? 280px : max(root.pane-w - 2 * root.page-pad, 40px);
+                        placeholder-text: root.full-mode ? (root.lang == "en-zh" ? "Search this category…" : "搜尋此分類…") : (root.lang == "en-zh" ? "Search" : "搜尋");
                         text <=> root.query;
-                        init => { self.focus(); }
+                        property <bool> focus-requested: root.search-open;
+                        changed focus-requested => { if (self.focus-requested) { self.focus(); } }
+                        init => { if (root.search-open) { self.focus(); } }
                         edited => {
                             root.cursor = 0;
                             root.query-changed(root.category, self.text);
@@ -4831,19 +4811,10 @@ export component App inherits Window {
                             return reject;
                         }
                     }
-                    if root.viewing == "" && root.monster-board: board := Flickable {
-                        x: 14px;
-                        y: root.list-y;
-                        width: max(root.pane-w - 28px, 40px);
+                    if root.viewing == "" && root.monster-board: Rectangle {
+                        x: root.page-pad; y: root.list-y;
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.list-view;
-                        content-width: self.width;
-                        content-height: max(root.filter-h + (root.menu-open ? root.flow-h * 1px : 0px) + root.board-monsters-h + 16px, 1px);
-                        content-y <=> root.list-offset;
-                        changed width => {
-                            if (self.width > 40px) {
-                                root.reflow(self.width);
-                            }
-                        }
                         BoardFilter {
                             x: 0px;
                             y: 0px;
@@ -4885,188 +4856,185 @@ export component App inherits Window {
                                 root.apply-filter(false);
                             }
                         }
-                        if root.menu-open: Rectangle {
-                            y: root.filter-h;
+                        HorizontalLayout {
+                            y: root.filter-h + 12px;
                             width: parent.width;
-                            height: max(root.flow-h * 1px, 1px);
-                            for row[i] in root.hits: PlaceLink {
-                                x: i < root.flow-x.length ? root.flow-x[i] * 1px : 0px;
-                                y: i < root.flow-y.length ? root.flow-y[i] * 1px : 0px;
-                                chip-w: i < root.flow-w.length ? max(root.flow-w[i] * 1px, 24px) : 80px;
-                                heading: row.chip == "label";
-                                open: root.expanded == row.key;
-                                selected: root.expanded == row.key && row.chip != "label";
-                                title: row.title;
-                                clicked => {
-                                    root.cursor = i;
-                                    if (row.key == "") {
-                                        return;
+                            height: parent.height - root.filter-h - 12px;
+                            spacing: 12px;
+                            if root.menu-open: Rectangle {
+                                width: root.pane-w < 900px ? 176px : 192px;
+                                background: DesktopTheme.surface-alt;
+                                border-radius: 8px;
+                                Flickable {
+                                    x: 8px; y: 10px; width: parent.width - 16px; height: parent.height - 20px;
+                                    content-width: self.width;
+                                    content-height: max(directory.preferred-height, 1px);
+                                    content-y <=> root.directory-offset;
+                                    directory := VerticalLayout {
+                                        width: parent.width; spacing: 4px;
+                                        for row[i] in root.hits: PlaceLink {
+                                            width: parent.width; chip-w: parent.width;
+                                            heading: row.chip == "label";
+                                            open: root.expanded == row.key;
+                                            selected: root.expanded == row.key || root.cursor == i;
+                                            title: row.title;
+                                            clicked => {
+                                                root.cursor = i;
+                                                if (row.key != "") { root.list-offset = 0px; root.toggle-board(row.key); keys.focus(); }
+                                            }
+                                        }
                                     }
-                                    if (root.expanded != row.key && i < root.flow-y.length) {
-                                        root.list-offset = -(root.filter-h + root.flow-y[i] * 1px);
-                                    }
-                                    root.toggle-board(row.key);
                                 }
                             }
-                        }
-                        if root.expanded == "saved:" && root.board-monsters.length == 0: Text {
-                            x: 4px;
-                            y: root.filter-h + (root.menu-open ? root.flow-h * 1px + 16px : 12px);
-                            text: root.lang == "en-zh" ? "No saved monsters yet." : "還沒有收藏。";
-                            color: #a3988c;
-                        }
-                        if root.expanded != "": Rectangle {
-                            y: root.filter-h + (root.menu-open ? root.flow-h * 1px + 12px : 8px);
-                            width: parent.width;
-                            height: root.board-monsters-h;
-                            for mon[i] in root.board-monsters: MonsterTableRow {
-                                y: i * root.monster-row + (root.detail-index >= 0 && i > root.detail-index ? root.detail-h : 0px);
-                                width: parent.width;
-                                hit: mon;
-                                english: root.lang == "en-zh";
-                                no-image-label: root.no-image-label;
-                                selected: root.detail-key == mon.key;
-                                portrait: !root.battle-view;
-                                clicked => {
-                                    if (root.detail-key != mon.key) {
-                                        root.list-offset = -(root.filter-h + (root.menu-open ? root.flow-h * 1px + 12px : 8px) + i * root.monster-row);
-                                    }
-                                    root.toggle-detail(mon.key, i);
+                            Rectangle {
+                                horizontal-stretch: 1; min-width: 0px;
+                                if root.expanded == "": Rectangle {
+                                    width: 100%; height: 100%; background: DesktopTheme.surface; border-radius: 8px;
+                                    DesktopIcon { x: 28px; y: 34px; width: 28px; height: 28px; path: "M4 4 L10 4 L12 6 L20 6 L20 20 L4 20 Z M8 11 L16 11 M8 15 L14 15"; ink: DesktopTheme.accent; }
+                                    Text { x: 28px; y: 82px; text: root.lang == "en-zh" ? "Where do you want to explore?" : "從一個地區開始探索"; font-size: 18px; font-weight: 600; color: DesktopTheme.text; }
+                                    Text { x: 28px; y: 116px; width: parent.width - 56px; text: root.lang == "en-zh" ? "Choose a region or habitat to compare monsters, attributes and drops." : "選擇左側的地區或出沒地，一起查看怪物能力與掉落物。"; wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary; }
                                 }
-                                favourite-clicked => { root.toggle-favourite(mon.key); }
-                            }
-                            if root.detail-index >= 0: InlineMonster {
-                                y: root.detail-index * root.monster-row + root.monster-row;
-                                width: parent.width;
-                                height: max(root.detail-h - 6px, 0px);
-                                facts: root.facts;
-                                drops: root.links;
-                                related: root.related;
-                                english: root.lang == "en-zh";
-                                no-image-label: root.no-image-label;
-                                note: root.detail;
-                                open-key(key) => {
-                                    if (key.starts-with("monster:")) {
-                                        root.toggle-detail(key, root.detail-index);
-                                    } else if (key != "") {
-                                        root.open-hit(key);
+                                if root.expanded != "" && root.board-monsters.length == 0: Text {
+                                    x: 20px; y: 28px; width: parent.width - 40px;
+                                    text: root.expanded == "saved:" ? (root.lang == "en-zh" ? "Star a monster to add it to your favourites." : "在怪物旁點星號，就能加入收藏。") : (root.lang == "en-zh" ? "No matches. Try clearing your filters." : "沒有符合的怪物，試試清除篩選條件。" );
+                                    wrap: word-wrap; color: DesktopTheme.secondary; font-size: 13px;
+                                }
+                                if root.expanded != "": Flickable {
+                                    width: 100%; height: 100%;
+                                    content-width: self.width;
+                                    content-height: max(root.board-monsters-h, 1px);
+                                    content-y <=> root.list-offset;
+                                    for mon[i] in root.board-monsters: MonsterTableRow {
+                                        y: i * root.monster-row + (root.detail-index >= 0 && i > root.detail-index ? root.detail-h : 0px);
+                                        width: parent.width; hit: mon;
+                                        english: root.lang == "en-zh"; no-image-label: root.no-image-label;
+                                        selected: root.detail-key == mon.key; portrait: !root.battle-view;
+                                        clicked => {
+                                            if (root.detail-key != mon.key) { root.list-offset = -(i * root.monster-row); }
+                                            root.toggle-detail(mon.key, i); keys.focus();
+                                        }
+                                        favourite-clicked => { root.toggle-favourite(mon.key); }
+                                    }
+                                    if root.detail-index >= 0: InlineMonster {
+                                        y: root.detail-index * root.monster-row + root.monster-row;
+                                        width: parent.width; height: max(root.detail-h - 6px, 0px);
+                                        facts: root.facts; drops: root.links; related: root.related;
+                                        english: root.lang == "en-zh"; no-image-label: root.no-image-label; note: root.detail;
+                                        open-key(key) => {
+                                            if (key.starts-with("monster:")) { root.toggle-detail(key, root.detail-index); }
+                                            else if (key != "") { root.open-hit(key); }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                     if root.full-board: Rectangle {
-                        x: 8px;
+                        x: root.page-pad;
                         y: root.list-y;
-                        width: max(root.pane-w - 16px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.list-view;
                         HorizontalLayout {
-                            width: 100%;
-                            height: 100%;
-                            spacing: 0px;
+                            spacing: 12px;
                             if !root.full-flat: Rectangle {
-                                width: 220px;
-                                height: 100%;
-                                background: #100e0c;
-                                section-scroll := Flickable {
-                                    x: 8px;
-                                    y: 8px;
-                                    width: parent.width - 16px;
-                                    height: parent.height - 16px;
+                                width: root.pane-w < 900px ? 150px : 180px;
+                                background: DesktopTheme.surface-alt;
+                                border-radius: 8px;
+                                Flickable {
+                                    x: 6px; y: 8px; width: parent.width - 12px; height: parent.height - 16px;
                                     content-width: self.width;
                                     content-height: max(section-col.preferred-height, 1px);
+                                    content-y <=> root.directory-offset;
                                     section-col := VerticalLayout {
-                                        width: parent.width;
-                                        spacing: 2px;
+                                        width: parent.width; spacing: 2px;
                                         for row[i] in root.hits: SectionPick {
-                                            title: row.title;
-                                            count: row.subtitle;
-                                            selected: root.expanded == row.key;
+                                            title: row.title; count: row.subtitle;
+                                            selected: root.expanded == row.key || root.cursor == i;
                                             clicked => {
                                                 root.cursor = i;
                                                 root.list-offset = 0px;
                                                 root.toggle-board(row.key);
+                                                keys.focus();
                                             }
                                         }
                                     }
                                 }
                             }
-                            if !root.full-flat: Rectangle {
-                                width: 1px;
-                                height: 100%;
-                                background: #3a342c;
-                            }
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                padding-left: 4px;
+                            Rectangle {
+                                horizontal-stretch: 1; min-width: 180px;
+                                background: DesktopTheme.surface;
+                                border-radius: 8px;
+                                Text {
+                                    x: 14px; y: 14px; width: parent.width - 28px;
+                                    text: root.lang == "en-zh" ? "Records" : "資料列表";
+                                    color: DesktopTheme.secondary; font-size: 12px; font-weight: 500;
+                                }
+                                Text {
+                                    x: parent.width - 70px; y: 14px; width: 56px;
+                                    text: root.full-flat ? root.hits.length : root.board-monsters.length;
+                                    color: DesktopTheme.muted; font-size: 12px; horizontal-alignment: right;
+                                }
+                                Rectangle { y: 40px; width: parent.width; height: 1px; background: DesktopTheme.border; }
                                 if !root.full-flat && root.expanded == "": Text {
-                                    text: root.lang == "en-zh" ? "Choose a category." : "先選左邊的分類。";
-                                    font-size: 13px;
-                                    color: #8a8076;
+                                    x: 18px; y: 72px; width: parent.width - 36px;
+                                    text: root.lang == "en-zh" ? "Select a category to browse its records." : "選擇左側分類，開始瀏覽資料。";
+                                    font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
                                 if !root.full-flat && root.expanded != "" && root.board-monsters.length == 0: Text {
-                                    text: root.lang == "en-zh" ? "Nothing in this category." : "這個分類是空的。";
-                                    font-size: 13px;
-                                    color: #8a8076;
+                                    x: 18px; y: 72px; width: parent.width - 36px;
+                                    text: root.lang == "en-zh" ? "No records in this category." : "這個分類暫時沒有資料。";
+                                    font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
-                                if root.full-flat && root.hits.length == 0: Text {
-                                    text: root.lang == "en-zh" ? "Nothing to show." : "沒有資料。";
-                                    font-size: 13px;
-                                    color: #8a8076;
-                                }
-                                if !root.full-flat && root.board-monsters.length > 0: record-scroll := Flickable {
-                                    vertical-stretch: 1;
-                                    width: 100%;
-                                    content-width: self.width;
-                                    content-height: max(record-col.preferred-height, 1px);
+                                if !root.full-flat && root.board-monsters.length > 0: Flickable {
+                                    x: 6px; y: 48px; width: parent.width - 12px; height: parent.height - 56px;
+                                    content-width: self.width; content-height: max(record-col.preferred-height, 1px);
+                                    content-y <=> root.list-offset;
                                     record-col := VerticalLayout {
-                                        width: parent.width;
+                                        width: parent.width; spacing: 2px;
                                         for rec[i] in root.board-monsters: CatalogRow {
-                                            hit: rec;
-                                            selected: root.detail-key == rec.key;
-                                            clicked => { root.toggle-detail(rec.key, i); }
+                                            hit: rec; selected: root.detail-key == rec.key;
+                                            clicked => { root.toggle-detail(rec.key, i); keys.focus(); }
                                         }
                                     }
                                 }
-                                if root.full-flat && root.hits.length > 0: flat-scroll := Flickable {
-                                    vertical-stretch: 1;
-                                    width: 100%;
-                                    content-width: self.width;
-                                    content-height: max(flat-col.preferred-height, 1px);
+                                if root.full-flat && root.hits.length > 0: Flickable {
+                                    x: 6px; y: 48px; width: parent.width - 12px; height: parent.height - 56px;
+                                    content-width: self.width; content-height: max(flat-col.preferred-height, 1px);
+                                    content-y <=> root.list-offset;
                                     flat-col := VerticalLayout {
-                                        width: parent.width;
+                                        width: parent.width; spacing: 2px;
                                         for rec[i] in root.hits: CatalogRow {
-                                            hit: rec;
-                                            selected: root.detail-key == rec.key;
-                                            clicked => { root.toggle-detail(rec.key, i); }
+                                            hit: rec; selected: root.detail-key == rec.key || root.cursor == i;
+                                            clicked => { root.cursor = i; root.toggle-detail(rec.key, i); keys.focus(); }
                                         }
                                     }
                                 }
-                                if root.detail-index >= 0: Rectangle {
-                                    height: 1px;
-                                    background: #3a342c;
+                            }
+                            Rectangle {
+                                width: root.pane-w < 900px ? 260px : 320px;
+                                background: DesktopTheme.detail;
+                                border-radius: 8px;
+                                Text { x: 18px; y: 14px; width: parent.width - 36px; overflow: elide; text: root.detail-index >= 0 ? (root.full-flat ? root.hits[root.detail-index].title : root.board-monsters[root.detail-index].title) : (root.lang == "en-zh" ? "Details" : "詳細資料"); color: DesktopTheme.secondary; font-size: 12px; font-weight: 500; }
+                                Rectangle { y: 40px; width: parent.width; height: 1px; background: DesktopTheme.border; }
+                                if root.detail-index < 0: Text {
+                                    x: 24px; y: 76px; width: parent.width - 48px;
+                                    text: root.lang == "en-zh" ? "Select a record to see its attributes and related items here." : "選擇一筆資料，在這裡查看能力、材料與相關內容。";
+                                    font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
                                 if root.detail-index >= 0: RecordDetail {
-                                    height: 260px;
-                                    facts: root.facts;
-                                    links: root.links;
-                                    note: root.sheet-note;
-                                    body: root.detail;
+                                    y: 48px; width: parent.width; height: parent.height - 56px;
+                                    facts: root.facts; links: root.links; note: root.sheet-note; body: root.detail;
                                     link-label: root.category == "recipe" ? (root.lang == "en-zh" ? "Materials" : "材料") : (root.lang == "en-zh" ? "Related" : "相關");
                                     no-image-label: root.no-image-label;
-                                    open-key(key) => {
-                                        if (key != "") {
-                                            root.open-hit(key);
-                                        }
-                                    }
+                                    open-key(key) => { if (key != "") { root.open-hit(key); } }
                                 }
                             }
                         }
                     }
                     if root.viewing == "" && !root.monster-board && !root.full-board && !(root.monster-gallery && root.monster-cards) && !(root.full-mode && root.monster-cards): list := Flickable {
-                        x: 14px;
+                        x: root.page-pad;
                         y: root.list-y;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.list-view;
                         content-width: self.width;
                         content-height: max(root.hits.length * root.list-row, 1px);
@@ -5074,7 +5042,7 @@ export component App inherits Window {
                         for row[i] in root.hits: HitRow {
                             x: 0px;
                             y: i * root.list-row;
-                            width: max(root.pane-w - 28px, 40px);
+                            width: max(root.pane-w - 2 * root.page-pad, 40px);
                             selected: root.cursor == i;
                             hit: row;
                             no-image-label: root.no-image-label;
@@ -5086,9 +5054,9 @@ export component App inherits Window {
                         }
                     }
                     if root.viewing == "" && root.monster-gallery && root.monster-cards && !root.full-mode: gallery := Flickable {
-                        x: 14px;
+                        x: root.page-pad;
                         y: root.list-y;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.list-view;
                         content-width: self.width;
                         content-height: max(root.hits.length * root.list-row, 1px);
@@ -5096,7 +5064,7 @@ export component App inherits Window {
                         for row[i] in root.hits: MonsterCard {
                             x: 0px;
                             y: i * root.list-row;
-                            width: max(root.pane-w - 28px, 40px);
+                            width: max(root.pane-w - 2 * root.page-pad, 40px);
                             selected: root.cursor == i;
                             hit: row;
                             english: root.lang == "en-zh";
@@ -5110,9 +5078,9 @@ export component App inherits Window {
                         }
                     }
                     if root.viewing == "" && root.full-mode && root.monster-cards: table := Flickable {
-                        x: 14px;
+                        x: root.page-pad;
                         y: root.list-y;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.list-view;
                         content-width: self.width;
                         content-height: max(root.hits.length * root.list-row, 1px);
@@ -5120,7 +5088,7 @@ export component App inherits Window {
                         for row[i] in root.hits: MonsterTableRow {
                             x: 0px;
                             y: i * root.list-row;
-                            width: max(root.pane-w - 28px, 40px);
+                            width: max(root.pane-w - 2 * root.page-pad, 40px);
                             selected: root.cursor == i;
                             hit: row;
                             english: root.lang == "en-zh";
@@ -5137,7 +5105,7 @@ export component App inherits Window {
                         x: 18px;
                         y: root.list-y;
                         text: root.query == "" ? (root.lang == "en-zh" ? "No favourites yet. Press Enter on a monster." : "還沒有收藏。在怪物上按 Enter。") : (root.lang == "en-zh" ? "No matches" : "沒有符合的收藏");
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     if root.full-mode && root.monster-sheet: FullMonsterSheet {
                         x: root.side-gap;
@@ -5183,9 +5151,9 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap, 80px);
                         height: root.stage-h;
                         border-radius: 12px;
-                        background: #1c1916;
+                        background: DesktopTheme.surface;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                     }
                     if root.viewing-monster && !root.full-mode && root.show-icon && !root.battle-picture: Image {
                         x: root.face-x;
@@ -5226,7 +5194,7 @@ export component App inherits Window {
                         text: root.sheet-title;
                         font-size: 16px;
                         font-weight: 600;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                         overflow: elide;
                     }
                     if root.viewing-hero && root.viewing != "" && root.sheet-alt != "": Text {
@@ -5235,7 +5203,7 @@ export component App inherits Window {
                         width: max(parent.width - (root.show-icon ? 90px : 28px), 40px);
                         text: root.sheet-alt;
                         font-size: 13px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         overflow: elide;
                     }
                     if root.viewing-hero && root.viewing != "": Text {
@@ -5244,7 +5212,7 @@ export component App inherits Window {
                         width: max(parent.width - (root.show-icon ? 90px : 28px), 40px);
                         text: root.sheet-code;
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         overflow: elide;
                     }
                     if root.viewing-monster && !root.full-mode && root.show-element: Image {
@@ -5270,7 +5238,7 @@ export component App inherits Window {
                         text: root.sheet-title;
                         font-size: 16px;
                         font-weight: 600;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -5280,7 +5248,7 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap, 40px);
                         text: root.sheet-alt;
                         font-size: 13px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -5290,7 +5258,7 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap, 40px);
                         text: root.sheet-code;
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -5301,7 +5269,7 @@ export component App inherits Window {
                         text: root.sheet-title;
                         font-size: 16px;
                         font-weight: 600;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -5311,7 +5279,7 @@ export component App inherits Window {
                         width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
                         text: root.sheet-alt;
                         font-size: 13px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -5321,7 +5289,7 @@ export component App inherits Window {
                         width: max(parent.width - root.face-x - root.face-side - 148px, 48px);
                         text: root.sheet-code;
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -5385,10 +5353,10 @@ export component App inherits Window {
                         y: root.toggle-y + 44px;
                         width: max(parent.width - 2 * root.side-gap, 80px);
                         height: root.form-h;
-                        background: #1c1916;
+                        background: DesktopTheme.surface;
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         sheet := Flickable {
                             width: 100%;
                             height: 100%;
@@ -5418,7 +5386,7 @@ export component App inherits Window {
                         text: root.sheet-title;
                         font-size: 16px;
                         font-weight: 600;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
@@ -5428,7 +5396,7 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap, 40px);
                         text: root.sheet-alt;
                         font-size: 13px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
@@ -5438,20 +5406,20 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap, 40px);
                         text: root.sheet-code;
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
-                    if root.viewing-item: Rectangle {
+                    if root.viewing-item && root.viewing != "": Rectangle {
                         x: root.side-gap;
                         y: root.item-form-y - 40px;
                         width: max(parent.width - 2 * root.side-gap, 40px);
                         height: 32px;
                         border-radius: 8px;
                         clip: true;
-                        background: #141210;
+                        background: DesktopTheme.inset;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         HorizontalLayout {
                             spacing: 1px;
                             PatchTab {
@@ -5472,10 +5440,10 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap, 80px);
                         height: root.item-form-h;
                         visible: root.record-sheet && !root.item-links;
-                        background: #1c1916;
+                        background: DesktopTheme.surface;
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         clip: true;
                         item-form := Flickable {
                             width: 100%;
@@ -5534,14 +5502,14 @@ export component App inherits Window {
                                     spacing: 8px;
                                     Rectangle {
                                         height: 1px;
-                                        background: #2a241e;
+                                        background: DesktopTheme.selected;
                                     }
                                     Text {
                                         width: parent.width;
                                         text: root.sheet-note;
                                         wrap: word-wrap;
                                         font-size: 13px;
-                                        color: #f3efe8;
+                                        color: DesktopTheme.text;
                                     }
                                 }
                             }
@@ -5570,7 +5538,7 @@ export component App inherits Window {
                         text: root.sheet-title;
                         font-size: 16px;
                         font-weight: 600;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
@@ -5580,7 +5548,7 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
                         text: root.sheet-alt;
                         font-size: 13px;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
@@ -5590,7 +5558,7 @@ export component App inherits Window {
                         width: max(parent.width - 2 * root.side-gap - (root.show-icon ? 56px : 0px), 40px);
                         text: root.sheet-code;
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         horizontal-alignment: center;
                         overflow: elide;
                     }
@@ -5606,7 +5574,7 @@ export component App inherits Window {
                             text: root.sheet-note;
                             wrap: word-wrap;
                             font-size: 13px;
-                            color: #f3efe8;
+                            color: DesktopTheme.text;
                         }
                     }
                     if root.quest-sheet && root.facts.length > 0: Text {
@@ -5614,17 +5582,17 @@ export component App inherits Window {
                         y: root.quest-ask-y;
                         text: root.lang == "en-zh" ? "Task" : "要求";
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     if root.quest-sheet && root.facts.length > 0: Rectangle {
                         x: root.side-gap;
                         y: root.quest-form-y;
                         width: max(parent.width - 2 * root.side-gap, 80px);
                         height: root.quest-form-h;
-                        background: #1c1916;
+                        background: DesktopTheme.surface;
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         quest-form := Flickable {
                             width: 100%;
                             height: 100%;
@@ -5662,17 +5630,17 @@ export component App inherits Window {
                         y: root.quest-reward-y;
                         text: root.lang == "en-zh" ? "Reward" : "獎勵";
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     if root.quest-has-reward: Rectangle {
                         x: root.side-gap;
                         y: root.quest-scalar-y;
                         width: max(parent.width - 2 * root.side-gap, 80px);
                         height: root.quest-scalar-h;
-                        background: #1c1916;
+                        background: DesktopTheme.surface;
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         reward-box := Flickable {
                             width: 100%;
                             height: 100%;
@@ -5705,14 +5673,14 @@ export component App inherits Window {
                         y: root.card-list-y - 22px;
                         text: (root.category == "hero" ? (root.lang == "en-zh" ? "Class line" : "轉職") : root.quest-sheet ? (root.lang == "en-zh" ? "Links" : "連結") : root.viewing-npc ? (root.lang == "en-zh" ? "Quests" : "任務") : root.recipe-sheet ? (root.lang == "en-zh" ? "Materials" : "材料") : (root.lang == "en-zh" ? "Dropped by" : "會掉落的怪物")) + "  " + root.links.length;
                         font-size: 12px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     if root.card-sheet && !root.quest-sheet && root.links.length == 0 && root.category != "hero" && (!root.viewing-item || root.item-links): Text {
                         x: root.side-gap;
                         y: root.card-list-y;
                         text: root.quest-sheet ? (root.lang == "en-zh" ? "No links" : "沒有連結") : root.viewing-npc ? (root.lang == "en-zh" ? "No quests" : "沒有任務") : root.recipe-sheet ? (root.lang == "en-zh" ? "No materials" : "沒有材料") : root.viewing-set ? (root.lang == "en-zh" ? "No pieces" : "沒有部件") : root.viewing-item ? (root.lang == "en-zh" ? "Nothing related" : "沒有相關") : (root.lang == "en-zh" ? "No monsters drop this" : "沒有怪物掉落");
                         font-size: 13px;
-                        color: #f3efe8;
+                        color: DesktopTheme.text;
                     }
                     if root.viewing != "" && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.viewing-no-image: NoImage {
                         x: 0px;
@@ -5723,7 +5691,7 @@ export component App inherits Window {
                     if root.viewing != "" && !root.viewing-hero && root.category != "patch" && !root.monster-sheet && !root.record-sheet && !root.quest-sheet: stats := Flickable {
                         x: 0px;
                         y: 120px;
-                        width: max(root.pane-w - 28px, 80px);
+                        width: max(root.pane-w - 2 * root.page-pad, 80px);
                         height: root.links.length > 0 ? 112px : max(root.height - foot - 200px, 80px);
                         content-width: self.width;
                         content-height: max(stats-text.preferred-height, 1px);
@@ -5732,7 +5700,7 @@ export component App inherits Window {
                             text: root.detail;
                             wrap: word-wrap;
                             font-size: 13px;
-                            color: #f3efe8;
+                            color: DesktopTheme.text;
                         }
                     }
                     if root.item-links && root.source-note != "": Text {
@@ -5744,17 +5712,17 @@ export component App inherits Window {
                         wrap: word-wrap;
                         overflow: elide;
                         font-size: 13px;
-                        color: #e6d7bc;
+                        color: DesktopTheme.soft;
                     }
                     if root.card-sheet && !root.quest-sheet && root.links.length > 0 && (!root.viewing-item || root.item-links): Rectangle {
                         x: root.side-gap;
                         y: root.card-list-y;
                         width: max(parent.width - 2 * root.side-gap, 40px);
                         height: root.card-list-h;
-                        background: #1c1916;
+                        background: DesktopTheme.surface;
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         item-drops := Flickable {
                             width: 100%;
                             height: 100%;
@@ -5807,7 +5775,7 @@ export component App inherits Window {
                     if root.viewing != "" && !root.record-sheet && !root.quest-sheet && root.category != "patch" && root.links.length > 0 && (!root.monster-sheet || (root.drops-open && !root.full-mode)) && !root.related-open: drops := Flickable {
                         x: root.monster-sheet ? root.side-gap : 0px;
                         y: root.monster-sheet ? root.drops-list-y : (root.viewing-hero ? 124px : 240px);
-                        width: root.monster-sheet ? max(parent.width - 2 * root.side-gap, 40px) : max(root.pane-w - 28px, 40px);
+                        width: root.monster-sheet ? max(parent.width - 2 * root.side-gap, 40px) : max(root.pane-w - 2 * root.page-pad, 40px);
                         height: root.monster-sheet ? root.drops-list-h : (root.viewing-hero ? max(root.height - foot - 136px, 180px) : max(root.height - foot - 310px, 120px));
                         content-width: self.width;
                         content-height: max(root.links.length * 36px, 1px);
@@ -5820,7 +5788,7 @@ export component App inherits Window {
                             selected: root.cursor == i;
                             hit: row;
                             no-image-label: root.no-image-label;
-                            title-color: #d4b483;
+                            title-color: DesktopTheme.accent;
                             clicked => {
                                 if (row.chip == "section") {
                                     root.cursor = i;
@@ -5874,14 +5842,14 @@ export component App inherits Window {
                         }
                     }
                     if root.category == "patch" && root.viewing != "": Rectangle {
-                        x: 14px;
+                        x: root.page-pad;
                         y: 54px;
-                        width: max(root.pane-w - 28px, 40px);
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: max(parent.height - 70px, 80px);
-                        background: #1c1916;
+                        background: DesktopTheme.surface;
                         border-radius: 10px;
                         border-width: 1px;
-                        border-color: #3a342c;
+                        border-color: DesktopTheme.border;
                         note := TextEdit {
                             x: 16px;
                             y: 14px;
@@ -5908,7 +5876,7 @@ export component App inherits Window {
                     height: 100%;
                     text: (root.lang == "en-zh" ? "Client  " : "對應版本  ") + root.client-version;
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                     horizontal-alignment: center;
                     vertical-alignment: center;
                 }
@@ -5922,7 +5890,7 @@ export component App inherits Window {
             y: 42px;
             width: root.full-mode ? root.pane-w : parent.width;
             height: parent.height - 42px - root.foot;
-            background: #141210;
+            background: DesktopTheme.inset;
             if !root.full-mode: WinButton {
                 x: 14px;
                 y: 14px;
@@ -5935,7 +5903,7 @@ export component App inherits Window {
                 text: root.lang == "en-zh" ? "Settings" : "設定";
                 font-size: 16px;
                 font-weight: 600;
-                color: #f3efe8;
+                color: DesktopTheme.text;
             }
             if root.full-mode: Text {
                 x: 24px;
@@ -5943,18 +5911,18 @@ export component App inherits Window {
                 text: root.lang == "en-zh" ? "Settings" : "設定";
                 font-size: 18px;
                 font-weight: 600;
-                color: #f3efe8;
+                color: DesktopTheme.text;
             }
             Rectangle {
                 x: 16px;
                 y: 52px;
-                width: min(parent.width - 32px, 300px);
+                width: min(parent.width - 32px, root.full-mode ? 640px : 300px);
                 height: 32px;
                 border-radius: 8px;
                 clip: true;
-                background: #141210;
+                background: DesktopTheme.inset;
                 border-width: 1px;
-                border-color: #3a342c;
+                border-color: DesktopTheme.border;
                 HorizontalLayout {
                     spacing: 1px;
                     PatchTab {
@@ -5985,14 +5953,14 @@ export component App inherits Window {
             if root.settings-tab == 1: VerticalLayout {
                 x: 16px;
                 y: 96px;
-                width: min(parent.width - 32px, 300px);
+                width: min(parent.width - 32px, root.full-mode ? 640px : 300px);
                 height: parent.height - 112px;
                 spacing: 8px;
                 alignment: start;
                 Text {
                     text: root.lang == "en-zh" ? "Direction" : "方向";
                     font-size: 12px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.full-mode: ChoiceBar {
                     first: root.lang == "en-zh" ? "Row" : "橫向";
@@ -6029,7 +5997,7 @@ export component App inherits Window {
                 Text {
                     text: root.lang == "en-zh" ? "Drag a row to change the order." : "按住一列拖曳，就能調整順序。";
                     font-size: 13px;
-                    color: #8a8076;
+                    color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
                 order-list := Rectangle {
@@ -6088,7 +6056,7 @@ export component App inherits Window {
                 content-width: settings-body.width;
                 content-height: settings-body.height;
                 settings-body := Rectangle {
-                    width: root.full-mode ? min(parent.width - 32px, 300px) : parent.width;
+                    width: root.full-mode ? min(parent.width - 16px, 688px) : parent.width;
                     height: inner.preferred-height;
                     inner := VerticalLayout {
                 width: parent.width;
@@ -6103,13 +6071,13 @@ export component App inherits Window {
                         Text {
                             text: root.lang == "en-zh" ? "Opacity" : "透明度";
                             font-size: 13px;
-                            color: #f3efe8;
+                            color: DesktopTheme.text;
                             vertical-alignment: center;
                         }
                         Text {
                             text: root.opacity-percent + "%";
                             font-size: 13px;
-                            color: #d4b483;
+                            color: DesktopTheme.accent;
                             vertical-alignment: center;
                         }
                     }
@@ -6123,7 +6091,7 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "Stay on top" : "置頂";
                         font-size: 13px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     ChoiceBar {
                         first: root.lang == "en-zh" ? "Follow" : "跟隨";
@@ -6135,7 +6103,7 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "Follow keeps only the small window above other programs." : "跟隨時，只有小窗會留在其他程式前面。";
                         font-size: 12px;
-                        color: #8a8076;
+                        color: DesktopTheme.muted;
                         wrap: word-wrap;
                     }
                 }
@@ -6144,7 +6112,7 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "Picture" : "圖片";
                         font-size: 13px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     ChoiceBar {
                         first: root.lang == "en-zh" ? "Face" : "頭像";
@@ -6155,7 +6123,7 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "Battle motion" : "戰鬥動畫";
                         font-size: 13px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     ChoiceBar {
                         first: root.lang == "en-zh" ? "Play" : "播放";
@@ -6166,7 +6134,7 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "Small window" : "小窗排列";
                         font-size: 13px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                     }
                     ChoiceBar {
                         first: root.lang == "en-zh" ? "List" : "清單";
@@ -6177,7 +6145,7 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "List and gallery only change the small window." : "清單和圖鑑只影響小窗。";
                         font-size: 12px;
-                        color: #8a8076;
+                        color: DesktopTheme.muted;
                         wrap: word-wrap;
                     }
                 }
@@ -6217,7 +6185,7 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "Extras are the timed and event copies." : "期限和活動版可以一起隱藏。";
                         font-size: 12px;
-                        color: #8a8076;
+                        color: DesktopTheme.muted;
                         wrap: word-wrap;
                     }
                 }
@@ -6226,14 +6194,14 @@ export component App inherits Window {
                     Text {
                         text: root.lang == "en-zh" ? "Opacity" : "透明度";
                         font-size: 11px;
-                        color: #a3988c;
+                        color: DesktopTheme.secondary;
                         vertical-alignment: center;
                     }
                     Text {
                         text: root.opacity-percent + "%";
                         font-size: 12px;
                         font-weight: 600;
-                        color: #d4b483;
+                        color: DesktopTheme.accent;
                         vertical-alignment: center;
                     }
                 }
@@ -6247,7 +6215,7 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Name order" : "名稱順序";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
@@ -6265,12 +6233,12 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Icon size" : "圖示大小";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Set pieces" : "套裝部件";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
@@ -6319,7 +6287,7 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Stay on top" : "置頂";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
@@ -6348,7 +6316,7 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Monster picture" : "怪物圖";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
@@ -6366,7 +6334,7 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Battle motion" : "戰鬥動畫";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
@@ -6384,7 +6352,7 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Monster layout" : "小窗排列";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
@@ -6402,7 +6370,7 @@ export component App inherits Window {
                 if root.settings-tab == 2: Text {
                     text: root.lang == "en-zh" ? "Search aliases" : "搜尋別名";
                     font-size: 11px;
-                    color: #a3988c;
+                    color: DesktopTheme.secondary;
                 }
                 if root.settings-tab == 2: Text {
                     text: root.lang == "en-zh" ? "One line per alias. Edit a row to search and add items." : "一行一個別名。點該列的編輯，再用右邊搜尋加入道具。";
@@ -6453,7 +6421,7 @@ export component App inherits Window {
                 if root.settings-tab == 2 && root.alias-rows.length == 0 && root.alias-edit < 0: Text {
                     text: root.lang == "en-zh" ? "No aliases yet." : "還沒有別名。";
                     font-size: 12px;
-                    color: #8a8076;
+                    color: DesktopTheme.muted;
                 }
                 if root.settings-tab == 2: HorizontalLayout {
                     spacing: 8px;
@@ -6466,7 +6434,7 @@ export component App inherits Window {
                 if root.settings-tab == 3: Text {
                     text: root.lang == "en-zh" ? "Global keys" : "全域快捷鍵";
                     font-size: 13px;
-                    color: #f3efe8;
+                    color: DesktopTheme.text;
                 }
                 if root.settings-tab == 3 && root.full-mode: ChoiceBar {
                     first: root.lang == "en-zh" ? "On" : "開啟";
@@ -6490,7 +6458,7 @@ export component App inherits Window {
                 if root.settings-tab == 3: Text {
                     text: root.lang == "en-zh" ? "Off gives F1–F9 back to the game. Keys inside this window stay the same." : "關閉後，F1–F9 還給遊戲。這個視窗裡的按鍵不變。";
                     font-size: 12px;
-                    color: #8a8076;
+                    color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
                 if root.settings-tab == 3: KeyLine {
@@ -6544,7 +6512,7 @@ export component App inherits Window {
                 if root.settings-tab == 3: Text {
                     text: root.lang == "en-zh" ? "While this window is open, F1–F9 open the bar." : "視窗開著時，F1–F9 用來開浮動列。";
                     font-size: 11px;
-                    color: #8a8076;
+                    color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
                 }
