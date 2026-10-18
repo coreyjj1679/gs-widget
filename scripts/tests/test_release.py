@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import urllib.error
 import zipfile
+from contextlib import closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -39,10 +40,11 @@ class PackagingTests(unittest.TestCase):
         (self.root / "data/client/Assets").mkdir(parents=True)
         (self.root / "data/client/Assets/example.agf").write_bytes(b"asset")
         (self.root / "data/client-version.txt").write_text("V3.4220\n")
-        with sqlite3.connect(self.root / "data/gersang.db") as db:
-            for name in ("items", "monsters"):
-                db.execute(f"CREATE TABLE {name}(id)")
-                db.execute(f"INSERT INTO {name} VALUES (1)")
+        with closing(sqlite3.connect(self.root / "data/gersang.db")) as db:
+            with db:
+                for name in ("items", "monsters"):
+                    db.execute(f"CREATE TABLE {name}(id)")
+                    db.execute(f"INSERT INTO {name} VALUES (1)")
         self.binary = self.root / "gersang-widget.exe"
         self.binary.write_bytes(pe_fixture())
 
@@ -68,8 +70,9 @@ class PackagingTests(unittest.TestCase):
             package(self.root, self.binary, self.root / "dist")
 
     def test_missing_catalog_records_block_packaging(self):
-        with sqlite3.connect(self.root / "data/gersang.db") as db:
-            db.execute("DELETE FROM monsters")
+        with closing(sqlite3.connect(self.root / "data/gersang.db")) as db:
+            with db:
+                db.execute("DELETE FROM monsters")
         with self.assertRaisesRegex(ValueError, "no monsters"):
             package(self.root, self.binary, self.root / "dist")
 

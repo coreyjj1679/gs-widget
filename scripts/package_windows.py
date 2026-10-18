@@ -8,6 +8,7 @@ import struct
 import sys
 import tomllib
 import zipfile
+from contextlib import closing
 from pathlib import Path
 
 TARGET = "x86_64-pc-windows-msvc"
@@ -97,7 +98,7 @@ def package(root: Path, binary: Path, output: Path, expected_tag: str = "") -> P
     for file, _ in source_files:
         if not file.is_file() or file.is_symlink() or file.stat().st_size == 0:
             raise ValueError(f"Missing, empty or symlinked release file: {file}")
-    with sqlite3.connect((root / "data/gersang.db").resolve().as_uri() + "?mode=ro", uri=True) as db:
+    with closing(sqlite3.connect((root / "data/gersang.db").resolve().as_uri() + "?mode=ro", uri=True)) as db:
         if db.execute("PRAGMA quick_check").fetchone() != ("ok",):
             raise ValueError("Catalog failed SQLite integrity check")
         for table in ("items", "monsters"):

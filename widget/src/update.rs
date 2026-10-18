@@ -43,7 +43,24 @@ pub struct PreparedUpdate {
     directory: PathBuf,
     launched: std::sync::atomic::AtomicBool,
     #[cfg(windows)]
-    _lock: File,
+    _lock: InstallationGuard,
+}
+
+/// An acquired Windows file-range lock. Explicit unlocking makes handoff to
+/// another app/helper immediate instead of relying on deferred handle cleanup.
+#[derive(Debug)]
+pub struct InstallationGuard {
+    #[cfg(windows)]
+    file: File,
+    #[cfg(windows)]
+    extended: bool,
+}
+
+#[cfg(windows)]
+impl Drop for InstallationGuard {
+    fn drop(&mut self) {
+        windows::unlock(&self.file, self.extended);
+    }
 }
 
 impl Drop for PreparedUpdate {
@@ -98,7 +115,7 @@ pub fn supported() -> bool {
 
 /// Hold for the GUI lifetime. Multiple app copies may read the installation;
 /// the helper needs an exclusive lock after every copy has closed.
-pub fn running_guard() -> Result<Option<File>, String> {
+pub fn running_guard() -> Result<Option<InstallationGuard>, String> {
     #[cfg(windows)]
     {
         if !supported() {
@@ -1090,6 +1107,20 @@ mod windows {
             length_high: u32,
             overlapped: *mut Overlapped,
         ) -> i32;
+        fn UnlockFile(
+            file: Handle,
+            offset_low: u32,
+            offset_high: u32,
+            length_low: u32,
+            length_high: u32,
+        ) -> i32;
+        fn UnlockFileEx(
+            file: Handle,
+            reserved: u32,
+            length_low: u32,
+            length_high: u32,
+            overlapped: *mut Overlapped,
+        ) -> i32;
     }
     #[link(name = "user32")]
     extern "system" {
@@ -1131,7 +1162,9 @@ mod windows {
             }
         }
     }
-    pub fn installation_lock(install: &std::path::Path) -> Result<std::fs::File, String> {
+    pub fn installation_lock(
+        install: &std::path::Path,
+    ) -> Result<super::InstallationGuard, String> {
         use std::os::windows::io::AsRawHandle;
         let file = std::fs::OpenOptions::new()
             .read(true)
@@ -1143,14 +1176,18 @@ mod windows {
         if unsafe { LockFile(file.as_raw_handle(), 0, 0, 1, 0) } == 0 {
             return Err("Another update is already in progress for this application folder".into());
         }
-        // Windows releases the byte-range lock when this file handle closes,
-        // including after a crash. Keep the file itself to avoid inode races.
-        Ok(file)
+        // Construct only after successful acquisition, so Drop never unlocks
+        // another handle's lock after a failed attempt. Keep the file itself
+        // to avoid inode races; the OS remains the fallback after a crash.
+        Ok(super::InstallationGuard {
+            file,
+            extended: false,
+        })
     }
     pub fn running_lock(
         install: &std::path::Path,
         exclusive: bool,
-    ) -> Result<std::fs::File, String> {
+    ) -> Result<super::InstallationGuard, String> {
         use std::os::windows::io::AsRawHandle;
         let path = install.join(".gs-widget-running.lock");
         let file = std::fs::OpenOptions::new()
@@ -1177,7 +1214,31 @@ mod windows {
                 "This application folder is being updated. Wait for the update to finish, then open it again".into()
             });
         }
-        Ok(file)
+        Ok(super::InstallationGuard {
+            file,
+            extended: true,
+        })
+    }
+    pub fn unlock(file: &std::fs::File, extended: bool) {
+        use std::os::windows::io::AsRawHandle;
+        if extended {
+            let mut overlapped = Overlapped {
+                internal: 0,
+                internal_high: 0,
+                offset: 0,
+                offset_high: 0,
+                event: std::ptr::null_mut(),
+            };
+            // Drop must not panic/report errors. Closing the handle after this
+            // call still provides the OS fallback if explicit unlock fails.
+            unsafe {
+                UnlockFileEx(file.as_raw_handle(), 0, 1, 0, &mut overlapped);
+            }
+        } else {
+            unsafe {
+                UnlockFile(file.as_raw_handle(), 0, 0, 1, 0);
+            }
+        }
     }
     pub fn show_error(error: &str) {
         let text: Vec<u16> = format!("更新未完成 / Update could not finish\n\n{error}\0")
@@ -1204,6 +1265,42 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_application_locks_handoff_between_shared_and_exclusive_handles() {
+        let root = TestDirectory::new();
+        let first = windows::running_lock(&root.0, false).unwrap();
+        let second = windows::running_lock(&root.0, false).unwrap();
+        assert!(windows::running_lock(&root.0, true).is_err());
+        drop(first);
+        assert!(windows::running_lock(&root.0, true).is_err());
+        drop(second);
+
+        let updater = windows::running_lock(&root.0, true).unwrap();
+        assert!(windows::running_lock(&root.0, false).is_err());
+        assert!(windows::running_lock(&root.0, true).is_err());
+        drop(updater);
+        let restarted_app = windows::running_lock(&root.0, false).unwrap();
+        drop(restarted_app);
+        let next_update = windows::running_lock(&root.0, true).unwrap();
+        drop(next_update);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_update_lock_excludes_another_handle_then_releases_immediately() {
+        let root = TestDirectory::new();
+        let downloading = windows::installation_lock(&root.0).unwrap();
+        assert!(windows::installation_lock(&root.0).is_err());
+        // A failed acquisition must not unlock the still-active first guard.
+        assert!(windows::installation_lock(&root.0).is_err());
+        drop(downloading);
+        let helper = windows::installation_lock(&root.0).unwrap();
+        assert!(windows::installation_lock(&root.0).is_err());
+        drop(helper);
+        assert!(windows::installation_lock(&root.0).is_ok());
     }
 
     fn metadata(version: &str, digest: serde_json::Value) -> Vec<u8> {
