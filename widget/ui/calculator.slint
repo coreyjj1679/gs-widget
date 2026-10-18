@@ -1,0 +1,695 @@
+import { Button, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
+import { DesktopTheme, DesktopIcon } from "desktop.slint";
+import { CalculatorLibrary, CalcSaved } from "calculator-library.slint";
+export { CalcSaved }
+
+export struct CalcChoice {
+    id: string,
+    title: string,
+    subtitle: string,
+    icon: image,
+    has-icon: bool,
+}
+
+export struct CalcMaterial {
+    key: string,
+    title: string,
+    subtitle: string,
+    quantity: string,
+    price: string,
+    subtotal: string,
+    missing-price: bool,
+    icon: image,
+    has-icon: bool,
+}
+
+component CalcArt inherits Rectangle {
+    in property <image> icon;
+    in property <bool> has-icon;
+    width: 32px;
+    height: 32px;
+    if root.has-icon: Image {
+        width: 100%; height: 100%;
+        source: root.icon;
+        image-fit: contain;
+    }
+    if !root.has-icon: DesktopIcon {
+        x: 7px; y: 7px; width: 18px; height: 18px;
+        path: "M4 7 L12 3 L20 7 L20 17 L12 21 L4 17 Z M4 7 L12 11 L20 7 M12 11 L12 21";
+        ink: DesktopTheme.muted;
+    }
+}
+
+// Update valid values synchronously so Save and share actions cannot use stale input.
+// Keep the raw text while editing; Enter or blur applies the formatted model value.
+component CalcNumber inherits LineEdit {
+    in property <string> value;
+    in property <string> label;
+    property <bool> dirty: false;
+    callback commit(string);
+    text: root.value;
+    height: 34px;
+    min-width: 0px;
+    horizontal-alignment: right;
+    accessible-label: root.label;
+    changed value => {
+        if (!root.dirty) { self.text = root.value; }
+    }
+    edited => { root.dirty = true; root.commit(self.text); }
+    accepted => {
+        if (root.dirty) {
+            root.dirty = false;
+            root.commit(self.text);
+            self.text = root.value;
+        }
+    }
+    changed has-focus => {
+        if (!self.has-focus && root.dirty) {
+            root.dirty = false;
+            root.commit(self.text);
+            self.text = root.value;
+        }
+    }
+}
+
+component CalcItemPicker inherits Rectangle {
+    in property <bool> english;
+    in property <string> selected-name;
+    in property <image> selected-icon;
+    in property <bool> selected-has-icon;
+    in property <[CalcChoice]> options;
+    property <string> query;
+    property <int> option-index: 0;
+    property <length> scroll-y: 0px;
+    property <bool> open: popup.is-open;
+    callback request(string);
+    callback choose(string);
+    height: 42px;
+    min-width: 0px;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: root.open || focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    background: DesktopTheme.control;
+    forward-focus: focus;
+    accessible-role: combobox;
+    accessible-label: (root.english ? "Craftable item: " : "合成道具：") + (root.selected-name == "" ? (root.english ? "Choose an item" : "尚未選擇") : root.selected-name);
+    accessible-value: root.selected-name;
+    accessible-expandable: true;
+    accessible-expanded: root.open;
+    accessible-action-default => { root.show-options(); }
+    accessible-action-expand => { root.show-options(); }
+    function show-options() {
+        root.query = "";
+        root.option-index = 0;
+        root.request("");
+        root.scroll-y = 0px;
+        popup.show();
+    }
+    function choose-current() {
+        if (root.option-index >= 0 && root.option-index < root.options.length) {
+            root.choose(root.options[root.option-index].id);
+            popup.close();
+            focus.focus();
+        }
+    }
+    if root.selected-name != "": CalcArt {
+        x: 7px; y: 5px;
+        icon: root.selected-icon; has-icon: root.selected-has-icon;
+    }
+    Text {
+        x: root.selected-name == "" ? 12px : 47px;
+        y: 0px; width: parent.width - self.x - 36px; height: 100%;
+        text: root.selected-name == "" ? (root.english ? "Search for a craftable item…" : "搜尋可合成的道具…") : root.selected-name;
+        color: root.selected-name == "" ? DesktopTheme.secondary : DesktopTheme.text;
+        font-size: 14px;
+        overflow: elide; vertical-alignment: center;
+    }
+    DesktopIcon {
+        x: parent.width - 27px; y: 13px; width: 16px; height: 16px;
+        path: root.open ? "M6 15 L12 9 L18 15" : "M6 9 L12 15 L18 9";
+        ink: DesktopTheme.secondary;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.show-options(); }
+    }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow) {
+                root.show-options(); return accept;
+            }
+            return reject;
+        }
+    }
+    popup := PopupWindow {
+        x: 0px; y: root.height + 4px;
+        width: root.width;
+        height: 64px + min(max(root.options.length, 1), 6) * 52px;
+        close-policy: close-on-click-outside;
+        forward-focus: query-input;
+        Rectangle {
+            background: DesktopTheme.surface-alt;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: DesktopTheme.border;
+            query-input := LineEdit {
+                x: 8px; y: 8px; width: parent.width - 16px; height: 34px;
+                text <=> root.query;
+                placeholder-text: root.english ? "Type an item name…" : "輸入道具名稱…";
+                accessible-label: root.english ? "Search craftable items" : "搜尋可合成道具";
+                edited => {
+                    root.option-index = 0;
+                    options-scroll.content-y = 0px;
+                    root.request(self.text);
+                }
+                accepted => { root.choose-current(); }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape) { popup.close(); focus.focus(); return accept; }
+                    if (event.text == Key.DownArrow || event.text == Key.UpArrow) {
+                        root.option-index = max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
+                        if (root.option-index * 52px < -options-scroll.content-y) {
+                            options-scroll.content-y = -root.option-index * 52px;
+                        } else if ((root.option-index + 1) * 52px > -options-scroll.content-y + options-scroll.height) {
+                            options-scroll.content-y = options-scroll.height - (root.option-index + 1) * 52px;
+                        }
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+            options-scroll := Flickable {
+                x: 4px; y: 50px; width: parent.width - 8px; height: parent.height - 58px;
+                content-width: self.width;
+                content-y <=> root.scroll-y;
+                content-height: max(root.options.length * 52px, self.height);
+                for option[i] in root.options: Rectangle {
+                    x: 0px; y: i * 52px; width: parent.width; height: 52px;
+                    border-radius: 4px;
+                    background: touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
+                    accessible-role: button;
+                    accessible-label: option.title;
+                    accessible-description: option.subtitle;
+                    accessible-item-selectable: true;
+                    accessible-item-selected: root.option-index == i;
+                    accessible-action-default => { root.choose(option.id); popup.close(); focus.focus(); }
+                    CalcArt { x: 8px; y: 10px; icon: option.icon; has-icon: option.has-icon; }
+                    Text {
+                        x: 50px; y: 6px; width: parent.width - 60px; height: 22px;
+                        text: option.title; font-size: 14px; color: DesktopTheme.text;
+                        overflow: elide; vertical-alignment: center;
+                    }
+                    Text {
+                        x: 50px; y: 29px; width: parent.width - 60px; height: 17px;
+                        text: option.subtitle; font-size: 12px; color: DesktopTheme.secondary;
+                        overflow: elide; vertical-alignment: center;
+                    }
+                    touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.choose(option.id); popup.close(); focus.focus(); }
+                    }
+                }
+                if root.options.length == 0: Text {
+                    x: 12px; width: parent.width - 24px; height: 52px;
+                    text: root.english ? "No craftable items found. Try another name." : "找不到可合成道具，請換個名稱搜尋。";
+                    font-size: 13px; color: DesktopTheme.secondary;
+                    vertical-alignment: center; wrap: word-wrap;
+                }
+            }
+        }
+    }
+}
+
+export component CalculatorPane inherits Rectangle {
+    in property <bool> english;
+    in property <string> selected-name;
+    in property <image> selected-icon;
+    in property <bool> selected-has-icon;
+    in property <string> selected-meta;
+    in property <[CalcChoice]> candidates;
+    in property <[string]> recipes;
+    in-out property <int> recipe-index;
+    in property <string> quantity;
+    in property <[CalcMaterial]> materials;
+    in property <string> material-total;
+    in property <string> fee;
+    in property <string> total;
+    in property <string> unit-total;
+    in property <string> status;
+    in property <string> notice;
+    in property <string> error;
+    in property <string> info;
+    in property <bool> complete;
+    in property <bool> compact-total;
+    in property <bool> share-enabled;
+    in property <bool> input-valid: true;
+    in-out property <bool> library-open;
+    in property <[string]> folders;
+    in-out property <int> folder-index;
+    in property <[CalcSaved]> saved;
+    in property <int> saved-count;
+    in property <string> active-saved-name;
+    in property <string> save-state;
+    in property <string> library-error;
+    callback save-sheet(string, int, bool);
+    callback select-folder(int);
+    callback new-folder(string);
+    callback rename-folder(string);
+    callback delete-folder();
+    callback open-saved(string);
+    callback delete-saved(string);
+    callback move-saved(string, int);
+    callback export-folder();
+    callback search-query(string);
+    callback select-item(string);
+    callback select-recipe(int);
+    callback quantity-changed(string);
+    callback price-changed(string, string);
+    callback export-card();
+    callback copy-code();
+    callback import-code(string);
+    callback close();
+    property <bool> saving: false;
+    property <string> save-name;
+    property <length> editor-scroll-y: 0px;
+    property <bool> importing: false;
+    property <string> import-text;
+    property <length> cost-width: root.width < 820px ? 114px : 150px;
+    property <length> quantity-width: root.width < 820px ? 62px : 84px;
+    background: DesktopTheme.canvas;
+
+    VerticalLayout {
+        spacing: 16px;
+        HorizontalLayout {
+            spacing: 16px;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 6px;
+                Text {
+                    text: root.library-open ? (root.english ? "My saved sheets" : "我的收藏") : (root.english ? "Crafting cost" : "合成成本");
+                    font-size: 21px; font-weight: 600; color: DesktopTheme.text;
+                }
+                Text {
+                    text: root.library-open ? (root.english ? "Keep your cost lists in folders and share them together." : "以資料夾整理合成表，整個資料夾一起分享。") : (root.english ? "Choose an item and enter material prices to calculate its cost." : "選擇道具，填入材料單價，即可計算合成成本。");
+                    font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
+                }
+                if !root.library-open && root.save-state != "": Text {
+                    text: root.save-state;
+                    font-size: 12px; color: DesktopTheme.accent; wrap: word-wrap;
+                }
+            }
+            if !root.library-open: Button {
+                text: root.english ? "Save" : "儲存";
+                height: 32px; min-width: 64px;
+                enabled: root.share-enabled && root.library-error == "" && root.input-valid;
+                clicked => {
+                    root.saving = !root.saving;
+                    root.importing = false;
+                    root.editor-scroll-y = 0px;
+                    root.save-name = root.active-saved-name != "" ? root.active-saved-name : root.selected-name;
+                }
+            }
+            Button {
+                text: root.library-open ? (root.english ? "Continue calculating" : "繼續計算") : (root.english ? "Saved (" + root.saved-count + ")" : "我的收藏（" + root.saved-count + "）");
+                height: 32px;
+                clicked => { root.library-open = !root.library-open; root.saving = false; }
+            }
+            Button {
+                text: root.english ? "Back" : "返回";
+                height: 32px; min-width: 64px;
+                clicked => { root.close(); }
+            }
+        }
+        if root.error != "": Text {
+            text: root.error; color: #f0b5ad; font-size: 13px; wrap: word-wrap;
+            accessible-role: text;
+        }
+        if root.library-open: CalculatorLibrary {
+            vertical-stretch: 1;
+            english: root.english;
+            folders: root.folders;
+            folder-index <=> root.folder-index;
+            saved: root.saved;
+            library-error: root.library-error;
+            error: root.error;
+            select-folder(index) => { root.select-folder(index); }
+            new-folder(name) => { root.new-folder(name); }
+            rename-folder(name) => { root.rename-folder(name); }
+            delete-folder => { root.delete-folder(); }
+            open-saved(id) => { root.open-saved(id); }
+            delete-saved(id) => { root.delete-saved(id); }
+            move-saved(id, index) => { root.move-saved(id, index); }
+            export-folder => { root.export-folder(); }
+            import-code(code) => { root.import-code(code); }
+        }
+        if !root.library-open: VerticalLayout {
+            vertical-stretch: 1;
+            spacing: 12px;
+        if root.library-error != "": Text {
+            text: root.library-error; color: #f0b5ad; font-size: 13px; wrap: word-wrap;
+        }
+        content-scroll := ScrollView {
+            content-y <=> root.editor-scroll-y;
+            vertical-stretch: 1;
+            content-width: self.width;
+            content-height: content.preferred-height;
+            horizontal-scrollbar-policy: always-off;
+            content := VerticalLayout {
+                width: content-scroll.width - 12px;
+                spacing: 18px;
+                if root.saving: Rectangle {
+                    height: 108px;
+                    border-radius: 6px;
+                    background: DesktopTheme.surface;
+                    VerticalLayout {
+                        padding: 10px; spacing: 8px;
+                        HorizontalLayout {
+                            spacing: 12px;
+                            VerticalLayout {
+                                horizontal-stretch: 1; min-width: 0px; spacing: 5px;
+                                Text { text: root.english ? "Saved sheet name" : "合成表名稱"; font-size: 12px; color: DesktopTheme.secondary; }
+                                LineEdit {
+                                    text <=> root.save-name;
+                                    min-width: 0px;
+                                    accessible-label: root.english ? "Saved sheet name" : "合成表名稱";
+                                }
+                            }
+                            VerticalLayout {
+                                width: root.width < 820px ? 210px : 260px; spacing: 5px;
+                                Text { text: root.english ? "Folder" : "資料夾"; font-size: 12px; color: DesktopTheme.secondary; }
+                                ComboBox {
+                                    model: root.folders;
+                                    current-index <=> root.folder-index;
+                                    min-width: 0px;
+                                    accessible-label: root.english ? "Save to folder" : "儲存至資料夾";
+                                    selected(value) => { root.select-folder(self.current-index); }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: root.active-saved-name == "" ? (root.english ? "Save sheet" : "儲存合成表") : (root.english ? "Save changes" : "儲存變更");
+                                enabled: root.save-name != "" && root.folders.length > 0 && root.library-error == "" && root.input-valid;
+                                clicked => {
+                                    root.save-sheet(root.save-name, root.folder-index, false);
+                                    if (root.error == "") { root.saving = false; }
+                                }
+                            }
+                            if root.active-saved-name != "": Button {
+                                text: root.english ? "Save a copy" : "另存一份";
+                                enabled: root.save-name != "" && root.folders.length > 0 && root.library-error == "" && root.input-valid;
+                                clicked => {
+                                    root.save-sheet(root.save-name, root.folder-index, true);
+                                    if (root.error == "") { root.saving = false; }
+                                }
+                            }
+                            Button { text: root.english ? "Cancel" : "取消"; clicked => { root.saving = false; } }
+                            Rectangle { horizontal-stretch: 1; }
+                            Text {
+                                text: root.english ? "Includes quantity and prices" : "連同數量與單價儲存";
+                                color: DesktopTheme.secondary; font-size: 12px; vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 18px;
+                    VerticalLayout {
+                        horizontal-stretch: 1; min-width: 0px;
+                        spacing: 7px;
+                        Text {
+                            text: root.english ? "Item to craft" : "合成道具";
+                            color: DesktopTheme.secondary; font-size: 12px;
+                        }
+                        CalcItemPicker {
+                            english: root.english;
+                            selected-name: root.selected-name;
+                            selected-icon: root.selected-icon;
+                            selected-has-icon: root.selected-has-icon;
+                            options: root.candidates;
+                            request(query) => { root.search-query(query); }
+                            choose(id) => { root.select-item(id); }
+                        }
+                    }
+                    VerticalLayout {
+                        width: 110px; spacing: 7px;
+                        Text {
+                            text: root.english ? "Output quantity" : "製作數量";
+                            color: DesktopTheme.secondary; font-size: 12px;
+                        }
+                        CalcNumber {
+                            height: 42px;
+                            value: root.quantity;
+                            label: root.english ? "Quantity to craft" : "製作數量";
+                            enabled: root.selected-name != "";
+                            commit(value) => { root.quantity-changed(value); }
+                        }
+                    }
+                }
+                if root.selected-name != "": VerticalLayout {
+                    spacing: 8px;
+                    if root.recipes.length > 1: HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: root.english ? "Recipe" : "合成配方";
+                            font-size: 12px; color: DesktopTheme.secondary;
+                            vertical-alignment: center;
+                        }
+                        ComboBox {
+                            model: root.recipes;
+                            current-index <=> root.recipe-index;
+                            min-width: 0px;
+                            accessible-label: root.english ? "Choose recipe" : "選擇合成配方";
+                            selected(value) => { root.select-recipe(self.current-index); }
+                        }
+                    }
+                    if root.selected-meta != "": Text {
+                        text: root.selected-meta;
+                        font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                    }
+                }
+                if root.selected-name == "": Rectangle {
+                    height: 200px;
+                    VerticalLayout {
+                        padding-top: 48px;
+                        padding-bottom: 48px;
+                        spacing: 10px;
+                        alignment: center;
+                        Text {
+                            text: root.english ? "Start with the item you want to craft" : "從想合成的道具開始";
+                            color: DesktopTheme.text; font-size: 17px; font-weight: 600;
+                            horizontal-alignment: center; wrap: word-wrap;
+                        }
+                        Text {
+                            text: root.english ? "The list includes craftable items only.\nTheir materials and quantities will appear here." : "下拉選單只列出可合成道具。\n選擇後，這裡會列出所需材料與數量。";
+                            color: DesktopTheme.secondary; font-size: 13px;
+                            horizontal-alignment: center; wrap: word-wrap;
+                        }
+                    }
+                }
+                if root.selected-name != "": VerticalLayout {
+                    spacing: 0px;
+                    HorizontalLayout {
+                        height: 30px;
+                        spacing: 16px;
+                        padding-right: 4px;
+                        Text {
+                            horizontal-stretch: 1; min-width: 0px;
+                            text: root.english ? "Material" : "材料";
+                            color: DesktopTheme.secondary; font-size: 12px;
+                        }
+                        Text {
+                            width: root.quantity-width;
+                            text: root.english ? "Quantity" : "數量";
+                            color: DesktopTheme.secondary; font-size: 12px;
+                            horizontal-alignment: right;
+                        }
+                        Text {
+                            width: root.cost-width;
+                            text: root.english ? "Unit price" : "單價";
+                            color: DesktopTheme.secondary; font-size: 12px;
+                            horizontal-alignment: right;
+                        }
+                        Text {
+                            width: root.cost-width;
+                            text: root.english ? "Subtotal" : "小計";
+                            color: DesktopTheme.secondary; font-size: 12px;
+                            horizontal-alignment: right;
+                        }
+                    }
+                    Rectangle { height: 1px; background: DesktopTheme.border; }
+                    for material in root.materials: Rectangle {
+                        height: max(60px, material-row.preferred-height + 20px);
+                        material-row := HorizontalLayout {
+                            x: 0px; y: 10px; width: parent.width - 4px;
+                            height: self.preferred-height;
+                            spacing: 16px;
+                            HorizontalLayout {
+                                horizontal-stretch: 1; min-width: 0px; spacing: 10px;
+                                CalcArt { icon: material.icon; has-icon: material.has-icon; }
+                                VerticalLayout {
+                                    min-width: 0px; spacing: 4px;
+                                    Text {
+                                        text: material.title;
+                                        font-size: 14px; color: DesktopTheme.text;
+                                        wrap: word-wrap;
+                                    }
+                                    if material.subtitle != "": Text {
+                                        text: material.subtitle;
+                                        font-size: 12px; color: DesktopTheme.secondary;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
+                            Text {
+                                width: root.quantity-width;
+                                text: material.quantity;
+                                font-size: 14px; color: DesktopTheme.text;
+                                vertical-alignment: center; horizontal-alignment: right;
+                                wrap: word-wrap;
+                            }
+                            CalcNumber {
+                                width: root.cost-width;
+                                value: material.price;
+                                label: material.title + (root.english ? " unit price" : "單價");
+                                placeholder-text: root.english ? "Not entered" : "未輸入";
+                                commit(value) => { root.price-changed(material.key, value); }
+                            }
+                            Text {
+                                width: root.cost-width;
+                                text: material.subtotal;
+                                font-size: 14px;
+                                color: material.missing-price ? DesktopTheme.muted : DesktopTheme.text;
+                                vertical-alignment: center; horizontal-alignment: right;
+                                wrap: word-wrap;
+                            }
+                        }
+                        Rectangle {
+                            y: parent.height - 1px; width: 100%; height: 1px;
+                            background: DesktopTheme.border;
+                        }
+                    }
+                    if root.materials.length == 0: Text {
+                        text: root.english ? "This recipe has no listed material inputs." : "此配方沒有列出材料。";
+                        color: DesktopTheme.secondary; font-size: 13px;
+                    }
+                }
+                if root.notice != "": Text {
+                    text: root.notice;
+                    font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                }
+                Rectangle { height: 4px; }
+            }
+        }
+        if root.selected-name != "": HorizontalLayout {
+            spacing: 24px;
+            VerticalLayout {
+                horizontal-stretch: 1; min-width: 0px; spacing: 8px;
+                if root.status != "": Text {
+                    text: root.status;
+                    font-size: 13px; color: root.complete ? DesktopTheme.secondary : DesktopTheme.accent;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: root.english ? "Prices are per material unit.\nLeave blank if unknown; enter 0 for no cost." : "價格以每件材料為單位。\n未知可留空，免費材料請填 0。";
+                    font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                }
+            }
+            VerticalLayout {
+                width: root.width < 820px ? 294px : 340px;
+                spacing: 10px;
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.complete ? (root.english ? "Material cost" : "材料成本") : (root.english ? "Priced materials" : "已填材料成本");
+                        color: DesktopTheme.secondary; font-size: 13px;
+                    }
+                    Text { text: root.material-total; color: DesktopTheme.text; font-size: 13px; }
+                }
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.english ? "Crafting fee" : "合成費用";
+                        color: DesktopTheme.secondary; font-size: 13px;
+                    }
+                    Text { text: root.fee; color: DesktopTheme.text; font-size: 13px; }
+                }
+                Rectangle { height: 1px; background: DesktopTheme.border; }
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.complete ? (root.english ? "Total cost" : "成本合計") : (root.english ? "Known cost" : "已知成本");
+                        color: DesktopTheme.text; font-size: 15px; font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.total; color: DesktopTheme.accent;
+                        font-size: root.total.character-count > 17 ? 13px : 20px; font-weight: 600;
+                    }
+                }
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.english ? "Cost per item" : "每件成本";
+                        color: DesktopTheme.secondary; font-size: 12px;
+                    }
+                    Text { text: root.unit-total; color: DesktopTheme.secondary; font-size: 12px; }
+                }
+            }
+        }
+        Rectangle { height: 1px; background: DesktopTheme.border; }
+        HorizontalLayout {
+            spacing: 10px;
+            Button {
+                text: root.english ? "Export JPG" : "匯出 JPG";
+                enabled: root.share-enabled && root.input-valid;
+                height: 34px;
+                clicked => { root.export-card(); }
+            }
+            Button {
+                text: root.english ? "Copy share code" : "複製分享碼";
+                enabled: root.share-enabled && root.input-valid;
+                height: 34px;
+                clicked => { root.copy-code(); }
+            }
+            Button {
+                text: root.importing ? (root.english ? "Close import" : "收起匯入") : (root.english ? "Import code" : "匯入分享碼");
+                height: 34px;
+                clicked => { root.importing = !root.importing; root.saving = false; }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: root.english ? "Works offline" : "可離線分享";
+                color: DesktopTheme.muted; font-size: 12px;
+                vertical-alignment: center;
+            }
+        }
+        if root.importing: VerticalLayout {
+            spacing: 8px;
+            TextEdit {
+                height: 72px;
+                text <=> root.import-text;
+                wrap: word-wrap;
+                accessible-label: root.english ? "Paste a sheet or folder share code" : "貼上合成表或資料夾分享碼";
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                Text {
+                    horizontal-stretch: 1;
+                    text: root.english ? "Import one cost list, or add an entire shared folder to your saved sheets." : "可匯入單份成本清單，或把整個資料夾加入收藏。";
+                    color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+                Button {
+                    text: root.english ? "Import" : "匯入";
+                    height: 32px;
+                    enabled: root.import-text != "";
+                    clicked => { root.import-code(root.import-text); }
+                }
+            }
+        }
+        }
+        if root.info != "": Text {
+            text: root.info; color: DesktopTheme.accent; font-size: 12px; wrap: word-wrap;
+        }
+    }
+}

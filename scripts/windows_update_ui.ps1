@@ -2,14 +2,15 @@ param(
     [Parameter(Mandatory = $true)][int]$ProcessId,
     [Parameter(Mandatory = $true)][string]$OutputDirectory,
     [ValidateSet("Inspect", "Act")][string]$Mode = "Inspect",
-    [string]$ButtonName,
+    [Alias("ButtonName")][string]$ControlName,
+    [ValidateSet("Button", "TabItem")][string]$ControlType = "Button",
     [string]$AutomationId,
     [ValidateRange(1, 4000)][int]$MaximumNodes = 1200
 )
 
 # Test-only UI Automation client. Act accepts exact selectors observed through
 # Inspect; it never substitutes a helper command or modifies application state
-# outside the application's own accessible Invoke action.
+# outside the application's own accessible Invoke or Select action.
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -25,10 +26,10 @@ if ($PSVersionTable.PSEdition -eq "Core") {
     $start.RedirectStandardError = $true
     $start.StandardOutputEncoding = [System.Text.Encoding]::UTF8
     $start.StandardErrorEncoding = [System.Text.Encoding]::UTF8
-    foreach ($argument in @("-NoProfile", "-NonInteractive", "-Mta", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath, "-Mode", $Mode, "-ProcessId", "$ProcessId", "-OutputDirectory", $OutputDirectory, "-MaximumNodes", "$MaximumNodes")) {
+    foreach ($argument in @("-NoProfile", "-NonInteractive", "-Mta", "-ExecutionPolicy", "Bypass", "-File", $PSCommandPath, "-Mode", $Mode, "-ProcessId", "$ProcessId", "-OutputDirectory", $OutputDirectory, "-MaximumNodes", "$MaximumNodes", "-ControlType", $ControlType)) {
         $start.ArgumentList.Add($argument)
     }
-    if ($ButtonName) { $start.ArgumentList.Add("-ButtonName"); $start.ArgumentList.Add($ButtonName) }
+    if ($ControlName) { $start.ArgumentList.Add("-ControlName"); $start.ArgumentList.Add($ControlName) }
     if ($AutomationId) { $start.ArgumentList.Add("-AutomationId"); $start.ArgumentList.Add($AutomationId) }
     $worker = [System.Diagnostics.Process]::new()
     $worker.StartInfo = $start
@@ -65,8 +66,8 @@ Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 
-if ($Mode -eq "Act" -and -not $ButtonName -and -not $AutomationId) {
-    throw "Act requires an exact ButtonName or AutomationId from an observed UI tree"
+if ($Mode -eq "Act" -and -not $ControlName -and -not $AutomationId) {
+    throw "Act requires an exact ControlName (or ButtonName alias) or AutomationId from an observed UI tree"
 }
 $outputRoot = [System.IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
@@ -212,24 +213,29 @@ if ($Mode -eq "Inspect") {
     return
 }
 
+$expectedControlType = "ControlType.$ControlType"
 $targets = @($before.Snapshot.nodes | Where-Object {
-    $_.Contains("name") -and $_.controlType -eq "ControlType.Button" -and $_.enabled -and -not $_.offscreen -and
-    (-not $ButtonName -or $_.name -ceq $ButtonName) -and
+    $_.Contains("name") -and $_.controlType -eq $expectedControlType -and $_.enabled -and -not $_.offscreen -and
+    (-not $ControlName -or $_.name -ceq $ControlName) -and
     (-not $AutomationId -or $_.automationId -ceq $AutomationId)
 })
 if ($targets.Count -ne 1) {
-    throw "Expected exactly one visible enabled Button matching the observed selector; found $($targets.Count). Inspect $($before.JsonPath)"
+    throw "Expected exactly one visible enabled $ControlType matching the observed selector; found $($targets.Count). Inspect $($before.JsonPath)"
 }
 $target = $targets[0]
 $selectedElement = $before.Elements.Item([int]$target.index)
-$invoke = $null
-if (-not $selectedElement.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$invoke)) {
-    throw "Selected control does not expose InvokePattern; inspect its supported patterns before choosing another action"
+$actionPattern = $null
+$actionMethod = "Invoke"
+if ($ControlType -eq "TabItem" -and $selectedElement.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern, [ref]$actionPattern)) {
+    $actionMethod = "Select"
+} elseif (-not $selectedElement.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$actionPattern)) {
+    throw "Selected $ControlType does not expose a supported Select/Invoke action; inspect its supported patterns before choosing another action"
 }
 $action = [ordered]@{
     mode = "Act"
     processId = $ProcessId
     selectedNode = $target
+    actionMethod = $actionMethod
     beforeJson = $before.JsonPath
     invokedAtUtc = [DateTime]::UtcNow.ToString("o")
     outcome = "pending"
@@ -237,8 +243,9 @@ $action = [ordered]@{
 $actionPath = Join-Path $outputRoot "$prefix-action.json"
 Write-UiJson -Path $actionPath -Value $action
 try {
-    $invoke.Invoke()
-    $action["outcome"] = "invoke-returned"
+    if ($actionMethod -eq "Select") { $actionPattern.Select() }
+    else { $actionPattern.Invoke() }
+    $action["outcome"] = "$($actionMethod.ToLowerInvariant())-returned"
     Start-Sleep -Milliseconds 400
     $stillRunning = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
     if ($null -eq $stillRunning) {
@@ -254,7 +261,7 @@ catch {
     # Invoking Restart may destroy the provider while Invoke is returning. Keep
     # that ambiguous outcome explicit; the caller must verify process handoff
     # and the new application before claiming that the update succeeded.
-    $action["outcome"] = "invoke-error-check-process-state"
+    $action["outcome"] = "$($actionMethod.ToLowerInvariant())-error-check-process-state"
     $action["error"] = $_.Exception.Message
     throw
 }

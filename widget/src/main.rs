@@ -8,6 +8,8 @@ mod hotkey;
 mod icons;
 mod list;
 mod perf;
+mod calculator_ui;
+mod calculator_export;
 mod sheet;
 mod update;
 mod update_ui;
@@ -381,6 +383,7 @@ fn main() {
         Arc::clone(&session.link_generation),
     );
 
+    calculator_ui::install(&app, Rc::clone(&catalog), Rc::clone(&icons));
     let favourites = Rc::new(RefCell::new(db::load_favourites()));
     let alias_rows = Rc::new(RefCell::new(db::alias_rows()));
     let alias_suggest: Rc<RefCell<Vec<Hit>>> = Rc::new(RefCell::new(Vec::new()));
@@ -1030,9 +1033,18 @@ fn main() {
     app.on_animate_changed(move |animate| {
         edit_view(|view| view.animate = animate);
     });
+    let hotkeys_app = app.as_weak();
     app.on_hotkeys_changed(move |on| {
         edit_view(|view| view.hotkeys = on);
-        hotkey::set_enabled(on);
+        if let Some(app) = hotkeys_app.upgrade() {
+            hotkey::set_enabled(on && !app.get_full_mode());
+        }
+    });
+    let hotkey_scope_app = app.as_weak();
+    app.on_hotkey_scope_changed(move |widget_mode| {
+        if let Some(app) = hotkey_scope_app.upgrade() {
+            hotkey::set_enabled(widget_mode && app.get_hotkeys_on());
+        }
     });
     let legacy_app = app.as_weak();
     app.on_choose_legacy(move |on| {
@@ -1096,6 +1108,7 @@ fn main() {
             }
         }
         show_alias_rows(&app, &lang_catalog, &lang_aliases.borrow());
+        app.invoke_calculator_refresh();
         if app.get_full_mode() && app.get_category().is_empty() {
             show_home_saved(&app, &lang_catalog, &lang_session, &lang_favs.borrow());
         }
@@ -1600,13 +1613,15 @@ fn main() {
     });
 
     let (hot_tx, hot_rx) = mpsc::channel();
-    hotkey::spawn(hot_tx, db::load_view().hotkeys);
+    hotkey::spawn(hot_tx, app.get_hotkeys_on() && !app.get_full_mode());
     let hot_app = app.as_weak();
     let hot_timer = Timer::default();
     hot_timer.start(TimerMode::Repeated, Duration::from_millis(40), move || {
         let Some(app) = hot_app.upgrade() else { return };
         while let Ok(slot) = hot_rx.try_recv() {
-            app.set_hotkey_nth(slot);
+            if !app.get_full_mode() && app.get_hotkeys_on() {
+                app.set_hotkey_nth(slot);
+            }
         }
     });
     let placed = app.as_weak();
