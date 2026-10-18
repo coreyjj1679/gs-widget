@@ -38,11 +38,11 @@
         {
           "kind": "fixed",
           "en": [
-            "Keep global function-key shortcuts, sidebar key hints and the Keys settings page in widget mode, so full mode no longer intercepts function keys.",
+            "Limit global F1–F9 shortcuts and the Keys settings page to widget mode, and remove shortcut hints from full-mode navigation.",
             "Keep empty quest search results inside the quest browser, with a clear-search action."
           ],
           "zh-TW": [
-            "全域功能鍵快捷鍵、側欄按鍵提示及快捷鍵設定頁只在小窗模式提供，避免完整模式攔截功能鍵。",
+            "全域 F1–F9 快捷鍵及快捷鍵設定頁只在小窗模式提供，並移除完整模式導覽列的快捷鍵提示。",
             "任務搜尋沒有結果時仍保留任務瀏覽介面，並提供清除搜尋操作。"
           ]
         }
