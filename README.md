@@ -53,7 +53,7 @@ The F1–F9 shortcuts may require holding Fn/Globe, depending on your keyboard s
 
 Use **Full / 完整** for the desktop workspace: persistent category navigation, category search, monster comparisons, and a list beside the selected record's details. The overview provides quick entries and saved monsters. Full mode supports windows down to 960 × 640 logical pixels.
 
-Use **Widget / 小窗** for the compact interface, or **–** for the floating category bar. The compact mode keeps its existing warm palette. Both systems share the Slint interface; macOS uses PingFang TC and Windows uses Microsoft JhengHei UI. See [DESIGN.md](DESIGN.md) for the implemented design tokens and layout rules.
+Use **Widget / 小窗** for the compact interface, or **–** for the floating category bar. Full and widget modes share the same slate colors, bronze accents and control styling while keeping their different layouts and density. The floating bar uses the same palette with a translucent background; your window opacity setting still applies. Both systems share the Slint interface; macOS uses PingFang TC and Windows uses Microsoft JhengHei UI. See [DESIGN.md](DESIGN.md) for the implemented design tokens and layout rules.
 
 ## Data
 

@@ -210,9 +210,9 @@ component WinButton inherits Rectangle {
     in property <bool> danger: false;
     callback clicked();
     width: glyph == "Setting" || glyph == "Widget" ? 64px : glyph == "設定" || glyph == "完整" || glyph == "小窗" ? 48px : glyph == "Full" ? 44px : glyph == "EN" ? 34px : 30px;
-    height: DesktopTheme.active ? 26px : 24px;
-    border-radius: DesktopTheme.active ? 5px : 6px;
-    background: tap.has-hover ? (danger ? #7f1d1d : DesktopTheme.hover-strong) : (danger ? (DesktopTheme.active ? transparent : #4a3030) : (DesktopTheme.active ? transparent : DesktopTheme.control));
+    height: 26px;
+    border-radius: 5px;
+    background: tap.has-hover ? (danger ? #7f1d1d : DesktopTheme.hover-strong) : transparent;
     Text {
         text: root.glyph;
         color: DesktopTheme.text;
@@ -771,13 +771,15 @@ component LangChip inherits Rectangle {
     callback clicked();
     height: 30px;
     horizontal-stretch: 1;
-    border-radius: 7px;
-    background: active ? DesktopTheme.accent : (tap.has-hover ? #2a2622 : DesktopTheme.inset);
+    border-radius: 6px;
+    background: active ? DesktopTheme.raised : (tap.has-hover ? DesktopTheme.hover : DesktopTheme.sidebar);
+    border-width: 1px;
+    border-color: DesktopTheme.border;
     Text {
         text: root.label;
-        color: active ? DesktopTheme.on-accent : DesktopTheme.text;
-        font-size: 12px;
-        font-weight: 600;
+        color: active ? DesktopTheme.text : DesktopTheme.secondary;
+        font-size: 13px;
+        font-weight: root.active ? 600 : 400;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -798,7 +800,7 @@ component PatchTab inherits Rectangle {
     accessible-description: root.active ? "已選取 / Selected" : "";
     accessible-action-default => { root.clicked(); }
     horizontal-stretch: 1;
-    background: active ? DesktopTheme.accent : (tap.has-hover ? #2a2622 : transparent);
+    background: active ? DesktopTheme.accent : (tap.has-hover ? DesktopTheme.hover : transparent);
     Text {
         text: root.label;
         color: active ? DesktopTheme.on-accent : DesktopTheme.text;
@@ -830,7 +832,7 @@ component PatchPill inherits Rectangle {
         text: root.label;
         font-size: 12px;
         font-weight: 600;
-        color: active ? DesktopTheme.on-accent : #c8bfb4;
+        color: active ? DesktopTheme.on-accent : DesktopTheme.secondary;
         vertical-alignment: center;
     }
     width: label-text.preferred-width + 24px;
@@ -1205,7 +1207,7 @@ component DockSortRow inherits Rectangle {
     callback grip-released();
     height: 44px;
     border-radius: 8px;
-    background: lifted ? #2c261f : (marked ? DesktopTheme.selection-low : DesktopTheme.surface);
+    background: lifted ? DesktopTheme.raised : (marked ? DesktopTheme.selection-low : DesktopTheme.surface);
     border-width: 1px;
     border-color: marked || lifted ? DesktopTheme.accent : DesktopTheme.border;
     HorizontalLayout {
@@ -1232,9 +1234,9 @@ component DockSortRow inherits Rectangle {
                     width: 36px;
                     height: 36px;
                     border-radius: 8px;
-                    background: #120f0c;
+                    background: DesktopTheme.inset;
                     border-width: 1px;
-                    border-color: #5a4a34;
+                    border-color: DesktopTheme.border;
                     if root.glyph == "": Image {
                         source: root.logo;
                         width: 26px;
@@ -1258,7 +1260,7 @@ component DockSortRow inherits Rectangle {
                     text: root.badge;
                     font-size: 12px;
                     font-weight: 700;
-                    color: root.on ? DesktopTheme.accent : #6f675e;
+                    color: root.on ? DesktopTheme.accent : DesktopTheme.muted;
                     vertical-alignment: center;
                 }
                 Text {
@@ -1298,7 +1300,7 @@ component DockSortRow inherits Rectangle {
                 border-radius: 7px;
                 x: root.on ? 19px : 3px;
                 y: 3px;
-                background: root.on ? DesktopTheme.on-accent : #c8bfb4;
+                background: root.on ? DesktopTheme.on-accent : DesktopTheme.secondary;
             }
             TouchArea {
                 width: 100%;
@@ -1334,7 +1336,7 @@ component KeyLine inherits Rectangle {
             horizontal-stretch: 1;
             text: root.action;
             font-size: 13px;
-            color: #c8bfb4;
+            color: DesktopTheme.secondary;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -1374,7 +1376,7 @@ component CategoryTile inherits Rectangle {
     border-radius: min(16px, root.width * 0.12);
     background: lifted ? DesktopTheme.raised : (selected || drop-target || area.has-hover ? DesktopTheme.selected : DesktopTheme.surface);
     border-width: selected || drop-target || lifted ? 2px : 1px;
-    border-color: selected || drop-target || lifted ? DesktopTheme.accent : arranging ? #8a7048 : (area.has-hover ? #8a7048 : DesktopTheme.border);
+    border-color: selected || drop-target || lifted ? DesktopTheme.accent : arranging ? DesktopTheme.accent : (area.has-hover ? DesktopTheme.accent : DesktopTheme.border);
     opacity: lifted ? 0.72 : 1;
     VerticalLayout {
         alignment: center;
@@ -1385,9 +1387,9 @@ component CategoryTile inherits Rectangle {
                 width: root.badge;
                 height: root.badge;
                 border-radius: root.badge * 0.2;
-                background: #120f0c;
+                background: DesktopTheme.inset;
                 border-width: 1px;
-                border-color: #5a4a34;
+                border-color: DesktopTheme.border;
                 if root.glyph == "": Image {
                     source: root.logo;
                     width: root.badge * 0.84;
@@ -1471,7 +1473,7 @@ component HitRow inherits Rectangle {
     border-width: 1px;
     border-color: selected ? DesktopTheme.accent : transparent;
     property <bool> heading: hit.chip == "label";
-    background: selected ? DesktopTheme.selected : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? #2c261f : DesktopTheme.surface-alt) : (area.has-hover ? DesktopTheme.hover : transparent);
+    background: selected ? DesktopTheme.selected : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? DesktopTheme.hover : DesktopTheme.surface-alt) : (area.has-hover ? DesktopTheme.hover : transparent);
     property <bool> marked: hit.can-favourite || hit.favourite;
     property <length> tail: (marked ? 62px : 0px) + (!marked && hit.has-badge ? 26px : 0px);
     property <bool> show-chip: hit.chip == "yes" || hit.chip == "no";
@@ -3166,9 +3168,9 @@ component DockChip inherits Rectangle {
     width: side;
     height: side;
     border-radius: side * 0.22;
-    background: #120f0ce6;
+    background: DesktopTheme.inset.with-alpha(0.9);
     border-width: selected || tap.has-hover ? 2px : 1px;
-    border-color: selected || tap.has-hover ? DesktopTheme.accent : #5a4a34;
+    border-color: selected || tap.has-hover ? DesktopTheme.accent : DesktopTheme.border;
     if root.glyph == "": Image {
         source: root.logo;
         width: side - 16px;
@@ -3192,7 +3194,7 @@ component DockChip inherits Rectangle {
         width: 26px;
         height: 14px;
         border-radius: 7px;
-        background: #120f0cf2;
+        background: DesktopTheme.inset.with-alpha(0.95);
         Text {
             width: 100%;
             height: 100%;
@@ -5513,10 +5515,7 @@ export component App inherits Window {
         { id: "atlas", name: root.lang == "en-zh" ? "Shop · 商店" : "商店 · Shop" },
     ];
 
-    changed full-mode => { DesktopTheme.active = root.full-mode && !root.collapsed; }
-
     changed collapsed => {
-        DesktopTheme.active = root.full-mode && !root.collapsed;
         root.collapse-changed(root.collapsed);
     }
 
@@ -5529,7 +5528,6 @@ export component App inherits Window {
 
     init => {
         Palette.color-scheme = ColorScheme.dark;
-        DesktopTheme.active = root.full-mode && !root.collapsed;
         keys.focus();
     }
 
@@ -5546,7 +5544,7 @@ export component App inherits Window {
         height: 100%;
         opacity: root.window-opacity;
         background: root.collapsed ? transparent : DesktopTheme.canvas;
-        border-radius: root.collapsed ? 0px : root.full-mode ? 12px : 20px;
+        border-radius: root.collapsed ? 0px : 12px;
         clip: !root.collapsed;
         border-width: root.collapsed ? 0px : 1px;
         border-color: DesktopTheme.border;
@@ -5582,9 +5580,9 @@ export component App inherits Window {
                 width: parent.width - 8px;
                 height: parent.height - 8px;
                 border-radius: 20px;
-                background: #141210d4;
+                background: DesktopTheme.canvas.with-alpha(0.83);
                 border-width: 1px;
-                border-color: #d4b48355;
+                border-color: DesktopTheme.border;
                 if !root.dock-vertical: HorizontalLayout {
                     padding-left: 12px;
                     padding-right: 12px;
@@ -7794,7 +7792,7 @@ export component App inherits Window {
                 Rectangle {
                     y: 0px;
                     height: 1px;
-                    background: #3a342c88;
+                    background: DesktopTheme.border;
                 }
                 HorizontalLayout {
                     width: 100%;
@@ -8227,7 +8225,7 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Off hides timed and event copies." : "關閉時不顯示期限和活動版。";
                     font-size: 11px;
-                    color: #6f675e;
+                    color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
                 if root.settings-tab == 0 && !root.full-mode: HorizontalLayout {
@@ -8283,7 +8281,7 @@ export component App inherits Window {
                 if root.settings-tab == 0 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Follow keeps only the small window on top." : "跟隨時，只有小窗會留在最前面。";
                     font-size: 11px;
-                    color: #6f675e;
+                    color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
                 if root.settings-tab == 0 && !root.full-mode: Text {
@@ -8348,7 +8346,7 @@ export component App inherits Window {
                 if root.settings-tab == 2: Text {
                     text: root.lang == "en-zh" ? "One line per alias. Edit a row to search and add items." : "一行一個別名。點該列的編輯，再用右邊搜尋加入道具。";
                     font-size: 11px;
-                    color: #6f675e;
+                    color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
                 if root.settings-tab == 2: VerticalLayout {
