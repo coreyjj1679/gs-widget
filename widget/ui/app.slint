@@ -367,7 +367,6 @@ component SidebarCategoryRow inherits Rectangle {
     in property <image> logo;
     in property <string> glyph;
     in property <string> label;
-    in property <string> shortcut;
     in property <bool> selected;
     in property <bool> lifted;
     in property <bool> english;
@@ -405,7 +404,7 @@ component SidebarCategoryRow inherits Rectangle {
     }
     Text {
         x: 42px; y: 0px;
-        width: max(parent.width - 98px, 20px);
+        width: max(parent.width - 70px, 20px);
         height: 100%;
         text: root.label;
         font-size: 13px;
@@ -413,15 +412,6 @@ component SidebarCategoryRow inherits Rectangle {
         color: root.selected ? DesktopTheme.text : DesktopTheme.secondary;
         vertical-alignment: center;
         overflow: elide;
-    }
-    Text {
-        x: parent.width - 50px; y: 0px;
-        width: 24px; height: 100%;
-        text: root.shortcut;
-        font-size: 11px;
-        color: DesktopTheme.muted;
-        horizontal-alignment: right;
-        vertical-alignment: center;
     }
     DesktopIcon {
         x: parent.width - 20px; y: 12px;
@@ -3875,6 +3865,7 @@ export component App inherits Window {
     callback gallery-changed(bool);
     callback animate-changed(bool);
     callback hotkeys-changed(bool);
+    callback hotkey-scope-changed(bool);
     callback alias-save();
     callback alias-cancel();
     callback alias-add();
@@ -4147,6 +4138,9 @@ export component App inherits Window {
         }
         if (root.settings-tab < 0) {
             root.settings-tab = 4;
+        }
+        if (root.full-mode && root.settings-tab == 3) {
+            root.settings-tab = delta > 0 ? 4 : 2;
         }
         if (root.settings-tab == 2) {
             root.alias-refresh();
@@ -5576,6 +5570,8 @@ export component App inherits Window {
 
     changed full-mode => {
         DesktopTheme.active = root.full-mode && !root.collapsed;
+        root.hotkey-scope-changed(!root.full-mode);
+        if (root.full-mode && root.settings-tab == 3) { root.settings-tab = 0; }
         if (!root.full-mode) { root.calculator-open = false; }
     }
 
@@ -5586,7 +5582,7 @@ export component App inherits Window {
 
     changed hotkey-nth => {
         if (root.hotkey-nth >= 1) {
-            root.open-nth-visible(root.hotkey-nth);
+            if (!root.full-mode && root.hotkeys-on) { root.open-nth-visible(root.hotkey-nth); }
             root.hotkey-nth = 0;
         }
     }
@@ -5801,7 +5797,6 @@ export component App inherits Window {
                                     logo: root.category-logo(slot);
                                     glyph: root.category-glyph(slot);
                                     label: root.category-short(slot);
-                                    shortcut: "F" + root.visible-index(slot);
                                     selected: !root.settings-open && !root.calculator-open && root.category == root.categories[slot].id;
                                     lifted: nav-drag.moving && nav-drag.from-row == i;
                                     english: root.lang == "en-zh";
@@ -7974,7 +7969,7 @@ export component App inherits Window {
                             root.alias-refresh();
                         }
                     }
-                    PatchTab {
+                    if !root.full-mode: PatchTab {
                         label: root.lang == "en-zh" ? "Keys" : "快捷鍵";
                         active: root.settings-tab == 3;
                         clicked => { root.settings-tab = 3; }
@@ -8515,16 +8510,10 @@ export component App inherits Window {
                         }
                     }
                 }
-                if root.settings-tab == 3: Text {
+                if root.settings-tab == 3 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Global keys" : "全域快捷鍵";
                     font-size: 13px;
                     color: DesktopTheme.text;
-                }
-                if root.settings-tab == 3 && root.full-mode: ChoiceBar {
-                    first: root.lang == "en-zh" ? "On" : "開啟";
-                    second: root.lang == "en-zh" ? "Off" : "關閉";
-                    picked: root.hotkeys-on ? 0 : 1;
-                    pick(index) => { root.choose-hotkeys(index == 0); }
                 }
                 if root.settings-tab == 3 && !root.full-mode: HorizontalLayout {
                     spacing: 6px;
@@ -8539,61 +8528,61 @@ export component App inherits Window {
                         clicked => { root.choose-hotkeys(false); }
                     }
                 }
-                if root.settings-tab == 3: Text {
+                if root.settings-tab == 3 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "Off gives F1–F9 back to the game. Keys inside this window stay the same." : "關閉後，F1–F9 還給遊戲。這個視窗裡的按鍵不變。";
                     font-size: 12px;
                     color: DesktopTheme.muted;
                     wrap: word-wrap;
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "F1–F9";
                     action: root.lang == "en-zh" ? "Open that bar item" : "開啟浮動列對應項目";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Ctrl+-";
                     action: root.lang == "en-zh" ? "Shrink to the bar. Press again to open the window" : "把介面收成浮動列，再按一次展開";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Ctrl+F";
                     action: root.lang == "en-zh" ? "Search" : "搜尋";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Esc";
                     action: root.lang == "en-zh" ? "Back, or close search and settings" : "返回，或關閉搜尋和設定";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Backspace";
                     action: root.lang == "en-zh" ? "Back" : "返回";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Home";
                     action: root.lang == "en-zh" ? "Go to the home page" : "回到主目錄";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "↑  ↓";
                     action: root.lang == "en-zh" ? "Move in the list. On a set, move between Item, Set, and Total" : "移動清單；套裝資料是在道具、套裝、合計之間";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "←  →";
                     action: root.lang == "en-zh" ? "Home grid, bar, scroll a set, or the previous and next quest" : "主目錄、浮動列、套裝資料捲動，或任務的上一個和下一個";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Enter";
                     action: root.lang == "en-zh" ? "Open. Expand a related heading, or save a monster" : "開啟；相關分類是展開或收合，怪物是收藏";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Space";
                     action: root.lang == "en-zh" ? "Open. Expand a heading or a set section" : "開啟；相關分類和套裝分類是展開或收合";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Tab";
                     action: root.lang == "en-zh" ? "Switch the filter, or the settings tabs" : "切換本頁篩選，或設定頁的分頁";
                 }
-                if root.settings-tab == 3: KeyLine {
+                if root.settings-tab == 3 && !root.full-mode: KeyLine {
                     keys: "Ctrl+C";
                     action: root.lang == "en-zh" ? "Copy an update note" : "複製更新內文";
                 }
-                if root.settings-tab == 3: Text {
+                if root.settings-tab == 3 && !root.full-mode: Text {
                     text: root.lang == "en-zh" ? "While this window is open, F1–F9 open the bar." : "視窗開著時，F1–F9 用來開浮動列。";
                     font-size: 11px;
                     color: DesktopTheme.muted;
