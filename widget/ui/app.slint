@@ -8101,7 +8101,7 @@ export component App inherits Window {
                             open-drop(key) => { if (key != "") { root.open-hit(key); } }
                             find-drop-monsters(key, title) => { if (key != "") { root.find-drop-monsters(key, title); keys.focus(); } }
                     }
-                    if root.viewing == "" && !root.full-board && !root.favourites-only && root.query != "" && root.hits.length == 0: SearchEmpty {
+                    if root.viewing == "" && !root.full-board && !root.quest-browser && !root.favourites-only && root.query != "" && root.hits.length == 0: SearchEmpty {
                         x: root.page-pad + 12px; y: root.list-y + 24px;
                         width: max(root.pane-w - 2 * root.page-pad - 24px, 40px); height: root.list-view - 40px;
                         english: root.lang == "en-zh";
