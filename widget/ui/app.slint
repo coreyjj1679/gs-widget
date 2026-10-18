@@ -1,6 +1,9 @@
 import { Palette, LineEdit, TextEdit, Button } from "std-widgets.slint";
 import { DesktopTheme, DesktopNavRow, DesktopEntry, DesktopIcon } from "desktop.slint";
 
+import { CalculatorPane, CalcChoice, CalcMaterial, CalcSaved } from "calculator.slint";
+export { CalcChoice, CalcMaterial, CalcSaved }
+
 export struct ChangelogItem {
     text-en: string,
     text-zh: string,
@@ -4071,6 +4074,55 @@ component SearchEmpty inherits Rectangle {
 }
 
 export component App inherits Window {
+    in-out property <bool> calculator-open: false;
+    in-out property <[CalcChoice]> calculator-candidates;
+    in-out property <[CalcMaterial]> calculator-materials;
+    in-out property <[string]> calculator-recipes;
+    in-out property <int> calculator-recipe-index;
+    in-out property <string> calculator-selected-name;
+    in-out property <image> calculator-selected-icon;
+    in-out property <bool> calculator-selected-has-icon;
+    in-out property <string> calculator-selected-meta;
+    in-out property <string> calculator-quantity: "1";
+    in-out property <string> calculator-material-total;
+    in-out property <string> calculator-fee;
+    in-out property <string> calculator-total;
+    in-out property <string> calculator-unit-total;
+    in-out property <string> calculator-status;
+    in-out property <string> calculator-notice;
+    in-out property <string> calculator-error;
+    in-out property <string> calculator-info;
+    in-out property <bool> calculator-share-enabled;
+    in-out property <bool> calculator-complete;
+    in-out property <bool> calculator-compact-total;
+    in-out property <bool> calculator-input-valid: true;
+    in-out property <bool> calculator-library-open: false;
+    in-out property <[string]> calculator-folders;
+    in-out property <int> calculator-folder-index;
+    in-out property <[CalcSaved]> calculator-saved;
+    in-out property <int> calculator-saved-count;
+    in-out property <string> calculator-active-saved-name;
+    in-out property <string> calculator-save-state;
+    in-out property <string> calculator-library-error;
+    callback calculator-save-sheet(string, int, bool);
+    callback calculator-select-folder(int);
+    callback calculator-new-folder(string);
+    callback calculator-rename-folder(string);
+    callback calculator-delete-folder();
+    callback calculator-open-saved(string);
+    callback calculator-delete-saved(string);
+    callback calculator-move-saved(string, int);
+    callback calculator-export-folder();
+    callback calculator-refresh();
+    callback calculator-search(string);
+    callback calculator-select-item(string);
+    callback calculator-select-recipe(int);
+    callback calculator-quantity-changed(string);
+    callback calculator-price-changed(string, string);
+    callback calculator-export-card();
+    callback calculator-copy-code();
+    callback calculator-import-code(string);
+
     in-out property <string> query;
     in-out property <string> category;
     in-out property <string> nation;
@@ -4185,6 +4237,7 @@ export component App inherits Window {
     changed category => { RecordInfo.text = ""; root.catalog-keyboard-index = -1; }
     changed query => { RecordInfo.text = ""; root.catalog-keyboard-index = -1; }
     changed settings-open => { RecordInfo.text = ""; }
+    changed calculator-open => { RecordInfo.text = ""; }
 
     changed settings-tab => { root.settings-scroll-y = 0px; root.dock-sort-dragging = false; root.dock-focus-slot = -1; }
     in-out property <bool> arranging: false;
@@ -4290,6 +4343,7 @@ export component App inherits Window {
     resize-border-width: 6px;
 
     function open-category(id: string) {
+        root.calculator-open = false;
         root.category = id;
         root.nation = "";
         root.nation-name = "";
@@ -4537,6 +4591,7 @@ export component App inherits Window {
     }
 
     function go-home() {
+        root.calculator-open = false;
         if (root.collapsed) {
             root.collapsed = false;
         }
@@ -5340,7 +5395,7 @@ export component App inherits Window {
             RecordInfo.text = "";
             return accept;
         }
-        if (!root.settings-open && !root.collapsed && (event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) {
+        if (!root.settings-open && !root.collapsed && !root.calculator-open && (event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) {
             if (root.viewing == "" && root.cursor >= 0 && root.cursor < root.hits.length) {
                 RecordInfo.show(root.hits[root.cursor]);
             } else if (root.viewing-monster && root.related-open && root.cursor >= 0 && root.cursor < root.related.length) {
@@ -5362,6 +5417,10 @@ export component App inherits Window {
         if (event.modifiers.control && event.text == "-") {
             root.shrink-window();
             return accept;
+        }
+        if (root.calculator-open && !root.settings-open && !root.collapsed) {
+            if (event.text == Key.Escape) { root.go-home(); return accept; }
+            return reject;
         }
         if (event.text == Key.Home && !root.settings-open && keys.has-focus) {
             root.go-home();
@@ -6032,6 +6091,10 @@ export component App inherits Window {
         { id: "atlas", name: root.lang == "en-zh" ? "Shop · 商店" : "商店 · Shop" },
     ];
 
+    changed full-mode => {
+        if (!root.full-mode) { root.calculator-open = false; }
+    }
+
     changed collapsed => {
         root.collapse-changed(root.collapsed);
     }
@@ -6230,8 +6293,15 @@ export component App inherits Window {
                                 width: root.nav-w - 24px;
                                 label: root.lang == "en-zh" ? "Overview" : "圖鑑總覽";
                                 icon-path: "M3 10 L12 3 L21 10 M5 9 L5 21 L10 21 L10 14 L14 14 L14 21 L19 21 L19 9";
-                                selected: root.category == "" && !root.settings-open;
+                                selected: root.category == "" && !root.settings-open && !root.calculator-open;
                                 clicked => { root.go-home(); }
+                            }
+                            DesktopNavRow {
+                                width: root.nav-w - 24px;
+                                label: root.lang == "en-zh" ? "Calculate" : "計算";
+                                icon-path: "M5 3 L19 3 L19 21 L5 21 Z M8 6 L16 6 L16 9 L8 9 Z M8 12 L10 12 M14 12 L16 12 M8 16 L10 16 M14 16 L16 16 M8 19 L10 19 M14 19 L16 19";
+                                selected: root.calculator-open && !root.settings-open;
+                                clicked => { root.go-home(); root.calculator-open = true; root.calculator-refresh(); }
                             }
                             nav-drag := Rectangle {
                                 height: root.dock-shown.length * 44px;
@@ -6247,7 +6317,7 @@ export component App inherits Window {
                                     glyph: root.category-glyph(slot);
                                     label: root.category-short(slot);
                                     shortcut: "F" + root.visible-index(slot);
-                                    selected: !root.settings-open && root.category == root.categories[slot].id;
+                                    selected: !root.settings-open && !root.calculator-open && root.category == root.categories[slot].id;
                                     lifted: nav-drag.moving && nav-drag.from-row == i;
                                     english: root.lang == "en-zh";
                                     clicked => { root.open-dock(slot); keys.focus(); }
@@ -6438,7 +6508,60 @@ export component App inherits Window {
             body := Rectangle {
                 vertical-stretch: 1;
 
-                if root.category == "" && !root.settings-open && !root.full-mode: home := Rectangle {
+                if root.full-mode && root.calculator-open && !root.settings-open: CalculatorPane {
+                    x: root.page-pad; y: 18px;
+                    width: parent.width - root.page-pad * 2;
+                    height: parent.height - root.foot - 30px;
+                    english: root.lang == "en-zh";
+                    candidates: root.calculator-candidates;
+                    materials: root.calculator-materials;
+                    recipes: root.calculator-recipes;
+                    recipe-index <=> root.calculator-recipe-index;
+                    selected-name: root.calculator-selected-name;
+                    selected-icon: root.calculator-selected-icon;
+                    selected-has-icon: root.calculator-selected-has-icon;
+                    selected-meta: root.calculator-selected-meta;
+                    quantity: root.calculator-quantity;
+                    material-total: root.calculator-material-total;
+                    fee: root.calculator-fee;
+                    total: root.calculator-total;
+                    unit-total: root.calculator-unit-total;
+                    status: root.calculator-status;
+                    notice: root.calculator-notice;
+                    error: root.calculator-error;
+                    info: root.calculator-info;
+                    share-enabled: root.calculator-share-enabled;
+                    complete: root.calculator-complete;
+                    compact-total: root.calculator-compact-total;
+                    input-valid: root.calculator-input-valid;
+                    library-open <=> root.calculator-library-open;
+                    folders: root.calculator-folders;
+                    folder-index <=> root.calculator-folder-index;
+                    saved: root.calculator-saved;
+                    saved-count: root.calculator-saved-count;
+                    active-saved-name: root.calculator-active-saved-name;
+                    save-state: root.calculator-save-state;
+                    library-error: root.calculator-library-error;
+                    save-sheet(name, index, copy) => { root.calculator-save-sheet(name, index, copy); }
+                    select-folder(index) => { root.calculator-select-folder(index); }
+                    new-folder(name) => { root.calculator-new-folder(name); }
+                    rename-folder(name) => { root.calculator-rename-folder(name); }
+                    delete-folder => { root.calculator-delete-folder(); }
+                    open-saved(id) => { root.calculator-open-saved(id); }
+                    delete-saved(id) => { root.calculator-delete-saved(id); }
+                    move-saved(id, index) => { root.calculator-move-saved(id, index); }
+                    export-folder => { root.calculator-export-folder(); }
+                    search-query(q) => { root.calculator-search(q); }
+                    select-item(id) => { root.calculator-select-item(id); }
+                    select-recipe(index) => { root.calculator-select-recipe(index); }
+                    quantity-changed(q) => { root.calculator-quantity-changed(q); }
+                    price-changed(key, q) => { root.calculator-price-changed(key, q); }
+                    export-card => { root.calculator-export-card(); }
+                    copy-code => { root.calculator-copy-code(); }
+                    import-code(code) => { root.calculator-import-code(code); }
+                    close => { root.go-home(); }
+                }
+                if root.category == "" && !root.settings-open && !root.calculator-open && !root.full-mode: home := Rectangle {
                     width: parent.width;
                     height: 100%;
                     property <length> board-w: max(self.width - 16px, 40px);
@@ -6555,7 +6678,7 @@ export component App inherits Window {
                     }
                 }
 
-                if root.category == "" && !root.settings-open && root.full-mode: Flickable {
+                if root.category == "" && !root.settings-open && !root.calculator-open && root.full-mode: Flickable {
                     x: 0px; y: 0px;
                     width: 100%;
                     height: parent.height - root.foot;
@@ -6654,7 +6777,7 @@ export component App inherits Window {
                     }
                 }
 
-                if root.category != "" && !root.settings-open: Rectangle {
+                if root.category != "" && !root.settings-open && !root.calculator-open: Rectangle {
                     width: root.pane-w;
                     height: 100%;
 
@@ -9152,7 +9275,7 @@ export component App inherits Window {
             }
         }
 
-        if RecordInfo.text != "" && !root.settings-open && !root.collapsed: Rectangle {
+        if RecordInfo.text != "" && !root.settings-open && !root.collapsed && !root.calculator-open: Rectangle {
             x: root.width - self.width - 16px;
             y: 58px;
             width: min(440px, root.pane-w - 32px);

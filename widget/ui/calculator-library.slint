@@ -1,0 +1,332 @@
+import { Button, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
+import { DesktopTheme, DesktopIcon } from "desktop.slint";
+
+export struct CalcSaved {
+    id: string,
+    title: string,
+    subtitle: string,
+    icon: image,
+    has-icon: bool,
+}
+
+export component CalculatorLibrary inherits Rectangle {
+    in property <bool> english;
+    in property <[string]> folders;
+    in-out property <int> folder-index;
+    in property <[CalcSaved]> saved;
+    in property <string> library-error;
+    in property <string> error;
+    callback select-folder(int);
+    callback new-folder(string);
+    callback rename-folder(string);
+    callback delete-folder();
+    callback open-saved(string);
+    callback delete-saved(string);
+    callback move-saved(string, int);
+    callback export-folder();
+    callback import-code(string);
+    property <int> folder-action: 0;
+    property <string> folder-name;
+    property <string> row-action-id;
+    property <bool> moving: false;
+    property <int> move-index: 0;
+    property <bool> importing: false;
+    property <string> import-text;
+    property <length> list-y: 0px;
+    changed folder-index => {
+        root.row-action-id = "";
+        root.folder-action = 0;
+        root.list-y = 0px;
+    }
+    background: DesktopTheme.canvas;
+
+    VerticalLayout {
+        spacing: 12px;
+        if root.library-error != "": Text {
+            text: root.library-error;
+            color: #f0b5ad; font-size: 13px; wrap: word-wrap;
+            accessible-role: text;
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            VerticalLayout {
+                horizontal-stretch: 1; min-width: 0px; spacing: 6px;
+                Text {
+                    text: root.english ? "Folder" : "資料夾";
+                    font-size: 12px; color: DesktopTheme.secondary;
+                }
+                ComboBox {
+                    model: root.folders;
+                    current-index <=> root.folder-index;
+                    min-width: 0px; height: 34px;
+                    accessible-label: root.english ? "Saved sheet folder" : "收藏資料夾";
+                    selected(value) => {
+                        root.row-action-id = "";
+                        root.folder-action = 0;
+                        root.select-folder(self.current-index);
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 6px;
+                Rectangle { height: 15px; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button {
+                        text: root.english ? "New folder" : "新增資料夾";
+                        height: 34px; enabled: root.library-error == "";
+                        clicked => {
+                            root.importing = false;
+                            root.folder-action = 1;
+                            root.folder-name = "";
+                            root.row-action-id = "";
+                        }
+                    }
+                    Button {
+                        text: root.english ? "Rename" : "重新命名";
+                        height: 34px; enabled: root.folders.length > 0 && root.library-error == "";
+                        clicked => {
+                            root.importing = false;
+                            root.folder-action = 2;
+                            root.folder-name = root.folders[root.folder-index];
+                            root.row-action-id = "";
+                        }
+                    }
+                    Button {
+                        text: root.english ? "Delete folder" : "刪除資料夾";
+                        height: 34px;
+                        enabled: root.saved.length == 0 && root.folders.length > 1 && root.library-error == "";
+                        accessible-description: root.english ? "Only empty folders can be deleted. Keep at least one folder." : "只可刪除空的資料夾，並保留至少一個資料夾。";
+                        clicked => { root.importing = false; root.folder-action = 3; root.row-action-id = ""; }
+                    }
+                }
+            }
+        }
+        if root.folder-action == 1 || root.folder-action == 2: Rectangle {
+            height: 74px;
+            background: DesktopTheme.surface;
+            border-radius: 6px;
+            VerticalLayout {
+                padding: 10px; spacing: 6px;
+                Text {
+                    text: root.folder-action == 1 ? (root.english ? "New folder name" : "新資料夾名稱") : (root.english ? "Rename folder" : "資料夾新名稱");
+                    color: DesktopTheme.secondary; font-size: 12px;
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        text <=> root.folder-name;
+                        horizontal-stretch: 1; min-width: 0px;
+                        accessible-label: root.english ? "Folder name" : "資料夾名稱";
+                    }
+                    Button {
+                        text: root.folder-action == 1 ? (root.english ? "Create" : "建立") : (root.english ? "Rename" : "重新命名");
+                        enabled: root.folder-name != "" && root.library-error == "";
+                        clicked => {
+                            if (root.folder-action == 1) { root.new-folder(root.folder-name); }
+                            else { root.rename-folder(root.folder-name); }
+                            if (root.error == "") { root.folder-action = 0; }
+                        }
+                    }
+                    Button { text: root.english ? "Cancel" : "取消"; clicked => { root.folder-action = 0; } }
+                }
+            }
+        }
+        if root.folder-action == 3: HorizontalLayout {
+            spacing: 10px;
+            Text {
+                horizontal-stretch: 1; min-width: 0px;
+                text: root.english ? "Delete this empty folder?" : "刪除這個空的資料夾？";
+                color: DesktopTheme.text; font-size: 13px; wrap: word-wrap;
+                vertical-alignment: center;
+            }
+            Button {
+                text: root.english ? "Delete folder" : "確認刪除";
+                enabled: root.saved.length == 0 && root.folders.length > 1 && root.library-error == "";
+                clicked => { root.delete-folder(); if (root.error == "") { root.folder-action = 0; } }
+            }
+            Button { text: root.english ? "Cancel" : "取消"; clicked => { root.folder-action = 0; } }
+        }
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                horizontal-stretch: 1;
+                text: root.english ? root.saved.length + " saved sheets" : root.saved.length + " 份合成表";
+                font-size: 12px; color: DesktopTheme.secondary;
+            }
+            Text {
+                text: root.english ? "Saved on this device" : "儲存在這部電腦";
+                font-size: 12px; color: DesktopTheme.muted;
+            }
+        }
+        Rectangle { height: 1px; background: DesktopTheme.border; }
+        list := ScrollView {
+            content-y <=> root.list-y;
+            vertical-stretch: 1; min-height: 96px;
+            content-width: self.width;
+            content-height: max(rows.preferred-height, self.height - 12px);
+            horizontal-scrollbar-policy: always-off;
+            rows := VerticalLayout {
+                width: list.width - 12px; spacing: 0px;
+                for saved in root.saved: VerticalLayout {
+                    spacing: 0px;
+                    Rectangle {
+                        height: 66px;
+                        HorizontalLayout {
+                            padding-top: 12px; padding-bottom: 12px;
+                            spacing: 12px;
+                            Rectangle {
+                                width: 36px; height: 36px;
+                                if saved.has-icon: Image { width: 100%; height: 100%; source: saved.icon; image-fit: contain; }
+                                if !saved.has-icon: DesktopIcon {
+                                    x: 7px; y: 7px; width: 22px; height: 22px;
+                                    ink: DesktopTheme.muted;
+                                    path: "M4 7 L12 3 L20 7 L20 17 L12 21 L4 17 Z M4 7 L12 11 L20 7 M12 11 L12 21";
+                                }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1; min-width: 0px; spacing: 5px;
+                                Text {
+                                    text: saved.title;
+                                    font-size: 14px; font-weight: 600; color: DesktopTheme.text;
+                                    overflow: elide;
+                                    accessible-label: saved.title;
+                                }
+                                Text {
+                                    text: saved.subtitle;
+                                    font-size: 12px; color: DesktopTheme.secondary;
+                                    overflow: elide;
+                                    accessible-label: saved.subtitle;
+                                }
+                            }
+                            Button {
+                                text: root.english ? "Open" : "開啟";
+                                height: 32px;
+                                accessible-label: (root.english ? "Open " : "開啟 ") + saved.title;
+                                clicked => { root.open-saved(saved.id); }
+                            }
+                            Button {
+                                text: root.english ? "Move" : "移動";
+                                height: 32px;
+                                enabled: root.folders.length > 1 && root.library-error == "";
+                                accessible-label: (root.english ? "Move " : "移動 ") + saved.title;
+                                clicked => {
+                                    root.row-action-id = saved.id;
+                                    root.moving = true;
+                                    root.move-index = root.folder-index == 0 ? 1 : 0;
+                                    root.folder-action = 0;
+                                }
+                            }
+                            Button {
+                                text: root.english ? "Remove" : "移除";
+                                height: 32px; enabled: root.library-error == "";
+                                accessible-label: (root.english ? "Remove " : "移除 ") + saved.title;
+                                clicked => { root.row-action-id = saved.id; root.moving = false; root.folder-action = 0; }
+                            }
+                        }
+                    }
+                    if root.row-action-id == saved.id: Rectangle {
+                        height: 54px;
+                        background: DesktopTheme.surface;
+                        border-radius: 5px;
+                        if root.moving: HorizontalLayout {
+                            padding: 10px; spacing: 10px;
+                            Text {
+                                text: root.english ? "Move to" : "移到";
+                                color: DesktopTheme.secondary; font-size: 13px;
+                                vertical-alignment: center;
+                            }
+                            ComboBox {
+                                model: root.folders;
+                                current-index <=> root.move-index;
+                                horizontal-stretch: 1; min-width: 0px;
+                                accessible-label: root.english ? "Destination folder" : "目標資料夾";
+                            }
+                            Button {
+                                text: root.english ? "Move" : "確認移動";
+                                enabled: root.move-index != root.folder-index && root.library-error == "";
+                                clicked => {
+                                    root.move-saved(saved.id, root.move-index);
+                                    if (root.error == "") { root.row-action-id = ""; }
+                                }
+                            }
+                            Button { text: root.english ? "Cancel" : "取消"; clicked => { root.row-action-id = ""; } }
+                        }
+                        if !root.moving: HorizontalLayout {
+                            padding: 10px; spacing: 10px;
+                            remove-message := Text {
+                                horizontal-stretch: 1; min-width: 0px;
+                                text: root.english ? "Remove this saved sheet? This cannot be undone." : "移除這份合成表？此操作無法復原。";
+                                color: DesktopTheme.text; font-size: 13px;
+                                vertical-alignment: center; wrap: word-wrap;
+                            }
+                            Button {
+                                text: root.english ? "Remove sheet" : "確認移除";
+                                enabled: root.library-error == "";
+                                clicked => { root.delete-saved(saved.id); if (root.error == "") { root.row-action-id = ""; } }
+                            }
+                            Button { text: root.english ? "Cancel" : "取消"; clicked => { root.row-action-id = ""; } }
+                        }
+                    }
+                    Rectangle { height: 1px; background: DesktopTheme.border; }
+                }
+                if root.saved.length == 0: VerticalLayout {
+                    padding-top: 34px; padding-bottom: 34px;
+                    spacing: 10px; alignment: center;
+                    Text {
+                        text: root.english ? "This folder is ready for your recipes" : "把合成表放進這個資料夾";
+                        font-size: 17px; font-weight: 600; color: DesktopTheme.text;
+                        horizontal-alignment: center; wrap: word-wrap;
+                    }
+                    Text {
+                        text: root.english ? "Choose an item in the calculator, enter prices and save it here.\nOr import a folder shared by another player." : "在計算機選擇道具、填入單價後，按「儲存」加入收藏。\n也可以匯入其他玩家分享的整個資料夾。";
+                        font-size: 13px; color: DesktopTheme.secondary;
+                        horizontal-alignment: center; wrap: word-wrap;
+                    }
+                }
+            }
+        }
+        Rectangle { height: 1px; background: DesktopTheme.border; }
+        HorizontalLayout {
+            spacing: 10px;
+            Button {
+                text: root.english ? "Copy folder share code" : "複製資料夾分享碼";
+                height: 34px; enabled: root.saved.length > 0 && root.library-error == "";
+                clicked => { root.export-folder(); }
+            }
+            Button {
+                text: root.importing ? (root.english ? "Close import" : "收起匯入") : (root.english ? "Import code" : "匯入分享碼");
+                height: 34px;
+                clicked => { root.importing = !root.importing; root.folder-action = 0; root.row-action-id = ""; }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: root.english ? "Works offline" : "可離線分享";
+                color: DesktopTheme.muted; font-size: 12px; vertical-alignment: center;
+            }
+        }
+        if root.importing: VerticalLayout {
+            spacing: 8px;
+            TextEdit {
+                height: 72px;
+                text <=> root.import-text;
+                wrap: word-wrap;
+                accessible-label: root.english ? "Paste a sheet or folder share code" : "貼上合成表或資料夾分享碼";
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                Text {
+                    horizontal-stretch: 1; min-width: 0px;
+                    text: root.english ? "Folder codes add a new folder with every saved sheet. Existing folders stay intact." : "資料夾分享碼會建立新資料夾，連同所有合成表一起匯入。現有收藏會保留。";
+                    color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+                Button {
+                    text: root.english ? "Import" : "匯入";
+                    height: 32px;
+                    enabled: root.import-text != "" && root.library-error == "";
+                    clicked => { root.import-code(root.import-text); }
+                }
+            }
+        }
+    }
+}

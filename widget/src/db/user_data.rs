@@ -1,11 +1,8 @@
 //! Keep mutable Windows preferences outside the replaceable application bundle.
 use std::path::{Path, PathBuf};
 
-#[cfg(any(windows, test))]
 use std::fs::{self, File, OpenOptions};
-#[cfg(any(windows, test))]
 use std::io::{self, Write};
-#[cfg(any(windows, test))]
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(all(windows, not(test)))]
 use std::sync::OnceLock;
@@ -26,6 +23,9 @@ const USER_FILES: &[&str] = &[
     "window.txt",
     "window-macos.txt",
     "client.txt",
+    "planner.json",
+    "calculator.json",
+    "calculator-library.json",
 ];
 
 /// Call before loading the catalogue or any preferences. Never fall back to the
@@ -100,12 +100,20 @@ pub(in crate::db) fn client_hint_file(data: &Path) -> PathBuf {
 pub(in crate::db) fn write_preference(path: impl AsRef<Path>, body: impl AsRef<[u8]>) {
     let path = path.as_ref();
     #[cfg(any(windows, test))]
-    let result = atomic_write(path, body.as_ref());
+    let result = write_preference_checked(path, body);
     #[cfg(all(not(windows), not(test)))]
     let result = std::fs::write(path, body);
     if let Err(error) = result {
         eprintln!("無法儲存設定 {}：{error}", path.display());
     }
+}
+
+/// Atomically replace state on every platform and return failures to the UI.
+pub(in crate::db) fn write_preference_checked(
+    path: impl AsRef<Path>,
+    body: impl AsRef<[u8]>,
+) -> std::io::Result<()> {
+    atomic_write(path.as_ref(), body.as_ref())
 }
 
 // A concurrent migration or another instance's first save must win over a
@@ -195,17 +203,14 @@ fn migrate_user_data(source: &Path, destination: &Path) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(any(windows, test))]
 struct Temporary(PathBuf);
 
-#[cfg(any(windows, test))]
 impl Drop for Temporary {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.0);
     }
 }
 
-#[cfg(any(windows, test))]
 fn new_temporary(directory: &Path) -> io::Result<(Temporary, File)> {
     static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     loop {
@@ -219,7 +224,6 @@ fn new_temporary(directory: &Path) -> io::Result<(Temporary, File)> {
     }
 }
 
-#[cfg(any(windows, test))]
 fn atomic_write(path: &Path, body: &[u8]) -> io::Result<()> {
     let directory = path
         .parent()
@@ -266,7 +270,7 @@ fn publish(source: &Path, destination: &Path, replace: bool) -> io::Result<()> {
     }
 }
 
-#[cfg(all(not(windows), test))]
+#[cfg(not(windows))]
 fn publish(source: &Path, destination: &Path, replace: bool) -> io::Result<()> {
     if replace {
         fs::rename(source, destination)

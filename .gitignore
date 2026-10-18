@@ -22,6 +22,11 @@ data/opacity.txt
 data/ui-lang.txt
 data/set-extra.txt
 data/client.txt
+data/planner.json
 
 # Cache from `python -m gersang update`. Not needed to run the widget.
 data/mt-cache.sqlite
+
+data/calculator.json
+data/calculator-library.json
+data/exports/

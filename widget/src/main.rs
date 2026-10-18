@@ -8,6 +8,8 @@ mod hotkey;
 mod icons;
 mod list;
 mod perf;
+mod calculator_ui;
+mod calculator_export;
 mod sheet;
 mod update;
 mod update_ui;
@@ -381,6 +383,7 @@ fn main() {
         Arc::clone(&session.link_generation),
     );
 
+    calculator_ui::install(&app, Rc::clone(&catalog), Rc::clone(&icons));
     let favourites = Rc::new(RefCell::new(db::load_favourites()));
     let alias_rows = Rc::new(RefCell::new(db::alias_rows()));
     let alias_suggest: Rc<RefCell<Vec<Hit>>> = Rc::new(RefCell::new(Vec::new()));
@@ -1096,6 +1099,7 @@ fn main() {
             }
         }
         show_alias_rows(&app, &lang_catalog, &lang_aliases.borrow());
+        app.invoke_calculator_refresh();
         if app.get_full_mode() && app.get_category().is_empty() {
             show_home_saved(&app, &lang_catalog, &lang_session, &lang_favs.borrow());
         }
