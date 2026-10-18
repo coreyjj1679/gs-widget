@@ -122,6 +122,7 @@ component ChangelogHistory inherits Rectangle {
 export struct MonsterDrop {
     key: string,
     title: string,
+    alternate-name: string,
     icon: image,
     has-icon: bool,
 }
@@ -2452,6 +2453,7 @@ component MonsterDropIcon inherits Rectangle {
     border-color: focus.has-focus ? DesktopTheme.accent : transparent;
     accessible-role: button;
     accessible-label: drop.title;
+    accessible-description: drop.alternate-name;
     accessible-action-default => { root.open(root.drop.key); }
     forward-focus: focus;
     if root.drop.has-icon: Image {
@@ -2498,7 +2500,7 @@ component MonsterDropIcon inherits Rectangle {
             tip := Text {
                 x: 10px; y: 8px; width: parent.width - 20px;
                 height: self.preferred-height;
-                text: root.drop.title; font-size: 13px;
+                text: root.drop.title + (root.drop.alternate-name != "" ? "\n" + root.drop.alternate-name : ""); font-size: 13px;
                 color: DesktopTheme.text; wrap: word-wrap;
             }
         }
@@ -2636,6 +2638,7 @@ component MonsterTableRow inherits Rectangle {
 
 component CompactRecordLink inherits Rectangle {
     in property <string> title;
+    in property <string> alternate: "";
     in property <image> icon;
     in property <bool> has-icon;
     in property <bool> drop-context-enabled: false;
@@ -2649,11 +2652,12 @@ component CompactRecordLink inherits Rectangle {
         root.context-x = x; root.context-y = y;
         context.show();
     }
-    height: max(30px, label.preferred-height + 10px);
+    height: max(30px, label.preferred-height + 10px + (root.alternate != "" ? secondary.preferred-height + 3px : 0px));
     border-radius: 4px;
     background: tap.has-hover ? DesktopTheme.hover-strong : transparent;
     accessible-role: button;
     accessible-label: title;
+    accessible-description: alternate;
     accessible-action-default => { root.clicked(); }
     forward-focus: focus;
     if root.has-icon: Image {
@@ -2664,6 +2668,13 @@ component CompactRecordLink inherits Rectangle {
         x: root.has-icon ? 32px : 4px; y: 5px;
         width: parent.width - self.x - 4px; height: self.preferred-height;
         text: root.title; font-size: 13px; color: DesktopTheme.accent;
+        wrap: word-wrap;
+    }
+    secondary := Text {
+        x: root.has-icon ? 32px : 4px; y: label.y + label.height + 3px;
+        width: parent.width - self.x - 4px; height: self.preferred-height;
+        visible: root.alternate != "";
+        text: root.alternate; font-size: 12px; color: DesktopTheme.secondary;
         wrap: word-wrap;
     }
     if root.drop-context-enabled && focus.has-focus: Rectangle {
@@ -2726,6 +2737,7 @@ component LegacyPlace inherits Rectangle {
 
 component LegacyDropLink inherits Rectangle {
     in property <string> title;
+    in property <string> alternate: "";
     in property <string> separator;
     in property <length> available-width;
     in property <bool> english;
@@ -2741,6 +2753,7 @@ component LegacyDropLink inherits Rectangle {
     height: max(20px, label.preferred-height);
     accessible-role: button;
     accessible-label: root.title;
+    accessible-description: root.alternate;
     accessible-action-default => { root.clicked(); }
     forward-focus: focus;
     label := Text {
@@ -2777,6 +2790,18 @@ component LegacyDropLink inherits Rectangle {
     context := DropContextMenu {
         x: root.context-x; y: root.context-y; english: root.english;
         find-monsters => { root.find-monsters(); }
+    }
+    Tooltip {
+        Rectangle {
+            width: min(320px, tip.preferred-width + 20px); height: tip.preferred-height + 16px;
+            background: DesktopTheme.raised; border-radius: 5px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            tip := Text {
+                x: 10px; y: 8px; width: parent.width - 20px; height: self.preferred-height;
+                text: root.title + (root.alternate != "" ? "\n" + root.alternate : "");
+                font-size: 13px; color: DesktopTheme.text; wrap: word-wrap;
+            }
+        }
     }
 }
 
@@ -3005,7 +3030,7 @@ component LegacyMonsterRow inherits Rectangle {
             }
             for drop[i] in root.hit.monster-drops: LegacyDropLink {
                 available-width: description.width;
-                title: drop.title; english: root.english;
+                title: drop.title; alternate: drop.alternate-name; english: root.english;
                 separator: i + 1 < root.hit.monster-drops.length ? (root.english ? ", " : "、") : "";
                 clicked => { root.open-drop(drop.key); }
                 find-monsters => { root.find-drop-monsters(drop.key, drop.title); }
@@ -3241,6 +3266,7 @@ component FactLine inherits Rectangle {
     in property <bool> last: false;
     in property <length> line-height: 30px;
     in property <bool> wrap-value: false;
+    in property <bool> align-value-left: false;
     in property <length> label-width: 112px;
     callback open();
     property <bool> heading: value == "" && !has-icon;
@@ -3278,7 +3304,7 @@ component FactLine inherits Rectangle {
             text: root.value;
             font-size: 13px;
             color: root.key == "" ? DesktopTheme.text : DesktopTheme.soft;
-            horizontal-alignment: root.has-icon ? left : right;
+            horizontal-alignment: root.has-icon || root.align-value-left ? left : right;
             wrap: root.wrap-value ? word-wrap : no-wrap;
             overflow: elide;
             vertical-alignment: center;
@@ -3303,14 +3329,18 @@ component RecordDetail inherits Rectangle {
     in property <string> note: "";
     in property <string> body: "";
     in property <string> link-label;
+    in property <string> source-note: "";
     in property <string> no-image-label;
     callback open-key(string);
+    callback choose-source(string);
     background: DesktopTheme.detail;
     detail-scroll := Flickable {
         width: 100%;
         height: 100%;
         content-width: self.width;
         content-height: max(column.preferred-height + 8px, 1px);
+        changed content-height => { self.content-y = clamp(self.content-y, min(0px, self.height - self.content-height), 0px); }
+        changed height => { self.content-y = clamp(self.content-y, min(0px, self.height - self.content-height), 0px); }
         column := VerticalLayout {
             width: parent.width;
             padding: 12px;
@@ -3329,24 +3359,50 @@ component RecordDetail inherits Rectangle {
                 font-size: 13px;
                 color: DesktopTheme.text;
             }
-            for fact in root.facts: FactLine {
+            for fact[i] in root.facts: VerticalLayout {
                 width: parent.width - 24px;
-                label: fact.label;
-                label-width: 80px;
-                wrap-value: true;
-                value: fact.value;
-                key: fact.key;
-                icon: fact.icon;
-                has-icon: fact.has-icon;
-                last: true;
-                open => {
-                    if (fact.key != "") {
-                        root.open-key(fact.key);
+                padding-top: i > 0 && fact.value == "" && !fact.has-icon ? 8px : 0px;
+                if fact.value == "" && !fact.has-icon: HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    Text {
+                        width: parent.width - 20px;
+                        height: self.preferred-height;
+                        text: fact.label;
+                        font-size: 13px;
+                        font-weight: 600;
+                        color: DesktopTheme.accent;
+                        wrap: word-wrap;
+                    }
+                }
+                if fact.value != "" || fact.has-icon: FactLine {
+                    width: parent.width;
+                    label: fact.label;
+                    label-width: fact.label == "" ? 0px : 80px;
+                    align-value-left: fact.label == "";
+                    wrap-value: true;
+                    line-height: fact.has-icon ? 40px : 30px;
+                    value: fact.value;
+                    key: fact.key;
+                    icon: fact.icon;
+                    has-icon: fact.has-icon;
+                    last: true;
+                    open => {
+                        if (fact.key != "") {
+                            root.open-key(fact.key);
+                        }
                     }
                 }
             }
             if root.links.length > 0: Text {
                 text: root.link-label;
+                font-size: 12px;
+                color: DesktopTheme.secondary;
+            }
+            if root.source-note != "": Text {
+                width: parent.width - 24px;
+                text: root.source-note;
+                wrap: word-wrap;
                 font-size: 12px;
                 color: DesktopTheme.secondary;
             }
@@ -3361,7 +3417,9 @@ component RecordDetail inherits Rectangle {
                         no-image-label: root.no-image-label;
                         title-color: DesktopTheme.accent;
                         clicked => {
-                            if (row.key != "" && row.chip != "section") {
+                            if (row.chip == "section") {
+                                root.choose-source(row.key);
+                            } else if (row.key != "") {
                                 root.open-key(row.key);
                             }
                         }
@@ -3596,6 +3654,7 @@ component InlineMonster inherits Rectangle {
                     x: 0px; y: 0px; width: parent.width;
                     visible: r * root.drop-columns + c < root.drops.length;
                     title: root.drops[r * root.drop-columns + c].title;
+                    alternate: root.drops[r * root.drop-columns + c].alternate-name;
                     icon: root.drops[r * root.drop-columns + c].icon;
                     has-icon: root.drops[r * root.drop-columns + c].has-icon;
                     drop-context-enabled: root.drops[r * root.drop-columns + c].key.starts-with("item:");
@@ -3670,6 +3729,34 @@ export component StartupError inherits Window {
         Text { text: "無法開啟 Gersang / Unable to open Gersang"; font-size: 18px; wrap: word-wrap; }
         Text { text: root.message; wrap: word-wrap; vertical-stretch: 1; }
         Button { text: "關閉 / Close"; clicked => { root.dismiss(); } }
+    }
+}
+
+component SearchEmpty inherits Rectangle {
+    in property <bool> english;
+    callback clear();
+    VerticalLayout {
+        width: parent.width;
+        spacing: 10px;
+        alignment: start;
+        Text {
+            text: root.english ? "No matches" : "沒有符合的資料";
+            color: DesktopTheme.text; font-size: 15px; font-weight: 500;
+            wrap: word-wrap;
+        }
+        Text {
+            text: root.english ? "Try another name, or clear the search to return to the list." : "試試其他名稱，或清除搜尋返回列表。";
+            color: DesktopTheme.secondary; font-size: 13px;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            alignment: start;
+            Button {
+                width: min(130px, root.width); height: 32px;
+                text: root.english ? "Clear search" : "清除搜尋";
+                clicked => { root.clear(); }
+            }
+        }
     }
 }
 
@@ -4238,7 +4325,10 @@ export component App inherits Window {
             root.show-icon = false;
             root.show-battle = false;
             root.show-element = false;
-            if (root.full-mode && !root.legacy-mode && root.detail-key != "") {
+            if (root.full-board && root.catalog-category != root.category) {
+                root.query-changed(root.category, root.query);
+            }
+            if (root.full-mode && (root.category != "monster" || !root.legacy-mode) && root.detail-key != "") {
                 root.reload-inline-detail();
             }
         } else if (root.category == "quest" && root.area != "") {
@@ -4430,15 +4520,15 @@ export component App inherits Window {
             return;
         }
         if (root.full-board) {
-            let stride = root.full-flat ? 60px : 50px;
+            let stride = root.catalog-result-list ? 60px : 50px;
             let row-height = stride - 2px;
             let row = index * stride;
-            let view = max(root.list-view - (root.full-flat ? 56px : 16px), 1px);
-            let offset = root.full-flat ? root.list-offset : root.directory-offset;
+            let view = max(root.list-view - (root.catalog-result-list ? 56px : 16px), 1px);
+            let offset = root.catalog-result-list ? root.list-offset : root.directory-offset;
             let top = -offset;
             let next = row < top ? -row : row + row-height > top + view ? view - row - row-height : offset;
             let bounded = clamp(next, min(0px, view - root.hits.length * stride + 2px), 0px);
-            if (root.full-flat) {
+            if (root.catalog-result-list) {
                 root.list-offset = bounded;
             } else {
                 root.directory-offset = bounded;
@@ -4842,7 +4932,7 @@ export component App inherits Window {
         }
         if (root.viewing == "") {
             if (root.cursor >= 0 && root.cursor < root.hits.length) {
-                if (root.monster-board || (root.full-board && root.hits[root.cursor].chip == "label")) {
+                if (root.monster-board || (root.full-board && !root.catalog-searching && root.hits[root.cursor].chip == "label")) {
                     root.list-offset = 0px;
                     if (root.monster-board && root.legacy-mode) {
                         if (root.hits[root.cursor].key == "") { return; }
@@ -4853,7 +4943,7 @@ export component App inherits Window {
                         root.toggle-board(root.hits[root.cursor].key);
                     }
                 } else if (root.full-board) {
-                    root.toggle-detail(root.hits[root.cursor].key, root.cursor);
+                    root.open-catalog-record(root.hits[root.cursor].key, root.cursor);
                 } else {
                     root.open-hit(root.hits[root.cursor].key);
                 }
@@ -5103,19 +5193,19 @@ export component App inherits Window {
             root.open-next();
             return accept;
         }
-        if (root.viewing-set && !root.item-links && (event.text == Key.UpArrow || event.text == Key.DownArrow)) {
+        if (root.viewing != "" && root.viewing-set && !root.item-links && (event.text == Key.UpArrow || event.text == Key.DownArrow)) {
             root.step-fold(event.text == Key.DownArrow ? 1 : -1);
             return accept;
         }
-        if (root.viewing-set && !root.item-links && (event.text == Key.LeftArrow || event.text == Key.RightArrow)) {
+        if (root.viewing != "" && root.viewing-set && !root.item-links && (event.text == Key.LeftArrow || event.text == Key.RightArrow)) {
             root.scroll-form(event.text == Key.RightArrow ? 1 : -1);
             return accept;
         }
-        if (root.viewing-set && !root.item-links && event.text == Key.Space) {
+        if (root.viewing != "" && root.viewing-set && !root.item-links && event.text == Key.Space) {
             root.toggle-fold-focus();
             return accept;
         }
-        if (root.viewing-item && !root.item-links && (event.text == Key.UpArrow || event.text == Key.DownArrow)) {
+        if (root.viewing != "" && root.viewing-item && !root.item-links && (event.text == Key.UpArrow || event.text == Key.DownArrow)) {
             root.scroll-form(event.text == Key.DownArrow ? 1 : -1);
             return accept;
         }
@@ -5147,7 +5237,7 @@ export component App inherits Window {
     }
 
     changed hits => {
-        root.directory-offset = 0px;
+        if (!root.full-board) { root.directory-offset = 0px; }
         if (root.stick-cursor) {
             root.stick-cursor = false;
             return;
@@ -5232,6 +5322,30 @@ export component App inherits Window {
         }
     }
 
+    function choose-catalog-section(index: int, key: string) {
+        if (root.query != "") {
+            root.query = "";
+            root.query-changed(root.category, "");
+        }
+        root.cursor = index;
+        root.list-offset = 0px;
+        if (root.expanded != key) { root.toggle-board(key); }
+        keys.focus();
+    }
+
+    function record-key(key: string) -> bool {
+        return key.starts-with("item:") || key.starts-with("set:")
+            || key.starts-with("quest:") || key.starts-with("npc:")
+            || key.starts-with("recipe:") || key.starts-with("hero:")
+            || key.starts-with("monster:") || key.starts-with("patch:")
+            || key.starts-with("chart:");
+    }
+
+    function open-catalog-record(key: string, index: int) {
+        if (root.record-key(key)) { root.toggle-detail(key, index); }
+        else { root.open-hit(key); }
+    }
+
     function close-search() {
         root.search-open = false;
         if (root.query != "") {
@@ -5290,8 +5404,14 @@ export component App inherits Window {
     property <bool> monster-board: full-mode && category == "monster" && viewing == "" && place == "" && area == "" && !favourites-only && query == "";
     property <bool> monster-results-filter: full-mode && category == "monster" && viewing == "" && !monster-board;
     property <bool> monster-filter-scoped: root.place != "" || root.area != "" || root.nation != "" || root.expanded == "saved:" || root.expanded.starts-with("jump:") || root.expanded.starts-with("nation:");
-    property <bool> full-board: full-mode && category != "" && category != "monster" && viewing == "" && query == "" && place == "" && area == "";
-    property <bool> full-flat: full-board && hits.length > 0 && hits[0].chip != "label";
+    property <bool> full-board: full-mode && category != "" && category != "monster" && viewing == "" && place == "" && area == "";
+    in-out property <[Hit]> catalog-sections;
+    in-out property <string> catalog-category: "";
+    in-out property <bool> catalog-searching: false;
+    in-out property <length> catalog-browse-offset: 0px;
+    property <bool> full-flat: full-board && catalog-sections.length == 0;
+    property <bool> catalog-result-list: full-flat || catalog-searching;
+    property <[Hit]> catalog-results: catalog-result-list ? hits : board-monsters;
     property <length> record-row: 72px;
     in-out property <length> board-span: 960px;
     in-out property <[int]> flow-x;
@@ -5333,6 +5453,7 @@ export component App inherits Window {
     in-out property <bool> hotkeys-on: true;
     in-out property <string> expanded: "";
     in-out property <string> detail-key: "";
+    in-out property <string> detail-title: "";
     in-out property <int> detail-index: -1;
     in-out property <bool> filter-open: false;
     in-out property <int> filter-element: -1;
@@ -6471,7 +6592,7 @@ export component App inherits Window {
                     if root.viewing == "" && (root.search-open || root.full-mode): search := LineEdit {
                         x: root.full-mode ? root.pane-w - (root.category == "monster" ? 348px : 304px) : root.page-pad;
                         y: root.full-mode ? 10px : root.search-y;
-                        width: root.full-mode ? 280px : max(root.pane-w - 2 * root.page-pad, 40px);
+                        width: (root.full-mode ? 280px : max(root.pane-w - 2 * root.page-pad, 40px)) - (root.query != "" ? 64px : 0px);
                         placeholder-text: root.full-mode ? (root.lang == "en-zh" ? "Search this category…" : "搜尋此分類…") : (root.lang == "en-zh" ? "Search" : "搜尋");
                         text <=> root.query;
                         property <bool> focus-requested: root.search-open;
@@ -6507,6 +6628,13 @@ export component App inherits Window {
                             }
                             return reject;
                         }
+                    }
+                    if root.viewing == "" && (root.search-open || root.full-mode) && root.query != "": Button {
+                        x: root.full-mode ? root.pane-w - (root.category == "monster" ? 126px : 82px) : root.pane-w - root.page-pad - 58px;
+                        y: root.full-mode ? 10px : root.search-y;
+                        width: 58px; height: 32px;
+                        text: root.lang == "en-zh" ? "Clear" : "清除";
+                        clicked => { root.close-search(); }
                     }
                     if root.monster-results-filter: BoardFilter {
                         x: root.page-pad; y: root.search-y + 16px;
@@ -6844,19 +6972,16 @@ export component App inherits Window {
                                 sections := Flickable {
                                     x: 6px; y: 8px; width: parent.width - 12px; height: parent.height - 16px;
                                     content-width: self.width;
-                                    content-height: max(root.hits.length * 50px - 2px, 1px);
+                                    content-height: max(root.catalog-sections.length * 50px - 2px, 1px);
                                     content-y <=> root.directory-offset;
-                                    for row[i] in root.hits: section-slot := Rectangle {
+                                    for row[i] in root.catalog-sections: section-slot := Rectangle {
                                         x: 0px; y: i * 50px; width: parent.width; height: 48px;
-                                        if root.expanded == row.key || root.cursor == i || (section-slot.y + section-slot.height >= -sections.content-y - 100px && section-slot.y <= -sections.content-y + sections.height + 100px): SectionPick {
+                                        if root.expanded == row.key || (!root.catalog-searching && root.cursor == i) || (section-slot.y + section-slot.height >= -sections.content-y - 100px && section-slot.y <= -sections.content-y + sections.height + 100px): SectionPick {
                                             x: 0px; y: 0px; width: parent.width;
                                             title: row.title; count: row.subtitle;
-                                            selected: root.expanded == row.key || root.cursor == i;
+                                            selected: root.expanded == row.key || (!root.catalog-searching && root.cursor == i);
                                             clicked => {
-                                                root.cursor = i;
-                                                root.list-offset = 0px;
-                                                root.toggle-board(row.key);
-                                                keys.focus();
+                                                root.choose-catalog-section(i, row.key);
                                             }
                                         }
                                     }
@@ -6867,49 +6992,45 @@ export component App inherits Window {
                                 background: DesktopTheme.surface;
                                 border-radius: 8px;
                                 Text {
-                                    x: 14px; y: 14px; width: parent.width - 28px;
-                                    text: root.lang == "en-zh" ? "Records" : "資料列表";
+                                    x: 14px; y: 14px; width: parent.width - 84px;
+                                    text: root.catalog-searching ? (root.lang == "en-zh" ? "Search · all records" : "搜尋 · 所有資料") : (root.lang == "en-zh" ? "Records" : "資料列表");
+                                    overflow: elide;
                                     color: DesktopTheme.secondary; font-size: 12px; font-weight: 500;
                                 }
                                 Text {
                                     x: parent.width - 70px; y: 14px; width: 56px;
-                                    text: root.full-flat ? root.hits.length : root.board-monsters.length;
+                                    text: root.catalog-results.length;
                                     color: DesktopTheme.muted; font-size: 12px; horizontal-alignment: right;
                                 }
                                 Rectangle { y: 40px; width: parent.width; height: 1px; background: DesktopTheme.border; }
-                                if !root.full-flat && root.expanded == "": Text {
+                                if !root.catalog-searching && !root.full-flat && root.expanded == "": Text {
                                     x: 18px; y: 72px; width: parent.width - 36px;
                                     text: root.lang == "en-zh" ? "Select a category to browse its records." : "選擇左側分類，開始瀏覽資料。";
                                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
-                                if !root.full-flat && root.expanded != "" && root.board-monsters.length == 0: Text {
+                                if !root.catalog-searching && root.catalog-results.length == 0 && (root.full-flat || root.expanded != ""): Text {
                                     x: 18px; y: 72px; width: parent.width - 36px;
                                     text: root.lang == "en-zh" ? "No records in this category." : "這個分類暫時沒有資料。";
                                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
-                                if !root.full-flat && root.board-monsters.length > 0: records := Flickable {
-                                    x: 6px; y: 48px; width: parent.width - 12px; height: parent.height - 56px;
-                                    content-width: self.width; content-height: max(root.board-monsters.length * 60px - 2px, 1px);
-                                    content-y <=> root.list-offset;
-                                    for rec[i] in root.board-monsters: record-slot := Rectangle {
-                                        x: 0px; y: i * 60px; width: parent.width; height: 58px;
-                                        if root.detail-key == rec.key || (record-slot.y + record-slot.height >= -records.content-y - 120px && record-slot.y <= -records.content-y + records.height + 120px): CatalogRow {
-                                            x: 0px; y: 0px; width: parent.width;
-                                            hit: rec; selected: root.detail-key == rec.key;
-                                            clicked => { root.toggle-detail(rec.key, i); keys.focus(); }
-                                        }
-                                    }
+                                if root.catalog-searching && root.catalog-results.length == 0: SearchEmpty {
+                                    x: 18px; y: 64px; width: parent.width - 36px; height: parent.height - 80px;
+                                    english: root.lang == "en-zh";
+                                    clear => { root.close-search(); }
                                 }
-                                if root.full-flat && root.hits.length > 0: flat-records := Flickable {
+                                if root.catalog-results.length > 0: records := Flickable {
                                     x: 6px; y: 48px; width: parent.width - 12px; height: parent.height - 56px;
-                                    content-width: self.width; content-height: max(root.hits.length * 60px - 2px, 1px);
+                                    content-width: self.width; content-height: max(root.catalog-results.length * 60px - 2px, 1px);
                                     content-y <=> root.list-offset;
-                                    for rec[i] in root.hits: flat-record-slot := Rectangle {
+                                    for rec[i] in root.catalog-results: record-slot := Rectangle {
                                         x: 0px; y: i * 60px; width: parent.width; height: 58px;
-                                        if root.detail-key == rec.key || root.cursor == i || (flat-record-slot.y + flat-record-slot.height >= -flat-records.content-y - 120px && flat-record-slot.y <= -flat-records.content-y + flat-records.height + 120px): CatalogRow {
+                                        if root.detail-key == rec.key || (root.catalog-result-list && root.cursor == i) || (record-slot.y + record-slot.height >= -records.content-y - 120px && record-slot.y <= -records.content-y + records.height + 120px): CatalogRow {
                                             x: 0px; y: 0px; width: parent.width;
-                                            hit: rec; selected: root.detail-key == rec.key || root.cursor == i;
-                                            clicked => { root.cursor = i; root.toggle-detail(rec.key, i); keys.focus(); }
+                                            hit: rec; selected: root.detail-key == rec.key || (root.catalog-result-list && root.cursor == i);
+                                            clicked => {
+                                                if (root.catalog-result-list) { root.cursor = i; }
+                                                root.open-catalog-record(rec.key, i); keys.focus();
+                                            }
                                         }
                                     }
                                 }
@@ -6918,26 +7039,28 @@ export component App inherits Window {
                                 width: root.pane-w < 900px ? 260px : 320px;
                                 background: DesktopTheme.detail;
                                 border-radius: 8px;
-                                Text { x: 18px; y: 14px; width: parent.width - 36px; overflow: elide; text: root.detail-index >= 0 ? (root.full-flat ? root.hits[root.detail-index].title : root.board-monsters[root.detail-index].title) : (root.lang == "en-zh" ? "Details" : "詳細資料"); color: DesktopTheme.secondary; font-size: 12px; font-weight: 500; }
+                                Text { x: 18px; y: 14px; width: parent.width - 36px; overflow: elide; text: root.detail-key != "" ? root.detail-title : (root.lang == "en-zh" ? "Details" : "詳細資料"); color: DesktopTheme.secondary; font-size: 12px; font-weight: 500; }
                                 Rectangle { y: 40px; width: parent.width; height: 1px; background: DesktopTheme.border; }
-                                if root.detail-index < 0: Text {
+                                if root.detail-key == "": Text {
                                     x: 24px; y: 76px; width: parent.width - 48px;
                                     text: root.lang == "en-zh" ? "Select a record to see its attributes and related items here." : "選擇一筆資料，在這裡查看能力、材料與相關內容。";
                                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
-                                property <bool> item-preview: root.detail-index >= 0 && (root.detail-key.starts-with("item:") || root.detail-key.starts-with("set:"));
-                                if self.item-preview: Button {
+                                property <bool> can-open: root.record-key(root.detail-key);
+                                if self.can-open: Button {
                                     x: 12px; y: 48px; width: parent.width - 24px; height: 30px;
                                     text: root.lang == "en-zh" ? "Open details" : "展開詳細資料";
                                     clicked => { root.open-hit(root.detail-key); keys.focus(); }
                                 }
-                                if root.detail-index >= 0: RecordDetail {
-                                    y: parent.item-preview ? 90px : 48px;
+                                if root.detail-key != "": RecordDetail {
+                                    y: parent.can-open ? 90px : 48px;
                                     width: parent.width; height: parent.height - self.y - 8px;
                                     facts: root.facts; links: root.links; note: root.sheet-note; body: root.detail;
+                                    source-note: root.source-note;
                                     link-label: root.category == "recipe" ? (root.lang == "en-zh" ? "Materials" : "材料") : (root.lang == "en-zh" ? "Related" : "相關");
                                     no-image-label: root.no-image-label;
                                     open-key(key) => { if (key != "") { root.open-hit(key); } }
+                                    choose-source(key) => { root.source-changed(key); keys.focus(); }
                                 }
                             }
                         }
@@ -7039,6 +7162,12 @@ export component App inherits Window {
                         favourite(key) => { root.toggle-favourite(key); }
                             open-drop(key) => { if (key != "") { root.open-hit(key); } }
                             find-drop-monsters(key, title) => { if (key != "") { root.find-drop-monsters(key, title); keys.focus(); } }
+                    }
+                    if root.viewing == "" && !root.full-board && !root.favourites-only && root.query != "" && root.hits.length == 0: SearchEmpty {
+                        x: root.page-pad + 12px; y: root.list-y + 24px;
+                        width: max(root.pane-w - 2 * root.page-pad - 24px, 40px); height: root.list-view - 40px;
+                        english: root.lang == "en-zh";
+                        clear => { root.close-search(); }
                     }
                     if root.favourites-only && root.viewing == "" && root.hits.length == 0 && !(root.full-mode && root.legacy-mode): Text {
                         x: 18px;

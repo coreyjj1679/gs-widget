@@ -17,6 +17,44 @@ fn section_key(key: &str) -> bool {
         || key.starts_with("realm:")
 }
 
+#[derive(Debug, PartialEq)]
+struct CatalogPreview {
+    key: String,
+    title: String,
+    index: i32,
+}
+
+fn catalog_scope(previous: &str, keep: bool, sections: &[db::Hit]) -> String {
+    if keep && sections.iter().any(|row| row.key == previous) {
+        previous.to_owned()
+    } else {
+        sections.first().map(|row| row.key.clone()).unwrap_or_default()
+    }
+}
+
+fn catalog_preview(keep: bool, key: &str, title: &str, rows: &[db::Hit]) -> CatalogPreview {
+    if !keep || key.is_empty() {
+        return CatalogPreview { key: String::new(), title: String::new(), index: -1 };
+    }
+    let selected = rows.iter().enumerate().find(|(_, row)| row.key == key);
+    CatalogPreview {
+        key: key.to_owned(),
+        title: selected.map(|(_, row)| row.title.clone()).unwrap_or_else(|| title.to_owned()),
+        index: selected.map(|(index, _)| index as i32).unwrap_or(-1),
+    }
+}
+
+pub(crate) fn reset_catalog_context(app: &App) {
+    app.set_catalog_category("".into());
+    app.set_catalog_searching(false);
+    app.set_catalog_sections(ModelRc::new(VecModel::from(Vec::new())));
+    app.set_detail_key("".into());
+    app.set_detail_title("".into());
+    app.set_detail_index(-1);
+    app.set_catalog_browse_offset(0.0);
+    app.set_directory_offset(0.0);
+}
+
 pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favourites: &HashSet<String>, category: &str, text: &str) {
     super::perf::begin_update();
     super::perf::navigation(category);
@@ -28,6 +66,17 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
         refresh_region_rows(app, catalog);
     }
     let previous_scope = app.get_expanded().to_string();
+    let full_catalog = !category.is_empty()
+        && category != "monster"
+        && app.get_full_mode()
+        && app.get_place().is_empty()
+        && app.get_area().is_empty();
+    let keep_catalog = full_catalog && app.get_catalog_category() == category;
+    let previous_detail = app.get_detail_key().to_string();
+    let previous_title = app.get_detail_title().to_string();
+    let previous_offset = app.get_list_offset();
+    let was_searching = app.get_catalog_searching();
+    let searching = !text.trim().is_empty();
     let at_root = app.get_place().is_empty() && app.get_area().is_empty() && nation.is_empty();
     let board = category == "monster"
         && app.get_full_mode()
@@ -35,12 +84,16 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
         && !app.get_favourites_only()
         && app.get_place().is_empty()
         && app.get_area().is_empty();
-    if !full_monsters || !monster_scope_key(&previous_scope) {
+    if (!full_monsters && !keep_catalog) || (full_monsters && !monster_scope_key(&previous_scope)) {
         app.set_expanded("".into());
     }
-    app.set_detail_key("".into());
-    app.set_detail_index(-1);
-    app.set_board_monsters(ModelRc::new(VecModel::from(Vec::new())));
+    if keep_catalog && searching && !was_searching {
+        app.set_catalog_browse_offset(app.get_list_offset());
+    }
+    if !keep_catalog {
+        reset_catalog_context(app);
+        app.set_board_monsters(ModelRc::new(VecModel::from(Vec::new())));
+    }
     let query = monster_query(app);
     let only = category == "monster" && (app.get_favourites_only()
         || (full_monsters && !board && !app.get_filter_global() && previous_scope == "saved:"));
@@ -70,21 +123,70 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
     // The directory keeps All/Saved first and each country's habitats together.
     // Full-mode result rows have already applied their own favourite/sort policy above.
     let mut hits = if full_monsters { hits } else { prioritize(catalog, &nation, hits, favourites, only) };
-    let full_root = category != "monster"
-        && app.get_full_mode()
-        && text.trim().is_empty()
-        && app.get_place().is_empty()
-        && app.get_area().is_empty();
-    let mut opened = String::new();
-    if full_root {
-        for hit in &mut hits {
+    let mut browse_records = None;
+    let mut catalog_position = None;
+    let mut preview = None;
+    if full_catalog {
+        // Keep a stable directory while the middle pane searches the whole category.
+        // Search results intentionally retain the existing global search semantics.
+        let mut directory = if searching {
+            catalog.search_scoped(
+                category, "", &lang, "", &nation,
+                &if category == "hero" { app.get_hero_group().to_string() } else { app.get_ship().to_string() },
+                "",
+            )
+        } else {
+            hits.clone()
+        };
+        for hit in &mut directory {
             if section_key(&hit.key) {
                 hit.chip = "label".into();
-                if opened.is_empty() {
-                    opened = hit.key.clone();
-                }
             }
         }
+        if !searching {
+            hits = directory.clone();
+        }
+        let sections: Vec<_> = directory.into_iter().filter(|row| section_key(&row.key)).collect();
+        let opened = catalog_scope(&previous_scope, keep_catalog, &sections);
+        if !searching && !opened.is_empty() {
+            browse_records = Some(catalog.section_records(&opened, &lang));
+        }
+        let rows = if searching || sections.is_empty() {
+            &hits
+        } else {
+            browse_records.as_deref().unwrap_or(&[])
+        };
+        let keep_preview = keep_catalog && (previous_scope.is_empty() || previous_scope == opened);
+        if !keep_preview {
+            app.set_catalog_browse_offset(0.0);
+            app.set_directory_offset(0.0);
+        }
+        let selected = catalog_preview(keep_preview, &previous_detail, &previous_title, rows);
+        let cursor = if searching {
+            0
+        } else if sections.is_empty() {
+            selected.index.max(0)
+        } else {
+            sections.iter().position(|row| row.key == opened).map(|index| index as i32).unwrap_or(0)
+        };
+        let offset = if !keep_preview || searching {
+            0.0
+        } else if was_searching {
+            app.get_catalog_browse_offset()
+        } else {
+            previous_offset
+        };
+        catalog_position = Some((cursor, offset));
+        preview = Some(selected);
+        app.set_catalog_category(category.into());
+        app.set_catalog_searching(searching);
+        app.set_catalog_sections(ModelRc::new(VecModel::from(plain_hits(sections))));
+        app.set_expanded(opened.clone().into());
+    }
+    if full_catalog {
+        // Slint runs changed hits after this callback returns. Let the explicit
+        // catalog position below survive that deferred default reset.
+        app.set_stick_cursor(true);
     }
     show_rows(app, session, catalog, &nation, hits, favourites, false);
     if board && (monster_scope_key(&previous_scope) || app.get_filter_global() || !nation.is_empty() || query.is_active()) {
@@ -99,10 +201,17 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
         };
         show_board_monsters(app, session, catalog, &nation, records, favourites);
     }
-    if !opened.is_empty() {
-        app.set_expanded(opened.clone().into());
-        let records = catalog.section_records(&opened, &lang);
+    if let Some(records) = browse_records {
         show_board_monsters(app, session, catalog, &nation, records, favourites);
+    }
+    if let Some(preview) = preview {
+        app.set_detail_key(preview.key.into());
+        app.set_detail_title(preview.title.into());
+        app.set_detail_index(preview.index);
+    }
+    if let Some((cursor, offset)) = catalog_position {
+        app.set_cursor(cursor);
+        app.set_list_offset(offset);
     }
 }
 
@@ -194,6 +303,53 @@ pub(crate) fn row_index(app: &App, key: &str) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::picture_key;
+
+    #[test]
+    fn catalog_search_keeps_set_preview_through_no_results_and_clear() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let sections = catalog.search("item", "", "zh-en", "", "");
+        let records = catalog.section_records("icat:set", "zh-en");
+        let selected = records.last().expect("set records");
+        let scope = super::catalog_scope("icat:set", true, &sections);
+        assert_eq!(scope, "icat:set");
+        let no_results = catalog.search("item", "catalog-no-results-8675309", "zh-en", "", "");
+        assert!(no_results.is_empty());
+        let searching = super::catalog_preview(true, &selected.key, &selected.title, &no_results);
+        assert_eq!(searching.key, selected.key);
+        assert_eq!(searching.title, selected.title);
+        assert_eq!(searching.index, -1);
+        let restored = super::catalog_preview(true, &searching.key, &searching.title, &catalog.section_records(&scope, "zh-en"));
+        assert_eq!(restored.key, selected.key);
+        assert_eq!(restored.index as usize, records.len() - 1);
+    }
+
+    #[test]
+    fn catalog_search_result_preview_survives_return_to_a_different_browse_section() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let results = catalog.search("item", "11656", "en-zh", "", "");
+        let selected = results.iter().find(|row| row.key == "item:11656").expect("Essence of Stars");
+        let matching = super::catalog_preview(true, &selected.key, "old title", &results);
+        assert_eq!(matching.title, selected.title);
+        assert!(matching.index >= 0);
+        let sets = catalog.section_records("icat:set", "en-zh");
+        let restored = super::catalog_preview(true, &matching.key, &matching.title, &sets);
+        assert_eq!(restored.key, "item:11656");
+        assert_eq!(restored.title, selected.title);
+        assert_eq!(restored.index, -1);
+    }
+
+    #[test]
+    fn catalog_context_reset_discards_the_previous_category_selection() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let sections = catalog.search("quest", "", "zh-en", "", "");
+        assert!(!sections.is_empty());
+        assert_eq!(super::catalog_scope("icat:set", false, &sections), sections[0].key);
+        assert_eq!(super::catalog_scope("icat:set", true, &sections), sections[0].key);
+        let reset = super::catalog_preview(false, "set:79", "Old set", &[]);
+        assert!(reset.key.is_empty());
+        assert!(reset.title.is_empty());
+        assert_eq!(reset.index, -1);
+    }
 
     #[test]
     fn picture_keys_are_the_pages_that_carry_an_icon() {
@@ -492,6 +648,7 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
                 MonsterDrop {
                     key: drop.key.clone().into(),
                     title: drop.title.clone().into(),
+                    alternate_name: catalog.item_alternate_name(&drop.key, &lang).into(),
                     has_icon: icon.is_some(),
                     icon: icon.unwrap_or_default(),
                 }

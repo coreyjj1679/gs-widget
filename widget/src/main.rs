@@ -105,6 +105,7 @@ fn reload_board(app: &App, catalog: &db::Catalog, session: &Session, favourites:
         Some(index) => app.set_detail_index(index as i32),
         None => {
             app.set_detail_key("".into());
+            app.set_detail_title("".into());
             app.set_detail_index(-1);
         }
     }
@@ -187,12 +188,13 @@ fn stored_full_size(scale: f32) -> (f32, f32) {
 }
 
 fn refresh_mode_pages(app: &App, full: bool, catalog: &db::Catalog, session: &Session, favourites: &std::collections::HashSet<String>) {
+    list::reset_catalog_context(app);
     if full {
         app.set_favourites_only(false);
     }
-    if app.get_category().as_str() == "monster" && app.get_viewing().is_empty() {
+    if !app.get_category().is_empty() && app.get_viewing().is_empty() {
         let query = app.get_query().to_string();
-        publish(app, catalog, session, favourites, "monster", &query);
+        publish(app, catalog, session, favourites, &app.get_category(), &query);
     } else if app.get_category().is_empty() {
         if full {
             show_home_saved(app, catalog, session, favourites);
@@ -616,9 +618,17 @@ fn main() {
         let Some(app) = search_app.upgrade() else { return };
         *search_current.borrow_mut() = String::new();
         search_history.borrow_mut().clear();
+        let previous_detail = app.get_detail_key().to_string();
+        let was_inline = app.get_viewing().is_empty();
         publish(&app, &search_catalog, &search_session, &search_favs.borrow(), &category, &text);
-        app.set_detail("".into());
+        let retained_detail = app.get_detail_key().to_string();
         app.set_viewing("".into());
+        if !retained_detail.is_empty() && retained_detail == previous_detail && was_inline {
+            // List icons have a separate generation; retaining the preview avoids
+            // decoding its image and rebuilding its facts on every keystroke.
+            return;
+        }
+        app.set_detail("".into());
         app.set_viewing_monster(false);
         app.set_viewing_recipe(false);
         app.set_viewing_quest(false);
@@ -631,6 +641,14 @@ fn main() {
         app.set_links(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
         app.set_show_icon(false);
         app.set_show_element(false);
+        if retained_detail.is_empty() {
+            search_session.link_generation.fetch_add(1, Ordering::Relaxed);
+        } else {
+            show_key(&app, &search_catalog, &search_session, &retained_detail, false);
+            if !app.get_sheet_title().is_empty() {
+                app.set_detail_title(app.get_sheet_title());
+            }
+        }
     });
 
     let home_app = app.as_weak();
@@ -642,6 +660,8 @@ fn main() {
     app.on_went_home(move || {
         let Some(app) = home_app.upgrade() else { return };
         home_session.generation.fetch_add(1, Ordering::Relaxed);
+        home_session.link_generation.fetch_add(1, Ordering::Relaxed);
+        list::reset_catalog_context(&app);
         *home_current.borrow_mut() = String::new();
         home_history.borrow_mut().clear();
         app.set_links(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
@@ -1065,6 +1085,15 @@ fn main() {
         if !key.is_empty() {
             show_key(&app, &lang_catalog, &lang_session, &key, false);
             sync_view_star(&app, &lang_favs.borrow());
+        } else if !app.get_detail_key().is_empty() {
+            let cursor = app.get_cursor();
+            let offset = app.get_list_offset();
+            show_key(&app, &lang_catalog, &lang_session, &app.get_detail_key(), false);
+            app.set_cursor(cursor);
+            app.set_list_offset(offset);
+            if !app.get_sheet_title().is_empty() {
+                app.set_detail_title(app.get_sheet_title());
+            }
         }
         show_alias_rows(&app, &lang_catalog, &lang_aliases.borrow());
         if app.get_full_mode() && app.get_category().is_empty() {
@@ -1111,7 +1140,8 @@ fn main() {
     let source_session = open_session.clone();
     app.on_source_changed(move |key| {
         let Some(app) = source_app.upgrade() else { return };
-        let viewing = app.get_viewing().to_string();
+        let inline = app.get_viewing().is_empty() && app.get_full_mode();
+        let viewing = if inline { app.get_detail_key().to_string() } else { app.get_viewing().to_string() };
         if !viewing.starts_with("item:") && !viewing.starts_with("set:") && !viewing.starts_with("hero:") {
             return;
         }
@@ -1121,8 +1151,15 @@ fn main() {
         } else {
             app.set_item_source(key.clone().into());
         }
+        let cursor = app.get_cursor();
+        let offset = app.get_list_offset();
         show_key(&app, &source_catalog, &source_session, &viewing, true);
-        focus_section(&app, &key);
+        if inline {
+            app.set_cursor(cursor);
+            app.set_list_offset(offset);
+        } else {
+            focus_section(&app, &key);
+        }
     });
     let toggle_app = app.as_weak();
     let toggle_catalog = Rc::clone(&open_catalog);
@@ -1146,6 +1183,7 @@ fn main() {
             }
             app.set_expanded("".into());
             app.set_detail_key("".into());
+            app.set_detail_title("".into());
             app.set_detail_index(-1);
             app.set_board_monsters(ModelRc::new(VecModel::from(Vec::new())));
             toggle_session.generation.fetch_add(1, Ordering::Relaxed);
@@ -1153,6 +1191,7 @@ fn main() {
         }
         app.set_expanded(key.clone().into());
         app.set_detail_key("".into());
+        app.set_detail_title("".into());
         app.set_detail_index(-1);
         reload_board(&app, &toggle_catalog, &toggle_session, &toggle_favs.borrow(), &toggle_list);
     });
@@ -1167,12 +1206,24 @@ fn main() {
         }
         if app.get_detail_key().as_str() == key {
             app.set_detail_key("".into());
+            app.set_detail_title("".into());
             app.set_detail_index(-1);
             return;
         }
         app.set_detail_key(key.clone().into());
+        let title = [app.get_hits(), app.get_board_monsters()].into_iter()
+            .find_map(|rows| (0..rows.row_count()).filter_map(|row| rows.row_data(row))
+                .find(|row| row.key.as_str() == key).map(|row| row.title))
+            .unwrap_or_default();
+        app.set_detail_title(title);
         app.set_detail_index(index);
+        let cursor = app.get_cursor();
+        let offset = app.get_list_offset();
         show_key(&app, &detail_catalog, &detail_session, &key, false);
+        if app.get_full_mode() && app.get_category() != "monster" {
+            app.set_cursor(if app.get_catalog_searching() || app.get_catalog_sections().row_count() == 0 { index } else { cursor });
+            app.set_list_offset(offset);
+        }
     });
     let inline_app = app.as_weak();
     let inline_catalog = Rc::clone(&open_catalog);
@@ -1182,7 +1233,13 @@ fn main() {
         let key = app.get_detail_key().to_string();
         if !key.is_empty() {
             // A linked page replaces the shared facts and drops; restore the open row without toggling it.
+            let cursor = app.get_cursor();
+            let offset = app.get_list_offset();
             show_key(&app, &inline_catalog, &inline_session, &key, false);
+            if app.get_category() != "monster" {
+                app.set_cursor(cursor);
+                app.set_list_offset(offset);
+            }
         }
     });
     let suggest_app = app.as_weak();

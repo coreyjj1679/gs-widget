@@ -59,6 +59,10 @@ Use **Widget / 小窗** for the compact interface, or **–** for the floating c
 
 Item names use a primary line and a smaller alternate-language line, following your Chinese-first or English-first language setting. Missing or identical translations are shown only once. Widget mode keeps compact **Details / Related** tabs (or **Pieces** for sets).
 
+Full-mode monster drop icons and compact Legacy drop names show both languages on hover. Expanded drop lists show the primary and secondary names on separate lines, following the selected language order.
+
+In full mode, catalog search keeps the category directory and current preview visible. Search covers the whole category; clearing it restores the previous browsing section and scroll position. Empty results offer a clear-search action. Select a category on the left to leave search and browse it. Crafting, production, and usage groups can be expanded directly in item previews. Item, set, quest, recipe, NPC, hero, and other supported record previews provide **Open details**, and Back returns to the selected preview.
+
 In full mode, open an item or set to see its picture and bilingual name in a horizontal header, with attributes on the left and sources or pieces on the right. Both columns stay visible and scroll independently. **Tab** switches keyboard focus between them without resetting their scroll positions. The catalog preview also provides **Open details** to reach this page.
 
 Full-mode settings expand with the window. Look, Bar, Keys and App use grouped columns when space allows, then stack at narrower widths; alias rows use the available width with the same editor. The App page places update controls beside the changelog. All nine bar entries remain reachable by scrolling at 960 × 640. Resizing keeps the scroll position within the new content bounds, while widget settings keep their compact layout.
