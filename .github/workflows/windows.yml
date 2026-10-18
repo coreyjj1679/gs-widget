@@ -45,6 +45,8 @@ jobs:
         run: |
           $version = python scripts/package_windows.py --version-only --expected-tag "$env:EXPECTED_TAG"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/release_notes.py --version "$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "version=$version" >> $env:GITHUB_OUTPUT
           $commit = git rev-parse HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -115,7 +117,7 @@ jobs:
         with:
           name: windows-x64
           path: dist
-      - name: Upload as draft, verify digest, then publish with an empty body
+      - name: Upload as draft, verify digest, then publish English release notes
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: ${{ github.repository }}
@@ -128,3 +130,4 @@ jobs:
           --tag "$RELEASE_TAG"
           --commit "$RELEASE_COMMIT"
           --archive "dist/gs-widget-v$RELEASE_VERSION-windows-x64.zip"
+          --notes-file release-notes.json
