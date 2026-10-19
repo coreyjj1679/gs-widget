@@ -95,7 +95,8 @@ impl Catalog {
         let characters = characters_dir(&client_root, db.parent().unwrap_or(Path::new(".")));
         let pictures = choose_pictures(&client_root, &load_sprites(&conn), &load_portraits(&conn));
         let aliases = alias::alias_editor_text_in(&user_data::preferences_dir());
-        let index = Index::load(&conn, &client_root, &pictures, &aliases)?;
+        let hero_asset_roots = paths::client_asset_roots(&client_root, db.parent().unwrap_or(Path::new(".")));
+        let index = Index::load(&conn, &client_root, &hero_asset_roots, &pictures, &aliases)?;
         Ok(Self {
             conn,
             client_root,

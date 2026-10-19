@@ -102,7 +102,9 @@ impl Catalog {
         let aliases_path = data.join("aliases.txt");
         let aliases =
             std::fs::read_to_string(aliases_path).unwrap_or_else(|_| DEFAULT_ALIAS_LINE.into());
-        let index = Index::load(&conn, &client_root, &pictures, &aliases)?;
+        // Hero data is still indexed, but only the GUI resolves artwork roots
+        // through client hints, which require initialized Windows preferences.
+        let index = Index::load(&conn, &client_root, &[], &pictures, &aliases)?;
         Ok(Self {
             conn,
             client_root,
@@ -395,6 +397,27 @@ pub fn database_path() -> Result<std::path::PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn headless_character_queries_preserve_data_without_gui_assets() {
+        let catalog = Catalog::open_for_mcp().expect("headless catalog");
+        assert!(!catalog.index.heroes.is_empty());
+        // The real catalog has bundled artwork. MCP deliberately indexes the
+        // same character data without resolving GUI asset roots or client hints.
+        assert!(catalog.index.heroes.iter().all(|hero| hero.icon.is_none()));
+        for key in ["hero:U68", "hero:mount:3", "hero:H30"] {
+            let entity = catalog.mcp_entity(key, "en").expect("character data");
+            assert!(entity["name"].as_str().is_some_and(|name| !name.is_empty()), "{key}");
+            assert!(entity["facts"].as_array().is_some_and(|facts| !facts.is_empty()), "{key}");
+        }
+        let mount = catalog.mcp_entity("hero:mount:3", "en").unwrap();
+        assert!(mount["related"].as_array().unwrap().iter().any(|row| row["key"] == "hero:mount:1"));
+        let spirit = catalog.mcp_entity("hero:H30", "en").unwrap();
+        assert!(spirit["facts"].as_array().unwrap().iter().any(|row| row["label"] == "Skill effect"));
+        assert!(spirit["facts"].as_array().unwrap().iter().any(|row| row["label"] == "HP"));
+        assert!(catalog.characters.is_none());
+        assert!(catalog.character_files.borrow().is_none());
+    }
 
     #[test]
     fn mcp_drop_slots_preserve_conditions_and_unknown_rates() {
