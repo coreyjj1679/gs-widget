@@ -239,6 +239,7 @@ try {
                 $calculateLabel = if ($english) { "Calculate" } else { "計算" }
                 $calculatorHeading = if ($english) { "Crafting cost" } else { "合成成本" }
                 $calculatorPickerPrefix = if ($english) { "Craftable item: " } else { "合成道具：" }
+                $overviewLabel = if ($english) { "Overview" } else { "圖鑑總覽" }
                 $overviewHeading = if ($english) { "Explore the compendium" } else { "探索巨商圖鑑" }
                 $keysLabel = if ($english) { "Keys" } else { "快捷鍵" }
                 $keysHeading = if ($english) { "Global keys" } else { "全域快捷鍵" }
@@ -278,11 +279,17 @@ try {
                 if ($fullMode) {
                     $calculator = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03g-close-settings")
                     Assert-UiNames -Tree $calculator -Required @($calculatorHeading) -Absent @($aliasesHeading)
-                    $overview = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03h-close-calculator")
+                    # Calculator is a top-level destination. Escape dismisses
+                    # local UI; the explicit Overview control returns home.
+                    $calculator = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03h-calculator-escape")
+                    Assert-UiNames -Tree $calculator -Required @($calculatorHeading) -Absent @($overviewHeading)
+                    $caseResult["calculatorStaysOpenOnEscape"] = $true
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $calculator -Names @($overviewLabel) -Directory (Join-Path $directory "03i-open-overview")
+                    $overview = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03j-overview")
                     Assert-UiNames -Tree $overview -Required @($overviewHeading) -Absent @($calculatorHeading)
-                    $caseResult["calculatorOpenAndEscape"] = $true
-                    Invoke-ObservedControl -AppProcess $appProcess -Tree $overview -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "03i-reopen-settings")
-                    $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03j-settings")
+                    $caseResult["calculatorOverviewNavigation"] = $true
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $overview -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "03k-reopen-settings")
+                    $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03l-settings")
                 }
                 Invoke-ObservedControl -AppProcess $appProcess -Tree $settings -Names @($appLabel) -ControlType TabItem -Directory (Join-Path $directory "04-open-app")
                 $appTree = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "05-app-top")
