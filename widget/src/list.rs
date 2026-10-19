@@ -98,7 +98,6 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
         // Searching switches to records while preserving the selected category/group.
         if !text.trim().is_empty() { app.set_quest_summary(false); }
         if app.get_quest_summary() {
-            let english = lang.starts_with("en");
             let entries = [
                 ("chain", "按任務鏈", "By quest chain", "沿完整流程與分支瀏覽", "Follow complete paths and branches"),
                 ("npc", "按 NPC", "By NPC", "從委託人尋找任務", "Find quests by their quest giver"),
@@ -106,8 +105,8 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
             ].into_iter().map(|(key, zh, en, zh_note, en_note)| {
                 let mut row = primary[0].clone();
                 row.key = key.into();
-                row.title = if english { en } else { zh }.into();
-                row.subtitle = if english { en_note } else { zh_note }.into();
+                row.title = db::ui_text(&lang, zh, en);
+                row.subtitle = db::ui_text(&lang, zh_note, en_note);
                 row.aside = catalog.quest_browse_groups(key, &lang).len().to_string();
                 row
             }).collect();

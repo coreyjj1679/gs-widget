@@ -356,14 +356,33 @@ fn main() {
 
     drop(catalog_timer);
     let app = App::new().expect("視窗建立失敗");
-    mcp_ui::install(&app);
     let _performance_timer = perf::install(&app);
     changelog::install(&app);
     let _update_ui = update_ui::install(&app);
     app.on_open_source(window::open_source_repository);
     #[cfg(target_os = "macos")]
     app.set_ui_font("PingFang TC".into());
-    app.set_lang(db::load_lang().into());
+    app.global::<UiLanguage>().on_translate(|language, en, zh| db::ui_text(&language, &zh, &en).into());
+    let language = db::load_lang();
+    app.set_lang(language.clone().into());
+    app.set_primary_language(db::primary_lang(&language).into());
+    app.set_secondary_language(db::secondary_lang(&language).unwrap_or("").into());
+    app.global::<UiLanguage>().set_primary(db::primary_lang(&language).into());
+    mcp_ui::install(&app);
+    let primary_app = app.as_weak();
+    app.on_primary_language_changed(move |primary| {
+        if let Some(app) = primary_app.upgrade() {
+            let language = db::with_primary_lang(&app.get_lang(), &primary);
+            app.invoke_lang_changed(language.into());
+        }
+    });
+    let secondary_app = app.as_weak();
+    app.on_secondary_language_changed(move |secondary| {
+        if let Some(app) = secondary_app.upgrade() {
+            let language = db::with_secondary_lang(&app.get_lang(), &secondary);
+            app.invoke_lang_changed(language.into());
+        }
+    });
     app.set_window_opacity(db::load_opacity());
     app.set_show_set_extra(db::load_set_extra());
     let view = db::load_view();
@@ -647,11 +666,9 @@ fn main() {
         // ready download and let the user resolve the draft in its normal UI.
         if *update_aliases.borrow() != db::alias_rows() {
             if let Some(app) = update_app.upgrade() {
-                app.set_update_error(if app.get_lang() == "en-zh" {
-                    "You have unsaved aliases. Save or cancel them in the Aliases tab before restarting."
-                } else {
-                    "別名有未儲存的修改。請先到「別名」儲存或取消，再重新啟動更新。"
-                }.into());
+                app.set_update_error(db::ui_text(&app.get_lang(),
+                    "別名有未儲存的修改。請先到「別名」儲存或取消，再重新啟動更新。",
+                    "You have unsaved aliases. Save or cancel them in the Aliases tab before restarting.").into());
             }
             return false;
         }
@@ -1133,7 +1150,12 @@ fn main() {
     let lang_aliases = Rc::clone(&alias_rows);
     app.on_lang_changed(move |lang| {
         let Some(app) = lang_app.upgrade() else { return };
-        let lang = lang.to_string();
+        let lang = db::normalize_lang(&lang);
+        app.set_lang(lang.clone().into());
+        app.set_primary_language(db::primary_lang(&lang).into());
+        app.set_secondary_language(db::secondary_lang(&lang).unwrap_or("").into());
+        app.global::<UiLanguage>().set_primary(db::primary_lang(&lang).into());
+        mcp_ui::install(&app);
         db::save_lang(&lang);
         let nation = app.get_nation().to_string();
         let area = app.get_area().to_string();
@@ -1719,13 +1741,12 @@ fn main() {
     app.global::<NameCopy>().on_copy(move |key, alternate| {
         let Some(app) = copy_name_app.upgrade() else { return };
         let lang = app.get_lang();
-        let english = lang.starts_with("en");
         let notice = match copy_name_catalog.copyable_name(&key, &lang, alternate) {
             Some(name) if window::try_copy_to_clipboard(&name) => {
-                if english { format!("Copied: {name}") } else { format!("已複製：{name}") }
+                format!("{}{name}", db::ui_text(&lang, "已複製：", "Copied: "))
             }
-            Some(_) => if english { "Could not copy. Try again." } else { "未能複製，請再試一次。" }.to_string(),
-            None => if english { "No translated name to copy." } else { "沒有可複製的中英文名稱。" }.to_string(),
+            Some(_) => db::ui_text(&lang, "未能複製，請再試一次。", "Could not copy. Try again."),
+            None => db::ui_text(&lang, "沒有可複製的名稱。", "No translated name to copy."),
         };
         app.global::<NameCopy>().set_notice(notice.into());
         let later = copy_name_app.clone();
@@ -1874,7 +1895,8 @@ mod tests {
     #[test]
     fn battle_frames_skip_blanks_and_reuse_the_decoded_frame() {
         let catalog = crate::db::Catalog::open().expect("db");
-        let (path, _) = catalog.battle_sprite("M96").expect("sprite");
+        // Use shipped artwork so this cache test does not require an optional game installation.
+        let (path, _) = catalog.hero_battle_sprite("mount:1").expect("bundled sprite");
         let frames = crate::agf::playable_frames(&path).expect("frames");
         assert!(frames.len() >= 2, "sprite has {} playable frames", frames.len());
         assert!(frames.windows(2).all(|pair| pair[0] < pair[1]));

@@ -111,6 +111,40 @@ fn valid_text(value: &str, limit: usize, allow_empty: bool) -> bool {
 }
 
 impl Catalog {
+    pub fn calculator_item_title(&self, code: i64, fallback: &str, lang: &str) -> String {
+        if self.index.find_item(code).is_some() { self.item_name(code, lang) } else { fallback.to_string() }
+    }
+
+    pub fn calculator_source_label(&self, recipe_id: i64, fallback: &str, lang: &str) -> String {
+        self.index.recipes.iter().find(|recipe| recipe.id == recipe_id)
+            .map(|recipe| super::text::label(&recipe.source, lang))
+            .unwrap_or_else(|| fallback.to_string())
+    }
+
+    /// Translate a presentation copy while retaining saved/imported recipe and price snapshots.
+    pub fn localized_calculator_document(&self, document: &CalcDocument, lang: &str) -> CalcDocument {
+        fn localize(catalog: &Catalog, document: &mut CalcDocument, lang: &str, depth: usize) {
+            if depth > MAX_NESTED_DEPTH { return; }
+            document.language = super::normalize_lang(lang);
+            if catalog.index.find_item(document.item_code).is_some() {
+                document.title = catalog.item_name(document.item_code, lang);
+            }
+            document.source = catalog.calculator_source_label(document.recipe_id, &document.source, lang);
+            for material in &mut document.materials {
+                if catalog.index.find_item(material.code).is_some() {
+                    material.title = catalog.item_name(material.code, lang);
+                    if material.enhance > 0 { material.title.push_str(&format!(" +{}", material.enhance)); }
+                }
+                if let Some(nested) = material.nested.as_deref_mut() {
+                    localize(catalog, nested, lang, depth + 1);
+                }
+            }
+        }
+        let mut translated = document.clone();
+        localize(self, &mut translated, lang, 0);
+        translated
+    }
+
     pub fn calculator_catalog(&self) -> Result<CalcCatalog, String> {
         let planner = self.planner_catalog()?;
         let mut by_item: BTreeMap<i64, Vec<i64>> = BTreeMap::new();

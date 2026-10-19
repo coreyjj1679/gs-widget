@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use rusqlite::Connection;
 
 use super::npc::npc_names;
-use super::text::{chrome_text, lead, trail};
+use super::text::{chrome_text, lead3, trail3};
 use super::{Catalog, Hit};
 
 #[derive(Default)]
@@ -25,7 +25,7 @@ struct MapName {
 
 impl MapName {
     fn title(&self, lang: &str) -> String {
-        let title = lead(lang, &self.en, &self.zh);
+        let title = lead3(lang, &self.en, &self.zh, &self.ko);
         if title.is_empty() {
             self.ko.clone()
         } else {
@@ -252,7 +252,7 @@ impl Catalog {
                 }
                 "region" => {
                     if let Some(map) = identity.parse::<i64>().ok().and_then(|id| maps.get(&id)) {
-                        let alternate = trail(lang, &map.en, &map.zh);
+                        let alternate = trail3(lang, &map.en, &map.zh, &map.ko);
                         if !alternate.is_empty() {
                             parts.push(alternate);
                         }
@@ -290,7 +290,7 @@ impl Catalog {
                     let canonical = identity.parse::<i64>().ok();
                     let root = canonical.and_then(|id| quests.get(&id));
                     if let Some(root) = root {
-                        let alternate = trail(lang, &root.title_en, &root.title_zh);
+                        let alternate = trail3(lang, &root.title_en, &root.title_zh, &root.title_ko);
                         if !alternate.is_empty() {
                             parts.push(alternate);
                         }
@@ -327,7 +327,7 @@ impl Catalog {
                             root.source,
                             root.code
                         ));
-                        let name = lead(lang, &root.title_en, &root.title_zh);
+                        let name = lead3(lang, &root.title_en, &root.title_zh, &root.title_ko);
                         if name.is_empty() {
                             root.code.clone()
                         } else {

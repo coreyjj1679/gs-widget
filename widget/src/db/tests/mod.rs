@@ -8,6 +8,7 @@ use super::*;
 mod browse;
 mod character_assets;
 mod items_bilingual;
+mod languages;
 mod performance;
 
 #[test]

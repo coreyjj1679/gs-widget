@@ -67,12 +67,8 @@ impl InputErrors {
     }
 }
 
-fn tr<'a>(english: bool, zh: &'a str, en: &'a str) -> &'a str {
-    if english {
-        en
-    } else {
-        zh
-    }
+fn tr<'a>(lang: &str, zh: &'a str, en: &'a str) -> &'a str {
+    db::ui_text_ref(lang, zh, en)
 }
 fn number(value: i64) -> String {
     let text = value.to_string();
@@ -96,7 +92,7 @@ fn per_unit(total: i64, units: i64) -> String {
         format!("{}.{fraction:02}", number(whole))
     }
 }
-fn parse_amount(input: &str, english: bool) -> Result<Option<i64>, String> {
+fn parse_amount(input: &str, lang: &str) -> Result<Option<i64>, String> {
     let text = input.trim();
     if text.is_empty() {
         return Ok(None);
@@ -112,7 +108,7 @@ fn parse_amount(input: &str, english: bool) -> Result<Option<i64>, String> {
         .all(|g| !g.is_empty() && g.bytes().all(|c| c.is_ascii_digit()));
     if !valid {
         return Err(tr(
-            english,
+            lang,
             "請輸入非負整數，例如 1,000；留空代表尚未填價。",
             "Enter a non-negative whole number, such as 1,000; leave blank for an unknown price.",
         )
@@ -120,7 +116,7 @@ fn parse_amount(input: &str, english: bool) -> Result<Option<i64>, String> {
     }
     groups.concat().parse().map(Some).map_err(|_| {
         tr(
-            english,
+            lang,
             "數量或單價過大。",
             "Quantity or unit price is too large.",
         )
@@ -140,31 +136,31 @@ fn update_rows<T: Clone + PartialEq + 'static>(current: ModelRc<T>, rows: Vec<T>
     }
     ModelRc::new(VecModel::from(rows))
 }
-fn recipe_label(source: &str, id: i64, output: i64, fee: i64, english: bool) -> String {
+fn recipe_label(source: &str, id: i64, output: i64, fee: i64, lang: &str) -> String {
     format!(
         "{source} · #{id} · {} {} · {} {}",
-        tr(english, "每批", "batch"),
+        tr(lang, "每批", "batch"),
         number(output),
-        tr(english, "費用", "fee"),
+        tr(lang, "費用", "fee"),
         number(fee)
     )
 }
-fn notices(doc: &db::CalcDocument, english: bool) -> String {
+fn notices(doc: &db::CalcDocument, lang: &str) -> String {
     let mut notes = vec![tr(
-        english,
+        lang,
         "單價由用家輸入，不代表市場價格。",
         "Unit prices are user estimates, not market quotes.",
     )
     .to_string()];
     match doc.success {
-        Some(rate) if rate < 100 => notes.push(format!("{} {rate}%；{}", tr(english, "配方成功率", "Recipe success"), tr(english, "成本不含失敗重試。", "cost excludes failed attempts."))),
-        None => notes.push(tr(english, "DB 未記錄成功率，成本按製作批次計，不含失敗重試。", "No success rate is recorded; costs cover planned batches, excluding failed attempts.").into()),
+        Some(rate) if rate < 100 => notes.push(format!("{} {rate}%；{}", tr(lang, "配方成功率", "Recipe success"), tr(lang, "成本不含失敗重試。", "cost excludes failed attempts."))),
+        None => notes.push(tr(lang, "DB 未記錄成功率，成本按製作批次計，不含失敗重試。", "No success rate is recorded; costs cover planned batches, excluding failed attempts.").into()),
         _ => (),
     }
     if doc.learn_fee.is_some_and(|n| n > 0) {
         notes.push(
             tr(
-                english,
+                lang,
                 "不含配方學習費。",
                 "Recipe learning fees are excluded.",
             )
@@ -184,8 +180,8 @@ impl Controller {
     }
     fn search(&self, app: &App, query: &str) {
         let Ok(book) = &self.book else { return };
-        let lang = app.get_lang();
-        let english = lang == "en-zh";
+        let lang_value = app.get_lang();
+        let lang = lang_value.as_str();
         let choices = self
             .catalog
             .calculator_items(book, query, &lang)
@@ -195,7 +191,7 @@ impl Controller {
                 CalcChoice {
                     id: item.code.to_string().into(),
                     title: item.title.into(),
-                    subtitle: format!("{} {}", item.recipe_count, tr(english, "種配方", "recipes"))
+                    subtitle: format!("{} {}", item.recipe_count, tr(lang, "種配方", "recipes"))
                         .into(),
                     icon,
                     has_icon,
@@ -206,8 +202,8 @@ impl Controller {
     }
     fn render(&self, app: &App) {
         self.render_library(app);
-        let lang = app.get_lang();
-        let english = lang == "en-zh";
+        let lang_value = app.get_lang();
+        let lang = lang_value.as_str();
         let current = self.document.borrow();
         self.publish_input_errors(app);
         let Some(doc) = current.as_ref() else {
@@ -222,14 +218,16 @@ impl Controller {
             app.set_calculator_status("".into());
             app.set_calculator_notice("".into());
             if let Err(error) = &self.book {
-                app.set_calculator_error(error.clone().into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error.clone()).into());
             }
             return;
         };
+        let localized = self.catalog.localized_calculator_document(doc, lang);
+        let doc = &localized;
         let breakdown = match doc.calculate() {
             Ok(value) => value,
             Err(error) => {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return;
             }
         };
@@ -244,8 +242,8 @@ impl Controller {
                 doc.source,
                 doc.recipe_id,
                 number(breakdown.batches),
-                tr(english, "批", "batches"),
-                tr(english, "實際產出", "actual output"),
+                tr(lang, "批", "batches"),
+                tr(lang, "實際產出", "actual output"),
                 number(breakdown.output_units),
                 doc.catalog_version
             )
@@ -257,7 +255,7 @@ impl Controller {
             doc.recipe_id,
             doc.output,
             doc.fee_per_batch,
-            english,
+            lang,
         )
         .into()];
         if let Ok(book) = &self.book {
@@ -270,7 +268,7 @@ impl Controller {
                             recipe.recipe_id,
                             recipe.output,
                             recipe.fee,
-                            english,
+                            lang,
                         )
                         .into(),
                     );
@@ -306,7 +304,7 @@ impl Controller {
                     subtitle: if line.key.enhance > 0 {
                         format!(
                             "{} +{}",
-                            tr(english, "強化等級", "Enhancement"),
+                            tr(lang, "強化等級", "Enhancement"),
                             line.key.enhance
                         )
                         .into()
@@ -314,7 +312,7 @@ impl Controller {
                         "".into()
                     },
                     quantity: number(line.quantity).into(),
-                    price: nested::unit_price(line, english).into(),
+                    price: nested::unit_price(line, lang).into(),
                     subtotal: nested::subtotal(line).into(),
                     missing_price: line.line_total.is_none(),
                     depth: row.depth as i32,
@@ -322,7 +320,7 @@ impl Controller {
                     can_expand,
                     can_reuse: row.depth < db::MAX_NESTED_DEPTH
                         && self.can_reuse(line.key.code, line.key.enhance),
-                    detail: nested::detail(line, english).into(),
+                    detail: nested::detail(line, lang).into(),
                     icon,
                     has_icon,
                 }
@@ -348,9 +346,9 @@ impl Controller {
                 format!(
                     "{} {} · {}",
                     breakdown.priced_leaves,
-                    tr(english, "種基礎材料已填價", "leaf materials priced"),
+                    tr(lang, "種基礎材料已填價", "leaf materials priced"),
                     tr(
-                        english,
+                        lang,
                         "單位：兩；每件成本按實際產出計算",
                         "Currency: coins; per-item cost uses actual output"
                     )
@@ -360,12 +358,12 @@ impl Controller {
                     "{} {} · {}",
                     breakdown.leaf_count - breakdown.priced_leaves,
                     tr(
-                        english,
+                        lang,
                         "種基礎材料尚未填價",
                         "leaf materials still unpriced"
                     ),
                     tr(
-                        english,
+                        lang,
                         "0 代表免費，留空代表未知",
                         "0 means free; blank means unknown"
                     )
@@ -373,10 +371,10 @@ impl Controller {
             }
             .into(),
         );
-        let mut notice = notices(doc, english);
+        let mut notice = notices(doc, lang);
         if breakdown.materials.iter().any(|line| line.nested.is_some()) {
             notice.push(' ');
-            notice.push_str(tr(english,
+            notice.push_str(tr(lang,
                 "子配方同樣不含失敗重試及學習費；子材料單價按目前所需數量分攤整批費用，包含餘量。",
                 "Sub-recipes also exclude failed attempts and learning fees. Computed material prices allocate whole-batch costs, including surplus, to the required quantity."));
         }
@@ -386,7 +384,7 @@ impl Controller {
         let errors = self.input_errors.borrow();
         let error = self.load_error.as_deref().or_else(|| errors.first());
         app.set_calculator_input_valid(error.is_none());
-        app.set_calculator_error(error.unwrap_or_default().into());
+        app.set_calculator_error(db::localized_error(&app.get_lang(), &error.unwrap_or_default()).into());
         let quantity = errors.draft(&InputField::Quantity);
         app.set_calculator_quantity_draft(quantity.unwrap_or_default().into());
         app.set_calculator_quantity_has_draft(quantity.is_some());
@@ -451,7 +449,7 @@ impl Controller {
     }
     fn persist_document(&self, app: &App, next: db::CalcDocument, info: &str) -> bool {
         if let Some(error) = &self.load_error {
-            app.set_calculator_error(error.clone().into());
+            app.set_calculator_error(db::localized_error(&app.get_lang(), &error.clone()).into());
             return false;
         }
         // Valid edits are already committed on each keystroke. Enter or focus
@@ -462,7 +460,7 @@ impl Controller {
             return true;
         }
         if let Err(error) = next.calculate().and_then(|_| db::save_calculator(&next)) {
-            app.set_calculator_error(error.into());
+            app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
             return false;
         }
         *self.document.borrow_mut() = Some(next);
@@ -478,7 +476,7 @@ impl Controller {
         {
             Ok(doc) => doc,
             Err(error) => {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return;
             }
         };
@@ -488,7 +486,7 @@ impl Controller {
             }
             let keep_nested = preserve_quantity && old.item_code == next.item_code;
             if let Err(error) = nested::preserve_sources(&mut next, old, keep_nested) {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return;
             }
         }
@@ -502,13 +500,13 @@ impl Controller {
         let doc = current
             .as_ref()
             .ok_or("請先選擇道具 / Select an item first")?;
-        card_document(doc, app.get_lang() == "en-zh", |code| self.icon(code).0)
+        card_document(&self.catalog.localized_calculator_document(doc, &app.get_lang()), &app.get_lang(), |code| self.icon(code).0)
     }
 }
 
 fn card_document(
     doc: &db::CalcDocument,
-    english: bool,
+    lang: &str,
     icon_for: impl Fn(i64) -> Image,
 ) -> Result<calculator_export::CardData, String> {
     let costs = doc.calculate()?;
@@ -520,9 +518,9 @@ fn card_document(
                 title: line.title.clone(),
                 quantity: number(line.quantity),
                 unit_price: if line.nested.is_none() && line.unit_price.is_none() {
-                    tr(english, "待填", "Unpriced").into()
+                    tr(lang, "待填", "Unpriced").into()
                 } else {
-                    nested::unit_price(line, english)
+                    nested::unit_price(line, lang)
                 },
                 subtotal: nested::subtotal(line),
                 icon: icon_for(line.key.code),
@@ -530,18 +528,18 @@ fn card_document(
                 depth: row.depth,
                 context: row.context,
                 nested: line.nested.is_some(),
-                detail: nested::detail(line, english),
+                detail: nested::detail(line, lang),
             }
         })
         .collect();
     Ok(calculator_export::CardData {
-        english,
+        language: lang.into(),
         title: doc.title.clone(),
         subtitle: format!("{} · #{}", doc.source, doc.recipe_id),
         quantity: number(costs.output_units),
         fee: number(costs.fee),
         total_label: tr(
-            english,
+            lang,
             if costs.total.is_some() {
                 "成本合計"
             } else {
@@ -563,14 +561,14 @@ fn card_document(
             && !costs.materials.iter().any(|line| line.nested.is_some())
         {
             tr(
-                english,
+                lang,
                 "用家自訂單價。成本不含配方學習費。",
                 "User-supplied prices. Recipe learning fees excluded.",
             )
             .into()
         } else {
             tr(
-                english,
+                lang,
                 "用家自訂單價。成本不含失敗重試或學習費。",
                 "User-supplied prices. Failed attempts and learning fees excluded.",
             )
@@ -580,7 +578,7 @@ fn card_document(
             "DB {} · {}",
             doc.catalog_version,
             tr(
-                english,
+                lang,
                 "離線配方快照 · 單位：兩",
                 "Offline recipe snapshot · Currency: coins"
             )
@@ -689,13 +687,14 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
         let Some(mut doc) = c.document.borrow().clone() else {
             return false;
         };
-        let english = app.get_lang() == "en-zh";
-        let value = match parse_amount(&text, english) {
+        let lang_value = app.get_lang();
+        let lang = lang_value.as_str();
+        let value = match parse_amount(&text, lang) {
             Ok(Some(value)) if value > 0 => value,
             result => {
                 let error = result.err().unwrap_or_else(|| {
                     tr(
-                        english,
+                        lang,
                         "製作數量必須是大於 0 的整數。",
                         "Crafting quantity must be a positive whole number.",
                     )
@@ -720,7 +719,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
             return false;
         };
         let field = InputField::Price(key.to_string());
-        let price = match parse_amount(&text, app.get_lang() == "en-zh") {
+        let price = match parse_amount(&text, &app.get_lang()) {
             Ok(price) => price,
             Err(error) => return c.record_input(&app, field, &text, Err(error)),
         };
@@ -740,8 +739,8 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
         let Some(app) = weak.upgrade() else { return };
         let current = c.document.borrow(); let Some(doc) = current.as_ref() else { return };
         match db::encode_calculator(doc) {
-            Ok(code) => { window::copy_to_clipboard(&code); app.set_calculator_info(tr(app.get_lang() == "en-zh", "分享碼已複製。對方可在「匯入分享碼」貼上，離線還原這份成本清單。", "Code copied. Paste it into Import code to restore this cost sheet offline.").into()); }
-            Err(error) => app.set_calculator_error(error.into()),
+            Ok(code) => { window::copy_to_clipboard(&code); app.set_calculator_info(tr(&app.get_lang(), "分享碼已複製。對方可在「匯入分享碼」貼上，離線還原這份成本清單。", "Code copied. Paste it into Import code to restore this cost sheet offline.").into()); }
+            Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
         }
     });
     let weak = app.as_weak();
@@ -758,7 +757,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
                     &app,
                     doc,
                     tr(
-                        app.get_lang() == "en-zh",
+                        &app.get_lang(),
                         "已匯入離線成本清單，可繼續修改並儲存到收藏。",
                         "Imported the offline cost sheet. Edit it or save it to your collection.",
                     ),
@@ -768,7 +767,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
                     app.set_calculator_library_open(false);
                 }
             }
-            Err(error) => app.set_calculator_error(error.into()),
+            Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
         }
     });
     let weak = app.as_weak();
@@ -785,7 +784,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
                     app.set_calculator_info(
                         format!(
                             "{} {} JPG · {}{}",
-                            tr(app.get_lang() == "en-zh", "已匯出", "Exported"),
+                            tr(&app.get_lang(), "已匯出", "Exported"),
                             paths.len(),
                             first.parent().unwrap_or(first).display(),
                             open_result
@@ -797,7 +796,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
                     );
                 }
             }
-            Err(error) => app.set_calculator_error(error.into()),
+            Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
         }
     });
     controller.render(app);
@@ -809,11 +808,11 @@ mod tests {
     use super::*;
     #[test]
     fn price_edits_keep_blank_unknown_and_zero_free() {
-        assert_eq!(parse_amount("", false).unwrap(), None);
-        assert_eq!(parse_amount(" ", false).unwrap(), None);
-        assert_eq!(parse_amount("0", false).unwrap(), Some(0));
-        assert_eq!(parse_amount("0,000", false).unwrap(), Some(0));
-        assert_eq!(parse_amount(" 1,234,567 ", false).unwrap(), Some(1_234_567));
+        assert_eq!(parse_amount("", "zh").unwrap(), None);
+        assert_eq!(parse_amount(" ", "zh").unwrap(), None);
+        assert_eq!(parse_amount("0", "zh").unwrap(), Some(0));
+        assert_eq!(parse_amount("0,000", "zh").unwrap(), Some(0));
+        assert_eq!(parse_amount(" 1,234,567 ", "zh").unwrap(), Some(1_234_567));
     }
     #[test]
     fn formatted_price_accepts_insertion_and_deletion_between_commas() {
@@ -831,9 +830,9 @@ mod tests {
                 "9,223,372,036,854,775,807",
             ),
         ] {
-            assert_eq!(parse_amount(edit, false).unwrap(), Some(expected));
+            assert_eq!(parse_amount(edit, "zh").unwrap(), Some(expected));
             assert_eq!(number(expected), formatted);
-            assert_eq!(parse_amount(formatted, true).unwrap(), Some(expected));
+            assert_eq!(parse_amount(formatted, "en").unwrap(), Some(expected));
         }
     }
     #[test]
@@ -856,7 +855,7 @@ mod tests {
             "9223372036854775808",
             "9,223,372,036,854,775,808",
         ] {
-            assert!(parse_amount(bad, false).is_err(), "accepted {bad:?}");
+            assert!(parse_amount(bad, "zh").is_err(), "accepted {bad:?}");
         }
     }
     #[test]

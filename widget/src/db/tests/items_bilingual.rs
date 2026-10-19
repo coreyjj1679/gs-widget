@@ -43,6 +43,7 @@ fn item_bilingual_names_omit_missing_or_duplicate_translations() {
         (" Same ", "same", ["same", "Same"]),
         ("", "", ["", ""]),
     ] {
+        catalog.index.items[item_index].ko.clear();
         catalog.index.items[item_index].en = en.into();
         catalog.index.items[item_index].zh = zh.into();
         catalog.conn.execute("DELETE FROM strings", []).expect("reset names");

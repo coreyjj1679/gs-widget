@@ -9,20 +9,20 @@ use super::names::{NameTrie, fuzzy_rows, haystack, plain_name};
 use super::paths::resolve_client_file;
 use super::rows::{ChainBook, ChainStep, Combo, HeroRow, HeroSkill, Index, ItemRow, RosterUse};
 use super::store::{online, table_exists};
-use super::text::{caption, commas, lead, phrase, trail};
+use super::text::{caption, chrome_text, commas, lead, lead3, phrase, trail3};
 use super::work::chain_role;
 
 pub(in crate::db) fn hero_sheet_parts(hero: &HeroRow, lang: &str) -> (String, String, String, Vec<(String, String)>, String) {
     let (title, alt) = hero_names(lang, hero);
     let (en, zh) = hero_rank_pair(hero.rank);
-    let rank = lead(lang, en, zh);
+    let rank = lead3(lang, en, zh, &chrome_text("ko", zh, en));
     let heading = if rank.is_empty() {
         hero.code.clone()
     } else {
         format!("{rank}  {}", hero.code)
     };
     let mut facts = Vec::new();
-    let nation = lead(lang, &hero.nation_en, &hero.nation_zh);
+    let nation = lead3(lang, &hero.nation_en, &hero.nation_zh, &chrome_text("ko", &hero.nation_zh, &hero.nation_en));
     if !nation.is_empty() && hero.rank < 13 {
         facts.push((phrase("nation", lang), nation));
     }
@@ -50,8 +50,8 @@ pub(in crate::db) fn hero_sheet_parts(hero: &HeroRow, lang: &str) -> (String, St
 }
 
 pub(in crate::db) fn hero_names(lang: &str, hero: &HeroRow) -> (String, String) {
-    let title = lead(lang, &hero.en, &hero.zh);
-    let alt = trail(lang, &hero.en, &hero.zh);
+    let title = lead3(lang, &hero.en, &hero.zh, &hero.ko);
+    let alt = trail3(lang, &hero.en, &hero.zh, &hero.ko);
     if title.is_empty() {
         let ko = plain_name(&hero.ko);
         if ko.is_empty() { (hero.code.clone(), String::new()) } else { (ko, String::new()) }
@@ -635,10 +635,10 @@ impl Index {
             .map(|rank| {
                 let (en, zh) = if legacy_tier { hero_tier_pair(rank) } else { hero_rank_pair(rank) };
                 let count = format!("{} {}", commas(counts[&rank]), phrase("heroes", lang));
-                let title = lead(lang, en, zh);
+                let title = lead3(lang, en, zh, &chrome_text("ko", zh, en));
                 Hit {
                     title: if title.is_empty() { rank.to_string() } else { title },
-                    subtitle: caption(&trail(lang, en, zh), count),
+                    subtitle: caption(&trail3(lang, en, zh, &chrome_text("ko", zh, en)), count),
                     key: match nation {
                         Some(_) if legacy_tier => format!("band:{rank}"),
                         Some(nation) => format!("land-rank:{nation}:{rank}"),
@@ -667,8 +667,8 @@ impl Index {
                 let (en, zh) = hero_land_pair(mask);
                 let count = format!("{} {}", commas(counts[&mask]), phrase("heroes", lang));
                 Hit {
-                    title: lead(lang, en, zh),
-                    subtitle: caption(&trail(lang, en, zh), count),
+                    title: lead3(lang, en, zh, &chrome_text("ko", zh, en)),
+                    subtitle: caption(&trail3(lang, en, zh, &chrome_text("ko", zh, en)), count),
                     key: format!("land:{mask}"),
                     icon: self.representative_hero_icon(None, Some(mask)),
                     solo: false,
@@ -726,12 +726,12 @@ impl Index {
             .map(|hero| {
                 let (title, alt) = hero_names(lang, hero);
                 let (en, zh) = hero_rank_pair(hero.rank);
-                let rank_name = if wanted.is_some() { String::new() } else { lead(lang, en, zh) };
+                let rank_name = if wanted.is_some() { String::new() } else { lead3(lang, en, zh, &chrome_text("ko", zh, en)) };
                 let companion = matches!(hero.rank, 13 | 14);
                 let aside = if companion {
                     hero.companion.as_ref().map(|row| companion_summary(row, hero.rank, lang)).unwrap_or_default()
                 } else {
-                    lead(lang, &hero.nation_en, &hero.nation_zh)
+                    lead3(lang, &hero.nation_en, &hero.nation_zh, &chrome_text("ko", &hero.nation_zh, &hero.nation_en))
                 };
                 let chip = match hero.rank {
                     13 => "mount".to_string(),
@@ -869,7 +869,7 @@ impl Index {
                 for (item_code, qty) in &recipe.materials {
                     let item = self.find_item(*item_code);
                     let (name, alt) = item
-                        .map(|item| (lead(lang, &item.en, &item.zh), trail(lang, &item.en, &item.zh)))
+                        .map(|item| (lead3(lang, &item.en, &item.zh, &item.ko), trail3(lang, &item.en, &item.zh, &item.ko)))
                         .unwrap_or_default();
                     blocks.push(Hit {
                         title: if name.is_empty() { item_code.to_string() } else { name },
@@ -930,7 +930,7 @@ impl Index {
         for (code, qty) in materials {
             let item = self.find_item(*code);
             let (name, alt) = item
-                .map(|item| (lead(lang, &item.en, &item.zh), trail(lang, &item.en, &item.zh)))
+                .map(|item| (lead3(lang, &item.en, &item.zh, &item.ko), trail3(lang, &item.en, &item.zh, &item.ko)))
                 .unwrap_or_default();
             hits.push(Hit {
                 title: if name.is_empty() { code.to_string() } else { name },
@@ -1006,8 +1006,8 @@ impl Index {
         for part in parts {
             if part.item == 0 {
                 blocks.push(Hit {
-                    title: lead(lang, part.en, part.zh).to_string(),
-                    subtitle: lead(lang, part.hint_en, part.hint_zh).to_string(),
+                    title: chrome_text(lang, part.zh, part.en).to_string(),
+                    subtitle: chrome_text(lang, part.hint_zh, part.hint_en).to_string(),
                     key: String::new(),
                     icon: None,
                     solo: false,
@@ -1019,9 +1019,9 @@ impl Index {
             }
             let item = self.find_item(part.item);
             let (title, alt) = item
-                .map(|item| (lead(lang, &item.en, &item.zh), trail(lang, &item.en, &item.zh)))
+                .map(|item| (lead3(lang, &item.en, &item.zh, &item.ko), trail3(lang, &item.en, &item.zh, &item.ko)))
                 .unwrap_or_else(|| (part.item.to_string(), String::new()));
-            let alt = if part.hint_zh.is_empty() { alt } else { lead(lang, part.hint_en, part.hint_zh).to_string() };
+            let alt = if part.hint_zh.is_empty() { alt } else { chrome_text(lang, part.hint_zh, part.hint_en).to_string() };
             blocks.push(Hit {
                 title: if title.is_empty() { part.item.to_string() } else { title },
                 subtitle: alt,

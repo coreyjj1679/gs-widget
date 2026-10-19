@@ -1,3 +1,4 @@
+use super::text::{lead3, trail3};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -115,10 +116,19 @@ pub(in crate::db) fn majority(values: impl Iterator<Item = String>) -> String {
         .unwrap_or_default()
 }
 
-pub(in crate::db) fn all_floor_names(en: &str, zh: &str) -> (String, String) {
-    let en_base = if en.is_empty() { zh } else { en };
-    let zh_base = if zh.is_empty() { en } else { zh };
-    (format!("{en_base} - All"), format!("{zh_base} - 所有"))
+pub(in crate::db) fn all_floor_names(lang: &str, en: &str, zh: &str) -> (String, String) {
+    // Localize the generated suffix, while keeping the location's honest
+    // primary fallback and never inventing a missing secondary translation.
+    let primary = lead(lang, en, zh);
+    let alternate = trail(lang, en, zh);
+    let suffix = |language| super::ui_text(language, "所有", "All");
+    let title = format!("{primary} - {}", suffix(lang));
+    let alternate = if alternate.is_empty() {
+        String::new()
+    } else {
+        format!("{alternate} - {}", suffix(super::secondary_lang(lang).unwrap_or(lang)))
+    };
+    (title, alternate)
 }
 
 pub(in crate::db) fn floor_sort_label(lang: &str, en: &str, zh: &str) -> String {
@@ -201,9 +211,10 @@ impl Index {
             .iter()
             .map(|(nation, count)| {
                 let (en, zh) = nation_pair(*nation);
+                let ko = super::ui_text("ko", zh, en);
                 Hit {
-                title: lead(lang, en, zh),
-                subtitle: caption(&trail(lang, en, zh), format!("{} {}", commas(*count), phrase("monsters", lang))),
+                title: lead3(lang, en, zh, &ko),
+                subtitle: caption(&trail3(lang, en, zh, &ko), format!("{} {}", commas(*count), phrase("monsters", lang))),
                 key: format!("nation:{nation}"),
                 icon: None,
                     solo: false,
@@ -283,8 +294,8 @@ impl Index {
     }
 
     pub(in crate::db) fn directory_hits(&self, lang: &str) -> Vec<Hit> {
-        let all = if lang == "en-zh" { "All monsters" } else { "所有怪物" };
-        let saved = if lang == "en-zh" { "Saved" } else { "收藏" };
+        let all = super::ui_text(lang, "所有怪物", "All monsters");
+        let saved = super::ui_text(lang, "收藏", "Saved");
         let mut hits = vec![Hit {
             title: all.into(),
             subtitle: self.monsters.len().to_string(),
@@ -317,8 +328,9 @@ impl Index {
                 continue;
             }
             let (en, zh) = nation_pair(nation);
+            let ko = super::ui_text("ko", zh, en);
             hits.push(Hit {
-                title: format!("{}:", lead(lang, en, zh)),
+                title: format!("{}:", lead3(lang, en, zh, &ko)),
                 subtitle: String::new(),
                 key: format!("nation:{nation}"),
                 icon: None,
@@ -344,8 +356,15 @@ impl Index {
         let alternate: HashMap<String, String> = if query.is_empty() {
             HashMap::new()
         } else {
-            let other_lang = if lang == "en-zh" { "zh-en" } else { "en-zh" };
-            self.directory_hits(other_lang).into_iter().map(|hit| (hit.key, hit.title.to_lowercase())).collect()
+            let mut names = HashMap::<String, String>::new();
+            for language in ["zh", "en", "ko"] {
+                for hit in self.directory_hits(language) {
+                    let name = names.entry(hit.key).or_default();
+                    name.push_str(&hit.title.to_lowercase());
+                    name.push('\n');
+                }
+            }
+            names
         };
         let matches_name = |hit: &Hit| query.is_empty() || hit.title.to_lowercase().contains(&query)
             || alternate.get(&hit.key).is_some_and(|name| name.contains(&query));
@@ -426,8 +445,12 @@ impl Index {
         let mut hits: Vec<Hit> = floors.into_iter().map(|(_, hit)| hit).collect();
         if folded.is_empty() {
             let gts = member_gts(&members);
-            let (en_title, zh_title) = all_floor_names(&en, &zh);
-            hits.insert(0, place_hit(lang, &en_title, &zh_title, self.count_at(&gts), format!("span:{area}")));
+            let count = self.count_at(&gts);
+            let (title, alternate) = all_floor_names(lang, &en, &zh);
+            let mut hit = place_hit(lang, &en, &zh, count, format!("span:{area}"));
+            hit.title = title;
+            hit.subtitle = caption(&alternate, format!("{} {}", commas(count), phrase("monsters", lang)));
+            hits.insert(0, hit);
         }
         hits
     }
@@ -488,8 +511,8 @@ impl Index {
                     format!("{}  {place_name}", monster.code)
                 };
                 Hit {
-                    title: lead(lang, &monster.en, &monster.zh),
-                    subtitle: caption(&trail(lang, &monster.en, &monster.zh), meta),
+                    title: lead3(lang, &monster.en, &monster.zh, &monster.ko),
+                    subtitle: caption(&trail3(lang, &monster.en, &monster.zh, &monster.ko), meta),
                     key: format!("monster:{}", monster.code),
                     icon: monster.icon.clone(),
                     solo: false,
@@ -515,8 +538,8 @@ impl Index {
                 let count = format!("{} {}", commas(counts[key]), phrase("pieces", lang));
                 let id = if key.is_empty() { "other" } else { key };
                 Hit {
-                    title: lead(lang, en, zh),
-                    subtitle: caption(&trail(lang, en, zh), count),
+                    title: lead3(lang, en, zh, &super::ui_text("ko", zh, en)),
+                    subtitle: caption(&trail3(lang, en, zh, &super::ui_text("ko", zh, en)), count),
                     key: format!("icat:{id}"),
                     icon: self.item_group_icon(key, ""),
                     solo: false,
@@ -532,8 +555,8 @@ impl Index {
             hits.insert(
                 0,
                 Hit {
-                    title: lead(lang, en, zh),
-                    subtitle: caption(&trail(lang, en, zh), count),
+                    title: lead3(lang, en, zh, &super::ui_text("ko", zh, en)),
+                    subtitle: caption(&trail3(lang, en, zh, &super::ui_text("ko", zh, en)), count),
                     key: "icat:set".into(),
                     icon: self.sets.iter().find_map(|set| set.icon.clone()),
                     solo: false,
@@ -576,7 +599,7 @@ impl Index {
                 let title = set_title_lang(lang, &set.ko, &set.en, &set.zh);
                 Hit {
                     title,
-                    subtitle: caption(&trail(lang, &set.en, &set.zh), set_piece_label(set.pieces, lang)),
+                    subtitle: caption(&trail3(lang, &set.en, &set.zh, &set.ko), set_piece_label(set.pieces, lang)),
                     key: format!("set:{}", set.code),
                     icon: set.icon.clone(),
                     solo: false,
@@ -615,8 +638,8 @@ impl Index {
                 let (en, zh) = weapon_family_pair(key);
                 let count = format!("{} {}", commas(counts[key]), phrase("pieces", lang));
                 Hit {
-                    title: lead(lang, en, zh),
-                    subtitle: caption(&trail(lang, en, zh), count),
+                    title: lead3(lang, en, zh, &super::ui_text("ko", zh, en)),
+                    subtitle: caption(&trail3(lang, en, zh, &super::ui_text("ko", zh, en)), count),
                     key: format!("isub:{key}"),
                     icon: self.item_group_icon(kind, key),
                     solo: false,
@@ -687,8 +710,8 @@ impl Index {
             .map(|item| {
                 let code = &item.code_str;
                 Hit {
-                    title: lead(lang, &item.en, &item.zh),
-                    subtitle: caption(&trail(lang, &item.en, &item.zh), format!("#{code}")),
+                    title: lead3(lang, &item.en, &item.zh, &item.ko),
+                    subtitle: caption(&trail3(lang, &item.en, &item.zh, &item.ko), format!("#{code}")),
                     key: format!("item:{code}"),
                     icon: code.parse().ok().and_then(|id: i64| self.item_icons.get(&id).cloned()),
                     solo: false,
@@ -711,10 +734,10 @@ impl Index {
             .map(|key| {
                 let (zh, en) = source_names(key);
                 let count = format!("{} {}", commas(counts[key]), phrase("recipes", lang));
-                let title = lead(lang, en, zh);
+                let title = lead3(lang, en, zh, &super::ui_text("ko", zh, en));
                 Hit {
                     title: if title.is_empty() { key.to_string() } else { title },
-                    subtitle: caption(&trail(lang, en, zh), count),
+                    subtitle: caption(&trail3(lang, en, zh, &super::ui_text("ko", zh, en)), count),
                     key: format!("craft:{key}"),
                     icon: self
                         .recipes
@@ -761,8 +784,8 @@ impl Index {
                     .map(commas)
                     .unwrap_or_default();
                 Hit {
-                    title: lead(lang, &recipe.en, &recipe.zh),
-                    subtitle: caption(&trail(lang, &recipe.en, &recipe.zh), meta),
+                    title: lead3(lang, &recipe.en, &recipe.zh, &recipe.ko),
+                    subtitle: caption(&trail3(lang, &recipe.en, &recipe.zh, &recipe.ko), meta),
                     key: format!("recipe:{}", recipe.id),
                     icon: recipe.icon.clone(),
                     solo: false,
@@ -785,10 +808,10 @@ impl Index {
             .map(|key| {
                 let (zh, en) = source_names(key);
                 let count = format!("{} {}", commas(counts[key]), phrase("quest-count", lang));
-                let title = lead(lang, en, zh);
+                let title = lead3(lang, en, zh, &super::ui_text("ko", zh, en));
                 Hit {
                     title: if title.is_empty() { key.to_string() } else { title },
-                    subtitle: caption(&trail(lang, en, zh), count),
+                    subtitle: caption(&trail3(lang, en, zh, &super::ui_text("ko", zh, en)), count),
                     key: format!("qsrc:{key}"),
                     icon: None,
                     solo: false,
@@ -830,8 +853,8 @@ impl Index {
                     quest.code.clone()
                 };
                 Hit {
-                    title: lead(lang, &quest.title_en, &quest.title_zh),
-                    subtitle: caption(&trail(lang, &quest.title_en, &quest.title_zh), meta),
+                    title: lead3(lang, &quest.title_en, &quest.title_zh, &quest.title_ko),
+                    subtitle: caption(&trail3(lang, &quest.title_en, &quest.title_zh, &quest.title_ko), meta),
                     key: format!("quest:{}", quest.id),
                     icon: self.npc_face(quest.npc),
                     solo: false,
@@ -847,5 +870,33 @@ impl Index {
         // load_items orders by numeric code; keep lookups logarithmic when a
         // production or town list resolves hundreds of item references.
         self.items.binary_search_by_key(&code, |item| item.code).ok().map(|index| &self.items[index])
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+
+    #[test]
+    fn generated_all_floor_suffix_uses_primary_language_without_fake_secondary_locations() {
+        assert_eq!(all_floor_names("ko", "Forest", "森林"), ("Forest - 전체".into(), String::new()));
+        assert_eq!(all_floor_names("ko-zh", "Forest", "森林"), ("森林 - 전체".into(), String::new()));
+        assert_eq!(all_floor_names("en-ko", "Forest", "森林"), ("Forest - All".into(), String::new()));
+        assert_eq!(all_floor_names("zh-en", "Forest", "森林"), ("森林 - 所有".into(), "Forest - All".into()));
+        assert_eq!(all_floor_names("en-zh", "", "森林"), ("森林 - All".into(), String::new()));
+    }
+
+    #[test]
+    fn all_floor_row_and_scope_title_share_the_korean_label() {
+        let catalog = super::super::Catalog::open().expect("catalog");
+        let place = catalog.index.places.iter().find(|place| {
+            catalog.index.group_members(&place.nation.to_string(), &group_key(place)).len() >= 2
+        }).expect("multi-floor region");
+        let nation = place.nation.to_string();
+        let area = group_key(place);
+        let row = catalog.index.floor_hits(&nation, &area, "", "ko").into_iter().next().expect("all floors");
+        assert!(row.title.ends_with(" - 전체"));
+        assert_eq!(row.title, catalog.span_name(&nation, &area, "ko"));
+        assert!(!row.subtitle.contains("All") && !row.subtitle.contains("所有"));
     }
 }

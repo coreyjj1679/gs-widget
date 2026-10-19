@@ -1,3 +1,4 @@
+use self::text::{lead3, trail3};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -10,6 +11,9 @@ mod character_data;
 mod hero;
 mod item;
 mod load;
+mod language;
+mod localization;
+mod ui_korean;
 pub(crate) mod mcp;
 mod monster;
 mod names;
@@ -33,6 +37,8 @@ mod town;
 mod user_data;
 mod work;
 
+pub use language::{normalize_lang, primary_lang, secondary_lang, with_primary_lang, with_secondary_lang};
+pub use localization::{ui_text, ui_text_ref, localized_error};
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
 pub use quest_items::{QuestItemRef, QuestItemSet};
@@ -49,8 +55,8 @@ use paths::{characters_dir, client_build, find_db, locate_client};
 use rows::Index;
 use search::all_floor_names;
 use text::{
-    caption, dotted_version, hit_version, lead, notes_placeholder, patch_number, phrase, pick_place, server_name,
-    ship_label, show, stack, trail,
+    caption, dotted_version, hit_version, notes_placeholder, patch_number, phrase, pick_place, server_name,
+    ship_label, show,
 };
 
 #[derive(Clone)]
@@ -74,6 +80,8 @@ pub struct Catalog {
     index: Index,
 }
 
+#[cfg(test)]
+use text::{lead, stack, trail};
 #[cfg(test)]
 mod tests;
 
@@ -120,7 +128,7 @@ impl Catalog {
             .filter_map(|code| {
                 let id = code.trim_start_matches('#').parse::<i64>().ok()?;
                 let item = self.index.find_item(id)?;
-                let name = lead(lang, &item.en, &item.zh);
+                let name = lead3(lang, &item.en, &item.zh, &item.ko);
                 Some(Hit {
                     title: if name.is_empty() { format!("#{id}") } else { name },
                     subtitle: format!("#{id}"),
@@ -147,7 +155,7 @@ impl Catalog {
                     .iter()
                     .find(|item| item.code_str == code)
                     .map(|item| {
-                        let name = lead(lang, &item.en, &item.zh);
+                        let name = lead3(lang, &item.en, &item.zh, &item.ko);
                         if name.is_empty() { format!("#{code}") } else { name }
                     })
                     .unwrap_or_else(|| format!("#{code}"))
@@ -329,6 +337,7 @@ impl Catalog {
                 let version: String = row.get(0)?;
                 let server: String = row.get(1)?;
                 let posted: String = row.get(2)?;
+                let ko: String = row.get(3)?;
                 let en: String = row.get(4)?;
                 let zh: String = row.get(5)?;
                 let server_label = server_name(&server, lang);
@@ -339,10 +348,10 @@ impl Catalog {
                 } else {
                     format!("{shown}  {posted}  {server_label}")
                 };
-                let title = lead(lang, &en, &zh);
+                let title = lead3(lang, &en, &zh, &ko);
                 Ok(Hit {
                     title: if title.is_empty() { shown } else { title },
-                    subtitle: caption(&trail(lang, &en, &zh), meta),
+                    subtitle: caption(&trail3(lang, &en, &zh, &ko), meta),
                     key: format!("patch:{version}:{server}"),
                     icon: None,
                     solo: false,
@@ -384,7 +393,7 @@ impl Catalog {
                 ))
             },
         );
-        let Ok((posted, _title_ko, title_en, title_zh)) = row else {
+        let Ok((posted, title_ko, title_en, title_zh)) = row else {
             return phrase("missing", lang);
         };
         let mut text = format!(
@@ -396,7 +405,7 @@ impl Catalog {
         if !posted.is_empty() {
             text.push_str(&format!("\n{posted}"));
         }
-        let title = stack(lang, &title_en, &title_zh);
+        let title = text::stack3(lang, &title_en, &title_zh, &title_ko);
         if !title.is_empty() {
             text.push_str(&format!("\n\n{title}"));
         }
@@ -417,8 +426,8 @@ impl Catalog {
         });
         if let Ok(rows) = rows {
             for row in rows.flatten() {
-                let (kind, _ko, en, zh) = row;
-                let line = stack(lang, &en, &zh);
+                let (kind, ko, en, zh) = row;
+                let line = text::stack3(lang, &en, &zh, &ko);
                 if kind == "heading" {
                     text.push_str(&format!("\n\n{line}\n"));
                 } else {
@@ -453,8 +462,8 @@ impl Catalog {
         self.index
             .group_bases(nation, area)
             .map(|(en, zh)| {
-                let (en_title, zh_title) = all_floor_names(&en, &zh);
-                show(lang, &en_title, &zh_title)
+                let (title, alternate) = all_floor_names(lang, &en, &zh);
+                if alternate.is_empty() { title } else { format!("{title} · {alternate}") }
             })
             .unwrap_or_else(|| area.to_string())
     }

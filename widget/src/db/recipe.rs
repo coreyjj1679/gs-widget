@@ -8,7 +8,7 @@ use super::{Catalog, Hit};
 use super::names::haystack;
 use super::rows::RecipeRow;
 use super::store::online;
-use super::text::{caption, commas, label, lead, phrase, trail};
+use super::text::{caption, commas, label, lead3, phrase, trail3};
 
 pub(in crate::db) const PREF: &[&str] = &[
     "alchemy",
@@ -72,6 +72,7 @@ pub(in crate::db) fn load_recipes(
             id,
             source,
             result_str: result.to_string(),
+            ko,
             en,
             zh,
             level_min,
@@ -185,8 +186,8 @@ impl Catalog {
         if let Some(rate) = success.filter(|value| *value > 0) {
             lines.push((phrase("success", lang), format!("{}%", commas(rate))));
         }
-        let (en, zh) = self.item_pair(result);
-        Some((lead(lang, &en, &zh), trail(lang, &en, &zh), format!("#{result}"), lines))
+        let (en, zh, ko) = self.item_names3(result);
+        Some((lead3(lang, &en, &zh, &ko), trail3(lang, &en, &zh, &ko), format!("#{result}"), lines))
     }
 
     pub(in crate::db) fn material_tree(&self, recipe_id: i64, depth: usize, seen: &mut Vec<i64>, lang: &str) -> String {

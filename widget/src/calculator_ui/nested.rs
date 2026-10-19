@@ -58,14 +58,14 @@ pub(super) fn parse_path(key: &str) -> Option<Vec<usize>> {
     (path.len() <= db::MAX_NESTED_DEPTH + 1).then_some(path)
 }
 
-pub(super) fn unit_price(line: &db::CalcLine, english: bool) -> String {
+pub(super) fn unit_price(line: &db::CalcLine, lang: &str) -> String {
     if let Some(child) = &line.nested {
         // Effective price includes the whole batches needed for this occurrence,
         // including surplus. Never feed this rounded display back into totals.
         child
             .total
             .map(|total| per_unit(total, line.quantity))
-            .unwrap_or_else(|| tr(english, "待填", "Unpriced").into())
+            .unwrap_or_else(|| tr(lang, "待填", "Unpriced").into())
     } else {
         line.unit_price.map(number).unwrap_or_default()
     }
@@ -81,19 +81,19 @@ pub(super) fn subtotal(line: &db::CalcLine) -> String {
     })
 }
 
-pub(super) fn detail(line: &db::CalcLine, english: bool) -> String {
+pub(super) fn detail(line: &db::CalcLine, lang: &str) -> String {
     let Some(child) = &line.nested else {
         return String::new();
     };
     format!(
         "{} {} · {} {} · {} {} · {} {}",
         number(child.batches),
-        tr(english, "批", "batches"),
-        tr(english, "產出", "output"),
+        tr(lang, "批", "batches"),
+        tr(lang, "產出", "output"),
         number(child.output_units),
-        tr(english, "餘量", "surplus"),
+        tr(lang, "餘量", "surplus"),
         number(child.output_units - line.quantity),
-        tr(english, "含合成費", "includes crafting fee"),
+        tr(lang, "含合成費", "includes crafting fee"),
         number(child.fee)
     )
 }
@@ -153,14 +153,15 @@ impl Controller {
         if material.enhance != 0 {
             return;
         }
-        let english = app.get_lang() == "en-zh";
+        let lang_value = app.get_lang();
+        let lang = lang_value.as_str();
         let choices = if reuse {
             match db::load_calculator_library() {
                 Ok(latest) => {
                     *self.library.borrow_mut() = Ok(latest);
                 }
                 Err(error) => {
-                    app.set_calculator_error(error.into());
+                    app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                     return;
                 }
             }
@@ -178,11 +179,11 @@ impl Controller {
                     subtitle: format!(
                         "{} · {} · {} {} · {}",
                         folder.name,
-                        entry.document.source,
-                        tr(english, "每批產出", "output per batch"),
+                        self.catalog.calculator_source_label(entry.document.recipe_id, &entry.document.source, lang),
+                        tr(lang, "每批產出", "output per batch"),
                         number(entry.document.output),
                         tr(
-                            english,
+                            lang,
                             "複製單價，按所需數量重算",
                             "Copy prices; recalculate for the required quantity"
                         )
@@ -204,9 +205,9 @@ impl Controller {
                     title: format!("{} · #{}", recipe.source, recipe.recipe_id).into(),
                     subtitle: format!(
                         "{} {} · {} {}",
-                        tr(english, "每批產出", "output per batch"),
+                        tr(lang, "每批產出", "output per batch"),
                         number(recipe.output),
-                        tr(english, "每批合成費", "fee per batch"),
+                        tr(lang, "每批合成費", "fee per batch"),
                         number(recipe.fee)
                     )
                     .into(),
@@ -227,7 +228,8 @@ impl Controller {
         let Some((kind, id)) = option.split_once(':') else {
             return;
         };
-        let english = app.get_lang() == "en-zh";
+        let lang_value = app.get_lang();
+        let lang = lang_value.as_str();
         let child = match kind {
             "recipe" => {
                 let Ok(id) = id.parse::<i64>() else { return };
@@ -243,13 +245,13 @@ impl Controller {
                 let mut child = match self.catalog.calculator_document(book, id, &app.get_lang()) {
                     Ok(doc) => doc,
                     Err(error) => {
-                        app.set_calculator_error(error.into());
+                        app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                         return;
                     }
                 };
                 if let Some(previous) = previous {
                     if let Err(error) = preserve_sources(&mut child, previous, true) {
-                        app.set_calculator_error(error.into());
+                        app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                         return;
                     }
                 }
@@ -267,7 +269,7 @@ impl Controller {
                 let Some(child) = child else {
                     app.set_calculator_error(
                         tr(
-                            english,
+                            lang,
                             "找不到這份收藏，請重新選擇。",
                             "This saved sheet is no longer available. Choose again.",
                         )
@@ -281,11 +283,11 @@ impl Controller {
         };
         match next.set_nested(&path, Some(child)) {
             Ok(()) => {
-                self.commit(app, next, tr(english,
+                self.commit(app, next, tr(lang,
                 "已展開子配方；成本按所需數量重算，可獨立修改單價。",
                 "Sub-recipe expanded and recalculated for the required quantity. Its prices can be edited independently."));
             }
-            Err(error) => app.set_calculator_error(error.into()),
+            Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
         }
     }
 }
@@ -320,7 +322,7 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
             Ok(()) => {
                 c.commit(&app, next, "");
             }
-            Err(error) => app.set_calculator_error(error.into()),
+            Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
         }
     });
 }
@@ -392,7 +394,7 @@ mod tests {
             assert_eq!(doc.ingredient_at(&path).unwrap().code, row.line.key.code);
             assert_eq!(row.depth, path.len() - 1);
         }
-        let card = card_document(&doc, true, |_| Image::default()).unwrap();
+        let card = card_document(&doc, "en", |_| Image::default()).unwrap();
         assert_eq!(card.total, "141,000,402");
         assert_eq!(card.fee, "100,000,000");
         assert_eq!(card.rows.len(), display.len());

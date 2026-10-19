@@ -1,3 +1,4 @@
+import { UiLanguage } from "language.slint";
 import { LineEdit } from "std-widgets.slint";
 import { DesktopTheme, DesktopIcon } from "desktop.slint";
 
@@ -22,7 +23,7 @@ component DirectoryControl inherits Rectangle {
     background: active ? DesktopTheme.selected : tap.has-hover ? DesktopTheme.hover : transparent;
     forward-focus: focus;
     accessible-role: button; accessible-label: label;
-    accessible-description: active ? "已選取 / Selected" : "";
+    accessible-description: active ? UiLanguage.tr("Selected", "已選取") : "";
     accessible-action-default => { root.clicked(); }
     if root.back: DesktopIcon {
         x: 9px; y: 8px; width: 16px; height: 16px;
@@ -61,7 +62,7 @@ component DirectoryRow inherits Rectangle {
     forward-focus: focus;
     accessible-role: button;
     accessible-label: group.title;
-    accessible-description: group.count + (english ? (group.count == "1" ? " quest. " : " quests. ") : " 個任務。") + group.subtitle;
+    accessible-description: group.count + UiLanguage.tr(group.count == "1" ? " quest. " : " quests. ", " 個任務。") + group.subtitle;
     accessible-action-default => { root.clicked(); }
     Text {
         x: 14px; y: 11px; width: parent.width - 144px; height: 20px;
@@ -75,7 +76,7 @@ component DirectoryRow inherits Rectangle {
     }
     Text {
         x: parent.width - 124px; y: 12px; width: 88px; height: 18px;
-        text: root.group.count + (root.english ? (root.group.count == "1" ? " quest" : " quests") : " 個任務");
+        text: root.group.count + UiLanguage.tr(root.group.count == "1" ? " quest" : " quests", " 個任務");
         font-size: 12px; color: DesktopTheme.secondary; horizontal-alignment: right;
     }
     DesktopIcon {
@@ -107,8 +108,8 @@ export component QuestGroupDirectory inherits Rectangle {
     callback open-key(string);
     callback back();
     in-out property <string> query;
-    property <string> heading: grouping == "npc" ? (english ? "Quest givers" : "委託 NPC") : grouping == "region" ? (english ? "Quest regions" : "任務地區") : (english ? "Quest chains" : "完整任務鏈");
-    property <string> help: grouping == "npc" ? (english ? "Browse the quests offered by each NPC." : "查看每位 NPC 提供的任務。") : grouping == "region" ? (english ? "Browse recorded locations, including quests with no known region." : "依資料庫記錄的所在地瀏覽；未標示地區的任務也會保留。") : (english ? "Follow each connected chain, including prerequisites and branches." : "以完整依賴關係整理任務，包含前置與分支。");
+    property <string> heading: grouping == "npc" ? (UiLanguage.tr("Quest givers", "委託 NPC")) : grouping == "region" ? (UiLanguage.tr("Quest regions", "任務地區")) : (UiLanguage.tr("Quest chains", "完整任務鏈"));
+    property <string> help: grouping == "npc" ? (UiLanguage.tr("Browse the quests offered by each NPC.", "查看每位 NPC 提供的任務。")) : grouping == "region" ? (UiLanguage.tr("Browse recorded locations, including quests with no known region.", "依資料庫記錄的所在地瀏覽；未標示地區的任務也會保留。")) : (UiLanguage.tr("Follow each connected chain, including prerequisites and branches.", "以完整依賴關係整理任務，包含前置與分支。"));
     changed grouping => { results.content-y = 0px; }
     changed groups => { results.content-y = 0px; }
     function reveal-row(index: int) {
@@ -122,11 +123,11 @@ export component QuestGroupDirectory inherits Rectangle {
         spacing: 16px;
         HorizontalLayout {
             height: 32px; spacing: 8px;
-            DirectoryControl { label: root.english ? "Overview" : "分類摘要"; back: true; clicked => { root.back(); } }
+            DirectoryControl { label: UiLanguage.tr("Overview", "分類摘要"); back: true; clicked => { root.back(); } }
             Rectangle { width: 12px; horizontal-stretch: 0; }
-            DirectoryControl { label: root.english ? "Chains" : "任務鏈"; active: root.grouping == "chain"; clicked => { if (root.grouping != "chain") { root.choose-grouping("chain"); } } }
+            DirectoryControl { label: UiLanguage.tr("Chains", "任務鏈"); active: root.grouping == "chain"; clicked => { if (root.grouping != "chain") { root.choose-grouping("chain"); } } }
             DirectoryControl { label: "NPC"; active: root.grouping == "npc"; clicked => { if (root.grouping != "npc") { root.choose-grouping("npc"); } } }
-            DirectoryControl { label: root.english ? "Regions" : "地區"; active: root.grouping == "region"; clicked => { if (root.grouping != "region") { root.choose-grouping("region"); } } }
+            DirectoryControl { label: UiLanguage.tr("Regions", "地區"); active: root.grouping == "region"; clicked => { if (root.grouping != "region") { root.choose-grouping("region"); } } }
             Rectangle { horizontal-stretch: 1; }
         }
         HorizontalLayout {
@@ -140,12 +141,12 @@ export component QuestGroupDirectory inherits Rectangle {
                 width: min(300px, root.width * 0.4); spacing: 6px; alignment: start;
                 LineEdit {
                     text <=> root.query;
-                    placeholder-text: root.english ? "Search groups" : "搜尋分組";
-                    accessible-label: root.english ? "Search quest groups" : "搜尋任務分組";
+                    placeholder-text: UiLanguage.tr("Search groups", "搜尋分組");
+                    accessible-label: UiLanguage.tr("Search quest groups", "搜尋任務分組");
                     edited => { root.filter(self.text); }
                 }
                 Text {
-                    text: root.groups.length + (root.english ? (root.groups.length == 1 ? " group" : " groups") : " 個分組");
+                    text: root.groups.length + UiLanguage.tr(root.groups.length == 1 ? " group" : " groups", " 個分組");
                     font-size: 11px; color: DesktopTheme.secondary; horizontal-alignment: right;
                 }
             }
@@ -166,10 +167,10 @@ export component QuestGroupDirectory inherits Rectangle {
             if root.groups.length == 0: VerticalLayout {
                 x: 14px; y: 20px; width: parent.width - 28px; height: self.preferred-height;
                 spacing: 10px; alignment: start;
-                Text { text: root.english ? "No matching groups" : "沒有符合的分組"; font-size: 15px; font-weight: 600; color: DesktopTheme.text; }
-                Text { text: root.english ? "Try another name or clear the search." : "試試其他名稱，或清除搜尋。"; font-size: 13px; color: DesktopTheme.secondary; }
+                Text { text: UiLanguage.tr("No matching groups", "沒有符合的分組"); font-size: 15px; font-weight: 600; color: DesktopTheme.text; }
+                Text { text: UiLanguage.tr("Try another name or clear the search.", "試試其他名稱，或清除搜尋。"); font-size: 13px; color: DesktopTheme.secondary; }
                 HorizontalLayout {
-                    if root.query != "": DirectoryControl { label: root.english ? "Clear search" : "清除搜尋"; clicked => { root.query = ""; root.filter(""); } }
+                    if root.query != "": DirectoryControl { label: UiLanguage.tr("Clear search", "清除搜尋"); clicked => { root.query = ""; root.filter(""); } }
                     Rectangle { horizontal-stretch: 1; }
                 }
             }

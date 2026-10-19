@@ -1,12 +1,13 @@
 //! Dependency relationships come from the imported quest metadata, not display order.
 //! Codes are namespaced by source. Only the intro table is known to reference main
 //! quests across namespaces; matching an arbitrary code in another source is unsafe.
+use super::text::lead3;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rusqlite::Connection;
 
 use super::quest::quest_source_rank;
-use super::text::{english_first, label, lead};
+use super::text::label;
 use super::{Catalog, Hit};
 
 /// Logical-pixel geometry for the native, pannable dependency roadmap.
@@ -461,23 +462,22 @@ impl QuestGraph {
                 ));
             }
         }
-        let en = english_first(lang);
         for owner in &ordered_ids {
             for (number, issue) in self.unresolved.get(owner).into_iter().flatten().enumerate() {
                 let owner_index = indices[owner];
                 let level = nodes[owner_index].level + if issue.following { 1 } else { -1 };
                 let heading = if issue.ambiguous {
-                    words(en, "Ambiguous reference", "編號不唯一")
+                    words(lang, "Ambiguous reference", "編號不唯一")
                 } else {
-                    words(en, "Missing quest data", "任務資料缺漏")
+                    words(lang, "Missing quest data", "任務資料缺漏")
                 };
                 let node = &self.nodes[owner];
                 let key = format!("missing:{owner}:{number}");
                 let hit = diagram_hit(
-                    format!("{} {}", words(en, "Quest", "任務"), issue.code),
+                    format!("{} {}", words(lang, "Quest", "任務"), issue.code),
                     format!("{} {} · {heading}", label(&node.source, lang), issue.code),
                     key,
-                    words(en, "Unresolved", "未解析參照").to_string(),
+                    words(lang, "Unresolved", "未解析參照").to_string(),
                 );
                 let missing_index = nodes.len();
                 nodes.push(QuestGraphNode {
@@ -734,12 +734,8 @@ fn diagram_hit(title: String, subtitle: String, key: String, aside: String) -> H
     }
 }
 
-fn words<'a>(en: bool, english: &'a str, chinese: &'a str) -> &'a str {
-    if en {
-        english
-    } else {
-        chinese
-    }
+fn words<'a>(lang: &str, english: &'a str, chinese: &'a str) -> &'a str {
+    super::ui_text_ref(lang, chinese, english)
 }
 
 impl Catalog {
@@ -785,12 +781,11 @@ impl Catalog {
     /// branches. Each row declares its own direct parents so list order cannot be
     /// mistaken for a single mandatory sequence through every branch.
     pub fn quest_dependency_rows(&self, id: i64, lang: &str) -> (Vec<Hit>, String) {
-        let en = english_first(lang);
         let Ok(graph) = QuestGraph::load(&self.conn) else {
             return (
                 Vec::new(),
                 words(
-                    en,
+                    lang,
                     "Quest dependencies could not be loaded.",
                     "無法載入任務依賴資料。",
                 )
@@ -806,12 +801,11 @@ impl Catalog {
         id: i64,
         lang: &str,
     ) -> (Vec<Hit>, String) {
-        let en = english_first(lang);
         let component = graph.component(id);
         if component.is_empty() {
             return (
                 Vec::new(),
-                words(en, "Quest not found.", "找不到此任務。").to_string(),
+                words(lang, "Quest not found.", "找不到此任務。").to_string(),
             );
         }
         let (ordered, cyclic) = graph.ordered_component(&component);
@@ -827,15 +821,15 @@ impl Catalog {
         for node_id in ordered {
             let node = &graph.nodes[&node_id];
             let relation = if node_id == id {
-                words(en, "Current quest", "目前任務")
+                words(lang, "Current quest", "目前任務")
             } else if ancestors.contains(&node_id) && descendants.contains(&node_id) {
-                words(en, "Dependency cycle", "循環依賴")
+                words(lang, "Dependency cycle", "循環依賴")
             } else if ancestors.contains(&node_id) {
-                words(en, "Prerequisite", "前置任務")
+                words(lang, "Prerequisite", "前置任務")
             } else if descendants.contains(&node_id) {
-                words(en, "Follow-up", "後續任務")
+                words(lang, "Follow-up", "後續任務")
             } else {
-                words(en, "Other branch", "其他分支")
+                words(lang, "Other branch", "其他分支")
             };
             let mut details = vec![format!("{} {}", label(&node.source, lang), node.code)];
             let parents = graph
@@ -846,25 +840,25 @@ impl Catalog {
             if !parents.is_empty() {
                 details.push(format!(
                     "{} {}",
-                    words(en, "Requires:", "前置："),
+                    words(lang, "Requires:", "前置："),
                     parents.join(", ")
                 ));
             }
             for issue in graph.unresolved.get(&node_id).into_iter().flatten() {
                 let heading = match (issue.following, issue.ambiguous) {
-                    (false, false) => words(en, "Unresolved prerequisite:", "未解析前置："),
-                    (true, false) => words(en, "Unresolved follow-up:", "未解析後續："),
-                    (false, true) => words(en, "Ambiguous prerequisite:", "前置編號不唯一："),
-                    (true, true) => words(en, "Ambiguous follow-up:", "後續編號不唯一："),
+                    (false, false) => words(lang, "Unresolved prerequisite:", "未解析前置："),
+                    (true, false) => words(lang, "Unresolved follow-up:", "未解析後續："),
+                    (false, true) => words(lang, "Ambiguous prerequisite:", "前置編號不唯一："),
+                    (true, true) => words(lang, "Ambiguous follow-up:", "後續編號不唯一："),
                 };
                 details.push(format!("{heading} {}", issue.code));
             }
             if cyclic.contains(&node_id) {
-                details.push(words(en, "Cycle detected", "偵測到循環依賴").to_string());
+                details.push(words(lang, "Cycle detected", "偵測到循環依賴").to_string());
             }
             let title = titles
                 .get(&node_id)
-                .map(|quest| lead(lang, &quest.title_en, &quest.title_zh))
+                .map(|quest| lead3(lang, &quest.title_en, &quest.title_zh, &quest.title_ko))
                 .filter(|title| !title.is_empty())
                 .unwrap_or_else(|| node.code.clone());
             hits.push(Hit {
@@ -886,31 +880,30 @@ impl Catalog {
             .sum();
         let mut summary = if component.len() == 1 && edge_count == 0 {
             words(
-                en,
+                lang,
                 "No connected prerequisite or follow-up is recorded.",
                 "沒有可連接的前置或後續任務紀錄。",
             )
             .to_string()
-        } else if en {
-            format!("{} related quests · {edge_count} dependencies. Other branches are not necessarily prerequisites for the current quest.", component.len())
         } else {
-            format!(
-                "{} 個相關任務 · {edge_count} 個依賴。其他分支不一定是目前任務的必要前置。",
-                component.len()
-            )
+            match super::primary_lang(lang) {
+                "ko" => format!("관련 퀘스트 {}개 · 의존 관계 {edge_count}개. 다른 분기가 현재 퀘스트의 필수 선행 조건인 것은 아닙니다.", component.len()),
+                "zh" => format!("{} 個相關任務 · {edge_count} 個依賴。其他分支不一定是目前任務的必要前置。", component.len()),
+                _ => format!("{} related quests · {edge_count} dependencies. Other branches are not necessarily prerequisites for the current quest.", component.len()),
+            }
         };
         if unresolved_count > 0 {
-            summary.push_str(&if en {
-                format!(" {unresolved_count} unresolved reference(s); the chain may be incomplete.")
-            } else {
-                format!(" {unresolved_count} 個參照未能解析，依賴鏈可能不完整。")
+            summary.push_str(&match super::primary_lang(lang) {
+                "ko" => format!(" 참조 {unresolved_count}개를 확인할 수 없어 의존 관계가 불완전할 수 있습니다."),
+                "zh" => format!(" {unresolved_count} 個參照未能解析，依賴鏈可能不完整。"),
+                _ => format!(" {unresolved_count} unresolved reference(s); the chain may be incomplete."),
             });
         }
         if !cyclic.is_empty() {
-            summary.push_str(&if en {
-                format!(" {} quest(s) in a dependency cycle; affected quests cannot be ordered by prerequisite.", cyclic.len())
-            } else {
-                format!(" {} 個任務涉及循環依賴，受影響的任務無法按前置排序。", cyclic.len())
+            summary.push_str(&match super::primary_lang(lang) {
+                "ko" => format!(" 퀘스트 {}개에 순환 의존 관계가 있어 선행 조건 순서대로 정렬할 수 없습니다.", cyclic.len()),
+                "zh" => format!(" {} 個任務涉及循環依賴，受影響的任務無法按前置排序。", cyclic.len()),
+                _ => format!(" {} quest(s) in a dependency cycle; affected quests cannot be ordered by prerequisite.", cyclic.len()),
             });
         }
         (hits, summary)
@@ -920,7 +913,7 @@ impl Catalog {
         let Ok(graph) = QuestGraph::load(&self.conn) else {
             return QuestGraphLayout {
                 note: words(
-                    english_first(lang),
+                    lang,
                     "Quest dependencies could not be loaded.",
                     "無法載入任務依賴資料。",
                 )
@@ -974,6 +967,26 @@ mod tests {
             .unwrap();
         }
         conn
+    }
+
+    #[test]
+    fn korean_graph_labels_and_dynamic_diagnostics_follow_primary_language() {
+        let catalog = Catalog::open().expect("catalog");
+        let conn = fixture(
+            &[(90001, "main", "90001", "90002", ""),
+              (90002, "main", "90002", "90001", ""),
+              (90003, "main", "90003", "90002", "")],
+            &[(90003, "99999")],
+        );
+        let graph = QuestGraph::load(&conn).unwrap();
+        let (rows, note) = catalog.quest_dependency_rows_with_graph(&graph, 90003, "ko");
+        assert_eq!(rows.iter().find(|row| row.key == "quest:90003").unwrap().aside, "현재 퀘스트");
+        assert!(note.contains("관련 퀘스트 3개"));
+        assert!(note.contains("참조 1개"));
+        assert!(note.contains("순환 의존 관계"));
+        assert!(!note.contains("related quests") && !note.contains("個相關任務"));
+        let (_, bilingual_note) = catalog.quest_dependency_rows_with_graph(&graph, 90003, "ko-en");
+        assert_eq!(note, bilingual_note);
     }
 
     #[test]

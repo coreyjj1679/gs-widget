@@ -433,14 +433,16 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
             let mut facts = Vec::new();
             let mut picks = Vec::new();
             let alternate_tasks = if app.get_full_mode() {
-                let alternate_lang = if lang.starts_with("en") { "zh-en" } else { "en-zh" };
-                catalog.quest_sheet(quest_id, alternate_lang).map(|sheet| sheet.3).unwrap_or_default()
+                db::secondary_lang(&lang)
+                    .and_then(|secondary| catalog.quest_sheet(quest_id, secondary))
+                    .map(|sheet| sheet.3).unwrap_or_default()
             } else { Vec::new() };
             for (index, (label, mut value, key)) in tasks.into_iter().enumerate() {
                 if !key.is_empty() {
                     picks.push(index as i32);
                     if let Some((_, alternate, alternate_key)) = alternate_tasks.get(index) {
-                        if alternate_key == &key && !alternate.is_empty() && alternate != &value {
+                        if alternate_key == &key && !alternate.is_empty() && alternate != &value
+                            && catalog.copyable_name(&key, &lang, true).is_some() {
                             value = format!("{value}\n{alternate}");
                         }
                     }

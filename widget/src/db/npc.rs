@@ -7,13 +7,13 @@ use super::{Catalog, Hit};
 use super::names::{fuzzy_rows, haystack, plain_name};
 use super::rows::{Index, NpcRow};
 use super::store::{online, table_exists};
-use super::text::{caption, commas, lead, phrase, trail};
+use super::text::{caption, chrome_text, commas, lead, lead3, phrase, trail3};
 
 pub(in crate::db) fn npc_sheet_parts(npc: &NpcRow, lang: &str) -> (String, String, String, Vec<(String, String)>, String) {
     let (title, alt) = npc_names(lang, npc);
-    let map = lead(lang, &npc.map_en, &npc.map_zh);
+    let map = lead3(lang, &npc.map_en, &npc.map_zh, &npc.map_ko);
     let mut facts = Vec::new();
-    let nation = lead(lang, &npc.nation_en, &npc.nation_zh);
+    let nation = lead3(lang, &npc.nation_en, &npc.nation_zh, &chrome_text("ko", &npc.nation_zh, &npc.nation_en));
     if !nation.is_empty() {
         facts.push((phrase("nation", lang), nation));
     }
@@ -25,8 +25,8 @@ pub(in crate::db) fn npc_sheet_parts(npc: &NpcRow, lang: &str) -> (String, Strin
 }
 
 pub(in crate::db) fn npc_names(lang: &str, npc: &NpcRow) -> (String, String) {
-    let title = lead(lang, &npc.en, &npc.zh);
-    let alt = trail(lang, &npc.en, &npc.zh);
+    let title = lead3(lang, &npc.en, &npc.zh, &npc.ko);
+    let alt = trail3(lang, &npc.en, &npc.zh, &npc.ko);
     if title.is_empty() {
         let ko = plain_name(&npc.ko);
         if ko.is_empty() { (npc.code.to_string(), String::new()) } else { (ko, String::new()) }
@@ -100,7 +100,8 @@ pub(in crate::db) fn load_npcs(
             zh,
             nation_en: nation_en.to_string(),
             nation_zh: nation_zh.to_string(),
-            map_en: if map_en.is_empty() && map_zh.is_empty() { map_ko } else { map_en },
+            map_ko,
+            map_en,
             map_zh,
             map_index: _map,
             x,
@@ -202,11 +203,11 @@ impl Index {
                 let (title, alt) = npc_names(lang, npc);
                 Hit {
                     title,
-                    subtitle: caption(&alt, lead(lang, &npc.map_en, &npc.map_zh)),
+                    subtitle: caption(&alt, lead3(lang, &npc.map_en, &npc.map_zh, &npc.map_ko)),
                     key: format!("npc:{}", npc.code),
                     icon: npc.icon.clone(),
                     solo: false,
-                    aside: lead(lang, &npc.nation_en, &npc.nation_zh),
+                    aside: lead3(lang, &npc.nation_en, &npc.nation_zh, &chrome_text("ko", &npc.nation_zh, &npc.nation_en)),
                     badge: None,
                     chip: String::new(),
                 }

@@ -1,3 +1,4 @@
+import { UiLanguage } from "language.slint";
 import { ScrollView } from "std-widgets.slint";
 import { DesktopTheme, DesktopIcon } from "desktop.slint";
 
@@ -73,8 +74,8 @@ export component CalcFolderChoices inherits Rectangle {
     vertical-stretch: 0;
     forward-focus: choices-focus;
     accessible-role: groupbox;
-    accessible-label: root.english ? "Folders" : "資料夾";
-    accessible-description: root.english ? "Use arrow keys to select a folder." : "可用方向鍵選取資料夾。";
+    accessible-label: UiLanguage.tr("Folders", "資料夾");
+    accessible-description: UiLanguage.tr("Use arrow keys to select a folder.", "可用方向鍵選取資料夾。");
     opacity: root.enabled ? 1 : 0.45;
     changed current-index => { root.reveal-current(); }
     changed columns => { root.reveal-current(); }

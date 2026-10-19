@@ -50,7 +50,7 @@ class PackagingTests(unittest.TestCase):
         self.binary.write_bytes(pe_fixture())
 
     def test_package_includes_catalog_assets_but_excludes_all_user_data(self):
-        for name in ("favourites.txt", "aliases.txt", "ui-lang.txt", "window.txt", "view.txt", "client.txt", "mt-cache.sqlite", "game-notices.txt"):
+        for name in ("favourites.txt", "aliases.txt", "ui-lang.txt", "languages.txt", "window.txt", "view.txt", "client.txt", "mt-cache.sqlite", "game-notices.txt"):
             (self.root / "data" / name).write_text("private")
         archive = package(self.root, self.binary, self.root / "dist", "v1.0.0")
         self.assertEqual(archive.name, "gs-widget-v1.0.0-windows-x64.zip")

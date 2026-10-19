@@ -4,12 +4,13 @@ use std::path::{Path, PathBuf};
 use rusqlite::Connection;
 
 use super::{Catalog, Hit};
+use super::language::primary_lang;
 use super::names::haystack;
 use super::prefs::{load_set_extra, set_extra_name};
 use super::recipe::PREF;
 use super::rows::{ItemRow, SetMagic, SetRow};
 use super::store::online;
-use super::text::{caption, chrome, chrome_text, commas, element_file, element_letter, lead, phrase, stack, trail};
+use super::text::{caption, chrome_text, commas, element_file, element_letter, lead, lead3, phrase, stack3, trail3};
 
 pub(in crate::db) struct EnhanceRow {
     pub(in crate::db) plus: i64,
@@ -272,16 +273,15 @@ pub(in crate::db) fn set_piece_label(pieces: i64, lang: &str) -> String {
     if pieces <= 0 {
         return String::new();
     }
-    if chrome(lang) == "en" {
-        format!("{pieces} pc")
-    } else {
-        format!("{pieces}件")
+    match primary_lang(lang) {
+        "en" => format!("{pieces} pc"),
+        "ko" => format!("{pieces}개"),
+        _ => format!("{pieces}件"),
     }
 }
 
 pub(in crate::db) fn set_title_lang(lang: &str, ko: &str, en: &str, zh: &str) -> String {
-    let shown = lead(lang, en, zh);
-    if shown.is_empty() { ko.trim().to_string() } else { shown }
+    lead3(lang, en, zh, ko)
 }
 
 pub(in crate::db) fn set_stat_name(stat: &str, lang: &str) -> Option<String> {
@@ -581,6 +581,7 @@ pub(in crate::db) fn load_items(conn: &Connection, texts: &HashMap<String, Strin
             code,
             names: haystack(&[&ko, &en, &zh]),
             code_str: code.to_string(),
+            ko,
             en,
             zh,
             category,
@@ -785,10 +786,10 @@ impl Catalog {
                 ))
             },
         );
-        let Ok((_ko, en, zh, price, weight, description, image, frame)) = row else {
+        let Ok((ko, en, zh, price, weight, description, image, frame)) = row else {
             return (phrase("missing-item", lang), Vec::new(), None);
         };
-        let name = stack(lang, &en, &zh);
+        let name = stack3(lang, &en, &zh, &ko);
         let lines = self.item_lines(code, lang, price, weight);
         let note = self.item_note(self.item_desc_gts(code), &description, lang);
         let mut text = name.clone();
@@ -806,16 +807,18 @@ impl Catalog {
     /// Alternate names for item browsing come from the loaded index, not one SQL query per row.
     pub fn item_alternate_name(&self, key: &str, lang: &str) -> String {
         let Some((kind, id)) = key.split_once(':') else { return String::new() };
+        if matches!(kind, "icat" | "isub") {
+            let (en, zh) = if kind == "icat" { item_category_pair(id) } else { weapon_family_pair(id) };
+            return trail3(lang, en, zh, &chrome_text("ko", zh, en));
+        }
         let names = match kind {
             "item" => id.parse().ok().and_then(|code| self.index.find_item(code))
-                .map(|item| (item.en.as_str(), item.zh.as_str())),
+                .map(|item| (item.en.as_str(), item.zh.as_str(), item.ko.as_str())),
             "set" => id.parse::<i64>().ok().and_then(|code| self.index.sets.iter().find(|set| set.code == code))
-                .map(|set| (set.en.as_str(), set.zh.as_str())),
-            "icat" => Some(item_category_pair(id)),
-            "isub" => Some(weapon_family_pair(id)),
+                .map(|set| (set.en.as_str(), set.zh.as_str(), set.ko.as_str())),
             _ => None,
         };
-        names.map(|(en, zh)| trail(lang, en, zh)).unwrap_or_default()
+        names.map(|(en, zh, ko)| trail3(lang, en, zh, ko)).unwrap_or_default()
     }
 
     pub fn item_sheet(&self, code: i64, lang: &str) -> Option<(String, String, String, Vec<(String, String)>, String)> {
@@ -830,6 +833,7 @@ impl Catalog {
             [code],
             |row| {
                 Ok((
+                    row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, i64>(3)?,
@@ -839,12 +843,12 @@ impl Catalog {
                 ))
             },
         );
-        let Ok((en, zh, price, weight, description, desc_gts)) = row else {
+        let Ok((ko, en, zh, price, weight, description, desc_gts)) = row else {
             return None;
         };
         Some((
-            lead(lang, &en, &zh),
-            trail(lang, &en, &zh),
+            lead3(lang, &en, &zh, &ko),
+            trail3(lang, &en, &zh, &ko),
             format!("#{code}"),
             self.item_lines(code, lang, price, weight),
             self.item_note(desc_gts, &description, lang),
@@ -857,13 +861,11 @@ impl Catalog {
             .unwrap_or(0)
     }
 
-    pub(in crate::db) fn item_note(&self, desc_gts: i64, _korean: &str, lang: &str) -> String {
-        if desc_gts <= 0 {
-            return String::new();
-        }
+    pub(in crate::db) fn item_note(&self, desc_gts: i64, korean: &str, lang: &str) -> String {
         let zh = self.online_line(desc_gts, "zh");
         let en = self.online_line(desc_gts, "en");
-        lead(lang, &en, &zh)
+        let korean = if korean.trim() == "0" { "" } else { korean };
+        lead3(lang, &en, &zh, korean)
     }
 
     pub(in crate::db) fn online_line(&self, id: i64, lang: &str) -> String {
@@ -1265,7 +1267,7 @@ impl Catalog {
         lines.extend(self.set_breakdown(code, lang));
         Some((
             set_title_lang(lang, &set.ko, &set.en, &set.zh),
-            trail(lang, &set.en, &set.zh),
+            trail3(lang, &set.en, &set.zh, &set.ko),
             format!("#{code}"),
             lines,
             String::new(),
@@ -1472,6 +1474,7 @@ impl Catalog {
             .query_map([code], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, i64>(4)?,
@@ -1481,7 +1484,7 @@ impl Catalog {
             })
             .expect("dropper rows")
             .filter_map(Result::ok)
-            .map(|(id, en, zh, slot, place_en, place_zh)| {
+            .map(|(id, ko, en, zh, slot, place_en, place_zh)| {
                 let solo = slot >= 9;
                 let place = lead(lang, &place_en, &place_zh);
                 let mut meta = if place.is_empty() { id.clone() } else { format!("{place}  {id}") };
@@ -1489,8 +1492,8 @@ impl Catalog {
                     meta.push_str(&format!("  {}", phrase("solo-drop", lang)));
                 }
                 Hit {
-                    title: lead(lang, &en, &zh),
-                    subtitle: caption(&trail(lang, &en, &zh), meta),
+                    title: lead3(lang, &en, &zh, &ko),
+                    subtitle: caption(&trail3(lang, &en, &zh, &ko), meta),
                     key: format!("monster:{id}"),
                     icon: self.sprite(&id),
                     solo,
@@ -1509,8 +1512,8 @@ impl Catalog {
         for town in &self.index.towns {
             let Some(good) = town.goods.iter().find(|good| good.item == code) else { continue };
             hits.push(Hit {
-                title: lead(lang, &town.en, &town.zh),
-                subtitle: caption(&trail(lang, &town.en, &town.zh), self.realm_name(&town.region, lang)),
+                title: lead3(lang, &town.en, &town.zh, &town.ko),
+                subtitle: caption(&trail3(lang, &town.en, &town.zh, &town.ko), self.realm_name(&town.region, lang)),
                 key: format!("town:{}", town.code),
                 icon: None,
                 solo: false,
@@ -1555,6 +1558,15 @@ impl Catalog {
             .unwrap_or_default()
     }
 
+    pub(in crate::db) fn item_names3(&self, code: i64) -> (String, String, String) {
+        if let Some(item) = self.index.find_item(code) {
+            return (item.en.clone(), item.zh.clone(), item.ko.clone());
+        }
+        let (en, zh) = self.item_pair(code);
+        let ko = self.conn.query_row("SELECT name_ko FROM items WHERE code = ?1", [code], |row| row.get(0)).unwrap_or_default();
+        (en, zh, ko)
+    }
+
     pub(in crate::db) fn item_name(&self, code: i64, lang: &str) -> String {
         self.item_name_linked(code, lang, true)
     }
@@ -1574,7 +1586,7 @@ impl Catalog {
         let Ok((ko, en, zh)) = found else {
             return code.to_string();
         };
-        let shown = lead(lang, &en, &zh);
+        let shown = if primary_lang(lang) == "ko" { lead3(lang, &en, &zh, &ko) } else { lead(lang, &en, &zh) };
         if !shown.is_empty() {
             return shown;
         }
@@ -1590,7 +1602,7 @@ impl Catalog {
                 }
             }
         }
-        if ko.is_empty() { code.to_string() } else { ko }
+        if ko.trim().is_empty() || ko.trim() == "0" { code.to_string() } else { ko }
     }
 
     pub(in crate::db) fn base_link(&self, code: i64) -> Option<(i64, i64)> {
@@ -1655,5 +1667,36 @@ impl Catalog {
             entry.file_name().to_string_lossy().to_lowercase() == wanted
         })?;
         Some((entry.path(), frame as i32))
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+
+    #[test]
+    fn item_sheet_and_clipboard_use_korean_source_and_optional_secondary() {
+        let catalog = Catalog::open().expect("catalog");
+        let item = catalog.index.items.iter().find(|item| !item.en.is_empty() && !item.zh.is_empty() && !item.ko.is_empty() && item.ko != "0").expect("trilingual item");
+        let key = format!("item:{}", item.code);
+        for lang in ["en", "zh", "ko", "en-zh", "en-ko", "zh-en", "zh-ko", "ko-en", "ko-zh"] {
+            let (name, alternate, _, _, _) = catalog.item_sheet(item.code, lang).expect("sheet");
+            assert_eq!(catalog.copyable_name(&key, lang, false).as_deref(), Some(name.as_str()));
+            assert_eq!(catalog.copyable_name(&key, lang, true), (!alternate.is_empty()).then_some(alternate));
+        }
+        assert_eq!(catalog.item_sheet(item.code, "ko").unwrap().0, item.ko.trim());
+        assert!(catalog.item_sheet(item.code, "ko").unwrap().1.is_empty());
+    }
+
+    #[test]
+    fn korean_descriptions_work_without_a_translation_id_and_omit_placeholders() {
+        let catalog = Catalog::open().expect("catalog");
+        assert_eq!(catalog.item_note(0, "한국어 설명", "ko"), "한국어 설명");
+        assert!(catalog.item_note(0, "0", "ko").is_empty());
+        let (code, description): (i64, String) = catalog.conn.query_row(
+            "SELECT code, description FROM items WHERE description NOT IN ('', '0') LIMIT 1", [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap();
+        assert_eq!(catalog.item_sheet(code, "ko").unwrap().4, description.trim());
     }
 }

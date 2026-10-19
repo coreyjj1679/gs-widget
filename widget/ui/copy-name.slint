@@ -1,3 +1,4 @@
+import { UiLanguage } from "language.slint";
 import { DesktopTheme } from "desktop.slint";
 
 export global NameCopy {
@@ -12,11 +13,11 @@ export component CopyName inherits Text {
     in property <string> record-key;
     in property <bool> alternate: false;
     property <bool> copy-enabled: root.record-key != "" && root.text != "";
-    property <bool> english: NameCopy.lang == "en-zh";
-    property <string> hint: root.english ? "Click to copy this name" : "左鍵複製此名稱";
+    property <bool> english: UiLanguage.primary == "en";
+    property <string> hint: UiLanguage.tr("Click to copy this name", "左鍵複製此名稱");
     forward-focus: name-focus;
     accessible-role: button;
-    accessible-label: (root.english ? "Copy name: " : "複製名稱：") + root.text;
+    accessible-label: (UiLanguage.tr("Copy name: ", "複製名稱：")) + root.text;
     accessible-enabled: root.copy-enabled;
     accessible-action-default => { if (root.copy-enabled) { NameCopy.copy(root.record-key, root.alternate); } }
 

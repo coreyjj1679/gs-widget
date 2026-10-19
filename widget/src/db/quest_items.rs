@@ -1,8 +1,9 @@
 //! Batched item and defeat-target references for quest list and roadmap icons.
+use super::text::{lead3, trail3};
 use std::collections::{HashMap, HashSet};
 
 use super::rows::{ItemRow, MonsterRow, QuestStep};
-use super::text::{chrome_text, commas_text, kind_name, lead, step_hint, step_value, trail};
+use super::text::{chrome_text, commas_text, kind_name, step_hint, step_value};
 use super::Catalog;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -48,9 +49,9 @@ fn target_text(name: &str, quantity: &str) -> String {
     }
 }
 
-fn bilingual_name(lang: &str, en: &str, zh: &str) -> String {
-    let primary = lead(lang, en, zh);
-    let alternate = trail(lang, en, zh);
+fn bilingual_name(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+    let primary = lead3(lang, en, zh, ko);
+    let alternate = trail3(lang, en, zh, ko);
     if alternate.is_empty() {
         primary
     } else {
@@ -70,7 +71,7 @@ fn fallback_name(step: &QuestStep, lang: &str) -> String {
 }
 
 fn item_reference(step: &QuestStep, item: &ItemRow, code: i64, lang: &str) -> QuestItemRef {
-    let primary = lead(lang, &item.en, &item.zh);
+    let primary = lead3(lang, &item.en, &item.zh, &item.ko);
     QuestItemRef {
         key: format!("item:{code}"),
         primary: if primary.is_empty() {
@@ -78,7 +79,7 @@ fn item_reference(step: &QuestStep, item: &ItemRow, code: i64, lang: &str) -> Qu
         } else {
             primary
         },
-        alternate: trail(lang, &item.en, &item.zh),
+        alternate: trail3(lang, &item.en, &item.zh, &item.ko),
         quantity: quantity_text(&step.qty),
     }
 }
@@ -95,7 +96,7 @@ fn monster_fallback(step: &QuestStep, lang: &str) -> String {
 }
 
 fn monster_reference(step: &QuestStep, monster: &MonsterRow, lang: &str) -> QuestItemRef {
-    let primary = lead(lang, &monster.en, &monster.zh);
+    let primary = lead3(lang, &monster.en, &monster.zh, &monster.ko);
     QuestItemRef {
         key: format!("monster:{}", monster.code),
         primary: if primary.is_empty() {
@@ -103,7 +104,7 @@ fn monster_reference(step: &QuestStep, monster: &MonsterRow, lang: &str) -> Ques
         } else {
             primary
         },
-        alternate: trail(lang, &monster.en, &monster.zh),
+        alternate: trail3(lang, &monster.en, &monster.zh, &monster.ko),
         quantity: quantity_text(&step.qty),
     }
 }
@@ -124,7 +125,7 @@ fn monster_group_name(
         .map(|code| {
             monsters
                 .get(code)
-                .map(|monster| bilingual_name(lang, &monster.en, &monster.zh))
+                .map(|monster| bilingual_name(lang, &monster.en, &monster.zh, &monster.ko))
                 .filter(|name| !name.is_empty())
                 .unwrap_or_else(|| format!("#{code}"))
         })
@@ -175,7 +176,7 @@ impl Catalog {
             .index
             .npcs
             .iter()
-            .map(|npc| (npc.code, bilingual_name(lang, &npc.en, &npc.zh)))
+            .map(|npc| (npc.code, bilingual_name(lang, &npc.en, &npc.zh, &npc.ko)))
             .collect();
         let Ok(mut stmt) = self.conn.prepare(
             "SELECT quest_id, role, kind, code, qty, label FROM quest_steps
@@ -327,8 +328,8 @@ mod tests {
                 .iter()
                 .find(|item| item.code_str == "2565")
                 .unwrap();
-            assert_eq!(elder.primary, lead(lang, &item.en, &item.zh));
-            assert_eq!(elder.alternate, trail(lang, &item.en, &item.zh));
+            assert_eq!(elder.primary, lead3(lang, &item.en, &item.zh, &item.ko));
+            assert_eq!(elder.alternate, trail3(lang, &item.en, &item.zh, &item.ko));
             assert!(!elder.primary.is_empty());
             assert!(!elder.alternate.is_empty());
         }
@@ -375,8 +376,8 @@ mod tests {
         for lang in ["en-zh", "zh-en"] {
             let localized = catalog.quest_item_previews(&[id("71914")], lang);
             let target = &localized[&id("71914")].required[0];
-            assert_eq!(target.primary, lead(lang, &monster.en, &monster.zh));
-            assert_eq!(target.alternate, trail(lang, &monster.en, &monster.zh));
+            assert_eq!(target.primary, lead3(lang, &monster.en, &monster.zh, &monster.ko));
+            assert_eq!(target.alternate, trail3(lang, &monster.en, &monster.zh, &monster.ko));
             assert!(!target.primary.is_empty());
             assert!(!target.alternate.is_empty());
         }
@@ -397,7 +398,8 @@ mod tests {
             assert!(variants.other_objectives.contains(&bilingual_name(
                 "en-zh",
                 &monster.en,
-                &monster.zh
+                &monster.zh,
+                &monster.ko
             )));
         }
         for code in ["H150", "H134", "H117", "H149", "H132"] {
@@ -530,7 +532,7 @@ mod tests {
                 text,
                 format!(
                     "× 12 [{}; #MissingMonster]",
-                    bilingual_name(lang, &monster.en, &monster.zh)
+                    bilingual_name(lang, &monster.en, &monster.zh, &monster.ko)
                 )
             );
             assert_eq!(text.matches("× 12").count(), 1);

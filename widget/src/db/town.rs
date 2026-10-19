@@ -7,7 +7,7 @@ use super::{Catalog, Hit};
 use super::names::haystack;
 use super::rows::{ChartRow, Index, TownGood, TownRow};
 use super::store::{online, table_exists};
-use super::text::{caption, commas, lead, phrase, realm_pair, stack, trail};
+use super::text::{caption, chrome_text, commas, lead3, phrase, realm_pair, stack3, trail3};
 
 pub(in crate::db) fn load_towns(conn: &Connection, texts: &HashMap<String, String>) -> Result<Vec<TownRow>, String> {
     if !table_exists(conn, "towns") {
@@ -49,6 +49,7 @@ pub(in crate::db) fn load_towns(conn: &Connection, texts: &HashMap<String, Strin
         towns.push(TownRow {
             names: haystack(&[&ko, &code, &en, &zh, realm_en, realm_zh]),
             code,
+            ko,
             en,
             zh,
             region,
@@ -78,7 +79,7 @@ pub(in crate::db) fn load_charts(conn: &Connection, texts: &HashMap<String, Stri
         if en.is_empty() && zh.is_empty() && ko.is_empty() {
             continue;
         }
-        charts.push(ChartRow { code, en, zh });
+        charts.push(ChartRow { code, ko, en, zh });
     }
     charts.sort_by(|a, b| a.zh.cmp(&b.zh).then(a.en.cmp(&b.en)).then(a.code.cmp(&b.code)));
     Ok(charts)
@@ -89,12 +90,12 @@ impl Catalog {
         let Some(chart) = self.index.charts.iter().find(|chart| chart.code == code) else {
             return (phrase("missing", lang), Vec::new(), None);
         };
-        let title = stack(lang, &chart.en, &chart.zh);
+        let title = stack3(lang, &chart.en, &chart.zh, &chart.ko);
         let mut links = Vec::new();
         for npc in self.index.npcs.iter().filter(|npc| npc.map_index == code) {
             links.push(Hit {
-                title: lead(lang, &npc.en, &npc.zh),
-                subtitle: caption(&trail(lang, &npc.en, &npc.zh), format!("{}, {}", commas(npc.x), commas(npc.y))),
+                title: lead3(lang, &npc.en, &npc.zh, &npc.ko),
+                subtitle: caption(&trail3(lang, &npc.en, &npc.zh, &npc.ko), format!("{}, {}", commas(npc.x), commas(npc.y))),
                 key: format!("npc:{}", npc.code),
                 icon: npc.icon.clone(),
                 solo: false,
@@ -108,8 +109,8 @@ impl Catalog {
                 continue;
             }
             links.push(Hit {
-                title: lead(lang, &monster.en, &monster.zh),
-                subtitle: trail(lang, &monster.en, &monster.zh),
+                title: lead3(lang, &monster.en, &monster.zh, &monster.ko),
+                subtitle: trail3(lang, &monster.en, &monster.zh, &monster.ko),
                 key: format!("monster:{}", monster.code),
                 icon: monster.icon.clone(),
                 solo: false,
@@ -123,7 +124,7 @@ impl Catalog {
 
     pub fn realm_name(&self, id: &str, lang: &str) -> String {
         let (en, zh) = realm_pair(id);
-        lead(lang, en, zh)
+        lead3(lang, en, zh, &chrome_text("ko", zh, en))
     }
 
     pub fn town_name(&self, code: &str, lang: &str) -> String {
@@ -158,8 +159,8 @@ impl Index {
             }
             let (en, zh) = realm_pair(id);
             hits.push(Hit {
-                title: lead(lang, en, zh),
-                subtitle: caption(&trail(lang, en, zh), count.to_string()),
+                title: lead3(lang, en, zh, &chrome_text("ko", zh, en)),
+                subtitle: caption(&trail3(lang, en, zh, &chrome_text("ko", zh, en)), count.to_string()),
                 key: format!("realm:{id}"),
                 icon: None,
                 solo: false,
@@ -182,14 +183,14 @@ impl Index {
         towns
             .into_iter()
             .map(|town| Hit {
-                title: lead(lang, &town.en, &town.zh),
-                subtitle: caption(&trail(lang, &town.en, &town.zh), format!("{}, {}", commas(town.x), commas(town.y))),
+                title: lead3(lang, &town.en, &town.zh, &town.ko),
+                subtitle: caption(&trail3(lang, &town.en, &town.zh, &town.ko), format!("{}, {}", commas(town.x), commas(town.y))),
                 key: format!("town:{}", town.code),
                 icon: None,
                 solo: false,
                 aside: {
                     let (en, zh) = realm_pair(&town.region);
-                    lead(lang, en, zh)
+                    lead3(lang, en, zh, &chrome_text("ko", zh, en))
                 },
                 badge: None,
                 chip: String::new(),
@@ -218,10 +219,10 @@ impl Index {
                 if !self.name_hit(query, folded, &item.code_str, &item.names) {
                     return None;
                 }
-                let title = lead(lang, &item.en, &item.zh);
+                let title = lead3(lang, &item.en, &item.zh, &item.ko);
                 Some(Hit {
                     title: if title.is_empty() { good.item.to_string() } else { title },
-                    subtitle: trail(lang, &item.en, &item.zh),
+                    subtitle: trail3(lang, &item.en, &item.zh, &item.ko),
                     key: format!("item:{}", good.item),
                     icon: self.item_icons.get(&good.item).cloned(),
                     solo: false,
@@ -237,7 +238,7 @@ impl Index {
         self.towns
             .iter()
             .find(|town| town.code == code)
-            .map(|town| lead(lang, &town.en, &town.zh))
+            .map(|town| lead3(lang, &town.en, &town.zh, &town.ko))
             .unwrap_or_else(|| code.to_string())
     }
 }

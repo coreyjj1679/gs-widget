@@ -37,7 +37,7 @@ pub struct CardRow {
 }
 
 pub struct CardData {
-    pub english: bool,
+    pub language: String,
     pub title: String,
     pub subtitle: String,
     pub quantity: String,
@@ -82,20 +82,17 @@ fn body_height(title_lines: usize, detail_lines: usize) -> f32 {
     (title_lines as f32 * 21.0 + detail_lines as f32 * 17.0 + 17.0).max(46.0)
 }
 
-fn export_limit_error(english: bool) -> String {
-    if english {
-        "This breakdown is too large for readable JPG cards. Share its offline code instead."
-    } else {
-        "這份明細太大，無法匯出完整且清晰的 JPG 卡片；請改用離線分享碼。"
-    }
-    .into()
+fn export_limit_error(lang: &str) -> String {
+    crate::db::ui_text(lang,
+        "這份明細太大，無法匯出完整且清晰的 JPG 卡片；請改用離線分享碼。",
+        "This breakdown is too large for readable JPG cards. Share its offline code instead.")
 }
 
 /// Save every material on one or more 1200 × 630 JPEG cards, without overwriting
 /// earlier exports. The caller should show the returned path and page count.
 pub fn export_card(data: &CardData) -> Result<Vec<PathBuf>, String> {
     validate_card(data)?;
-    let pages = paginate(&data.rows).map_err(|_| export_limit_error(data.english))?;
+    let pages = paginate(&data.rows).map_err(|_| export_limit_error(&data.language))?;
     let directory = crate::db::calculator_export_dir();
     fs::create_dir_all(&directory).map_err(|e| format!("無法建立匯出資料夾：{e}"))?;
     let options = render_options();
@@ -341,18 +338,16 @@ fn validate_card(data: &CardData) -> Result<(), String> {
                         .is_some_and(|next| next.depth == row.depth + 1))
         })
     {
-        return Err(export_limit_error(data.english));
+        return Err(export_limit_error(&data.language));
     }
     if wrap(&data.title, 45.0).len() > 3
         || display_width(&data.subtitle) > 64.0
         || wrap(&data.notice, 23.0).len() > 4
         || display_width(&data.metadata) > 65.0
     {
-        return Err(if data.english {
-            "This calculation has text too long for a readable JPG card. Share its offline code instead."
-        } else {
-            "這份計算的文字太長，無法完整放進清晰的 JPG 卡片；請改用離線分享碼。"
-        }.into());
+        return Err(crate::db::ui_text(&data.language,
+            "這份計算的文字太長，無法完整放進清晰的 JPG 卡片；請改用離線分享碼。",
+            "This calculation has text too long for a readable JPG card. Share its offline code instead."));
     }
     Ok(())
 }
@@ -396,7 +391,7 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
     let mut svg = format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}"><rect width="1200" height="630" fill="#15191f"/><rect width="1200" height="4" fill="#d8b77b"/><g font-family="sans-serif">"##
     );
-    let label = |zh, en| if data.english { en } else { zh };
+    let label = |zh, en| crate::db::ui_text_ref(&data.language, zh, en);
     text(
         &mut svg,
         44.0,
@@ -864,7 +859,7 @@ mod tests {
 
     fn card(count: usize) -> CardData {
         CardData {
-            english: false,
+            language: "zh".into(),
             title: "強化的高級白水晶".into(),
             subtitle: "合成配方 #1040".into(),
             quantity: "2 件".into(),
@@ -1148,7 +1143,7 @@ mod tests {
     #[test]
     fn every_nested_page_encodes_as_a_complete_jpeg() {
         let mut data = nested_card(25);
-        data.english = true;
+        data.language = "en".into();
         let pages = paginate(&data.rows).unwrap();
         assert_complete_layout(&data, &pages);
         let options = render_options();

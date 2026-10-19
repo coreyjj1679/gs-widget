@@ -1,0 +1,8 @@
+// Shared UI language, independent from the optional secondary catalog language.
+export global UiLanguage {
+    in-out property <string> primary: "zh";
+    pure callback translate(string, string, string) -> string;
+    public pure function tr(en: string, zh: string) -> string {
+        return self.primary == "zh" ? zh : self.primary == "ko" ? self.translate(self.primary, en, zh) : en;
+    }
+}

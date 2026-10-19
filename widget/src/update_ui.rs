@@ -133,7 +133,7 @@ pub fn install(app: &App) -> Timer {
                     background: false,
                 }
                 | Event::Downloaded(Err(message)) => {
-                    app.set_update_error(message.into());
+                    app.set_update_error(crate::db::localized_error(&app.get_lang(), &message).into());
                     app.set_update_state(ERROR);
                 }
                 Event::Progress(percent) => app.set_update_progress(percent),
@@ -149,7 +149,7 @@ pub fn install(app: &App) -> Timer {
                 }
                 Event::Installer(Err(message), prepared) => {
                     session.borrow_mut().prepared = Some(prepared);
-                    app.set_update_error(message.into());
+                    app.set_update_error(crate::db::localized_error(&app.get_lang(), &message).into());
                     app.set_update_state(READY);
                 }
             }

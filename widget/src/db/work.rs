@@ -7,8 +7,8 @@ use super::{Catalog, Hit};
 use super::names::haystack;
 use super::recipe::formula_lands;
 use super::rows::{FormulaPart, Index, ItemFormula, MakePlace, WorkBuilding, WorkFacility, WorkProduct, WorkUpgradeName};
-use super::store::{online, table_exists};
-use super::text::{caption, commas, first_name, lead, phrase, trail};
+use super::store::{column_exists, online, table_exists};
+use super::text::{caption, commas, lead3, phrase, trail3};
 
 pub(in crate::db) fn work_lands(nations: &str, lang: &str) -> String {
     let korea = nations.contains('K');
@@ -86,7 +86,7 @@ pub(in crate::db) fn load_works(
         let en = online(texts, gts, "en").to_string();
         let zh = online(texts, gts, "zh").to_string();
         let mine = products.remove(&code).unwrap_or_default();
-        let mut parts = vec![ko, code.clone(), en.clone(), zh.clone()];
+        let mut parts = vec![ko.clone(), code.clone(), en.clone(), zh.clone()];
         for product in &mine {
             parts.push(product.item.to_string());
         }
@@ -95,6 +95,7 @@ pub(in crate::db) fn load_works(
             code.clone(),
             WorkFacility {
                 code: code.clone(),
+                ko,
                 en,
                 zh,
                 names: haystack(&borrowed),
@@ -135,7 +136,7 @@ pub(in crate::db) fn load_works(
         let en = online(texts, gts, "en").to_string();
         let zh = online(texts, gts, "zh").to_string();
         let facilities = slots.remove(&code).unwrap_or_default();
-        let mut parts = vec![ko, code.clone(), en.clone(), zh.clone()];
+        let mut parts = vec![ko.clone(), code.clone(), en.clone(), zh.clone()];
         for facility in &facilities {
             if let Some(yard) = yards.get(facility) {
                 parts.push(yard.en.clone());
@@ -146,6 +147,7 @@ pub(in crate::db) fn load_works(
         let icon = building_art(client_root, &code);
         works.push(WorkBuilding {
             code,
+            ko,
             en,
             zh,
             cost,
@@ -262,8 +264,13 @@ pub(in crate::db) fn load_work_upgrades(conn: &Connection, texts: &HashMap<Strin
     if !table_exists(conn, "work_upgrades") {
         return Ok(HashMap::new());
     }
+    let sql = if column_exists(conn, "work_upgrades", "effect_ko") {
+        "SELECT code, name_ko, name_gts, effect_gts, effect_ko FROM work_upgrades"
+    } else {
+        "SELECT code, name_ko, name_gts, effect_gts, '' FROM work_upgrades"
+    };
     let mut stmt = conn
-        .prepare("SELECT code, name_ko, name_gts, effect_gts FROM work_upgrades")
+        .prepare(sql)
         .map_err(|err| err.to_string())?;
     let rows = stmt
         .query_map([], |row| {
@@ -272,19 +279,21 @@ pub(in crate::db) fn load_work_upgrades(conn: &Connection, texts: &HashMap<Strin
                 row.get::<_, String>(1)?,
                 row.get::<_, i64>(2)?,
                 row.get::<_, i64>(3)?,
+                row.get::<_, String>(4)?,
             ))
         })
         .map_err(|err| err.to_string())?;
     let mut upgrades = HashMap::new();
     for row in rows {
-        let (code, ko, gts, effect) = row.map_err(|err| err.to_string())?;
-        let en = first_name(online(texts, gts, "en"), &ko);
-        let zh = first_name(online(texts, gts, "zh"), &ko);
+        let (code, ko, gts, effect, effect_ko) = row.map_err(|err| err.to_string())?;
+        let en = online(texts, gts, "en").to_string();
+        let zh = online(texts, gts, "zh").to_string();
         let effect_en = online(texts, effect, "en");
         let effect_zh = online(texts, effect, "zh");
         upgrades.insert(
             code,
             WorkUpgradeName {
+                ko: if effect_ko.is_empty() { ko } else { format!("{ko} {effect_ko}") },
                 en: if effect_en.is_empty() { en } else { format!("{en} {effect_en}") },
                 zh: if effect_zh.is_empty() { zh } else { format!("{zh} {effect_zh}") },
             },
@@ -392,11 +401,11 @@ impl Catalog {
     pub(in crate::db) fn factory_places(&self, code: i64, lang: &str) -> Vec<MakePlace> {
         let mut places = Vec::new();
         for building in &self.index.works {
-            let building_name = lead(lang, &building.en, &building.zh);
+            let building_name = lead3(lang, &building.en, &building.zh, &building.ko);
             for facility in &building.facilities {
                 let Some(yard) = self.index.yards.get(facility) else { continue };
                 let Some(product) = yard.products.iter().find(|product| product.item == code) else { continue };
-                let facility_name = lead(lang, &yard.en, &yard.zh);
+                let facility_name = lead3(lang, &yard.en, &yard.zh, &yard.ko);
                 places.push(MakePlace {
                     region: work_lands(&product.nations, lang),
                     building: building_name.clone(),
@@ -415,10 +424,10 @@ impl Catalog {
         }
         let yard = self.index.yards.get(&formula.plant)?;
         let building = self.index.works.iter().find(|row| row.facilities.iter().any(|code| code == &yard.code));
-        let facility = lead(lang, &yard.en, &yard.zh);
+        let facility = lead3(lang, &yard.en, &yard.zh, &yard.ko);
         Some(MakePlace {
             region: formula_lands(formula.country, lang),
-            building: building.map(|row| lead(lang, &row.en, &row.zh)).unwrap_or_default(),
+            building: building.map(|row| lead3(lang, &row.en, &row.zh, &row.ko)).unwrap_or_default(),
             facility: if facility.is_empty() { yard.code.clone() } else { facility },
             key: format!("bay:{}", yard.code),
             icon: yard.icon.clone(),
@@ -506,8 +515,8 @@ impl Index {
     pub(in crate::db) fn work_building_hit(&self, row: &WorkBuilding, lang: &str) -> Hit {
         let credit = format!("{} {}", phrase("credit", lang), commas(row.credit));
         Hit {
-            title: lead(lang, &row.en, &row.zh),
-            subtitle: caption(&trail(lang, &row.en, &row.zh), format!("{} · {credit}", commas(row.cost))),
+            title: lead3(lang, &row.en, &row.zh, &row.ko),
+            subtitle: caption(&trail3(lang, &row.en, &row.zh, &row.ko), format!("{} · {credit}", commas(row.cost))),
             key: format!("yard:{}", row.code),
             icon: row.icon.clone(),
             solo: false,
@@ -535,8 +544,8 @@ impl Index {
     pub(in crate::db) fn work_facility_hit(&self, yard: &WorkFacility, lang: &str) -> Hit {
         let count = format!("{} {}", commas(yard.products.len() as i64), phrase("goods", lang));
         Hit {
-            title: lead(lang, &yard.en, &yard.zh),
-            subtitle: caption(&trail(lang, &yard.en, &yard.zh), count),
+            title: lead3(lang, &yard.en, &yard.zh, &yard.ko),
+            subtitle: caption(&trail3(lang, &yard.en, &yard.zh, &yard.ko), count),
             key: format!("bay:{}", yard.code),
             icon: yard.icon.clone(),
             solo: false,
@@ -578,7 +587,7 @@ impl Index {
 
     pub(in crate::db) fn work_product_hit(&self, product: &WorkProduct, lang: &str) -> Option<Hit> {
         let item = self.find_item(product.item)?;
-        let (title, alt) = (lead(lang, &item.en, &item.zh), trail(lang, &item.en, &item.zh));
+        let (title, alt) = (lead3(lang, &item.en, &item.zh, &item.ko), trail3(lang, &item.en, &item.zh, &item.ko));
         let title = if title.is_empty() { product.item.to_string() } else { title };
         Some(Hit {
             title,
@@ -596,14 +605,14 @@ impl Index {
         self.works
             .iter()
             .find(|row| row.code == code)
-            .map(|row| lead(lang, &row.en, &row.zh))
+            .map(|row| lead3(lang, &row.en, &row.zh, &row.ko))
             .unwrap_or_else(|| code.to_string())
     }
 
     pub fn work_facility_name(&self, code: &str, lang: &str) -> String {
         self.yards
             .get(code)
-            .map(|row| lead(lang, &row.en, &row.zh))
+            .map(|row| lead3(lang, &row.en, &row.zh, &row.ko))
             .unwrap_or_else(|| code.to_string())
     }
 

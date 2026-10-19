@@ -71,28 +71,19 @@ pub fn install(app: &App) {
             app.set_mcp_claude_config(config.claude.into());
             app.set_mcp_claude_cli(config.cli.into());
         }
-        Err(error) => app.set_mcp_setup_error(error.into()),
+        Err(error) => app.set_mcp_setup_error(db::localized_error(&app.get_lang(), &error).into()),
     }
     app.set_mcp_windows(cfg!(windows));
     let weak = app.as_weak();
     app.on_mcp_copy(move |text| {
         let Some(app) = weak.upgrade() else { return };
         let copied = crate::window::try_copy_to_clipboard(&text);
-        let english = app.get_lang() == "en-zh";
-        app.set_mcp_copy_notice(
-            if copied {
-                if english {
-                    "Copied to clipboard"
-                } else {
-                    "已複製到剪貼簿"
-                }
-            } else if english {
-                "Couldn't copy. Select the text and copy it manually."
-            } else {
-                "無法複製，請選取文字後手動複製。"
-            }
-            .into(),
-        );
+        let lang = app.get_lang();
+        app.set_mcp_copy_notice(if copied {
+            crate::db::ui_text(&lang, "已複製到剪貼簿", "Copied to clipboard")
+        } else {
+            crate::db::ui_text(&lang, "無法複製，請選取文字後手動複製。", "Couldn't copy. Select the text and copy it manually.")
+        }.into());
     });
 }
 

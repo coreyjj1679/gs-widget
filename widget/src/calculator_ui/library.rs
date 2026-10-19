@@ -3,11 +3,12 @@ use super::*;
 
 impl Controller {
     pub(super) fn render_library(&self, app: &App) {
-        let english = app.get_lang() == "en-zh";
+        let lang_value = app.get_lang();
+        let lang = lang_value.as_str();
         let library = self.library.borrow();
         app.set_calculator_active_saved_name("".into());
         let Ok(book) = library.as_ref() else {
-            app.set_calculator_library_error(library.as_ref().unwrap_err().clone().into());
+            app.set_calculator_library_error(db::localized_error(&app.get_lang(), &library.as_ref().unwrap_err().clone()).into());
             app.set_calculator_folders(ModelRc::default());
             app.set_calculator_saved(ModelRc::default());
             app.set_calculator_saved_count(0);
@@ -49,11 +50,11 @@ impl Controller {
                     title: entry.name.clone().into(),
                     subtitle: format!(
                         "{} · {} {} · {} {}",
-                        entry.document.title,
-                        tr(english, "產出", "output"),
+                        self.catalog.calculator_item_title(entry.document.item_code, &entry.document.title, lang),
+                        tr(lang, "產出", "output"),
                         number(cost.output_units),
                         tr(
-                            english,
+                            lang,
                             if cost.total.is_some() {
                                 "成本"
                             } else {
@@ -91,13 +92,13 @@ impl Controller {
             Some((folder, entry)) => {
                 app.set_calculator_active_saved_name(entry.name.clone().into());
                 if current.as_ref() == Some(&entry.document) {
-                    format!("{} · {}", tr(english, "已儲存", "Saved"), folder.name)
+                    format!("{} · {}", tr(lang, "已儲存", "Saved"), folder.name)
                 } else {
-                    tr(english, "有未儲存變更", "Unsaved changes").into()
+                    tr(lang, "有未儲存變更", "Unsaved changes").into()
                 }
             }
             None if current.is_some() => {
-                tr(english, "尚未加入收藏", "Not yet saved to your collection").into()
+                tr(lang, "尚未加入收藏", "Not yet saved to your collection").into()
             }
             None => String::new(),
         };
@@ -124,7 +125,7 @@ impl Controller {
         let mut next = match self.library.borrow().as_ref() {
             Ok(book) => book.clone(),
             Err(error) => {
-                app.set_calculator_error(error.clone().into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error.clone()).into());
                 return None;
             }
         };
@@ -132,13 +133,13 @@ impl Controller {
             Ok(latest) if latest != next => {
                 *self.library.borrow_mut() = Ok(latest);
                 self.render_library(app);
-                app.set_calculator_error(tr(app.get_lang() == "en-zh",
+                app.set_calculator_error(tr(&app.get_lang(),
                     "收藏已在其他視窗更新，已重新載入。請檢查後重試操作。",
                     "The collection changed in another window and was reloaded. Review it and retry.").into());
                 return None;
             }
             Err(error) => {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return None;
             }
             _ => (),
@@ -148,7 +149,7 @@ impl Controller {
         {
             Ok(result) => result,
             Err(error) => {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return None;
             }
         };
@@ -162,7 +163,7 @@ impl Controller {
         let share = match db::decode_calculator_folder(code) {
             Ok(share) => share,
             Err(error) => {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return;
             }
         };
@@ -175,12 +176,12 @@ impl Controller {
                 format!(
                     "{} {count} {}",
                     tr(
-                        app.get_lang() == "en-zh",
+                        &app.get_lang(),
                         "已匯入新資料夾，包含",
                         "Imported a new folder containing"
                     ),
                     tr(
-                        app.get_lang() == "en-zh",
+                        &app.get_lang(),
                         "張成本單；原有收藏已保留。",
                         "cost sheets; existing collections were preserved."
                     )
@@ -240,7 +241,7 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
         let folder_id = match c.folder_at(index) {
             Ok(id) => id,
             Err(error) => {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return;
             }
         };
@@ -253,7 +254,7 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
             c.render_library(&app);
             app.set_calculator_info(
                 tr(
-                    app.get_lang() == "en-zh",
+                    &app.get_lang(),
                     "成本單已儲存到收藏。",
                     "Cost sheet saved to your collection.",
                 )
@@ -303,7 +304,7 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
         let folder = match c.folder_at(index) {
             Ok(folder) => folder,
             Err(error) => {
-                app.set_calculator_error(error.into());
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
                 return;
             }
         };
@@ -334,13 +335,13 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
                     format!(
                         "{} {} {}",
                         tr(
-                            app.get_lang() == "en-zh",
+                            &app.get_lang(),
                             "資料夾分享碼已複製，包含",
                             "Folder code copied, containing"
                         ),
                         folder.entries.len(),
                         tr(
-                            app.get_lang() == "en-zh",
+                            &app.get_lang(),
                             "張成本單。對方可離線匯入整個資料夾。",
                             "cost sheets. The entire folder can be imported offline."
                         )
@@ -348,7 +349,7 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
                     .into(),
                 );
             }
-            Err(error) => app.set_calculator_error(error.into()),
+            Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
         }
     });
 }

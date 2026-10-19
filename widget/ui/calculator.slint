@@ -1,3 +1,4 @@
+import { UiLanguage } from "language.slint";
 import { Button, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 import { DesktopTheme, DesktopIcon } from "desktop.slint";
 import { CalculatorLibrary, CalcSaved } from "calculator-library.slint";
@@ -120,7 +121,7 @@ component CalcItemPicker inherits Rectangle {
     background: DesktopTheme.control;
     forward-focus: focus;
     accessible-role: combobox;
-    accessible-label: (root.english ? "Craftable item: " : "合成道具：") + (root.selected-name == "" ? (root.english ? "Choose an item" : "尚未選擇") : root.selected-name);
+    accessible-label: (UiLanguage.tr("Craftable item: ", "合成道具：")) + (root.selected-name == "" ? (UiLanguage.tr("Choose an item", "尚未選擇")) : root.selected-name);
     accessible-value: root.selected-name;
     accessible-expandable: true;
     accessible-expanded: root.open;
@@ -151,7 +152,7 @@ component CalcItemPicker inherits Rectangle {
     Text {
         x: root.selected-name == "" ? 12px : 47px;
         y: 0px; width: parent.width - self.x - 36px; height: 100%;
-        text: root.selected-name == "" ? (root.english ? "Search for a craftable item…" : "搜尋可合成的道具…") : root.selected-name;
+        text: root.selected-name == "" ? (UiLanguage.tr("Search for a craftable item…", "搜尋可合成的道具…")) : root.selected-name;
         color: root.selected-name == "" ? DesktopTheme.secondary : DesktopTheme.text;
         font-size: 14px;
         overflow: elide; vertical-alignment: center;
@@ -188,8 +189,8 @@ component CalcItemPicker inherits Rectangle {
             query-input := LineEdit {
                 x: 8px; y: 8px; width: parent.width - 16px; height: 34px;
                 text <=> root.query;
-                placeholder-text: root.english ? "Type an item name…" : "輸入道具名稱…";
-                accessible-label: root.english ? "Search craftable items" : "搜尋可合成道具";
+                placeholder-text: UiLanguage.tr("Type an item name…", "輸入道具名稱…");
+                accessible-label: UiLanguage.tr("Search craftable items", "搜尋可合成道具");
                 edited => {
                     root.option-index = 0;
                     options-scroll.content-y = 0px;
@@ -243,7 +244,7 @@ component CalcItemPicker inherits Rectangle {
                 }
                 if root.options.length == 0: Text {
                     x: 12px; width: parent.width - 24px; height: 52px;
-                    text: root.english ? "No craftable items found. Try another name." : "找不到可合成道具，請換個名稱搜尋。";
+                    text: UiLanguage.tr("No craftable items found. Try another name.", "找不到可合成道具，請換個名稱搜尋。");
                     font-size: 13px; color: DesktopTheme.secondary;
                     vertical-alignment: center; wrap: word-wrap;
                 }
@@ -392,7 +393,7 @@ component CalcNestedPicker inherits Rectangle {
                 }
                 if root.options.length == 0: Text {
                     x: 10px; width: parent.width - 20px; height: 84px;
-                    text: root.english ? "No available choices for this material." : "這項材料目前沒有可用的選項。";
+                    text: UiLanguage.tr("No available choices for this material.", "這項材料目前沒有可用的選項。");
                     font-size: 13px; color: DesktopTheme.secondary;
                     wrap: word-wrap; vertical-alignment: center;
                 }
@@ -436,9 +437,9 @@ component CalcMaterialActions inherits Rectangle {
         x: 0px; y: 0px;
         width: root.stacked ? parent.width : min(self.preferred-width, parent.width);
         english: root.english;
-        label: root.nested ? (root.english ? "Change recipe" : "更換配方") : (root.english ? "Expand recipe" : "展開配方");
-        description: root.material-name + (root.english ? ": calculate from sub-material prices" : "：依子材料價格計算");
-        heading: root.english ? "Choose a recipe" : "選擇子材料配方";
+        label: root.nested ? (UiLanguage.tr("Change recipe", "更換配方")) : (UiLanguage.tr("Expand recipe", "展開配方"));
+        description: root.material-name + (UiLanguage.tr(": calculate from sub-material prices", "：依子材料價格計算"));
+        heading: UiLanguage.tr("Choose a recipe", "選擇子材料配方");
         auto-single: true;
         enabled: root.enabled;
         options: root.options; popup-width: root.popup-width;
@@ -450,9 +451,9 @@ component CalcMaterialActions inherits Rectangle {
         y: root.stacked && root.can-expand ? 28px : 0px;
         width: root.stacked ? parent.width : min(self.preferred-width, parent.width - self.x);
         english: root.english;
-        label: root.english ? "Reuse saved" : "重用收藏";
-        description: root.material-name + (root.english ? ": copy and expand a saved cost sheet" : "：複製並展開已收藏的成本表");
-        heading: root.english ? "Choose a saved sheet" : "選擇已收藏的成本表";
+        label: UiLanguage.tr("Reuse saved", "重用收藏");
+        description: root.material-name + (UiLanguage.tr(": copy and expand a saved cost sheet", "：複製並展開已收藏的成本表"));
+        heading: UiLanguage.tr("Choose a saved sheet", "選擇已收藏的成本表");
         enabled: root.enabled;
         options: root.options; popup-width: root.popup-width;
         request => { root.request(true); }
@@ -461,8 +462,8 @@ component CalcMaterialActions inherits Rectangle {
     if root.nested: CalcAction {
         x: 0px; y: parent.height - 28px;
         width: min(self.preferred-width, parent.width);
-        label: root.english ? "Use unit price" : "改用單價";
-        description: root.material-name + (root.english ? ": stop using sub-material costs" : "：停止使用子材料成本，改為直接輸入單價");
+        label: UiLanguage.tr("Use unit price", "改用單價");
+        description: root.material-name + (UiLanguage.tr(": stop using sub-material costs", "：停止使用子材料成本，改為直接輸入單價"));
         enabled: root.enabled;
         activated => { root.clear(); }
     }
@@ -566,11 +567,11 @@ export component CalculatorPane inherits Rectangle {
                 horizontal-stretch: 1;
                 spacing: 6px;
                 Text {
-                    text: root.library-open ? (root.english ? "My saved sheets" : "我的收藏") : (root.english ? "Crafting cost" : "合成成本");
+                    text: root.library-open ? (UiLanguage.tr("My saved sheets", "我的收藏")) : (UiLanguage.tr("Crafting cost", "合成成本"));
                     font-size: 21px; font-weight: 600; color: DesktopTheme.text;
                 }
                 Text {
-                    text: root.library-open ? (root.english ? "Keep your cost lists in folders and share them together." : "以資料夾整理合成表，整個資料夾一起分享。") : (root.english ? "Choose an item and enter material prices to calculate its cost." : "選擇道具，填入材料單價，即可計算合成成本。");
+                    text: root.library-open ? (UiLanguage.tr("Keep your cost lists in folders and share them together.", "以資料夾整理合成表，整個資料夾一起分享。")) : (UiLanguage.tr("Choose an item and enter material prices to calculate its cost.", "選擇道具，填入材料單價，即可計算合成成本。"));
                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                 }
                 if !root.library-open && root.save-state != "": Text {
@@ -579,7 +580,7 @@ export component CalculatorPane inherits Rectangle {
                 }
             }
             if !root.library-open: Button {
-                text: root.english ? "Save" : "儲存";
+                text: UiLanguage.tr("Save", "儲存");
                 height: 32px; min-width: 64px;
                 enabled: root.share-enabled && root.library-error == "" && root.input-valid;
                 clicked => {
@@ -594,7 +595,7 @@ export component CalculatorPane inherits Rectangle {
                 }
             }
             CalcIconButton {
-                label: root.library-open ? (root.english ? "Continue calculating" : "繼續計算") : (root.english ? "Saved (" + root.saved-count + ")" : "我的收藏（" + root.saved-count + "）");
+                label: root.library-open ? (UiLanguage.tr("Continue calculating", "繼續計算")) : (UiLanguage.tr("Saved (", "我的收藏（") + root.saved-count + UiLanguage.tr(")", "）"));
                 icon-path: root.library-open ? "M5 3 L19 3 L19 21 L5 21 Z M8 6 L16 6 L16 9 L8 9 Z M8 13 L10 13 M14 13 L16 13 M8 17 L10 17 M14 17 L16 17" : "M12 3 L14.8 8.8 L21.2 9.7 L16.6 14.2 L17.7 20.5 L12 17.5 L6.3 20.5 L7.4 14.2 L2.8 9.7 L9.2 8.8 Z";
                 clicked => { root.library-open = !root.library-open; root.saving = false; }
             }
@@ -645,13 +646,13 @@ export component CalculatorPane inherits Rectangle {
                     save-fields := VerticalLayout {
                         x: 10px; y: 10px; width: parent.width - 20px;
                         spacing: 8px;
-                        Text { text: root.english ? "Saved sheet name" : "合成表名稱"; font-size: 12px; color: DesktopTheme.secondary; }
+                        Text { text: UiLanguage.tr("Saved sheet name", "合成表名稱"); font-size: 12px; color: DesktopTheme.secondary; }
                         LineEdit {
                             text <=> root.save-name;
                             min-width: 0px; height: 32px;
-                            accessible-label: root.english ? "Saved sheet name" : "合成表名稱";
+                            accessible-label: UiLanguage.tr("Saved sheet name", "合成表名稱");
                         }
-                        Text { text: root.english ? "Save to folder" : "儲存至資料夾"; font-size: 12px; color: DesktopTheme.secondary; }
+                        Text { text: UiLanguage.tr("Save to folder", "儲存至資料夾"); font-size: 12px; color: DesktopTheme.secondary; }
                         CalcFolderChoices {
                             folders: root.folders;
                             current-index <=> root.folder-index;
@@ -662,7 +663,7 @@ export component CalculatorPane inherits Rectangle {
                         HorizontalLayout {
                             spacing: 8px;
                             Button {
-                                text: root.active-saved-name == "" ? (root.english ? "Save sheet" : "儲存合成表") : (root.english ? "Save changes" : "儲存變更");
+                                text: root.active-saved-name == "" ? (UiLanguage.tr("Save sheet", "儲存合成表")) : (UiLanguage.tr("Save changes", "儲存變更"));
                                 enabled: root.save-name != "" && root.folders.length > 0 && root.library-error == "" && root.input-valid;
                                 clicked => {
                                     root.save-sheet(root.save-name, root.folder-index, false);
@@ -670,17 +671,17 @@ export component CalculatorPane inherits Rectangle {
                                 }
                             }
                             if root.active-saved-name != "": Button {
-                                text: root.english ? "Save a copy" : "另存一份";
+                                text: UiLanguage.tr("Save a copy", "另存一份");
                                 enabled: root.save-name != "" && root.folders.length > 0 && root.library-error == "" && root.input-valid;
                                 clicked => {
                                     root.save-sheet(root.save-name, root.folder-index, true);
                                     if (root.error == "") { root.saving = false; }
                                 }
                             }
-                            Button { text: root.english ? "Cancel" : "取消"; clicked => { root.saving = false; } }
+                            Button { text: UiLanguage.tr("Cancel", "取消"); clicked => { root.saving = false; } }
                             Rectangle { horizontal-stretch: 1; }
                             Text {
-                                text: root.english ? "Includes quantity and prices" : "連同數量與單價儲存";
+                                text: UiLanguage.tr("Includes quantity and prices", "連同數量與單價儲存");
                                 color: DesktopTheme.secondary; font-size: 12px; vertical-alignment: center;
                             }
                         }
@@ -692,7 +693,7 @@ export component CalculatorPane inherits Rectangle {
                         horizontal-stretch: 1; min-width: 0px;
                         spacing: 7px;
                         Text {
-                            text: root.english ? "Item to craft" : "合成道具";
+                            text: UiLanguage.tr("Item to craft", "合成道具");
                             color: DesktopTheme.secondary; font-size: 12px;
                         }
                         CalcItemPicker {
@@ -708,7 +709,7 @@ export component CalculatorPane inherits Rectangle {
                     VerticalLayout {
                         width: 110px; spacing: 7px;
                         Text {
-                            text: root.english ? "Output quantity" : "製作數量";
+                            text: UiLanguage.tr("Output quantity", "製作數量");
                             color: DesktopTheme.secondary; font-size: 12px;
                         }
                         CalcNumber {
@@ -717,7 +718,7 @@ export component CalculatorPane inherits Rectangle {
                             reset-token: root.input-revision;
                             draft: root.quantity-draft;
                             has-draft: root.quantity-has-draft;
-                            label: root.english ? "Quantity to craft" : "製作數量";
+                            label: UiLanguage.tr("Quantity to craft", "製作數量");
                             enabled: root.selected-name != "";
                             commit(value) => { return root.quantity-changed(value); }
                         }
@@ -728,7 +729,7 @@ export component CalculatorPane inherits Rectangle {
                     if root.recipes.length > 1: HorizontalLayout {
                         spacing: 12px;
                         Text {
-                            text: root.english ? "Recipe" : "合成配方";
+                            text: UiLanguage.tr("Recipe", "合成配方");
                             font-size: 12px; color: DesktopTheme.secondary;
                             vertical-alignment: center;
                         }
@@ -736,7 +737,7 @@ export component CalculatorPane inherits Rectangle {
                             model: root.recipes;
                             current-index <=> root.recipe-index;
                             min-width: 0px;
-                            accessible-label: root.english ? "Choose recipe" : "選擇合成配方";
+                            accessible-label: UiLanguage.tr("Choose recipe", "選擇合成配方");
                             selected(value) => { root.select-recipe(self.current-index); }
                         }
                     }
@@ -753,12 +754,12 @@ export component CalculatorPane inherits Rectangle {
                         spacing: 10px;
                         alignment: center;
                         Text {
-                            text: root.english ? "Start with the item you want to craft" : "從想合成的道具開始";
+                            text: UiLanguage.tr("Start with the item you want to craft", "從想合成的道具開始");
                             color: DesktopTheme.text; font-size: 17px; font-weight: 600;
                             horizontal-alignment: center; wrap: word-wrap;
                         }
                         Text {
-                            text: root.english ? "The list includes craftable items only.\nTheir materials and quantities will appear here." : "下拉選單只列出可合成道具。\n選擇後，這裡會列出所需材料與數量。";
+                            text: UiLanguage.tr("The list includes craftable items only.\nTheir materials and quantities will appear here.", "下拉選單只列出可合成道具。\n選擇後，這裡會列出所需材料與數量。");
                             color: DesktopTheme.secondary; font-size: 13px;
                             horizontal-alignment: center; wrap: word-wrap;
                         }
@@ -772,24 +773,24 @@ export component CalculatorPane inherits Rectangle {
                         padding-right: 4px;
                         Text {
                             horizontal-stretch: 1; min-width: 0px;
-                            text: root.english ? "Material" : "材料";
+                            text: UiLanguage.tr("Material", "材料");
                             color: DesktopTheme.secondary; font-size: 12px;
                         }
                         Text {
                             width: root.quantity-width;
-                            text: root.english ? "Quantity" : "數量";
+                            text: UiLanguage.tr("Quantity", "數量");
                             color: DesktopTheme.secondary; font-size: 12px;
                             horizontal-alignment: right;
                         }
                         Text {
                             width: root.cost-width;
-                            text: root.english ? "Unit price" : "單價";
+                            text: UiLanguage.tr("Unit price", "單價");
                             color: DesktopTheme.secondary; font-size: 12px;
                             horizontal-alignment: right;
                         }
                         Text {
                             width: root.cost-width;
-                            text: root.english ? "Subtotal" : "小計";
+                            text: UiLanguage.tr("Subtotal", "小計");
                             color: DesktopTheme.secondary; font-size: 12px;
                             horizontal-alignment: right;
                         }
@@ -866,8 +867,8 @@ export component CalculatorPane inherits Rectangle {
                                 reset-token: root.input-revision;
                                 draft: material.draft;
                                 has-draft: material.has-draft;
-                                label: material.title + (root.english ? " unit price" : "單價");
-                                placeholder-text: root.english ? "Not entered" : "未輸入";
+                                label: material.title + (UiLanguage.tr(" unit price", "單價"));
+                                placeholder-text: UiLanguage.tr("Not entered", "未輸入");
                                 commit(value) => { return root.price-changed(material.key, value); }
                             }
                             if material.nested: VerticalLayout {
@@ -877,10 +878,10 @@ export component CalculatorPane inherits Rectangle {
                                     font-size: 14px;
                                     color: material.missing-price ? DesktopTheme.muted : DesktopTheme.text;
                                     horizontal-alignment: right; wrap: word-wrap;
-                                    accessible-description: root.english ? "Calculated from sub-materials" : "依子材料計算";
+                                    accessible-description: UiLanguage.tr("Calculated from sub-materials", "依子材料計算");
                                 }
                                 Text {
-                                    text: root.english ? "Calculated" : "依子材料計算";
+                                    text: UiLanguage.tr("Calculated", "依子材料計算");
                                     font-size: 12px; color: DesktopTheme.secondary;
                                     horizontal-alignment: right; wrap: word-wrap;
                                 }
@@ -900,12 +901,12 @@ export component CalculatorPane inherits Rectangle {
                         }
                     }
                     if root.materials.length == 0: Text {
-                        text: root.english ? "This recipe has no listed material inputs." : "此配方沒有列出材料。";
+                        text: UiLanguage.tr("This recipe has no listed material inputs.", "此配方沒有列出材料。");
                         color: DesktopTheme.secondary; font-size: 13px;
                     }
                 }
                 if root.has-nested: Text {
-                    text: root.english ? "Sub-materials are included in their parent subtotal; do not add them again." : "子材料已計入上層小計，毋須再次相加。";
+                    text: UiLanguage.tr("Sub-materials are included in their parent subtotal; do not add them again.", "子材料已計入上層小計，毋須再次相加。");
                     font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
                 }
                 if root.notice != "": Text {
@@ -925,7 +926,7 @@ export component CalculatorPane inherits Rectangle {
                     wrap: word-wrap;
                 }
                 Text {
-                    text: root.english ? "Prices are per material unit.\nLeave blank if unknown; enter 0 for no cost." : "價格以每件材料為單位。\n未知可留空，免費材料請填 0。";
+                    text: UiLanguage.tr("Prices are per material unit.\nLeave blank if unknown; enter 0 for no cost.", "價格以每件材料為單位。\n未知可留空，免費材料請填 0。");
                     font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
                 }
             }
@@ -935,7 +936,7 @@ export component CalculatorPane inherits Rectangle {
                 HorizontalLayout {
                     Text {
                         horizontal-stretch: 1;
-                        text: root.complete ? (root.english ? "Material cost" : "材料成本") : (root.english ? "Priced materials" : "已填材料成本");
+                        text: root.complete ? (UiLanguage.tr("Material cost", "材料成本")) : (UiLanguage.tr("Priced materials", "已填材料成本"));
                         color: DesktopTheme.secondary; font-size: 13px;
                     }
                     Text { text: root.material-total; color: DesktopTheme.text; font-size: 13px; }
@@ -943,7 +944,7 @@ export component CalculatorPane inherits Rectangle {
                 HorizontalLayout {
                     Text {
                         horizontal-stretch: 1;
-                        text: root.has-nested ? (root.english ? "Top-level crafting fee" : "主配方合成費") : (root.english ? "Crafting fee" : "合成費用");
+                        text: root.has-nested ? (UiLanguage.tr("Top-level crafting fee", "主配方合成費")) : (UiLanguage.tr("Crafting fee", "合成費用"));
                         color: DesktopTheme.secondary; font-size: 13px;
                     }
                     Text { text: root.fee; color: DesktopTheme.text; font-size: 13px; }
@@ -952,7 +953,7 @@ export component CalculatorPane inherits Rectangle {
                 HorizontalLayout {
                     Text {
                         horizontal-stretch: 1;
-                        text: root.complete ? (root.english ? "Total cost" : "成本合計") : (root.english ? "Known cost" : "已知成本");
+                        text: root.complete ? (UiLanguage.tr("Total cost", "成本合計")) : (UiLanguage.tr("Known cost", "已知成本"));
                         color: DesktopTheme.text; font-size: 15px; font-weight: 600;
                         vertical-alignment: center;
                     }
@@ -964,7 +965,7 @@ export component CalculatorPane inherits Rectangle {
                 HorizontalLayout {
                     Text {
                         horizontal-stretch: 1;
-                        text: root.english ? "Cost per item" : "每件成本";
+                        text: UiLanguage.tr("Cost per item", "每件成本");
                         color: DesktopTheme.secondary; font-size: 12px;
                     }
                     Text { text: root.unit-total; color: DesktopTheme.secondary; font-size: 12px; }
@@ -975,25 +976,25 @@ export component CalculatorPane inherits Rectangle {
         HorizontalLayout {
             spacing: 10px;
             Button {
-                text: root.english ? "Export JPG" : "匯出 JPG";
+                text: UiLanguage.tr("Export JPG", "匯出 JPG");
                 enabled: root.share-enabled && root.input-valid;
                 height: 34px;
                 clicked => { root.export-card(); }
             }
             Button {
-                text: root.english ? "Copy share code" : "複製分享碼";
+                text: UiLanguage.tr("Copy share code", "複製分享碼");
                 enabled: root.share-enabled && root.input-valid;
                 height: 34px;
                 clicked => { root.copy-code(); }
             }
             Button {
-                text: root.importing ? (root.english ? "Close import" : "收起匯入") : (root.english ? "Import code" : "匯入分享碼");
+                text: root.importing ? (UiLanguage.tr("Close import", "收起匯入")) : (UiLanguage.tr("Import code", "匯入分享碼"));
                 height: 34px;
                 clicked => { root.importing = !root.importing; root.saving = false; }
             }
             Rectangle { horizontal-stretch: 1; }
             Text {
-                text: root.english ? "Works offline" : "可離線分享";
+                text: UiLanguage.tr("Works offline", "可離線分享");
                 color: DesktopTheme.muted; font-size: 12px;
                 vertical-alignment: center;
             }
@@ -1004,17 +1005,17 @@ export component CalculatorPane inherits Rectangle {
                 height: 72px;
                 text <=> root.import-text;
                 wrap: word-wrap;
-                accessible-label: root.english ? "Paste a sheet or folder share code" : "貼上合成表或資料夾分享碼";
+                accessible-label: UiLanguage.tr("Paste a sheet or folder share code", "貼上合成表或資料夾分享碼");
             }
             HorizontalLayout {
                 spacing: 12px;
                 Text {
                     horizontal-stretch: 1;
-                    text: root.english ? "Import one cost list, or add an entire shared folder to your saved sheets." : "可匯入單份成本清單，或把整個資料夾加入收藏。";
+                    text: UiLanguage.tr("Import one cost list, or add an entire shared folder to your saved sheets.", "可匯入單份成本清單，或把整個資料夾加入收藏。");
                     color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
                 }
                 Button {
-                    text: root.english ? "Import" : "匯入";
+                    text: UiLanguage.tr("Import", "匯入");
                     height: 32px;
                     enabled: root.import-text != "";
                     clicked => { root.import-code(root.import-text); }

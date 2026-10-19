@@ -4,7 +4,7 @@ use rusqlite::Connection;
 
 use super::hero::hero_names;
 use super::rows::CompanionRow;
-use super::text::{chrome_text, commas, element_name, lead, phrase, trail};
+use super::text::{chrome_text, commas, element_name, lead, lead3, phrase, trail3};
 use super::{Catalog, Hit};
 
 pub(in crate::db) fn load_companions(conn: &Connection) -> HashMap<String, CompanionRow> {
@@ -193,7 +193,7 @@ fn extra_facts(conn: &Connection, code: &str, lang: &str, stats: bool, hide_outg
                 && !(hide_outgoing_evolution && en == "Evolution intimacy")
         })
         .map(|(_, en, zh, value_en, value_zh)| {
-            (lead(lang, &en, &zh), lead(lang, &value_en, &value_zh))
+            (chrome_text(lang, &zh, &en), lead(lang, &value_en, &value_zh))
         })
         .filter(|(_, value)| !value.is_empty())
         .collect()
@@ -303,7 +303,7 @@ impl Catalog {
         };
         rows.flatten()
             .map(|(en, zh, value_en, value_zh)| {
-                (lead(lang, &en, &zh), lead(lang, &value_en, &value_zh))
+                (chrome_text(lang, &zh, &en), lead(lang, &value_en, &value_zh))
             })
             .filter(|(_, value)| !value.is_empty())
             .collect()
@@ -418,7 +418,7 @@ impl Catalog {
 
     fn companion_material_link(&self, item_code: i64, qty: i64, lang: &str) -> Hit {
         let item = self.index.find_item(item_code);
-        let (name, alt) = item.map(|item| (lead(lang, &item.en, &item.zh), trail(lang, &item.en, &item.zh)))
+        let (name, alt) = item.map(|item| (lead3(lang, &item.en, &item.zh, &item.ko), trail3(lang, &item.en, &item.zh, &item.ko)))
             .unwrap_or_default();
         Hit {
             title: if name.is_empty() { format!("#{item_code}") } else { name },

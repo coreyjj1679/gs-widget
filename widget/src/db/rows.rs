@@ -30,6 +30,7 @@ pub(in crate::db) struct Index {
 pub(in crate::db) struct MonsterRow {
     pub(in crate::db) code: String,
     pub(in crate::db) nation: i64,
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
     pub(in crate::db) place_en: String,
@@ -53,6 +54,7 @@ pub(in crate::db) struct PlaceRow {
 pub(in crate::db) struct ItemRow {
     pub(in crate::db) code: i64,
     pub(in crate::db) code_str: String,
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
     pub(in crate::db) category: String,
@@ -82,6 +84,7 @@ pub(in crate::db) struct RecipeRow {
     pub(in crate::db) id: i64,
     pub(in crate::db) source: String,
     pub(in crate::db) result_str: String,
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
     pub(in crate::db) names: String,
@@ -95,6 +98,7 @@ pub(in crate::db) struct QuestRow {
     pub(in crate::db) code: String,
     pub(in crate::db) kind: String,
     pub(in crate::db) npc: i64,
+    pub(in crate::db) title_ko: String,
     pub(in crate::db) title_en: String,
     pub(in crate::db) title_zh: String,
     pub(in crate::db) names: String,
@@ -177,6 +181,7 @@ pub(in crate::db) struct NpcRow {
     pub(in crate::db) zh: String,
     pub(in crate::db) nation_en: String,
     pub(in crate::db) nation_zh: String,
+    pub(in crate::db) map_ko: String,
     pub(in crate::db) map_en: String,
     pub(in crate::db) map_zh: String,
     pub(in crate::db) map_index: i64,
@@ -205,6 +210,7 @@ pub(in crate::db) struct QuestStep {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub(in crate::db) struct WorkUpgradeName {
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
 }
@@ -231,6 +237,7 @@ pub(in crate::db) struct ItemFormula {
 
 pub(in crate::db) struct WorkFacility {
     pub(in crate::db) code: String,
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
     pub(in crate::db) names: String,
@@ -248,6 +255,7 @@ pub(in crate::db) struct TownGood {
 
 pub(in crate::db) struct TownRow {
     pub(in crate::db) code: String,
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
     pub(in crate::db) region: String,
@@ -259,12 +267,14 @@ pub(in crate::db) struct TownRow {
 
 pub(in crate::db) struct ChartRow {
     pub(in crate::db) code: i64,
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
 }
 
 pub(in crate::db) struct WorkBuilding {
     pub(in crate::db) code: String,
+    pub(in crate::db) ko: String,
     pub(in crate::db) en: String,
     pub(in crate::db) zh: String,
     pub(in crate::db) cost: i64,

@@ -1,4 +1,5 @@
 //! Quest browse categories derived from the local data, without editorial labels.
+use super::text::{lead3, trail3};
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
@@ -55,9 +56,9 @@ struct PreviewEntityName {
     bilingual: String,
 }
 
-fn preview_name(lang: &str, en: &str, zh: &str) -> String {
-    let primary = lead(lang, en, zh);
-    let alternate = trail(lang, en, zh);
+fn preview_name(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+    let primary = lead3(lang, en, zh, ko);
+    let alternate = trail3(lang, en, zh, ko);
     if alternate.is_empty() {
         primary
     } else {
@@ -373,11 +374,13 @@ fn preview_texts(conn: &Connection, id: i64, lang: &str) -> (String, String, Str
     let mission_zh = pick(&["mission"], "zh");
     let note_en = pick(&["detail", "explain", "info"], "en");
     let note_zh = pick(&["detail", "explain", "info"], "zh");
+    let note_ko: String = conn.query_row("SELECT IFNULL(detail, '') FROM quests WHERE id = ?1", [id], |row| row.get(0)).unwrap_or_default();
+    let note_ko = game_breaks(note_ko);
     (
         lead(lang, &mission_en, &mission_zh),
         trail(lang, &mission_en, &mission_zh),
-        lead(lang, &note_en, &note_zh),
-        trail(lang, &note_en, &note_zh),
+        lead3(lang, &note_en, &note_zh, &note_ko),
+        trail3(lang, &note_en, &note_zh, &note_ko),
     )
 }
 
@@ -573,8 +576,8 @@ impl Catalog {
                     (
                         item.code_str.as_str(),
                         PreviewEntityName {
-                            primary: lead(lang, &item.en, &item.zh),
-                            bilingual: preview_name(lang, &item.en, &item.zh),
+                            primary: lead3(lang, &item.en, &item.zh, &item.ko),
+                            bilingual: preview_name(lang, &item.en, &item.zh, &item.ko),
                         },
                     )
                 })
@@ -588,8 +591,8 @@ impl Catalog {
                     (
                         monster.code.as_str(),
                         PreviewEntityName {
-                            primary: lead(lang, &monster.en, &monster.zh),
-                            bilingual: preview_name(lang, &monster.en, &monster.zh),
+                            primary: lead3(lang, &monster.en, &monster.zh, &monster.ko),
+                            bilingual: preview_name(lang, &monster.en, &monster.zh, &monster.ko),
                         },
                     )
                 })
@@ -681,7 +684,7 @@ impl Catalog {
             .quests
             .iter()
             .find(|quest| quest.id == id)
-            .map(|quest| trail(lang, &quest.title_en, &quest.title_zh))
+            .map(|quest| trail3(lang, &quest.title_en, &quest.title_zh, &quest.title_ko))
             .unwrap_or_default()
     }
 
@@ -845,9 +848,9 @@ impl Catalog {
                 .find(|monster| monster.code == step.code)
                 .map(|monster| {
                     if bilingual {
-                        preview_name(lang, &monster.en, &monster.zh)
+                        preview_name(lang, &monster.en, &monster.zh, &monster.ko)
                     } else {
-                        lead(lang, &monster.en, &monster.zh)
+                        lead3(lang, &monster.en, &monster.zh, &monster.ko)
                     }
                 })
         } else {
@@ -857,9 +860,9 @@ impl Catalog {
                 .find(|item| item.code_str == step.code)
                 .map(|item| {
                     if bilingual {
-                        preview_name(lang, &item.en, &item.zh)
+                        preview_name(lang, &item.en, &item.zh, &item.ko)
                     } else {
-                        lead(lang, &item.en, &item.zh)
+                        lead3(lang, &item.en, &item.zh, &item.ko)
                     }
                 })
         }
@@ -900,7 +903,7 @@ impl Catalog {
                     chrome_text(lang, "對話", "Talk to"),
                     self.index
                         .npc(code)
-                        .map(|npc| preview_name(lang, &npc.en, &npc.zh))
+                        .map(|npc| preview_name(lang, &npc.en, &npc.zh, &npc.ko))
                         .filter(|name| !name.is_empty())
                         .unwrap_or_else(|| self.named_npc(code, lang)),
                 )
@@ -933,7 +936,7 @@ impl Catalog {
                     None
                 };
                 let name = target
-                    .map(|quest| preview_name(lang, &quest.title_en, &quest.title_zh))
+                    .map(|quest| preview_name(lang, &quest.title_en, &quest.title_zh, &quest.title_ko))
                     .filter(|name| !name.is_empty())
                     .unwrap_or_else(|| format!("#{}", step.code));
                 (chrome_text(lang, "前置任務", "Prerequisite"), name)
@@ -1098,7 +1101,7 @@ impl Catalog {
                     )
                 });
                 Hit {
-                    title: lead(lang, &quest.title_en, &quest.title_zh),
+                    title: lead3(lang, &quest.title_en, &quest.title_zh, &quest.title_ko),
                     subtitle: parts
                         .into_iter()
                         .filter(|part| !part.is_empty())
@@ -1259,7 +1262,7 @@ impl Catalog {
             ));
         }
         if let Some(npc) = self.index.npcs.iter().find(|npc| npc.code == quest.npc) {
-            let name = preview_name(lang, &npc.en, &npc.zh);
+            let name = preview_name(lang, &npc.en, &npc.zh, &npc.ko);
             facts.push((
                 "NPC".into(),
                 if name.is_empty() {
@@ -1315,9 +1318,9 @@ mod tests {
         let brief = preview_excerpt(&"任務說明與精確資料".repeat(50), 240);
         assert_eq!(brief.chars().count(), 240);
         assert!(brief.ends_with('…'));
-        assert_eq!(preview_name("zh-en", "Pork", "豬肉"), "豬肉 / Pork");
-        assert_eq!(preview_name("en-zh", "Pork", "豬肉"), "Pork / 豬肉");
-        assert_eq!(preview_name("en-zh", "Same", "Same"), "Same");
+        assert_eq!(preview_name("zh-en", "Pork", "豬肉", "돼지고기"), "豬肉 / Pork");
+        assert_eq!(preview_name("en-zh", "Pork", "豬肉", "돼지고기"), "Pork / 豬肉");
+        assert_eq!(preview_name("en-zh", "Same", "Same", ""), "Same");
         assert!(
             preview_brief(&"English note ".repeat(50), &"任務說明".repeat(100))
                 .chars()
@@ -1525,7 +1528,7 @@ mod tests {
                 .iter()
                 .find(|item| item.code_str == code)
                 .unwrap();
-            preview_name(lang, &item.en, &item.zh)
+            preview_name(lang, &item.en, &item.zh, &item.ko)
         };
         let item_quest = catalog.quest_map_preview(id("50001"), "en-zh");
         assert!(item_quest.summary.contains("× 1"));
@@ -1573,7 +1576,7 @@ mod tests {
             .unwrap();
         assert!(monster_quest.objectives.contains(&format!(
             "Defeat: {} × 20",
-            preview_name("en", &monster.en, &monster.zh)
+            preview_name("en", &monster.en, &monster.zh, &monster.ko)
         )));
         assert!(catalog
             .quest_map_preview(id("50000"), "en")
@@ -1614,7 +1617,7 @@ mod tests {
             let facts = catalog.quest_classification_facts(quest.id, lang);
             assert!(facts.iter().any(|(label, value, key)| {
                 label == "NPC"
-                    && value == &preview_name(lang, &npc.en, &npc.zh)
+                    && value == &preview_name(lang, &npc.en, &npc.zh, &npc.ko)
                     && key == &format!("npc:{}", npc.code)
             }));
         }

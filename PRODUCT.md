@@ -8,7 +8,7 @@ Native desktop on Windows and macOS, built with Rust and Slint. This is not a we
 
 ## Product Purpose
 
-A bilingual reference for the game 巨商 / Gersang. Full mode supports browsing the catalog and reading details, comparing monsters, drops and equipment, and following quests, recipes and production information. The user confirmed all three workflows matter.
+A Chinese, English and Korean reference for the game 巨商 / Gersang. Players choose one primary language and optionally a second language for catalog data; the interface follows the primary language. Full mode supports browsing the catalog and reading details, comparing monsters, drops and equipment, and following quests, recipes and production information. The user confirmed all three workflows matter.
 
 ## Operating Context
 

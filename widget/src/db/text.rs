@@ -1,5 +1,7 @@
 use super::hero::{hero_land_pair, hero_rank_pair, hero_tier_pair};
 use super::item::{item_category_name, set_slot_heading, weapon_family_name};
+use super::language::{primary_lang, secondary_lang};
+use super::localization::ui_text;
 use super::Hit;
 use super::paths::client_build;
 use super::rows::QuestStep;
@@ -107,49 +109,72 @@ pub(in crate::db) fn server_name(server: &str, lang: &str) -> String {
     phrase(key, lang)
 }
 
-pub(in crate::db) fn english_first(lang: &str) -> bool {
-    matches!(lang, "en-zh" | "en")
-}
-
-pub(in crate::db) fn chrome(lang: &str) -> &'static str {
-    if english_first(lang) { "en" } else { "zh" }
-}
-
 pub(in crate::db) fn chrome_text(lang: &str, zh: &str, en: &str) -> String {
-    if chrome(lang) == "en" { en } else { zh }.to_string()
+    ui_text(lang, zh, en)
 }
 
 pub(in crate::db) fn same_name(a: &str, b: &str) -> bool {
     a.trim().eq_ignore_ascii_case(b.trim())
 }
 
-pub(in crate::db) fn first_name(primary: &str, fallback: &str) -> String {
-    let primary = primary.trim();
-    if primary.is_empty() { fallback.trim().to_string() } else { primary.to_string() }
-}
-
 pub(in crate::db) fn lead(lang: &str, en: &str, zh: &str) -> String {
-    if english_first(lang) { first_name(en, zh) } else { first_name(zh, en) }
+    lead3(lang, en, zh, "")
 }
 
 pub(in crate::db) fn trail(lang: &str, en: &str, zh: &str) -> String {
-    let en = en.trim();
-    let zh = zh.trim();
-    if en.is_empty() || zh.is_empty() || same_name(en, zh) {
-        return String::new();
-    }
-    if english_first(lang) { zh.to_string() } else { en.to_string() }
+    trail3(lang, en, zh, "")
 }
 
 pub(in crate::db) fn show(lang: &str, en: &str, zh: &str) -> String {
-    let main = lead(lang, en, zh);
-    let alt = trail(lang, en, zh);
-    if alt.is_empty() { main } else { format!("{main} · {alt}") }
+    show3(lang, en, zh, "")
 }
 
 pub(in crate::db) fn stack(lang: &str, en: &str, zh: &str) -> String {
-    let main = lead(lang, en, zh);
-    let alt = trail(lang, en, zh);
+    stack3(lang, en, zh, "")
+}
+
+fn translated<'a>(language: &str, en: &'a str, zh: &'a str, ko: &'a str) -> &'a str {
+    let name = match language {
+        "en" => en,
+        "ko" => ko,
+        _ => zh,
+    }.trim();
+    if language == "ko" && name == "0" { "" } else { name }
+}
+
+/// Keep a useful name when a translation is unavailable: selected primary,
+/// selected secondary, English, Chinese, then the original Korean name.
+pub(in crate::db) fn lead3(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+    let primary = translated(primary_lang(lang), en, zh, ko);
+    let secondary = secondary_lang(lang).map(|language| translated(language, en, zh, ko)).unwrap_or("");
+    [primary, secondary, en.trim(), zh.trim(), translated("ko", en, zh, ko)]
+        .into_iter()
+        .find(|name| !name.is_empty())
+        .unwrap_or("")
+        .to_string()
+}
+
+/// A secondary name must be in the selected language. Never substitute another
+/// language or repeat the primary name after its fallback has been applied.
+pub(in crate::db) fn trail3(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+    let Some(language) = secondary_lang(lang) else { return String::new(); };
+    let secondary = translated(language, en, zh, ko);
+    if secondary.is_empty() || same_name(&lead3(lang, en, zh, ko), secondary) {
+        String::new()
+    } else {
+        secondary.to_string()
+    }
+}
+
+pub(in crate::db) fn show3(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+    let main = lead3(lang, en, zh, ko);
+    let alt = trail3(lang, en, zh, ko);
+    if alt.is_empty() { main } else { format!("{main} · {alt}") }
+}
+
+pub(in crate::db) fn stack3(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+    let main = lead3(lang, en, zh, ko);
+    let alt = trail3(lang, en, zh, ko);
     if alt.is_empty() { main } else { format!("{main}\n{alt}") }
 }
 
@@ -163,8 +188,8 @@ pub(in crate::db) fn caption(alt: &str, rest: String) -> String {
     }
 }
 
-pub(in crate::db) fn pick(lang: &str, _ko: &str, en: &str, zh: &str) -> String {
-    show(lang, en, zh)
+pub(in crate::db) fn pick(lang: &str, ko: &str, en: &str, zh: &str) -> String {
+    show3(lang, en, zh, ko)
 }
 
 pub(in crate::db) fn pick_place(lang: &str, en: &str, zh: &str) -> String {
@@ -498,7 +523,7 @@ pub(in crate::db) fn nation_pair(id: i64) -> (&'static str, &'static str) {
 
 pub(in crate::db) fn nation_name(id: i64, lang: &str) -> String {
     let (en, zh) = nation_pair(id);
-    show(lang, en, zh)
+    show3(lang, en, zh, &ui_text("ko", zh, en))
 }
 
 pub(in crate::db) fn element_name(id: i64, lang: &str) -> String {
@@ -510,7 +535,7 @@ pub(in crate::db) fn element_name(id: i64, lang: &str) -> String {
         5 => ("Earth", "地"),
         _ => ("None", "無"),
     };
-    show(lang, en, zh)
+    show3(lang, en, zh, &ui_text("ko", zh, en))
 }
 
 pub(in crate::db) fn element_file(element: i64) -> Option<&'static str> {
@@ -552,4 +577,72 @@ pub fn relation_label(key: &str, lang: &str) -> String {
         _ => return key.to_string(),
     };
     phrase(phrase_key, lang)
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+
+    #[test]
+    fn all_language_selections_use_only_the_requested_names() {
+        let names = [("zh", "火"), ("en", "Fire"), ("ko", "불")];
+        for (primary, primary_name) in names {
+            assert_eq!(lead3(primary, "Fire", "火", "불"), primary_name);
+            assert_eq!(trail3(primary, "Fire", "火", "불"), "");
+            assert_eq!(show3(primary, "Fire", "火", "불"), primary_name);
+            assert_eq!(stack3(primary, "Fire", "火", "불"), primary_name);
+            for (secondary, secondary_name) in names {
+                let selection = format!("{primary}-{secondary}");
+                if primary == secondary {
+                    assert_eq!(show3(&selection, "Fire", "火", "불"), primary_name);
+                } else {
+                    assert_eq!(show3(&selection, "Fire", "火", "불"), format!("{primary_name} · {secondary_name}"));
+                    assert_eq!(stack3(&selection, "Fire", "火", "불"), format!("{primary_name}\n{secondary_name}"));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn missing_primary_falls_back_without_a_duplicate_secondary() {
+        assert_eq!(show3("ko-zh", "Fire", "火", ""), "火");
+        assert_eq!(show3("zh-ko", "Fire", "", "불"), "불");
+        assert_eq!(show3("en-ko", "", "火", "불"), "불");
+        assert_eq!(show3("ko", "Fire", "火", ""), "Fire");
+        assert_eq!(show3("ko", "", "火", ""), "火");
+        assert_eq!(show3("zh", "", "", "불"), "불");
+        assert_eq!(show3("ko-en", "Fire", "火", " 0 "), "Fire");
+    }
+
+    #[test]
+    fn missing_secondary_is_omitted_without_a_separator_or_other_language() {
+        assert_eq!(show3("zh-ko", "Fire", "火", ""), "火");
+        assert_eq!(stack3("en-ko", "Fire", "火", "0"), "Fire");
+        assert_eq!(show3("ko-en", "", "火", "불"), "불");
+        assert_eq!(show3("ko-zh", "Fire", "", "불"), "불");
+        assert_eq!(show3("en-zh", " Same ", "same", "같음"), "Same");
+        assert_eq!(show3("ko-zh", "", " ", ""), "");
+        assert_eq!(stack3("ko-en", "", "", ""), "");
+    }
+
+    #[test]
+    fn two_language_sources_respect_empty_or_korean_secondary() {
+        assert_eq!(show("zh", "Fire", "火"), "火");
+        assert_eq!(show("en", "Fire", "火"), "Fire");
+        assert_eq!(show("zh-ko", "Fire", "火"), "火");
+        assert_eq!(show("ko-zh", "Fire", "火"), "火");
+        assert_eq!(show("ko-en", "Fire", "火"), "Fire");
+        assert_eq!(pick("ko-en", "불", "Fire", "火"), "불 · Fire");
+        assert_eq!(caption("", String::new()), "");
+        assert_eq!(caption("", "Details".into()), "Details");
+    }
+
+    #[test]
+    fn chrome_follows_the_primary_without_duplicating_secondary() {
+        assert_eq!(phrase("hp", "zh-ko"), "體力");
+        assert_eq!(phrase("hp", "en-ko"), "HP");
+        assert_eq!(phrase("hp", "ko-zh"), "체력");
+        assert_eq!(nation_name(1, "ko-en"), "조선 · Joseon");
+        assert_eq!(element_name(1, "ko"), "불");
+    }
 }

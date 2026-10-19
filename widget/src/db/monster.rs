@@ -9,7 +9,7 @@ use super::names::{haystack, name_match};
 use super::quest::quest_source_rank;
 use super::rows::{MonsterRow, PlaceRow};
 use super::store::online;
-use super::text::{caption, chrome_text, commas, commas_text, element_file, element_name, lead, phrase, pick, pick_place, trail};
+use super::text::{caption, chrome_text, commas, commas_text, element_file, element_name, lead, lead3, phrase, pick, pick_place, trail3};
 
 pub(in crate::db) fn load_locations(conn: &Connection) -> Result<HashMap<String, Vec<i64>>, String> {
     let mut stmt = conn
@@ -72,6 +72,7 @@ pub(in crate::db) fn load_monsters(
             names: haystack(&[&ko, &en, &zh]),
             code: code.clone(),
             nation,
+            ko,
             en,
             zh,
             place_en: place_en.join(" | "),
@@ -268,16 +269,8 @@ fn monster_brief_names(values: &[String], lang: &str) -> String {
     }
 }
 
-fn monster_alternate_name(lang: &str, en: &str, zh: &str) -> String {
-    let en = en.trim();
-    let zh = zh.trim();
-    if en.is_empty() || zh.is_empty() || en.eq_ignore_ascii_case(zh) {
-        String::new()
-    } else if lang == "en-zh" {
-        zh.into()
-    } else {
-        en.into()
-    }
+fn monster_alternate_name(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+    trail3(lang, en, zh, ko)
 }
 
 fn monster_brief_summary(drops: &[String], places: &[String], lang: &str) -> String {
@@ -366,7 +359,7 @@ mod brief_tests {
                 assert_eq!(choices[0].key, "item:11608");
                 assert_eq!(choices[0].aside, "#11608");
                 assert_eq!(choices[0].subtitle, "13");
-                assert_eq!(choices[0].title, super::lead(lang, &item.en, &item.zh));
+                assert_eq!(choices[0].title, super::lead3(lang, &item.en, &item.zh, &item.ko));
                 let filtered = catalog.narrow_monsters(all.clone(), -1, -1, -1, query);
                 assert_eq!(filtered.iter().map(|hit| &hit.key).collect::<Vec<_>>(), expected.iter().map(|hit| &hit.key).collect::<Vec<_>>());
             }
@@ -481,11 +474,15 @@ mod brief_tests {
 
     #[test]
     fn alternate_monster_names_follow_language_and_omit_missing_or_duplicate_translations() {
-        assert_eq!(monster_alternate_name("zh-en", "Witch", "魔女"), "Witch");
-        assert_eq!(monster_alternate_name("en-zh", "Witch", "魔女"), "魔女");
+        assert_eq!(monster_alternate_name("zh-en", "Witch", "魔女", "마녀"), "Witch");
+        assert_eq!(monster_alternate_name("en-zh", "Witch", "魔女", "마녀"), "魔女");
+        assert_eq!(monster_alternate_name("en-ko", "Witch", "魔女", "마녀"), "마녀");
+        for lang in ["en", "zh", "ko"] {
+            assert!(monster_alternate_name(lang, "Witch", "魔女", "마녀").is_empty());
+        }
         for (en, zh) in [("", "魔女"), ("Witch", ""), ("Witch", "witch"), (" ", " ")] {
             for lang in ["zh-en", "en-zh"] {
-                assert!(monster_alternate_name(lang, en, zh).is_empty());
+                assert!(monster_alternate_name(lang, en, zh, "").is_empty());
             }
         }
         let catalog = Catalog::open().expect("db");
@@ -494,6 +491,11 @@ mod brief_tests {
         assert!(!monster.en.is_empty() && !monster.zh.is_empty());
         assert_eq!(catalog.monster_cards(&[code.clone()], "zh-en")[&code].alternate_name, monster.en);
         assert_eq!(catalog.monster_cards(&[code.clone()], "en-zh")[&code].alternate_name, monster.zh);
+        assert_eq!(catalog.monster_cards(&[code.clone()], "en-ko")[&code].alternate_name, monster.ko);
+        assert!(catalog.monster_cards(&[code.clone()], "ko")[&code].alternate_name.is_empty());
+        let (title, alternate, _, _) = catalog.monster_sheet(&code, "ko").unwrap();
+        assert_eq!(title, monster.ko.trim());
+        assert!(alternate.is_empty());
     }
 
     #[test]
@@ -749,7 +751,7 @@ impl Catalog {
             if !matches {
                 return None;
             }
-            let title = lead(lang, &item.en, &item.zh);
+            let title = lead3(lang, &item.en, &item.zh, &item.ko);
             Some((code, count, if title.is_empty() { format!("#{code}") } else { title }, item))
         }).collect();
         choices.sort_by(|a, b| {
@@ -833,6 +835,7 @@ impl Catalog {
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, i64>(4)?,
@@ -849,12 +852,12 @@ impl Catalog {
                 ))
             },
         );
-        let Ok((id, en, zh, hp, mp, hit, magic, atk_min, atk_max, exp, element, ela, boss, unit)) = row else {
+        let Ok((id, ko, en, zh, hp, mp, hit, magic, atk_min, atk_max, exp, element, ela, boss, unit)) = row else {
             return None;
         };
         Some((
-            lead(lang, &en, &zh),
-            trail(lang, &en, &zh),
+            lead3(lang, &en, &zh, &ko),
+            trail3(lang, &en, &zh, &ko),
             id.clone(),
             self.monster_lines(&id, lang, hp, mp, hit, magic, atk_min, atk_max, exp, element, ela, boss, unit),
         ))
@@ -996,9 +999,9 @@ impl Catalog {
                     if let Some(icon) = icon.clone() {
                         card.drops.push(icon);
                     }
-                    let mut name = lead(lang, &en, &zh);
+                    let mut name = lead3(lang, &en, &zh, &ko);
                     if name.is_empty() {
-                        name = if ko.trim().is_empty() { format!("#{item}") } else { ko };
+                        name = format!("#{item}");
                     }
                     if slot >= 9 {
                         name.push_str(&format!(" ({})", phrase("solo-drop", lang)));
@@ -1052,7 +1055,7 @@ impl Catalog {
         }
         for monster in &self.index.monsters {
             if let Some(card) = cards.get_mut(&monster.code) {
-                card.alternate_name = monster_alternate_name(lang, &monster.en, &monster.zh);
+                card.alternate_name = monster_alternate_name(lang, &monster.en, &monster.zh, &monster.ko);
             }
         }
         for (code, card) in &mut cards {
@@ -1124,11 +1127,12 @@ impl Catalog {
                  ORDER BY d.slot",
             ))
             .expect("drops");
-        let rows: Vec<(i64, i64, String, String, String, i64, Option<i64>)> = stmt
+        let rows: Vec<(i64, i64, String, String, String, String, i64, Option<i64>)> = stmt
             .query_map([code], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
                     row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
@@ -1140,16 +1144,16 @@ impl Catalog {
             .filter_map(Result::ok)
             .collect();
         rows.into_iter()
-            .map(|(slot, item, en, zh, image, frame, rate)| {
+            .map(|(slot, item, ko, en, zh, image, frame, rate)| {
                 let solo = slot >= 9;
-                let name = lead(lang, &en, &zh);
+                let name = lead3(lang, &en, &zh, &ko);
                 Hit {
                     title: if solo {
                         format!("{name}  {}", phrase("solo-drop", lang))
                     } else {
                         name
                     },
-                    subtitle: caption(&trail(lang, &en, &zh), format!("#{item}")),
+                    subtitle: caption(&trail3(lang, &en, &zh, &ko), format!("#{item}")),
                     key: format!("item:{item}"),
                     icon: self.icon_path(&image, frame),
                     solo,
@@ -1311,6 +1315,15 @@ impl Catalog {
         hits.into_iter()
             .filter(|hit| hit.key.strip_prefix("monster:").is_some_and(|code| keep.contains(code)))
             .collect()
+    }
+
+    pub(in crate::db) fn monster_names3(&self, code: &str) -> Option<(String, String, String)> {
+        if let Some(monster) = self.index.monsters.iter().find(|monster| monster.code == code) {
+            return Some((monster.en.clone(), monster.zh.clone(), monster.ko.clone()));
+        }
+        let (en, zh) = self.monster_pair(code)?;
+        let ko = self.conn.query_row("SELECT name_ko FROM monsters WHERE code = ?1", [code], |row| row.get(0)).unwrap_or_default();
+        Some((en, zh, ko))
     }
 
     pub(in crate::db) fn monster_pair(&self, code: &str) -> Option<(String, String)> {

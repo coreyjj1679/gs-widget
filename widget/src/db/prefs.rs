@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use super::user_data::{preferences_dir, write_preference};
+use super::language::{normalize_lang, primary_lang, secondary_lang, with_secondary_lang};
+use super::user_data::{preferences_dir, write_default_preference, write_preference};
 
 pub fn load_favourites() -> HashSet<String> {
     std::fs::read_to_string(favourites_file())
@@ -24,17 +25,49 @@ pub(in crate::db) fn favourites_file() -> PathBuf {
 }
 
 pub fn load_lang() -> String {
-    let text = std::fs::read_to_string(lang_file()).unwrap_or_default();
-    match text.trim() {
-        "en-zh" | "en" => "en-zh".into(),
-        _ => "zh-en".into(),
+    if let Ok(text) = std::fs::read_to_string(languages_file()) {
+        return parse_languages(&text);
     }
+    let lang = match std::fs::read_to_string(lang_file()) {
+        // In the old preference file even a single code requested bilingual
+        // content. Only migrate that meaning here, never in current selections.
+        Ok(text) if matches!(text.trim(), "en-zh" | "en") => "en-zh",
+        Ok(_) => "zh-en",
+        Err(_) => "zh",
+    };
+    // Do not replace a selection saved by another instance during migration.
+    write_default_preference(&languages_file(), format_languages(lang).as_bytes());
+    std::fs::read_to_string(languages_file()).map(|text| parse_languages(&text)).unwrap_or_else(|_| lang.to_string())
 }
 
 pub fn save_lang(lang: &str) {
-    if matches!(lang, "zh-en" | "en-zh") {
-        write_preference(lang_file(), lang);
+    write_preference(languages_file(), format_languages(lang));
+}
+
+fn parse_languages(text: &str) -> String {
+    let mut primary = "zh";
+    let mut secondary = "";
+    for line in text.lines() {
+        if let Some((key, value)) = line.split_once('=') {
+            match key.trim() {
+                "primary" => primary = value.trim(),
+                "secondary" => secondary = value.trim(),
+                _ => {}
+            }
+        }
     }
+    // These are individual fields, so a compound value is invalid.
+    let primary = match primary { "en" => "en", "ko" => "ko", _ => "zh" };
+    with_secondary_lang(primary, secondary)
+}
+
+fn format_languages(lang: &str) -> String {
+    let lang = normalize_lang(lang);
+    format!("primary={}\nsecondary={}\n", primary_lang(&lang), secondary_lang(&lang).unwrap_or(""))
+}
+
+fn languages_file() -> PathBuf {
+    preferences_dir().join("languages.txt")
 }
 
 pub(in crate::db) fn set_extra_file() -> PathBuf {
@@ -442,7 +475,55 @@ pub(in crate::db) fn opacity_file() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_view, format_window, parse_macos_window, parse_view, parse_window, ViewPref};
+    use super::{format_languages, format_view, format_window, lang_file, languages_file, load_lang, parse_languages, parse_macos_window, parse_view, parse_window, save_lang, ViewPref};
+
+    #[test]
+    fn language_settings_round_trip_every_single_and_dual_selection() {
+        for primary in ["zh", "en", "ko"] {
+            assert_eq!(parse_languages(&format_languages(primary)), primary);
+            for secondary in ["zh", "en", "ko"] {
+                let selection = format!("{primary}-{secondary}");
+                let expected = if primary == secondary { primary } else { &selection };
+                assert_eq!(parse_languages(&format_languages(&selection)), expected);
+            }
+        }
+        assert_eq!(parse_languages("primary=ko\nsecondary=\n"), "ko");
+        assert_eq!(parse_languages("secondary=ko\n"), "zh-ko");
+        assert_eq!(parse_languages("primary=\nsecondary=ko\n"), "zh-ko");
+        assert_eq!(parse_languages("primary=invalid\nsecondary=invalid\n"), "zh");
+        assert_eq!(parse_languages("primary=en-zh\nsecondary=ko\n"), "zh-ko");
+        assert_eq!(parse_languages(" primary = en \n secondary = ko \n"), "en-ko");
+    }
+
+    #[test]
+    fn legacy_preferences_migrate_without_losing_bilingual_order() {
+        for (legacy, expected) in [("zh", "zh-en"), ("en", "en-zh"), ("zh-en", "zh-en"), ("en-zh", "en-zh"), ("", "zh-en")] {
+            let _ = std::fs::remove_file(languages_file());
+            std::fs::write(lang_file(), legacy).expect("legacy preference");
+            assert_eq!(load_lang(), expected);
+            assert_eq!(parse_languages(&std::fs::read_to_string(languages_file()).unwrap()), expected);
+            assert_eq!(std::fs::read_to_string(lang_file()).unwrap(), legacy);
+        }
+    }
+
+    #[test]
+    fn explicit_empty_secondary_does_not_restore_legacy_bilingual_mode() {
+        std::fs::write(lang_file(), "en").expect("legacy preference");
+        save_lang("en");
+        assert_eq!(load_lang(), "en");
+        assert_eq!(std::fs::read_to_string(languages_file()).unwrap(), "primary=en\nsecondary=\n");
+        save_lang("ko-zh");
+        assert_eq!(load_lang(), "ko-zh");
+        save_lang("");
+        assert_eq!(load_lang(), "zh");
+    }
+
+    #[test]
+    fn a_fresh_install_has_a_required_primary_and_no_secondary() {
+        assert!(!lang_file().exists());
+        assert!(!languages_file().exists());
+        assert_eq!(load_lang(), "zh");
+    }
 
     #[test]
     fn macos_positions_follow_the_current_display_scale() {

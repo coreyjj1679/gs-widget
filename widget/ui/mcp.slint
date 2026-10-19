@@ -1,3 +1,4 @@
+import { UiLanguage } from "language.slint";
 import { Button, ScrollView, TextEdit, LineEdit } from "std-widgets.slint";
 import { DesktopTheme } from "desktop.slint";
 
@@ -14,7 +15,7 @@ component AgentTab inherits Rectangle {
     forward-focus: focus;
     accessible-role: button;
     accessible-label: label;
-    accessible-description: selected ? "Selected / 已選取" : "";
+    accessible-description: selected ? UiLanguage.tr("Selected", "已選取") : "";
     accessible-action-default => { root.clicked(); }
     Text {
         text: root.label; color: root.selected ? DesktopTheme.accent : DesktopTheme.text;
@@ -40,7 +41,7 @@ component CopyField inherits Rectangle {
         spacing: 12px;
         Text { width: 88px; text: root.label; color: DesktopTheme.secondary; vertical-alignment: center; font-size: 13px; }
         LineEdit { horizontal-stretch: 1; min-width: 0px; read-only: true; text: root.value; accessible-label: root.label; }
-        Button { text: root.english ? "Copy" : "複製"; width: 72px; accessible-label: (root.english ? "Copy " : "複製 ") + root.label; clicked => { root.copy(root.value); } }
+        Button { text: UiLanguage.tr("Copy", "複製"); width: 72px; accessible-label: (UiLanguage.tr("Copy ", "複製 ")) + root.label; clicked => { root.copy(root.value); } }
     }
 }
 
@@ -59,7 +60,7 @@ export component McpPane inherits Rectangle {
     property <bool> claude-code: false;
     property <bool> show-config: false;
     property <string> config: agent == 0 ? codex-config : agent == 1 ? cursor-config : claude-code ? claude-cli : claude-config;
-    property <string> prompt: english ? "Use the Gersang MCP to find which monsters drop SSA and list their locations." : "用巨商 MCP 查詢 SSA 有哪些怪物會掉落，並列出出沒地點。";
+    property <string> prompt: UiLanguage.tr("Use the Gersang MCP to find which monsters drop SSA and list their locations.", "用巨商 MCP 查詢 SSA 有哪些怪物會掉落，並列出出沒地點。");
     callback copy(string);
     callback agent-changed();
     changed agent => { root.show-config = false; root.agent-changed(); scroll.content-y = 0px; }
@@ -67,9 +68,9 @@ export component McpPane inherits Rectangle {
 
     VerticalLayout {
         spacing: 16px;
-        Text { text: root.english ? "Connect with MCP" : "MCP 連接"; color: DesktopTheme.text; font-size: 21px; font-weight: 600; }
+        Text { text: UiLanguage.tr("Connect with MCP", "MCP 連接"); color: DesktopTheme.text; font-size: 21px; font-weight: 600; }
         Text {
-            text: root.english ? "Ask your AI assistant about monsters, items, quests and crafting using this catalog." : "讓你的 AI 助手使用這份圖鑑，查怪物、道具、任務與合成成本。";
+            text: UiLanguage.tr("Ask your AI assistant about monsters, items, quests and crafting using this catalog.", "讓你的 AI 助手使用這份圖鑑，查怪物、道具、任務與合成成本。");
             color: DesktopTheme.secondary; font-size: 14px; wrap: word-wrap;
         }
         HorizontalLayout {
@@ -77,11 +78,11 @@ export component McpPane inherits Rectangle {
             for name[index] in ["Codex", "Cursor", "Claude"] : AgentTab {
                 label: name; width: 112px;
                 selected: root.agent == index;
-                accessible-label: name + (root.english ? " connection instructions" : " 連接教學");
+                accessible-label: name + (UiLanguage.tr(" connection instructions", " 連接教學"));
                 clicked => { root.agent = index; }
             }
             Rectangle { horizontal-stretch: 1; }
-            Text { text: root.english ? "Local · Read only" : "本機 · 只讀"; color: DesktopTheme.muted; font-size: 12px; vertical-alignment: center; }
+            Text { text: UiLanguage.tr("Local · Read only", "本機 · 只讀"); color: DesktopTheme.muted; font-size: 12px; vertical-alignment: center; }
         }
         Rectangle { height: 1px; background: DesktopTheme.border; }
         if root.copy-notice != "": Text { text: root.copy-notice; color: DesktopTheme.accent; font-size: 13px; wrap: word-wrap; accessible-label: root.copy-notice; }
@@ -100,18 +101,18 @@ export component McpPane inherits Rectangle {
                     Rectangle { horizontal-stretch: 1; }
                 }
                 Text {
-                    text: root.agent == 0 ? (root.english ? "1. In Codex desktop, open Settings → MCP servers → Add server.\n2. Name it gersang and choose STDIO. Paste Command and Arguments below. Add GERSANG_DB under environment variables.\n3. Save, restart the server and open a new local chat." : "1. 在 Codex 桌面版開啟 Settings → MCP servers → Add server。\n2. 名稱填 gersang，類型選 STDIO。貼上下方 Command、Arguments，並在環境變數加入 GERSANG_DB。\n3. 儲存並重新啟動伺服器，再開一個本機對話。") :
-                        root.agent == 1 ? (root.english ? "1. In Cursor, open your global MCP configuration at the path below.\n2. Merge the gersang entry into mcpServers. Keep your other servers.\n3. Save, enable gersang in Customize → MCPs (or MCP settings), then use an Agent chat." : "1. 在 Cursor 開啟下方路徑的全域 MCP 設定檔。\n2. 把 gersang 加入 mcpServers，保留原有的其他伺服器。\n3. 儲存，在 Customize → MCPs（或 MCP 設定）啟用 gersang，再使用 Agent 對話。") :
-                        root.claude-code ? (root.english ? "1. Copy the command below into " + (root.windows ? "PowerShell" : "Terminal") + " on this computer.\n2. Run it once to register Gersang in Claude Code for your user account.\n3. Restart Claude Code and run /mcp to check gersang." : "1. 把下方指令貼到這台電腦的 " + (root.windows ? "PowerShell" : "Terminal") + "。\n2. 執行一次，將巨商加入你帳戶的 Claude Code 設定。\n3. 重新啟動 Claude Code，用 /mcp 確認 gersang 已連接。") :
-                        (root.english ? "1. In Claude Desktop, open Settings → Developer → Edit Config.\n2. Merge the gersang entry below into mcpServers. Keep your other settings.\n3. Fully quit and reopen Claude Desktop, then enable gersang in the chat's tools." : "1. 在 Claude Desktop 開啟 Settings → Developer → Edit Config。\n2. 把下方 gersang 加入 mcpServers，保留原有設定。\n3. 完全結束並重新開啟 Claude Desktop，再在對話工具中啟用 gersang。");
+                    text: root.agent == 0 ? (UiLanguage.tr("1. In Codex desktop, open Settings → MCP servers → Add server.\n2. Name it gersang and choose STDIO. Paste Command and Arguments below. Add GERSANG_DB under environment variables.\n3. Save, restart the server and open a new local chat.", "1. 在 Codex 桌面版開啟 Settings → MCP servers → Add server。\n2. 名稱填 gersang，類型選 STDIO。貼上下方 Command、Arguments，並在環境變數加入 GERSANG_DB。\n3. 儲存並重新啟動伺服器，再開一個本機對話。")) :
+                        root.agent == 1 ? (UiLanguage.tr("1. In Cursor, open your global MCP configuration at the path below.\n2. Merge the gersang entry into mcpServers. Keep your other servers.\n3. Save, enable gersang in Customize → MCPs (or MCP settings), then use an Agent chat.", "1. 在 Cursor 開啟下方路徑的全域 MCP 設定檔。\n2. 把 gersang 加入 mcpServers，保留原有的其他伺服器。\n3. 儲存，在 Customize → MCPs（或 MCP 設定）啟用 gersang，再使用 Agent 對話。")) :
+                        root.claude-code ? (UiLanguage.tr("1. Copy the command below into ", "1. 把下方指令貼到這台電腦的 ") + (root.windows ? "PowerShell" : "Terminal") + UiLanguage.tr(" on this computer.\n2. Run it once to register Gersang in Claude Code for your user account.\n3. Restart Claude Code and run /mcp to check gersang.", "。\n2. 執行一次，將巨商加入你帳戶的 Claude Code 設定。\n3. 重新啟動 Claude Code，用 /mcp 確認 gersang 已連接。")) :
+                        (UiLanguage.tr("1. In Claude Desktop, open Settings → Developer → Edit Config.\n2. Merge the gersang entry below into mcpServers. Keep your other settings.\n3. Fully quit and reopen Claude Desktop, then enable gersang in the chat's tools.", "1. 在 Claude Desktop 開啟 Settings → Developer → Edit Config。\n2. 把下方 gersang 加入 mcpServers，保留原有設定。\n3. 完全結束並重新開啟 Claude Desktop，再在對話工具中啟用 gersang。"));
                     color: DesktopTheme.text; font-size: 14px; wrap: word-wrap;
                 }
                 if root.setup-error != "": Text {
-                    text: (root.english ? "Couldn't prepare the connection. Check the app and data folder, then reopen Gersang.\n" : "無法產生連接設定。請檢查程式與 data 資料夾，再重新開啟巨商。\n") + root.setup-error;
+                    text: (UiLanguage.tr("Couldn't prepare the connection. Check the app and data folder, then reopen Gersang.\n", "無法產生連接設定。請檢查程式與 data 資料夾，再重新開啟巨商。\n")) + root.setup-error;
                     color: DesktopTheme.accent; wrap: word-wrap;
                 }
                 if root.windows: Text {
-                    text: root.english ? "Windows: extract the entire ZIP first. These settings use the Windows-native agent. If your agent runs in WSL or a remote environment, switch to Windows native to use these local paths." : "Windows：請先完整解壓縮 ZIP。此設定適用於 Windows 原生 agent；如正在使用 WSL 或遠端環境，請切回 Windows native 才使用這些本機路徑。";
+                    text: UiLanguage.tr("Windows: extract the entire ZIP first. These settings use the Windows-native agent. If your agent runs in WSL or a remote environment, switch to Windows native to use these local paths.", "Windows：請先完整解壓縮 ZIP。此設定適用於 Windows 原生 agent；如正在使用 WSL 或遠端環境，請切回 Windows native 才使用這些本機路徑。");
                     color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
                 }
                 if root.agent == 0 && root.setup-error == "": VerticalLayout {
@@ -120,7 +121,7 @@ export component McpPane inherits Rectangle {
                     CopyField { label: "Arguments"; value: "--mcp"; english: root.english; copy(text) => { root.copy(text); } }
                     CopyField { label: "GERSANG_DB"; value: root.database; english: root.english; copy(text) => { root.copy(text); } }
                     HorizontalLayout {
-                        Button { text: root.show-config ? (root.english ? "Hide config file" : "收起設定檔") : (root.english ? "Use config.toml instead" : "改用 config.toml 設定"); height: 32px; clicked => { root.show-config = !root.show-config; } }
+                        Button { text: root.show-config ? (UiLanguage.tr("Hide config file", "收起設定檔")) : (UiLanguage.tr("Use config.toml instead", "改用 config.toml 設定")); height: 32px; clicked => { root.show-config = !root.show-config; } }
                         Rectangle { horizontal-stretch: 1; }
                     }
                 }
@@ -131,26 +132,26 @@ export component McpPane inherits Rectangle {
                         color: DesktopTheme.secondary; font-size: 13px; wrap: word-wrap;
                     }
                     HorizontalLayout {
-                        Text { text: root.agent == 2 && root.claude-code ? (root.english ? "Register the server" : "加入伺服器") : (root.english ? "Configuration for this computer" : "這台電腦的連接設定"); color: DesktopTheme.text; font-size: 15px; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
-                        Button { text: root.agent == 2 && root.claude-code ? (root.english ? "Copy command" : "複製指令") : (root.english ? "Copy configuration" : "複製設定"); height: 34px; clicked => { root.copy(root.config); } }
+                        Text { text: root.agent == 2 && root.claude-code ? (UiLanguage.tr("Register the server", "加入伺服器")) : (UiLanguage.tr("Configuration for this computer", "這台電腦的連接設定")); color: DesktopTheme.text; font-size: 15px; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
+                        Button { text: root.agent == 2 && root.claude-code ? (UiLanguage.tr("Copy command", "複製指令")) : (UiLanguage.tr("Copy configuration", "複製設定")); height: 34px; clicked => { root.copy(root.config); } }
                     }
                     TextEdit {
                         height: root.agent == 2 && root.claude-code ? 112px : 248px;
                         read-only: true; text: root.config; wrap: word-wrap;
                         font-family: root.windows ? "Consolas" : "Menlo"; font-size: 12px;
-                        accessible-label: root.english ? "MCP configuration" : "MCP 連接設定";
+                        accessible-label: UiLanguage.tr("MCP configuration", "MCP 連接設定");
                     }
-                    Text { text: root.english ? "Paths are filled in for this installation. If you move the app, copy the settings again." : "路徑已按目前安裝位置填好。移動程式後，請重新複製設定。"; color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap; }
+                    Text { text: UiLanguage.tr("Paths are filled in for this installation. If you move the app, copy the settings again.", "路徑已按目前安裝位置填好。移動程式後，請重新複製設定。"); color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap; }
                 }
                 Rectangle { height: 1px; background: DesktopTheme.border; }
-                Text { text: root.english ? "Try your first question" : "試問第一個問題"; font-size: 15px; font-weight: 600; color: DesktopTheme.text; }
+                Text { text: UiLanguage.tr("Try your first question", "試問第一個問題"); font-size: 15px; font-weight: 600; color: DesktopTheme.text; }
                 HorizontalLayout {
                     spacing: 16px;
                     Text { text: root.prompt; color: DesktopTheme.secondary; font-size: 14px; wrap: word-wrap; horizontal-stretch: 1; vertical-alignment: center; }
-                    Button { text: root.english ? "Copy question" : "複製問題"; height: 34px; clicked => { root.copy(root.prompt); } }
+                    Button { text: UiLanguage.tr("Copy question", "複製問題"); height: 34px; clicked => { root.copy(root.prompt); } }
                 }
                 Text {
-                    text: root.english ? "The assistant starts the server automatically; this window can be closed. Only catalog queries and in-memory calculations are available. Prices are your own estimates.\n\nLocal connections need the desktop app or CLI on this computer. Claude web cannot use this local command. Before updating Gersang on Windows, disconnect gersang in your AI apps, then reconnect after the update." : "AI 助手會自動啟動伺服器，這個視窗可以關閉。可查詢圖鑑及即時計算，不會修改收藏或合成表；材料價由你提供。\n\n本機連接需使用這台電腦的桌面版或 CLI，Claude 網頁版無法使用此本機指令。在 Windows 更新巨商前，請先在 AI 程式中中斷 gersang，更新後再連接。";
+                    text: UiLanguage.tr("The assistant starts the server automatically; this window can be closed. Only catalog queries and in-memory calculations are available. Prices are your own estimates.\n\nLocal connections need the desktop app or CLI on this computer. Claude web cannot use this local command. Before updating Gersang on Windows, disconnect gersang in your AI apps, then reconnect after the update.", "AI 助手會自動啟動伺服器，這個視窗可以關閉。可查詢圖鑑及即時計算，不會修改收藏或合成表；材料價由你提供。\n\n本機連接需使用這台電腦的桌面版或 CLI，Claude 網頁版無法使用此本機指令。在 Windows 更新巨商前，請先在 AI 程式中中斷 gersang，更新後再連接。");
                     color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
                 }
             }

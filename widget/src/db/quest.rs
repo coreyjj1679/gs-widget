@@ -8,7 +8,7 @@ use super::names::haystack;
 use super::npc::npc_names;
 use super::rows::{QuestLine, QuestRow, QuestStep};
 use super::store::column_exists;
-use super::text::{caption, commas_text, game_breaks, kind_name, label, lead, named_lead, numbered, phrase, reward_amount, role_phrase, stack, step_hint, step_value, trail, with_count};
+use super::text::{caption, chrome_text, commas_text, game_breaks, kind_name, label, lead3, named_lead, numbered, phrase, reward_amount, role_phrase, stack3, step_hint, step_value, trail3, with_count};
 
 pub(in crate::db) const QUEST_TITLE_ROLES: &[&str] = &["title", "subject", "start-subject"];
 
@@ -57,7 +57,14 @@ pub(in crate::db) fn load_quests(conn: &Connection) -> Result<Vec<QuestRow>, Str
         let (id, source, code, title, detail, kind, npc) = row.map_err(|err| err.to_string())?;
         let empty = Vec::new();
         let quest_lines = lines.get(&id).unwrap_or(&empty);
-        let mut parts = vec![title.clone(), detail.clone()];
+        let title_ko = korean_quest_title(conn, &source, &title);
+        let mut title_en = quest_line(quest_lines, QUEST_TITLE_ROLES, "en").unwrap_or_default();
+        let mut title_zh = quest_line(quest_lines, QUEST_TITLE_ROLES, "zh").unwrap_or_default();
+        if title_en.is_empty() && title_zh.is_empty() && title_ko.is_empty() {
+            title_en = code.clone();
+            title_zh = code.clone();
+        }
+        let mut parts = vec![title.clone(), detail.clone(), title_ko.clone()];
         for line in quest_lines {
             for text in line.texts.values() {
                 parts.push(text.clone());
@@ -66,8 +73,9 @@ pub(in crate::db) fn load_quests(conn: &Connection) -> Result<Vec<QuestRow>, Str
         let borrowed: Vec<&str> = parts.iter().map(String::as_str).collect();
         let names = haystack(&borrowed);
         quests.push(QuestRow {
-            title_en: quest_heading("en", &code, quest_lines),
-            title_zh: quest_heading("zh", &code, quest_lines),
+            title_ko,
+            title_en,
+            title_zh,
             id,
             source,
             code,
@@ -77,6 +85,17 @@ pub(in crate::db) fn load_quests(conn: &Connection) -> Result<Vec<QuestRow>, Str
         });
     }
     Ok(quests)
+}
+
+fn korean_quest_title(conn: &Connection, source: &str, stored: &str) -> String {
+    // Mercenary source titles contain character IDs, not localized names.
+    if source == "mercenary" {
+        conn.query_row("SELECT name_ko FROM characters WHERE code = ?1", [stored], |row| row.get(0)).unwrap_or_default()
+    } else if stored.trim() == "0" {
+        String::new()
+    } else {
+        game_breaks(stored.to_string())
+    }
 }
 
 pub(in crate::db) fn load_quest_lines(conn: &Connection) -> Result<HashMap<i64, Vec<QuestLine>>, String> {
@@ -117,14 +136,6 @@ pub(in crate::db) fn load_quest_lines(conn: &Connection) -> Result<HashMap<i64, 
     Ok(lines)
 }
 
-pub(in crate::db) fn quest_heading(lang: &str, code: &str, lines: &[QuestLine]) -> String {
-    if let Some(text) = quest_line(lines, QUEST_TITLE_ROLES, lang) {
-        return text;
-    }
-    let other = if lang == "en" { "zh" } else { "en" };
-    quest_line(lines, QUEST_TITLE_ROLES, other).unwrap_or_else(|| code.to_string())
-}
-
 pub(in crate::db) fn quest_line(lines: &[QuestLine], roles: &[&str], lang: &str) -> Option<String> {
     for role in roles {
         let Some(line) = lines.iter().find(|line| line.role == *role) else {
@@ -135,6 +146,11 @@ pub(in crate::db) fn quest_line(lines: &[QuestLine], roles: &[&str], lang: &str)
         }
     }
     None
+}
+
+fn named_lead3(lang: &str, en: &str, zh: &str, ko: &str, hint: &str, code: &str) -> (String, String) {
+    let title = lead3(lang, en, zh, ko);
+    if title.is_empty() { named_lead(lang, en, zh, hint, code) } else { (title, trail3(lang, en, zh, ko)) }
 }
 
 impl Catalog {
@@ -234,21 +250,21 @@ impl Catalog {
     }
 
     pub(in crate::db) fn quest_title(&self, id: i64, _stored: &str, code: &str, lang: &str) -> String {
-        let (en, zh) = self.quest_names(id);
-        let shown = stack(lang, &en, &zh);
+        let (en, zh, ko) = self.quest_names3(id);
+        let shown = stack3(lang, &en, &zh, &ko);
         if shown.is_empty() { code.to_string() } else { shown }
     }
 
     pub fn quest_sheet(&self, id: i64, lang: &str) -> Option<(String, String, String, Vec<(String, String, String)>, String)> {
-        let (source, code, title, detail, kind, repeat) = self.quest_row(id)?;
-        let (en, zh) = self.quest_names(id);
-        let mut name = lead(lang, &en, &zh);
+        let (source, code, _title, detail, kind, repeat) = self.quest_row(id)?;
+        let (en, zh, ko) = self.quest_names3(id);
+        let mut name = lead3(lang, &en, &zh, &ko);
         if name.is_empty() {
-            name = if title.is_empty() { code.clone() } else { title };
+            name = code.clone();
         }
         Some((
             name,
-            trail(lang, &en, &zh),
+            trail3(lang, &en, &zh, &ko),
             format!("{}  {code}", label(&source, lang)),
             self.quest_facts(id, lang, &kind, &repeat),
             self.quest_body(id, &detail, lang),
@@ -322,9 +338,9 @@ impl Catalog {
             .filter(|quest| quest.npc == code)
             .map(|quest| {
                 Hit {
-                    title: lead(lang, &quest.title_en, &quest.title_zh),
+                    title: lead3(lang, &quest.title_en, &quest.title_zh, &quest.title_ko),
                     subtitle: caption(
-                        &trail(lang, &quest.title_en, &quest.title_zh),
+                        &trail3(lang, &quest.title_en, &quest.title_zh, &quest.title_ko),
                         format!("{}  {}", label(&quest.source, lang), quest.code),
                     ),
                     key: format!("quest:{}", quest.id),
@@ -345,13 +361,10 @@ impl Catalog {
             facts.push((phrase("kind", lang), kind.to_string(), String::new()));
         }
         if source == "main" && matches!(repeat, "1" | "2") {
-            let english = lang.starts_with("en");
             facts.push((
-                if english { "Repeat cycle" } else { "重複週期" }.into(),
-                match (english, repeat) {
-                    (true, "1") => "Daily", (true, _) => "Weekly",
-                    (false, "1") => "每日", (false, _) => "每週",
-                }.into(), String::new(),
+                chrome_text(lang, "重複週期", "Repeat cycle"),
+                if repeat == "1" { chrome_text(lang, "每日", "Daily") } else { chrome_text(lang, "每週", "Weekly") },
+                String::new(),
             ));
         } else if !repeat.is_empty() && repeat != "0" {
             facts.push((phrase("repeat", lang), commas_text(repeat), String::new()));
@@ -449,8 +462,8 @@ impl Catalog {
     }
 
     pub(in crate::db) fn named_item(&self, code: i64, lang: &str, fallback: &str) -> String {
-        let (en, zh) = self.item_pair(code);
-        let title = lead(lang, &en, &zh);
+        let (en, zh, ko) = self.item_names3(code);
+        let title = lead3(lang, &en, &zh, &ko);
         if !title.is_empty() {
             title
         } else {
@@ -461,8 +474,8 @@ impl Catalog {
 
     pub(in crate::db) fn named_monster(&self, code: &str, lang: &str, fallback: &str) -> String {
         let title = self
-            .monster_pair(code)
-            .map(|(en, zh)| lead(lang, &en, &zh))
+            .monster_names3(code)
+            .map(|(en, zh, ko)| lead3(lang, &en, &zh, &ko))
             .unwrap_or_default();
         if !title.is_empty() {
             title
@@ -485,16 +498,16 @@ impl Catalog {
         match step.kind.to_ascii_lowercase().as_str() {
             "item" => {
                 let code = step.code.parse::<i64>().ok().filter(|code| *code > 0)?;
-                let (en, zh) = self.item_pair(code);
-                let (title, alt) = named_lead(lang, &en, &zh, &step.label, &step.code);
+                let (en, zh, ko) = self.item_names3(code);
+                let (title, alt) = named_lead3(lang, &en, &zh, &ko, &step.label, &step.code);
                 Some(self.entity_hit(title, alt, &step.qty, format!("item:{code}"), self.item_icon(code), aside))
             }
             "monster" => {
                 if step.code.is_empty() || step.code == "0" {
                     return None;
                 }
-                let (en, zh) = self.monster_pair(&step.code)?;
-                let (title, alt) = named_lead(lang, &en, &zh, &step.label, &step.code);
+                let (en, zh, ko) = self.monster_names3(&step.code)?;
+                let (title, alt) = named_lead3(lang, &en, &zh, &ko, &step.label, &step.code);
                 Some(self.entity_hit(title, alt, &step.qty, format!("monster:{}", step.code), self.sprite(&step.code), aside))
             }
             "quest" => {
@@ -561,6 +574,16 @@ impl Catalog {
             self.line_text(id, QUEST_TITLE_ROLES, "en").unwrap_or_default(),
             self.line_text(id, QUEST_TITLE_ROLES, "zh").unwrap_or_default(),
         )
+    }
+
+    pub(in crate::db) fn quest_names3(&self, id: i64) -> (String, String, String) {
+        if let Some(quest) = self.index.quests.iter().find(|quest| quest.id == id) {
+            return (quest.title_en.clone(), quest.title_zh.clone(), quest.title_ko.clone());
+        }
+        let (en, zh) = self.quest_names(id);
+        let ko = self.conn.query_row("SELECT source, title FROM quests WHERE id = ?1", [id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+            .map(|(source, title)| korean_quest_title(&self.conn, &source, &title)).unwrap_or_default();
+        (en, zh, ko)
     }
 
     pub(in crate::db) fn quest_row(&self, id: i64) -> Option<(String, String, String, String, String, String)> {
@@ -634,11 +657,12 @@ impl Catalog {
         .unwrap_or_default()
     }
 
-    pub(in crate::db) fn quest_body(&self, id: i64, _stored: &str, lang: &str) -> String {
+    pub(in crate::db) fn quest_body(&self, id: i64, stored: &str, lang: &str) -> String {
         let zh = self.line_text(id, &["detail", "explain", "info"], "zh").unwrap_or_default();
         let en = self.line_text(id, &["detail", "explain", "info"], "en").unwrap_or_default();
-        let main = lead(lang, &en, &zh);
-        let alt = trail(lang, &en, &zh);
+        let ko = if stored.trim() == "0" { String::new() } else { game_breaks(stored.to_string()) };
+        let main = lead3(lang, &en, &zh, &ko);
+        let alt = trail3(lang, &en, &zh, &ko);
         if alt.is_empty() { main } else { format!("{main}\n\n{alt}") }
     }
 
@@ -677,5 +701,39 @@ impl Catalog {
             .ok()
             .filter(|text: &String| !text.is_empty())
             .map(game_breaks)
+    }
+}
+
+#[cfg(test)]
+mod language_tests {
+    use super::*;
+
+    #[test]
+    fn korean_quests_use_raw_titles_and_body_and_resolve_mercenary_character_ids() {
+        let catalog = Catalog::open().expect("catalog");
+        let (id, title, detail): (i64, String, String) = catalog.conn.query_row(
+            "SELECT id, title, detail FROM quests WHERE source = 'main' AND title != '' AND detail != '' LIMIT 1", [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap();
+        let (name, alternate, _, _, body) = catalog.quest_sheet(id, "ko").unwrap();
+        assert_eq!(name, game_breaks(title).trim());
+        assert!(alternate.is_empty());
+        assert_eq!(body, game_breaks(detail).trim());
+        let (mercenary, expected): (i64, String) = catalog.conn.query_row(
+            "SELECT q.id, c.name_ko FROM quests q JOIN characters c ON c.code = q.title WHERE q.source = 'mercenary' LIMIT 1", [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap();
+        assert_eq!(catalog.quest_sheet(mercenary, "ko").unwrap().0, expected.trim());
+    }
+
+    #[test]
+    fn absent_korean_quest_translation_falls_back_without_a_duplicate_secondary() {
+        let catalog = Catalog::open().expect("catalog");
+        let quest = catalog.index.quests.iter().find(|quest| quest.source == "dispatch" && !quest.title_en.is_empty()).expect("dispatch quest");
+        assert!(quest.title_ko.is_empty());
+        let (title, alternate, _, _, _) = catalog.quest_sheet(quest.id, "ko-en").unwrap();
+        assert_eq!(title, quest.title_en.trim());
+        assert!(alternate.is_empty());
+        assert_eq!(catalog.copyable_name(&format!("quest:{}", quest.id), "ko-en", true), None);
     }
 }

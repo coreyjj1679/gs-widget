@@ -15,6 +15,7 @@ const USER_FILES: &[&str] = &[
     "favourites.txt",
     "aliases.txt",
     "ui-lang.txt",
+    "languages.txt",
     "view.txt",
     "dock.txt",
     "home.txt",
