@@ -1,5 +1,6 @@
-import { Button, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
+import { Button, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 import { DesktopTheme, DesktopIcon } from "desktop.slint";
+import { CalcIconButton, CalcFolderChoices } from "calculator-controls.slint";
 
 export struct CalcSaved {
     id: string,
@@ -16,6 +17,8 @@ export component CalculatorLibrary inherits Rectangle {
     in property <[CalcSaved]> saved;
     in property <string> library-error;
     in property <string> error;
+    in-out property <bool> dismiss-requested: false;
+    callback back();
     callback select-folder(int);
     callback new-folder(string);
     callback rename-folder(string);
@@ -39,66 +42,105 @@ export component CalculatorLibrary inherits Rectangle {
         root.list-y = 0px;
     }
     background: DesktopTheme.canvas;
+    forward-focus: library-focus;
+    init => { library-focus.focus(); }
+    changed dismiss-requested => {
+        if (root.dismiss-requested) {
+            root.dismiss-requested = false;
+            root.dismiss();
+        }
+    }
+    function dismiss() {
+        if (root.row-action-id != "") {
+            root.row-action-id = "";
+        } else if (root.folder-action != 0) {
+            root.folder-action = 0;
+        } else if (root.importing) {
+            root.importing = false;
+        } else {
+            root.back();
+            return;
+        }
+        library-focus.focus();
+    }
 
-    VerticalLayout {
+    library-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-tab-navigation: false;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text != Key.Escape) { return reject; }
+            root.dismiss();
+            return accept;
+        }
+
+    library-scroll := ScrollView {
+        width: 100%; height: 100%;
+        content-width: self.width;
+        content-height: max(library-content.min-height, self.height);
+        horizontal-scrollbar-policy: always-off;
+        changed content-height => {
+            self.content-y = max(min(0px, self.content-y), min(0px, self.height - self.content-height));
+        }
+        library-content := VerticalLayout {
+        width: library-scroll.width - 12px;
+        height: library-scroll.content-height;
         spacing: 12px;
         if root.library-error != "": Text {
             text: root.library-error;
             color: #f0b5ad; font-size: 13px; wrap: word-wrap;
             accessible-role: text;
         }
-        HorizontalLayout {
-            spacing: 10px;
-            VerticalLayout {
-                horizontal-stretch: 1; min-width: 0px; spacing: 6px;
+        VerticalLayout {
+            spacing: 8px;
+            HorizontalLayout {
+                spacing: 8px;
                 Text {
-                    text: root.english ? "Folder" : "資料夾";
+                    horizontal-stretch: 1; min-width: 0px;
+                    text: root.english ? "Folders" : "資料夾";
                     font-size: 12px; color: DesktopTheme.secondary;
+                    vertical-alignment: center;
                 }
-                ComboBox {
-                    model: root.folders;
-                    current-index <=> root.folder-index;
-                    min-width: 0px; height: 34px;
-                    accessible-label: root.english ? "Saved sheet folder" : "收藏資料夾";
-                    selected(value) => {
+                CalcIconButton {
+                    label: root.english ? "New folder" : "新增資料夾";
+                    icon-path: "M3 6 L9 6 L11 8 L21 8 L21 20 L3 20 Z M3 6 L3 4 L9 4 L11 6 L19 6 L19 8 M8 14 L16 14 M12 10 L12 18";
+                    enabled: root.library-error == "";
+                    clicked => {
+                        root.importing = false;
+                        root.folder-action = 1;
+                        root.folder-name = "";
                         root.row-action-id = "";
-                        root.folder-action = 0;
-                        root.select-folder(self.current-index);
                     }
+                }
+                Button {
+                    text: root.english ? "Rename" : "重新命名";
+                    height: 34px; enabled: root.folders.length > 0 && root.library-error == "";
+                    clicked => {
+                        root.importing = false;
+                        root.folder-action = 2;
+                        root.folder-name = root.folders[root.folder-index];
+                        root.row-action-id = "";
+                    }
+                }
+                Button {
+                    text: root.english ? "Delete folder" : "刪除資料夾";
+                    height: 34px;
+                    enabled: root.saved.length == 0 && root.folders.length > 1 && root.library-error == "";
+                    accessible-description: root.english ? "Only empty folders can be deleted. Keep at least one folder." : "只可刪除空的資料夾，並保留至少一個資料夾。";
+                    clicked => { root.importing = false; root.folder-action = 3; root.row-action-id = ""; }
                 }
             }
-            VerticalLayout {
-                spacing: 6px;
-                Rectangle { height: 15px; }
-                HorizontalLayout {
-                    spacing: 8px;
-                    Button {
-                        text: root.english ? "New folder" : "新增資料夾";
-                        height: 34px; enabled: root.library-error == "";
-                        clicked => {
-                            root.importing = false;
-                            root.folder-action = 1;
-                            root.folder-name = "";
-                            root.row-action-id = "";
-                        }
-                    }
-                    Button {
-                        text: root.english ? "Rename" : "重新命名";
-                        height: 34px; enabled: root.folders.length > 0 && root.library-error == "";
-                        clicked => {
-                            root.importing = false;
-                            root.folder-action = 2;
-                            root.folder-name = root.folders[root.folder-index];
-                            root.row-action-id = "";
-                        }
-                    }
-                    Button {
-                        text: root.english ? "Delete folder" : "刪除資料夾";
-                        height: 34px;
-                        enabled: root.saved.length == 0 && root.folders.length > 1 && root.library-error == "";
-                        accessible-description: root.english ? "Only empty folders can be deleted. Keep at least one folder." : "只可刪除空的資料夾，並保留至少一個資料夾。";
-                        clicked => { root.importing = false; root.folder-action = 3; root.row-action-id = ""; }
-                    }
+            CalcFolderChoices {
+                folders: root.folders;
+                current-index <=> root.folder-index;
+                english: root.english;
+                enabled: root.library-error == "";
+                max-visible-rows: root.importing || root.folder-action != 0 || root.height < 430px ? 1 : 2;
+                accessible-label: root.english ? "Saved sheet folder" : "收藏資料夾";
+                selected(index) => {
+                    root.row-action-id = "";
+                    root.folder-action = 0;
+                    root.select-folder(index);
                 }
             }
         }
@@ -226,46 +268,51 @@ export component CalculatorLibrary inherits Rectangle {
                         }
                     }
                     if root.row-action-id == saved.id: Rectangle {
-                        height: 54px;
+                        height: max(54px, row-actions.preferred-height);
                         background: DesktopTheme.surface;
                         border-radius: 5px;
-                        if root.moving: HorizontalLayout {
-                            padding: 10px; spacing: 10px;
-                            Text {
-                                text: root.english ? "Move to" : "移到";
-                                color: DesktopTheme.secondary; font-size: 13px;
-                                vertical-alignment: center;
+                        row-actions := VerticalLayout {
+                            width: 100%; padding: 10px; spacing: 8px;
+                            if root.moving: HorizontalLayout {
+                                spacing: 10px;
+                                Text {
+                                    horizontal-stretch: 1; min-width: 0px;
+                                    text: root.english ? "Move to" : "移到";
+                                    color: DesktopTheme.secondary; font-size: 13px;
+                                    vertical-alignment: center;
+                                }
+                                Button {
+                                    text: root.english ? "Move" : "確認移動";
+                                    enabled: root.move-index != root.folder-index && root.library-error == "";
+                                    clicked => {
+                                        root.move-saved(saved.id, root.move-index);
+                                        if (root.error == "") { root.row-action-id = ""; }
+                                    }
+                                }
+                                Button { text: root.english ? "Cancel" : "取消"; clicked => { root.row-action-id = ""; } }
                             }
-                            ComboBox {
-                                model: root.folders;
+                            if root.moving: CalcFolderChoices {
+                                folders: root.folders;
                                 current-index <=> root.move-index;
-                                horizontal-stretch: 1; min-width: 0px;
+                                english: root.english;
+                                enabled: root.library-error == "";
                                 accessible-label: root.english ? "Destination folder" : "目標資料夾";
                             }
-                            Button {
-                                text: root.english ? "Move" : "確認移動";
-                                enabled: root.move-index != root.folder-index && root.library-error == "";
-                                clicked => {
-                                    root.move-saved(saved.id, root.move-index);
-                                    if (root.error == "") { root.row-action-id = ""; }
+                            if !root.moving: HorizontalLayout {
+                                spacing: 10px;
+                                Text {
+                                    horizontal-stretch: 1; min-width: 0px;
+                                    text: root.english ? "Remove this saved sheet? This cannot be undone." : "移除這份合成表？此操作無法復原。";
+                                    color: DesktopTheme.text; font-size: 13px;
+                                    vertical-alignment: center; wrap: word-wrap;
                                 }
+                                Button {
+                                    text: root.english ? "Remove sheet" : "確認移除";
+                                    enabled: root.library-error == "";
+                                    clicked => { root.delete-saved(saved.id); if (root.error == "") { root.row-action-id = ""; } }
+                                }
+                                Button { text: root.english ? "Cancel" : "取消"; clicked => { root.row-action-id = ""; } }
                             }
-                            Button { text: root.english ? "Cancel" : "取消"; clicked => { root.row-action-id = ""; } }
-                        }
-                        if !root.moving: HorizontalLayout {
-                            padding: 10px; spacing: 10px;
-                            remove-message := Text {
-                                horizontal-stretch: 1; min-width: 0px;
-                                text: root.english ? "Remove this saved sheet? This cannot be undone." : "移除這份合成表？此操作無法復原。";
-                                color: DesktopTheme.text; font-size: 13px;
-                                vertical-alignment: center; wrap: word-wrap;
-                            }
-                            Button {
-                                text: root.english ? "Remove sheet" : "確認移除";
-                                enabled: root.library-error == "";
-                                clicked => { root.delete-saved(saved.id); if (root.error == "") { root.row-action-id = ""; } }
-                            }
-                            Button { text: root.english ? "Cancel" : "取消"; clicked => { root.row-action-id = ""; } }
                         }
                     }
                     Rectangle { height: 1px; background: DesktopTheme.border; }
@@ -328,5 +375,7 @@ export component CalculatorLibrary inherits Rectangle {
                 }
             }
         }
+        }
+    }
     }
 }

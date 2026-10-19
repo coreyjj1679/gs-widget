@@ -878,6 +878,8 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
                     drop_rate: drop.drop_rate.clone().into(),
                     selected: drop.key == app.get_filter_drop_key().as_str(),
                     alternate_name: catalog.item_alternate_name(&drop.key, &lang).into(),
+                    drop_rate: drop.drop_rate.clone().into(),
+                    selected: drop.key == app.get_filter_drop_key().as_str(),
                     has_icon: icon.is_some(),
                     icon: icon.unwrap_or_default(),
                 }

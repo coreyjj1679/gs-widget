@@ -1,6 +1,7 @@
 import { Button, ComboBox, LineEdit, ScrollView, TextEdit } from "std-widgets.slint";
 import { DesktopTheme, DesktopIcon } from "desktop.slint";
 import { CalculatorLibrary, CalcSaved } from "calculator-library.slint";
+import { CalcIconButton, CalcFolderChoices } from "calculator-controls.slint";
 export { CalcSaved }
 
 export struct CalcChoice {
@@ -23,6 +24,8 @@ export struct CalcMaterial {
     subtitle: string,
     quantity: string,
     price: string,
+    draft: string,
+    has-draft: bool,
     subtotal: string,
     missing-price: bool,
     depth: int,
@@ -51,33 +54,47 @@ component CalcArt inherits Rectangle {
     }
 }
 
-// Update valid values synchronously so Save and share actions cannot use stale input.
-// Keep the raw text while editing; Enter or blur applies the formatted model value.
+// Keep live totals current without reformatting the text under the caret.
+// Invalid drafts remain visible; only accepted values are formatted on blur.
 component CalcNumber inherits LineEdit {
     in property <string> value;
     in property <string> label;
+    in property <int> reset-token;
+    in property <string> draft;
+    in property <bool> has-draft;
     property <bool> dirty: false;
-    callback commit(string);
+    callback commit(string) -> bool;
     text: root.value;
     height: 34px;
     min-width: 0px;
     horizontal-alignment: right;
     accessible-label: root.label;
+    init => { root.restore-draft(); }
+    changed draft => { root.restore-draft(); }
+    changed has-draft => { root.restore-draft(); }
+    function restore-draft() {
+        if (root.has-draft) {
+            root.dirty = true;
+            if (self.text != root.draft) { self.text = root.draft; }
+        }
+    }
     changed value => {
         if (!root.dirty) { self.text = root.value; }
     }
+    changed reset-token => {
+        root.dirty = false;
+        self.text = root.value;
+    }
     edited => { root.dirty = true; root.commit(self.text); }
     accepted => {
-        if (root.dirty) {
+        if (root.dirty && root.commit(self.text)) {
             root.dirty = false;
-            root.commit(self.text);
             self.text = root.value;
         }
     }
     changed has-focus => {
-        if (!self.has-focus && root.dirty) {
+        if (!self.has-focus && root.dirty && root.commit(self.text)) {
             root.dirty = false;
-            root.commit(self.text);
             self.text = root.value;
         }
     }
@@ -116,11 +133,15 @@ component CalcItemPicker inherits Rectangle {
         root.scroll-y = 0px;
         popup.show();
     }
+    // Run on the surviving picker: closing a popup destroys its row context.
+    function close-options() { popup.close(); focus.focus(); }
+    function choose-option(id: string) {
+        root.close-options();
+        root.choose(id);
+    }
     function choose-current() {
         if (root.option-index >= 0 && root.option-index < root.options.length) {
-            root.choose(root.options[root.option-index].id);
-            popup.close();
-            focus.focus();
+            root.choose-option(root.options[root.option-index].id);
         }
     }
     if root.selected-name != "": CalcArt {
@@ -142,9 +163,10 @@ component CalcItemPicker inherits Rectangle {
     }
     TouchArea {
         mouse-cursor: pointer;
-        clicked => { root.show-options(); }
+        clicked => { focus.focus(); root.show-options(); }
     }
     focus := FocusScope {
+        focus-on-click: false;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow) {
                 root.show-options(); return accept;
@@ -175,7 +197,7 @@ component CalcItemPicker inherits Rectangle {
                 }
                 accepted => { root.choose-current(); }
                 key-pressed(event) => {
-                    if (event.text == Key.Escape) { popup.close(); focus.focus(); return accept; }
+                    if (event.text == Key.Escape) { root.close-options(); return accept; }
                     if (event.text == Key.DownArrow || event.text == Key.UpArrow) {
                         root.option-index = max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
                         if (root.option-index * 52px < -options-scroll.content-y) {
@@ -202,7 +224,7 @@ component CalcItemPicker inherits Rectangle {
                     accessible-description: option.subtitle;
                     accessible-item-selectable: true;
                     accessible-item-selected: root.option-index == i;
-                    accessible-action-default => { root.choose(option.id); popup.close(); focus.focus(); }
+                    accessible-action-default => { root.choose-option(option.id); }
                     CalcArt { x: 8px; y: 10px; icon: option.icon; has-icon: option.has-icon; }
                     Text {
                         x: 50px; y: 6px; width: parent.width - 60px; height: 22px;
@@ -216,7 +238,7 @@ component CalcItemPicker inherits Rectangle {
                     }
                     touch := TouchArea {
                         mouse-cursor: pointer;
-                        clicked => { root.choose(option.id); popup.close(); focus.focus(); }
+                        clicked => { root.choose-option(option.id); }
                     }
                 }
                 if root.options.length == 0: Text {
@@ -265,6 +287,7 @@ component CalcAction inherits Rectangle {
     }
     action-focus := FocusScope {
         enabled: root.enabled;
+        focus-on-click: false;
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == Key.Space) {
                 root.activated(); return accept;
@@ -283,6 +306,7 @@ component CalcNestedPicker inherits Rectangle {
     in property <string> heading;
     in property <bool> enabled: true;
     in property <[CalcNestedOption]> options;
+    in property <bool> auto-single: false;
     in property <length> popup-width: 420px;
     callback request();
     callback choose(string);
@@ -293,11 +317,14 @@ component CalcNestedPicker inherits Rectangle {
     preferred-width: action.preferred-width;
     horizontal-stretch: 0;
     forward-focus: action;
+    function close-options() { popup.close(); action.focus-action(); }
+    function choose-option(id: string) {
+        root.close-options();
+        root.choose(id);
+    }
     function choose-current() {
         if (root.option-index >= 0 && root.option-index < root.options.length) {
-            root.choose(root.options[root.option-index].id);
-            popup.close();
-            action.focus-action();
+            root.choose-option(root.options[root.option-index].id);
         }
     }
     action := CalcAction {
@@ -308,8 +335,12 @@ component CalcNestedPicker inherits Rectangle {
         activated => {
             root.option-index = 0;
             root.request();
-            root.scroll-y = 0px;
-            popup.show();
+            if (root.auto-single && root.options.length == 1) {
+                root.choose(root.options[0].id);
+            } else {
+                root.scroll-y = 0px;
+                popup.show();
+            }
         }
     }
     popup := PopupWindow {
@@ -343,7 +374,7 @@ component CalcNestedPicker inherits Rectangle {
                     accessible-description: option.subtitle;
                     accessible-item-selectable: true;
                     accessible-item-selected: root.option-index == i;
-                    accessible-action-default => { root.choose(option.id); popup.close(); action.focus-action(); }
+                    accessible-action-default => { root.choose-option(option.id); }
                     Text {
                         x: 10px; y: 7px; width: parent.width - 20px; height: 36px;
                         text: option.title; font-size: 14px; color: DesktopTheme.text;
@@ -356,7 +387,7 @@ component CalcNestedPicker inherits Rectangle {
                     }
                     option-touch := TouchArea {
                         mouse-cursor: pointer;
-                        clicked => { root.choose(option.id); popup.close(); action.focus-action(); }
+                        clicked => { root.choose-option(option.id); }
                     }
                 }
                 if root.options.length == 0: Text {
@@ -367,8 +398,9 @@ component CalcNestedPicker inherits Rectangle {
                 }
             }
             popup-focus := FocusScope {
+                focus-on-click: false;
                 key-pressed(event) => {
-                    if (event.text == Key.Escape) { popup.close(); action.focus-action(); return accept; }
+                    if (event.text == Key.Escape) { root.close-options(); return accept; }
                     if (event.text == Key.Return || event.text == Key.Space) { root.choose-current(); return accept; }
                     if (event.text == Key.DownArrow || event.text == Key.UpArrow || event.text == Key.Home || event.text == Key.End) {
                         root.option-index = event.text == Key.Home ? 0 : event.text == Key.End ? root.options.length - 1 : max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
@@ -407,6 +439,7 @@ component CalcMaterialActions inherits Rectangle {
         label: root.nested ? (root.english ? "Change recipe" : "更換配方") : (root.english ? "Expand recipe" : "展開配方");
         description: root.material-name + (root.english ? ": calculate from sub-material prices" : "：依子材料價格計算");
         heading: root.english ? "Choose a recipe" : "選擇子材料配方";
+        auto-single: true;
         enabled: root.enabled;
         options: root.options; popup-width: root.popup-width;
         request => { root.request(false); }
@@ -445,6 +478,8 @@ export component CalculatorPane inherits Rectangle {
     in property <[string]> recipes;
     in-out property <int> recipe-index;
     in property <string> quantity;
+    in property <string> quantity-draft;
+    in property <bool> quantity-has-draft;
     in property <[CalcMaterial]> materials;
     in property <[CalcNestedOption]> nested-options;
     in property <bool> has-nested;
@@ -460,6 +495,7 @@ export component CalculatorPane inherits Rectangle {
     in property <bool> compact-total;
     in property <bool> share-enabled;
     in property <bool> input-valid: true;
+    in property <int> input-revision;
     in-out property <bool> library-open;
     in property <[string]> folders;
     in-out property <int> folder-index;
@@ -480,23 +516,47 @@ export component CalculatorPane inherits Rectangle {
     callback search-query(string);
     callback select-item(string);
     callback select-recipe(int);
-    callback quantity-changed(string);
-    callback price-changed(string, string);
+    callback quantity-changed(string) -> bool;
+    callback price-changed(string, string) -> bool;
     callback request-nested-options(string, bool);
     callback select-nested(string, string);
     callback clear-nested(string);
     callback export-card();
     callback copy-code();
     callback import-code(string);
-    callback close();
     property <bool> saving: false;
     property <string> save-name;
+    property <string> save-name-source;
+    property <bool> dismiss-library-requested: false;
     property <length> editor-scroll-y: 0px;
     property <bool> importing: false;
     property <string> import-text;
     property <length> cost-width: root.width < 820px ? 114px : 150px;
     property <length> quantity-width: root.width < 820px ? 62px : 84px;
     background: DesktopTheme.canvas;
+    forward-focus: pane-focus;
+    init => { pane-focus.focus(); }
+    changed library-open => {
+        if (!root.library-open) { pane-focus.focus(); }
+    }
+
+    pane-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-tab-navigation: false;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text != Key.Escape) { return reject; }
+            if (root.library-open) {
+                root.dismiss-library-requested = true;
+            } else if (root.saving) {
+                root.saving = false;
+                self.focus();
+            } else if (root.importing) {
+                root.importing = false;
+                self.focus();
+            }
+            return accept;
+        }
 
     VerticalLayout {
         spacing: 16px;
@@ -526,18 +586,17 @@ export component CalculatorPane inherits Rectangle {
                     root.saving = !root.saving;
                     root.importing = false;
                     root.editor-scroll-y = 0px;
-                    root.save-name = root.active-saved-name != "" ? root.active-saved-name : root.selected-name;
+                    let suggested-name = root.active-saved-name != "" ? root.active-saved-name : root.selected-name;
+                    if (root.save-name-source != suggested-name) {
+                        root.save-name = suggested-name;
+                        root.save-name-source = root.save-name;
+                    }
                 }
             }
-            Button {
-                text: root.library-open ? (root.english ? "Continue calculating" : "繼續計算") : (root.english ? "Saved (" + root.saved-count + ")" : "我的收藏（" + root.saved-count + "）");
-                height: 32px;
+            CalcIconButton {
+                label: root.library-open ? (root.english ? "Continue calculating" : "繼續計算") : (root.english ? "Saved (" + root.saved-count + ")" : "我的收藏（" + root.saved-count + "）");
+                icon-path: root.library-open ? "M5 3 L19 3 L19 21 L5 21 Z M8 6 L16 6 L16 9 L8 9 Z M8 13 L10 13 M14 13 L16 13 M8 17 L10 17 M14 17 L16 17" : "M12 3 L14.8 8.8 L21.2 9.7 L16.6 14.2 L17.7 20.5 L12 17.5 L6.3 20.5 L7.4 14.2 L2.8 9.7 L9.2 8.8 Z";
                 clicked => { root.library-open = !root.library-open; root.saving = false; }
-            }
-            Button {
-                text: root.english ? "Back" : "返回";
-                height: 32px; min-width: 64px;
-                clicked => { root.close(); }
             }
         }
         if root.error != "": Text {
@@ -552,6 +611,8 @@ export component CalculatorPane inherits Rectangle {
             saved: root.saved;
             library-error: root.library-error;
             error: root.error;
+            dismiss-requested <=> root.dismiss-library-requested;
+            back => { root.library-open = false; }
             select-folder(index) => { root.select-folder(index); }
             new-folder(name) => { root.new-folder(name); }
             rename-folder(name) => { root.rename-folder(name); }
@@ -578,33 +639,25 @@ export component CalculatorPane inherits Rectangle {
                 width: content-scroll.width - 12px;
                 spacing: 18px;
                 if root.saving: Rectangle {
-                    height: 108px;
+                    height: save-fields.preferred-height + 20px;
                     border-radius: 6px;
                     background: DesktopTheme.surface;
-                    VerticalLayout {
-                        padding: 10px; spacing: 8px;
-                        HorizontalLayout {
-                            spacing: 12px;
-                            VerticalLayout {
-                                horizontal-stretch: 1; min-width: 0px; spacing: 5px;
-                                Text { text: root.english ? "Saved sheet name" : "合成表名稱"; font-size: 12px; color: DesktopTheme.secondary; }
-                                LineEdit {
-                                    text <=> root.save-name;
-                                    min-width: 0px;
-                                    accessible-label: root.english ? "Saved sheet name" : "合成表名稱";
-                                }
-                            }
-                            VerticalLayout {
-                                width: root.width < 820px ? 210px : 260px; spacing: 5px;
-                                Text { text: root.english ? "Folder" : "資料夾"; font-size: 12px; color: DesktopTheme.secondary; }
-                                ComboBox {
-                                    model: root.folders;
-                                    current-index <=> root.folder-index;
-                                    min-width: 0px;
-                                    accessible-label: root.english ? "Save to folder" : "儲存至資料夾";
-                                    selected(value) => { root.select-folder(self.current-index); }
-                                }
-                            }
+                    save-fields := VerticalLayout {
+                        x: 10px; y: 10px; width: parent.width - 20px;
+                        spacing: 8px;
+                        Text { text: root.english ? "Saved sheet name" : "合成表名稱"; font-size: 12px; color: DesktopTheme.secondary; }
+                        LineEdit {
+                            text <=> root.save-name;
+                            min-width: 0px; height: 32px;
+                            accessible-label: root.english ? "Saved sheet name" : "合成表名稱";
+                        }
+                        Text { text: root.english ? "Save to folder" : "儲存至資料夾"; font-size: 12px; color: DesktopTheme.secondary; }
+                        CalcFolderChoices {
+                            folders: root.folders;
+                            current-index <=> root.folder-index;
+                            english: root.english;
+                            enabled: root.library-error == "";
+                            selected(index) => { root.select-folder(index); }
                         }
                         HorizontalLayout {
                             spacing: 8px;
@@ -661,9 +714,12 @@ export component CalculatorPane inherits Rectangle {
                         CalcNumber {
                             height: 42px;
                             value: root.quantity;
+                            reset-token: root.input-revision;
+                            draft: root.quantity-draft;
+                            has-draft: root.quantity-has-draft;
                             label: root.english ? "Quantity to craft" : "製作數量";
                             enabled: root.selected-name != "";
-                            commit(value) => { root.quantity-changed(value); }
+                            commit(value) => { return root.quantity-changed(value); }
                         }
                     }
                 }
@@ -807,9 +863,12 @@ export component CalculatorPane inherits Rectangle {
                             if !material.nested: CalcNumber {
                                 width: root.cost-width;
                                 value: material.price;
+                                reset-token: root.input-revision;
+                                draft: material.draft;
+                                has-draft: material.has-draft;
                                 label: material.title + (root.english ? " unit price" : "單價");
                                 placeholder-text: root.english ? "Not entered" : "未輸入";
-                                commit(value) => { root.price-changed(material.key, value); }
+                                commit(value) => { return root.price-changed(material.key, value); }
                             }
                             if material.nested: VerticalLayout {
                                 width: root.cost-width; spacing: 4px; alignment: start;
@@ -966,5 +1025,6 @@ export component CalculatorPane inherits Rectangle {
         if root.info != "": Text {
             text: root.info; color: DesktopTheme.accent; font-size: 12px; wrap: word-wrap;
         }
+    }
     }
 }

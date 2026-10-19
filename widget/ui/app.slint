@@ -2767,7 +2767,7 @@ component MonsterDropIcon inherits Rectangle {
     border-color: root.drop.selected || focus.has-focus ? DesktopTheme.accent : transparent;
     accessible-role: button;
     accessible-label: drop.title;
-    accessible-description: (root.drop.selected ? (root.english ? "Selected drop · " : "已選掉落物 · ") : "") + root.rate-description + (root.drop.alternate-name != "" ? " · " + root.drop.alternate-name : "");
+    accessible-description: (root.drop.alternate-name != "" ? root.drop.alternate-name + " · " : "") + (root.drop.selected ? (root.english ? "Selected drop · " : "已選掉落物 · ") : "") + root.rate-description;
     accessible-action-default => { root.open(root.drop.key); }
     forward-focus: focus;
     if root.drop.has-icon: Image {
@@ -2980,7 +2980,7 @@ component CompactRecordLink inherits Rectangle {
     background: tap.has-hover ? DesktopTheme.hover-strong : transparent;
     accessible-role: button;
     accessible-label: title;
-    accessible-description: root.alternate + (root.aside != "" ? " · " + (root.english ? "Drop rate: " : "掉落率：") + root.aside : "");
+    accessible-description: root.alternate + (root.aside != "" ? (root.alternate != "" ? " · " : "") + (root.english ? "Drop rate: " : "掉落率：") + root.aside : "");
     accessible-action-default => { root.clicked(); }
     forward-focus: focus;
     if root.has-icon: Image {
@@ -3085,7 +3085,7 @@ component LegacyDropLink inherits Rectangle {
     background: root.selected ? DesktopTheme.selected : transparent;
     accessible-role: button;
     accessible-label: root.title;
-    accessible-description: (root.selected ? (root.english ? "Selected drop · " : "已選掉落物 · ") : "") + (root.english ? "Drop rate: " : "掉落率：") + root.drop-rate + (root.alternate != "" ? " · " + root.alternate : "");
+    accessible-description: (root.alternate != "" ? root.alternate + " · " : "") + (root.selected ? (root.english ? "Selected drop · " : "已選掉落物 · ") : "") + (root.english ? "Drop rate: " : "掉落率：") + root.drop-rate;
     accessible-action-default => { root.clicked(); }
     forward-focus: focus;
     label := Text {
@@ -4582,7 +4582,13 @@ export component App inherits Window {
     in-out property <bool> calculator-complete;
     in-out property <bool> calculator-compact-total;
     in-out property <bool> calculator-input-valid: true;
+    in-out property <int> calculator-input-revision: 0;
+    in-out property <string> calculator-quantity-draft;
+    in-out property <bool> calculator-quantity-has-draft: false;
     in-out property <bool> calculator-library-open: false;
+    changed calculator-library-open => {
+        if (!root.calculator-library-open) { root.calculator-refresh(); }
+    }
     in-out property <[string]> calculator-folders;
     in-out property <int> calculator-folder-index;
     in-out property <[CalcSaved]> calculator-saved;
@@ -4603,8 +4609,8 @@ export component App inherits Window {
     callback calculator-search(string);
     callback calculator-select-item(string);
     callback calculator-select-recipe(int);
-    callback calculator-quantity-changed(string);
-    callback calculator-price-changed(string, string);
+    callback calculator-quantity-changed(string) -> bool;
+    callback calculator-price-changed(string, string) -> bool;
     callback calculator-request-nested-options(string, bool);
     callback calculator-select-nested(string, string);
     callback calculator-clear-nested(string);
@@ -5991,7 +5997,7 @@ export component App inherits Window {
             return accept;
         }
         if ((root.calculator-open || root.mcp-open) && !root.settings-open && !root.collapsed) {
-            if (event.text == Key.Escape) { root.go-home(); return accept; }
+            // These are top-level destinations. Local controls dismiss their own UI.
             return reject;
         }
         if (event.text == Key.Home && !root.settings-open && keys.has-focus) {
@@ -6391,6 +6397,15 @@ export component App inherits Window {
     }
 
     in-out property <bool> search-open: false;
+    // Full mode uses the sidebar for top-level destinations; Back keeps history or a parent.
+    property <bool> page-back-visible: !root.full-mode || root.viewing != ""
+        || ((root.category == "quest" || root.category == "atlas" || root.category == "works"
+            || root.category == "hero" || root.category == "item" || root.category == "recipe"
+            || root.category == "monster") && (root.place != "" || root.area != ""))
+        || (root.category == "monster" && root.nation != "")
+        || (root.quest-browser && (root.quest-map-open || !root.quest-summary || root.quest-grouping != ""))
+        || (root.monster-board && root.legacy-mode && !root.menu-open);
+
     property <bool> set-browser: category == "item" && place == "set" && viewing == "";
     property <bool> monster-cards: category == "monster" && viewing == "" && (place != "" || favourites-only || (hits.length > 0 && hits[0].key.starts-with("monster:")));
     property <bool> monster-board: full-mode && category == "monster" && viewing == "" && place == "" && area == "" && !favourites-only && query == "";
@@ -6887,7 +6902,13 @@ export component App inherits Window {
                                 label: root.lang == "en-zh" ? "Calculate" : "計算";
                                 icon-path: "M5 3 L19 3 L19 21 L5 21 Z M8 6 L16 6 L16 9 L8 9 Z M8 12 L10 12 M14 12 L16 12 M8 16 L10 16 M14 16 L16 16 M8 19 L10 19 M14 19 L16 19";
                                 selected: root.calculator-open && !root.settings-open;
-                                clicked => { root.go-home(); root.calculator-open = true; root.calculator-refresh(); }
+                                clicked => {
+                                    if (root.calculator-open) {
+                                        if (root.settings-open) { root.close-settings(); }
+                                    } else {
+                                        root.go-home(); root.calculator-open = true; root.calculator-refresh();
+                                    }
+                                }
                             }
                             nav-drag := Rectangle {
                                 height: root.dock-shown.length * 44px;
@@ -6902,10 +6923,16 @@ export component App inherits Window {
                                     logo: root.category-logo(slot);
                                     glyph: root.category-glyph(slot);
                                     label: root.category-short(slot);
-                                    selected: !root.settings-open && !root.calculator-open && root.category == root.categories[slot].id;
+                                    selected: !root.settings-open && !root.calculator-open && !root.mcp-open && root.category == root.categories[slot].id;
                                     lifted: nav-drag.moving && nav-drag.from-row == i;
                                     english: root.lang == "en-zh";
-                                    clicked => { root.open-dock(slot); keys.focus(); }
+                                    clicked => {
+                                        if (root.category != root.categories[slot].id || root.page-back-visible
+                                            || root.settings-open || root.calculator-open || root.mcp-open) {
+                                            root.open-dock(slot);
+                                        }
+                                        keys.focus();
+                                    }
                                     shift(delta) => {
                                         let next = max(0, min(root.dock-shown.length - 1, i + delta));
                                         if (next != i) { root.dock-moved(i, next); }
@@ -7004,11 +7031,7 @@ export component App inherits Window {
                             selected: root.settings-open;
                             clicked => {
                                 root.nav-dragging = false;
-                                if (root.settings-open) {
-                                    root.close-settings();
-                                } else {
-                                    root.settings-open = true;
-                                }
+                                root.settings-open = true;
                             }
                         }
                         DesktopNavRow {
@@ -7018,7 +7041,13 @@ export component App inherits Window {
                             label: "MCP";
                             icon-path: "M8 3 L8 8 M16 3 L16 8 M5 8 L19 8 L19 12 L16 16 L8 16 L5 12 Z M12 16 L12 21";
                             selected: root.mcp-open && !root.settings-open;
-                            clicked => { root.go-home(); root.mcp-open = true; root.mcp-copy-notice = ""; }
+                            clicked => {
+                                if (root.mcp-open) {
+                                    if (root.settings-open) { root.close-settings(); }
+                                } else {
+                                    root.go-home(); root.mcp-open = true; root.mcp-copy-notice = "";
+                                }
+                            }
                         }
                     }
                     Rectangle {
@@ -7137,6 +7166,8 @@ export component App inherits Window {
                     selected-has-icon: root.calculator-selected-has-icon;
                     selected-meta: root.calculator-selected-meta;
                     quantity: root.calculator-quantity;
+                    quantity-draft: root.calculator-quantity-draft;
+                    quantity-has-draft: root.calculator-quantity-has-draft;
                     material-total: root.calculator-material-total;
                     fee: root.calculator-fee;
                     total: root.calculator-total;
@@ -7149,6 +7180,7 @@ export component App inherits Window {
                     complete: root.calculator-complete;
                     compact-total: root.calculator-compact-total;
                     input-valid: root.calculator-input-valid;
+                    input-revision: root.calculator-input-revision;
                     library-open <=> root.calculator-library-open;
                     folders: root.calculator-folders;
                     folder-index <=> root.calculator-folder-index;
@@ -7169,15 +7201,14 @@ export component App inherits Window {
                     search-query(q) => { root.calculator-search(q); }
                     select-item(id) => { root.calculator-select-item(id); }
                     select-recipe(index) => { root.calculator-select-recipe(index); }
-                    quantity-changed(q) => { root.calculator-quantity-changed(q); }
-                    price-changed(key, q) => { root.calculator-price-changed(key, q); }
+                    quantity-changed(q) => { return root.calculator-quantity-changed(q); }
+                    price-changed(key, q) => { return root.calculator-price-changed(key, q); }
                     request-nested-options(key, reuse) => { root.calculator-request-nested-options(key, reuse); }
                     select-nested(key, id) => { root.calculator-select-nested(key, id); }
                     clear-nested(key) => { root.calculator-clear-nested(key); }
                     export-card => { root.calculator-export-card(); }
                     copy-code => { root.calculator-copy-code(); }
                     import-code(code) => { root.calculator-import-code(code); }
-                    close => { root.go-home(); }
                 }
                 if root.category == "" && !root.settings-open && !root.calculator-open && !root.full-mode: home := Rectangle {
                     width: parent.width;
@@ -7399,16 +7430,16 @@ export component App inherits Window {
                     width: root.pane-w;
                     height: 100%;
 
-                    WinButton {
+                    if root.page-back-visible: WinButton {
                         x: root.page-pad;
                         y: 14px;
                         glyph: "←";
                         clicked => { root.go-back(); }
                     }
                     Text {
-                        x: root.full-mode ? 66px : 52px;
+                        x: root.full-mode ? (root.page-back-visible ? 66px : root.page-pad) : 52px;
                         y: root.full-mode ? 13px : 16px;
-                        width: root.full-mode && root.category == "monster" ? max(root.pane-w - (root.viewing == "" ? 434px : 146px), 40px) : root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px);
+                        width: (root.full-mode && root.category == "monster" ? max(root.pane-w - (root.viewing == "" ? 434px : 146px), 40px) : root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (root.lang == "en-zh" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px)) + (root.full-mode && !root.page-back-visible ? 66px - root.page-pad : 0px);
                         overflow: elide;
                         text: root.favourites-only && root.category == "monster" ? (root.lang == "en-zh" ? "Favourites" : "收藏") : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.categories[3].name;
                         font-size: root.full-mode ? 21px : 16px;
