@@ -21,6 +21,7 @@ fn fixture() -> CalcDocument {
                 title: "普通材料".into(),
                 per_batch: 2,
                 unit_price: Some(10),
+                nested: None,
             },
             CalcIngredient {
                 code: 100,
@@ -28,6 +29,7 @@ fn fixture() -> CalcDocument {
                 title: "強化材料 +5".into(),
                 per_batch: 1,
                 unit_price: None,
+                nested: None,
             },
         ],
     }
@@ -125,7 +127,7 @@ fn share_code_rejects_tampering_future_versions_and_unknown_fields() {
     assert!(decode_calculator(&code.replace("GS-C1", "GS-C2")).is_err());
     assert!(decode_calculator(&(code + ".extra")).is_err());
     let mut value = serde_json::to_value(fixture()).unwrap();
-    value["version"] = 2.into();
+    value["version"] = 3.into();
     assert!(decode_calculator(&compressed_code(&serde_json::to_vec(&value).unwrap())).is_err());
     value["version"] = 1.into();
     value["total"] = 1.into(); // Derived totals must not be injected.
@@ -183,7 +185,7 @@ fn persistence_roundtrips_and_preserves_invalid_or_future_data() {
     assert_eq!(load_from(&path).unwrap(), Some(document.clone()));
     for body in [
         b"broken".as_slice(),
-        b"{\"version\":2,\"new_format\":true}".as_slice(),
+        b"{\"version\":3,\"new_format\":true}".as_slice(),
     ] {
         std::fs::write(&path, body).unwrap();
         assert!(load_from(&path).is_err());
@@ -295,3 +297,6 @@ fn every_exposed_real_recipe_builds_a_valid_portable_document() {
         }
     }
 }
+
+#[path = "nested_tests.rs"]
+mod nested_tests;

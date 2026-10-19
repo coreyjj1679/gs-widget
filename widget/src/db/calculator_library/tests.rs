@@ -22,6 +22,7 @@ fn document(number: i64) -> CalcDocument {
                 title: "水晶".into(),
                 per_batch: 3,
                 unit_price: Some(10),
+                nested: None,
             },
             CalcIngredient {
                 code: 2,
@@ -29,6 +30,7 @@ fn document(number: i64) -> CalcDocument {
                 title: "免費材料".into(),
                 per_batch: 1,
                 unit_price: Some(0),
+                nested: None,
             },
             CalcIngredient {
                 code: 3,
@@ -36,6 +38,7 @@ fn document(number: i64) -> CalcDocument {
                 title: "尚未定價".into(),
                 per_batch: 1,
                 unit_price: None,
+                nested: None,
             },
         ],
     }
@@ -305,7 +308,7 @@ fn invalid_documents_are_rejected_even_with_recomputed_checksum() {
             2 => doc.materials[0].unit_price = Some(i64::MAX),
             3 => doc.quantity = i64::MAX,
             4 => doc.materials.push(doc.materials[0].clone()),
-            _ => doc.version = 2,
+            _ => doc.version = 3,
         }
         let code = code_for(&serde_json::to_vec(&share).unwrap());
         assert!(decode_calculator_folder(&code).is_err());
@@ -412,6 +415,7 @@ fn valid_but_oversized_snapshots_cannot_exceed_bundle_or_storage_caps() {
             title: "x".repeat(1_024),
             per_batch: 1,
             unit_price: Some(1),
+            nested: None,
         })
         .collect();
     assert!(large.calculate().is_ok());
@@ -437,4 +441,92 @@ fn valid_but_oversized_snapshots_cannot_exceed_bundle_or_storage_caps() {
         .collect();
     library.next_id = 34;
     assert!(serialize_library(&library).is_err());
+}
+
+#[test]
+fn nested_and_legacy_sheets_share_one_folder_without_live_saved_references() {
+    let mut parent = document(1);
+    parent.materials[2].unit_price = Some(0);
+    let mut saved_source = document(99);
+    saved_source.item_code = 1;
+    saved_source.output = 4;
+    saved_source.quantity = 999;
+    saved_source.fee_per_batch = 10;
+    saved_source.materials = vec![CalcIngredient {
+        code: 900,
+        enhance: 0,
+        title: "Reusable material".into(),
+        per_batch: 3,
+        unit_price: Some(7),
+        nested: None,
+    }];
+    parent.set_nested(&[0], Some(saved_source.clone())).unwrap();
+    assert_eq!(parent.calculate().unwrap().total, Some(122));
+
+    let mut sender = CalcLibrary::default();
+    let source_id = sender
+        .save_entry(1, None, "Original saved source", saved_source.clone())
+        .unwrap();
+    sender
+        .save_entry(1, None, "Nested sheet", parent.clone())
+        .unwrap();
+    sender
+        .save_entry(1, None, "Legacy sheet", document(2))
+        .unwrap();
+    saved_source.materials[0].unit_price = Some(99);
+    sender
+        .save_entry(1, Some(source_id), "Changed source", saved_source)
+        .unwrap();
+    sender.remove_entry(source_id).unwrap();
+    assert_eq!(sender.folders[0].entries[0].document, parent);
+
+    let code = encode_calculator_folder(&sender.folders[0]).unwrap();
+    let share = decode_calculator_folder(&code).unwrap();
+    assert_eq!(share.entries[0].document, parent);
+    assert_eq!(share.entries[1].document.version, 1);
+    let mut receiver = CalcLibrary::default();
+    let id = receiver.import_folder(share).unwrap();
+    let imported = receiver
+        .folders
+        .iter()
+        .find(|folder| folder.id == id)
+        .unwrap();
+    assert_eq!(
+        imported.entries[0].document.calculate().unwrap().total,
+        Some(122)
+    );
+    assert_eq!(imported.entries[1].document, document(2));
+    let path = preferences_dir().join("nested-library-test.json");
+    save_to(&path, &receiver).unwrap();
+    assert_eq!(load_from(&path).unwrap(), receiver);
+}
+
+#[test]
+fn invalid_nested_folder_snapshots_are_rejected_before_import() {
+    let mut parent = document(1);
+    let mut child = document(99);
+    child.item_code = 1;
+    child.materials = vec![CalcIngredient {
+        code: 900,
+        enhance: 0,
+        title: "Leaf".into(),
+        per_batch: 1,
+        unit_price: Some(1),
+        nested: None,
+    }];
+    parent.set_nested(&[0], Some(child)).unwrap();
+    let share = CalcFolderShare {
+        version: 1,
+        name: "Nested".into(),
+        entries: vec![SharedCalculation {
+            name: "Nested sheet".into(),
+            document: parent,
+        }],
+    };
+    let mut tampered = serde_json::to_value(&share).unwrap();
+    tampered["entries"][0]["document"]["materials"][0]["nested"]["item_code"] = 999.into();
+    assert!(decode_calculator_folder(&code_for(&serde_json::to_vec(&tampered).unwrap())).is_err());
+    let mut tampered = serde_json::to_value(&share).unwrap();
+    tampered["entries"][0]["document"]["version"] = 1.into();
+    assert!(decode_calculator_folder(&code_for(&serde_json::to_vec(&tampered).unwrap())).is_err());
 }

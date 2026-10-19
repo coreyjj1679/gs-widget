@@ -2,14 +2,36 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Receiver;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 
-use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
+use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 
 use super::agf;
 use super::list::picture_key;
 use super::{App, Hit, ICON_CACHE, IconJob, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
+
+struct IconTarget {
+    generation: u64,
+    links: bool,
+    row_key: String,
+}
+
+struct DecodedIcon {
+    cache_key: String,
+    icon: Option<agf::Icon>,
+    targets: Vec<IconTarget>,
+}
+
+fn current_generation(links: bool, generation: &AtomicU64, link_generation: &AtomicU64) -> u64 {
+    if links { link_generation } else { generation }.load(Ordering::Relaxed)
+}
+
+fn discard_stale_targets(targets: &mut Vec<IconTarget>, generation: &AtomicU64, link_generation: &AtomicU64) {
+    targets.retain(|target| target.generation == current_generation(target.links, generation, link_generation));
+}
 
 pub(crate) fn spawn_icon_worker(
     app: slint::Weak<App>,
@@ -18,36 +40,112 @@ pub(crate) fn spawn_icon_worker(
     link_generation: Arc<AtomicU64>,
 ) {
     thread::spawn(move || {
-        while let Ok(job) = rx.recv() {
-            let current = Arc::clone(if job.links { &link_generation } else { &generation });
-            if job.gen != current.load(Ordering::Relaxed) {
+        while let Ok(first) = rx.recv() {
+            let started = Instant::now();
+            let mut decoded: Vec<DecodedIcon> = Vec::new();
+            let mut by_cache_key = HashMap::new();
+            let mut job_count = 0;
+            let mut next = Some(first);
+            while let Some(job) = next {
+                if job.gen == current_generation(job.links, &generation, &link_generation) {
+                    let target = IconTarget { generation: job.gen, links: job.links, row_key: job.row_key };
+                    if let Some(&index) = by_cache_key.get(&job.cache_key) {
+                        let result: &mut DecodedIcon = &mut decoded[index];
+                        result.targets.push(target);
+                    } else {
+                        let icon = agf::frame_rgba(&job.path, job.frame).ok();
+                        by_cache_key.insert(job.cache_key.clone(), decoded.len());
+                        decoded.push(DecodedIcon { cache_key: job.cache_key, icon, targets: vec![target] });
+                    }
+                    job_count += 1;
+                }
+                // Keep each UI delivery small, and let the first decoded icons appear promptly.
+                if job_count >= 32 || started.elapsed() >= Duration::from_millis(4) {
+                    break;
+                }
+                next = rx.try_recv().ok();
+            }
+            if decoded.is_empty() {
                 continue;
             }
-            let app = app.clone();
-            let row_key = job.row_key;
-            let links = job.links;
-            let gen = job.gen;
-            match agf::frame_rgba(&job.path, job.frame) {
-                Ok(icon) => {
-                    let cache_key = job.cache_key;
-                    let _ = app.upgrade_in_event_loop(move |app| {
-                        let image = image_from_icon(icon);
-                        remember_icon(&cache_key, image.clone());
-                        if gen == current.load(Ordering::Relaxed) {
-                            paint_hit(&app, &row_key, image, true, links);
+            super::perf::record("icon.decode", started.elapsed(), job_count);
+            let generation = generation.clone();
+            let link_generation = link_generation.clone();
+            let queued = Instant::now();
+            let _ = app.upgrade_in_event_loop(move |app| {
+                super::perf::record("icon.queue_wait", queued.elapsed(), job_count);
+                let started = Instant::now();
+                let mut painted = 0;
+                for result in decoded {
+                    let mut targets = result.targets;
+                    discard_stale_targets(&mut targets, &generation, &link_generation);
+                    if targets.is_empty() {
+                        continue;
+                    }
+                    let has_icon = result.icon.is_some();
+                    let image = match result.icon {
+                        Some(icon) => {
+                            let image = image_from_icon(icon);
+                            remember_icon(&result.cache_key, image.clone());
+                            image
                         }
-                    });
+                        None => Image::default(),
+                    };
+                    for target in targets {
+                        paint_hit(&app, &target.row_key, image.clone(), has_icon, target.links);
+                        painted += 1;
+                    }
                 }
-                Err(_) => {
-                    let _ = app.upgrade_in_event_loop(move |app| {
-                        if gen == current.load(Ordering::Relaxed) {
-                            paint_hit(&app, &row_key, Image::default(), false, links);
-                        }
-                    });
-                }
-            }
+                super::perf::record("icon.paint", started.elapsed(), painted);
+            });
         }
     });
+}
+
+struct RowIndex {
+    model: Weak<dyn Model<Data = Hit>>,
+    count: usize,
+    positions: HashMap<SharedString, usize>,
+}
+
+thread_local! {
+    static ROW_INDICES: RefCell<HashMap<usize, RowIndex>> = RefCell::new(HashMap::new());
+}
+
+// Published models keep their keys/order stable; row edits update display fields only.
+fn indexed_row(hits: &ModelRc<Hit>, row_key: &str) -> Option<(usize, Hit)> {
+    let model: Rc<dyn Model<Data = Hit>> = hits.clone().try_into().ok()?;
+    let identity = Rc::as_ptr(&model) as *const () as usize;
+    ROW_INDICES.with(|slot| {
+        let mut indices = slot.borrow_mut();
+        // Weak references avoid retaining the previous screen's rows and image buffers.
+        indices.retain(|_, index| index.model.strong_count() > 0);
+        let entry = indices.entry(identity).or_insert_with(|| build_row_index(&model));
+        if entry.count != model.row_count() {
+            *entry = build_row_index(&model);
+        }
+        let position = entry.positions.get(row_key).copied();
+        if let Some((index, row)) = position.and_then(|index| model.row_data(index).map(|row| (index, row))) {
+            if row.key.as_str() == row_key {
+                return Some((index, row));
+            }
+            // Current screens replace their model when ordering changes; also handle an
+            // in-place reorder defensively without painting a different row.
+            *entry = build_row_index(&model);
+            return entry.positions.get(row_key).copied().and_then(|index| model.row_data(index).map(|row| (index, row)));
+        }
+        None
+    })
+}
+
+fn build_row_index(model: &Rc<dyn Model<Data = Hit>>) -> RowIndex {
+    let mut positions = HashMap::with_capacity(model.row_count());
+    for index in 0..model.row_count() {
+        if let Some(row) = model.row_data(index) {
+            positions.entry(row.key).or_insert(index);
+        }
+    }
+    RowIndex { model: Rc::downgrade(model), count: model.row_count(), positions }
 }
 
 pub(crate) fn remember_icon(cache_key: &str, image: Image) {
@@ -94,7 +192,12 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
         return;
     }
     let hits = if links { app.get_links() } else { app.get_hits() };
-    if paint_model(&hits, row_key, icon.clone(), has_icon) {
+    let painted = if links {
+        paint_model(&hits, row_key, icon.clone(), has_icon)
+    } else {
+        paint_catalog_models(&hits, &app.get_catalog_sections(), row_key, icon.clone(), has_icon)
+    };
+    if painted {
         return;
     }
     if links {
@@ -103,6 +206,14 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
     } else {
         paint_model(&app.get_board_monsters(), row_key, icon, has_icon);
     }
+}
+
+fn paint_catalog_models(hits: &ModelRc<Hit>, sections: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) -> bool {
+    let painted = paint_model(hits, row_key, icon.clone(), has_icon);
+    // Browsing can share one model; searching keeps the directory in a separate
+    // model. Both use indexed key lookup, after the worker's generation check.
+    let section_painted = sections != hits && paint_model(sections, row_key, icon, has_icon);
+    painted || section_painted
 }
 
 fn painted_quest_chips(
@@ -166,40 +277,28 @@ fn paint_battle(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool)
         return false;
     }
     let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return false };
-    for index in 0..model.row_count() {
-        let Some(mut row) = model.row_data(index) else { continue };
-        if row.key.as_str() != row_key {
-            continue;
-        }
-        row.battle = icon;
-        row.has_battle = true;
-        model.set_row_data(index, row);
-        return true;
-    }
-    false
+    let Some((index, mut row)) = indexed_row(hits, row_key) else { return false };
+    row.battle = icon;
+    row.has_battle = true;
+    model.set_row_data(index, row);
+    true
 }
 
 fn paint_monster_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, item_key: &str, icon: Image, has_icon: bool) -> bool {
     let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return false };
-    for index in 0..model.row_count() {
-        let Some(mut row) = model.row_data(index) else { continue };
-        if row.key.as_str() != row_key {
-            continue;
-        }
-        let mut drops: Vec<MonsterDrop> = row.monster_drops.iter().collect();
-        let Some(drop) = drops.get_mut(slot) else { return false };
-        // Missing images keep their position; a delayed job must still match this slot's item.
-        if drop.key.as_str() != item_key {
-            return false;
-        }
-        drop.icon = icon;
-        drop.has_icon = has_icon;
-        // Replace the nested model identity so Slint refreshes the row's drop bindings.
-        row.monster_drops = ModelRc::new(VecModel::from(drops));
-        model.set_row_data(index, row);
-        return true;
+    let Some((index, mut row)) = indexed_row(hits, row_key) else { return false };
+    let mut drops: Vec<MonsterDrop> = row.monster_drops.iter().collect();
+    let Some(drop) = drops.get_mut(slot) else { return false };
+    // Missing images keep their position; a delayed job must still match this slot's item.
+    if drop.key.as_str() != item_key {
+        return false;
     }
-    false
+    drop.icon = icon;
+    drop.has_icon = has_icon;
+    // Replace the nested model identity so Slint refreshes the row's drop bindings.
+    row.monster_drops = ModelRc::new(VecModel::from(drops));
+    model.set_row_data(index, row);
+    true
 }
 
 fn paint_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, icon: Image, has_icon: bool) -> bool {
@@ -207,68 +306,76 @@ fn paint_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, icon: Image, has_
         return false;
     }
     let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return false };
-    for index in 0..model.row_count() {
-        let Some(mut row) = model.row_data(index) else { continue };
-        if row.key.as_str() != row_key {
-            continue;
-        }
-        match slot {
-            0 => row.drop1 = icon,
-            1 => row.drop2 = icon,
-            2 => row.drop3 = icon,
-            3 => row.drop4 = icon,
-            4 => row.drop5 = icon,
-            5 => row.drop6 = icon,
-            6 => row.drop7 = icon,
-            7 => row.drop8 = icon,
-            8 => row.drop9 = icon,
-            _ => row.drop10 = icon,
-        }
-        model.set_row_data(index, row);
-        return true;
+    let Some((index, mut row)) = indexed_row(hits, row_key) else { return false };
+    match slot {
+        0 => row.drop1 = icon,
+        1 => row.drop2 = icon,
+        2 => row.drop3 = icon,
+        3 => row.drop4 = icon,
+        4 => row.drop5 = icon,
+        5 => row.drop6 = icon,
+        6 => row.drop7 = icon,
+        7 => row.drop8 = icon,
+        8 => row.drop9 = icon,
+        _ => row.drop10 = icon,
     }
-    false
+    model.set_row_data(index, row);
+    true
 }
 
 pub(crate) fn paint_model(hits: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) -> bool {
     let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return false };
-    for index in 0..model.row_count() {
-        let Some(mut row) = model.row_data(index) else { continue };
-        if row.key.as_str() != row_key {
-            continue;
-        }
-        row.icon = icon;
-        row.has_icon = has_icon;
-        if !has_icon && picture_key(&row.key) {
-            row.no_image = true;
-        }
-        model.set_row_data(index, row);
-        return true;
+    let Some((index, mut row)) = indexed_row(hits, row_key) else { return false };
+    row.icon = icon;
+    row.has_icon = has_icon;
+    if !has_icon && picture_key(&row.key) {
+        row.no_image = true;
     }
-    false
+    model.set_row_data(index, row);
+    true
 }
 
 pub(crate) fn image_from_icon(icon: agf::Icon) -> Image {
     let mut buffer = SharedPixelBuffer::<Rgba8Pixel>::new(icon.width, icon.height);
-    let pixels = buffer.make_mut_slice();
-    for (index, chunk) in icon.rgba.chunks_exact(4).enumerate() {
-        if let Some(pixel) = pixels.get_mut(index) {
-            *pixel = Rgba8Pixel {
-                r: chunk[0],
-                g: chunk[1],
-                b: chunk[2],
-                a: chunk[3],
-            };
-        }
-    }
+    buffer.make_mut_bytes().copy_from_slice(&icon.rgba);
     Image::from_rgba8(buffer)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{note_lines, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items};
+    use super::{discard_stale_targets, indexed_row, note_lines, paint_catalog_models, paint_model, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items, IconTarget};
     use crate::{Hit, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
     use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
+
+    #[test]
+    fn directory_portraits_update_shared_and_separate_search_models_by_key() {
+        let sections = ModelRc::new(VecModel::from(vec![Hit {
+            key: "land-rank:1:0".into(),
+            title: "傭兵".into(),
+            aside: "expanded".into(),
+            ..Default::default()
+        }]));
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(paint_catalog_models(&sections, &sections, "land-rank:1:0", image.clone(), true));
+        assert!(sections.row_data(0).unwrap().has_icon);
+
+        let results = ModelRc::new(VecModel::from(vec![Hit {
+            key: "hero:U08".into(),
+            title: "儒生".into(),
+            ..Default::default()
+        }]));
+        assert!(paint_catalog_models(&results, &sections, "land-rank:1:0", Image::default(), false));
+        let section = sections.row_data(0).unwrap();
+        assert!(!section.has_icon);
+        assert_eq!(section.title.as_str(), "傭兵");
+        assert_eq!(section.aside.as_str(), "expanded");
+        assert!(!results.row_data(0).unwrap().has_icon);
+        assert!(paint_catalog_models(&results, &sections, "land-rank:1:0", image.clone(), true));
+        assert!(sections.row_data(0).unwrap().has_icon);
+        assert!(paint_catalog_models(&results, &sections, "hero:U08", image, true));
+        assert!(results.row_data(0).unwrap().has_icon);
+        assert!(!paint_catalog_models(&results, &sections, "land-rank:10:0", Image::default(), false));
+    }
 
     fn drop_model(count: usize) -> (ModelRc<Hit>, ModelRc<MonsterDrop>) {
         let drops = ModelRc::new(VecModel::from((0..count).map(|slot| MonsterDrop {
@@ -473,6 +580,84 @@ mod tests {
         assert_eq!(after.other_objectives, before.other_objectives);
         assert!(after.required_items.row_data(0).unwrap().has_icon);
         assert!(rows.row_data(1).unwrap().reward_icons.row_data(0).unwrap().has_icon);
+    }
+
+    #[test]
+    fn row_index_is_scoped_to_the_model_and_handles_removed_or_reordered_rows() {
+        let rows = vec![
+            Hit { key: "item:a".into(), ..Default::default() },
+            Hit { key: "item:b".into(), ..Default::default() },
+        ];
+        let first = ModelRc::new(VecModel::from(rows.clone()));
+        let second = ModelRc::new(VecModel::from(rows.into_iter().rev().collect::<Vec<_>>()));
+        assert_eq!(indexed_row(&first, "item:b").unwrap().0, 1);
+        assert_eq!(indexed_row(&second, "item:b").unwrap().0, 0);
+        assert!(paint_model(&first, "item:b", Image::default(), false));
+        assert!(first.row_data(1).unwrap().no_image);
+        assert!(!second.row_data(0).unwrap().no_image);
+        let model = first.as_any().downcast_ref::<VecModel<Hit>>().unwrap();
+        model.swap(0, 1);
+        assert_eq!(indexed_row(&first, "item:b").unwrap().0, 0);
+        model.remove(0);
+        assert!(indexed_row(&first, "item:b").is_none());
+        assert_eq!(indexed_row(&first, "item:a").unwrap().0, 0);
+        assert!(!paint_model(&first, "item:missing", Image::default(), true));
+    }
+
+    #[test]
+    fn decoded_results_discard_stale_rows_without_canceling_the_other_screen() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        let generation = AtomicU64::new(4);
+        let links = AtomicU64::new(7);
+        let mut decoded = vec![
+            IconTarget { generation: 4, links: false, row_key: "item:old-list".into() },
+            IconTarget { generation: 7, links: true, row_key: "item:current-link".into() },
+        ];
+        // The catalog changed while decoded results waited in the UI event queue.
+        generation.fetch_add(1, Ordering::Relaxed);
+        discard_stale_targets(&mut decoded, &generation, &links);
+        assert_eq!(decoded.len(), 1);
+        assert_eq!(decoded[0].row_key, "item:current-link");
+        links.fetch_add(1, Ordering::Relaxed);
+        discard_stale_targets(&mut decoded, &generation, &links);
+        assert!(decoded.is_empty());
+    }
+
+    #[test]
+    #[ignore = "manual benchmark: compares previous linear scans with indexed updates"]
+    fn profile_icon_row_updates() {
+        use std::time::Instant;
+        let count = 2_000;
+        let rows = (0..count).map(|index| Hit {
+            key: format!("item:{index}").into(),
+            title: format!("Catalog item {index}").into(),
+            ..Default::default()
+        }).collect::<Vec<_>>();
+        let baseline = VecModel::from(rows.clone());
+        let optimized = ModelRc::new(VecModel::from(rows));
+        let keys = (0..count).map(|index| format!("item:{index}")).collect::<Vec<_>>();
+        let started = Instant::now();
+        for key in &keys {
+            for index in 0..baseline.row_count() {
+                let mut row = baseline.row_data(index).unwrap();
+                if row.key.as_str() == key {
+                    row.icon = Image::default();
+                    row.has_icon = true;
+                    baseline.set_row_data(index, row);
+                    break;
+                }
+            }
+        }
+        let baseline_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let started = Instant::now();
+        for key in &keys {
+            assert!(paint_model(&optimized, key, Image::default(), true));
+        }
+        let optimized_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        eprintln!("icon rows={count} baseline_ms={baseline_ms:.3} indexed_ms={optimized_ms:.3}");
+        for index in 0..count {
+            assert_eq!(baseline.row_data(index).unwrap().has_icon, optimized.row_data(index).unwrap().has_icon);
+        }
     }
 
     #[test]

@@ -84,29 +84,24 @@ fn decode_frame(sheet: &Sheet, frame: i32) -> Result<Icon, String> {
     }
     let start = sheet.offsets[frame];
     let end = sheet.offsets[frame + 1];
-    let raw = &sheet.raw;
-    let mut pixels = Vec::new();
-    let mut pos = start;
-    let target = end.saturating_sub(start) / 4;
-    let mut produced = 0;
-    while produced < target && pos + 4 <= raw.len() {
-        let alpha = raw[pos];
-        let red = raw[pos + 1];
-        let green = raw[pos + 2];
-        let blue = raw[pos + 3];
-        pos += 4;
-        produced += 1;
-        if alpha == 0 && green == 0 && blue == 0 {
-            pixels.extend(std::iter::repeat((0, 0, 0, 0)).take(red as usize));
-        } else {
-            pixels.push((red, green, blue, alpha));
+    let raw = sheet.raw.get(start..end).ok_or("圖格資料超出範圍")?;
+    let pixel_count = frame_w.checked_mul(frame_h).ok_or("圖格尺寸超出範圍")?;
+    let byte_count = pixel_count.checked_mul(4).ok_or("圖格尺寸超出範圍")?;
+    let mut rgba = vec![0u8; byte_count];
+    let mut pixel = 0;
+    for encoded in raw.chunks_exact(4) {
+        if pixel >= pixel_count {
+            break;
         }
-    }
-    let mut rgba = vec![0u8; frame_w * frame_h * 4];
-    let count = pixels.len().min(frame_w * frame_h);
-    for (index, pixel) in pixels.into_iter().take(count).enumerate() {
-        let at = index * 4;
-        rgba[at..at + 4].copy_from_slice(&[pixel.0, pixel.1, pixel.2, pixel.3]);
+        let [alpha, red, green, blue] = [encoded[0], encoded[1], encoded[2], encoded[3]];
+        if alpha == 0 && green == 0 && blue == 0 {
+            // The output is already transparent: a run needs no temporary pixels or copy.
+            pixel = pixel.saturating_add(red as usize);
+        } else {
+            let at = pixel * 4;
+            rgba[at..at + 4].copy_from_slice(&[red, green, blue, alpha]);
+            pixel += 1;
+        }
     }
     Ok(Icon {
         width: frame_w as u32,
@@ -166,4 +161,87 @@ fn frame_info(data: &[u8], frame: usize) -> Result<(i32, i32, usize, usize), Str
 
 fn u32_at(data: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_frame, Icon, Sheet};
+
+    fn sheet(raw: Vec<u8>, width: usize, height: usize) -> Sheet {
+        Sheet {
+            offsets: vec![0, raw.len()],
+            raw,
+            frames: vec![(0, 0, width, height)],
+            decoded: vec![None],
+        }
+    }
+
+    #[test]
+    fn decodes_colors_transparent_runs_and_short_frames_directly() {
+        let data = sheet(vec![255, 1, 2, 3, 0, 2, 0, 0, 127, 4, 5, 6], 5, 1);
+        let icon = decode_frame(&data, 0).unwrap();
+        assert_eq!((icon.width, icon.height), (5, 1));
+        assert_eq!(icon.rgba, vec![1, 2, 3, 255, 0, 0, 0, 0, 0, 0, 0, 0, 4, 5, 6, 127, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn clips_runs_and_extra_pixels_at_the_frame_boundary() {
+        let data = sheet(vec![0, 255, 0, 0, 255, 1, 2, 3], 2, 1);
+        assert_eq!(decode_frame(&data, 0).unwrap().rgba, vec![0; 8]);
+        let data = sheet(vec![255, 1, 2, 3, 255, 4, 5, 6], 1, 1);
+        assert_eq!(decode_frame(&data, 0).unwrap().rgba, vec![1, 2, 3, 255]);
+        assert!(decode_frame(&data, -1).is_err());
+        assert!(decode_frame(&data, 1).is_err());
+        assert!(decode_frame(&sheet(vec![], 0, 1), 0).is_err());
+    }
+
+    // Keep the previous decoder only in this manual comparison so benchmarks use
+    // exactly the same checked-in AGF assets and verify pixel-for-pixel output.
+    fn legacy_decode(sheet: &Sheet, frame: i32) -> Icon {
+        let frame = frame as usize;
+        let (_, _, width, height) = sheet.frames[frame];
+        let mut pixels = Vec::new();
+        for data in sheet.raw[sheet.offsets[frame]..sheet.offsets[frame + 1]].chunks_exact(4) {
+            let (alpha, red, green, blue) = (data[0], data[1], data[2], data[3]);
+            if alpha == 0 && green == 0 && blue == 0 {
+                pixels.extend(std::iter::repeat((0, 0, 0, 0)).take(red as usize));
+            } else {
+                pixels.push((red, green, blue, alpha));
+            }
+        }
+        let mut rgba = vec![0; width * height * 4];
+        for (index, pixel) in pixels.into_iter().take(width * height).enumerate() {
+            rgba[index * 4..index * 4 + 4].copy_from_slice(&[pixel.0, pixel.1, pixel.2, pixel.3]);
+        }
+        Icon { width: width as u32, height: height as u32, rgba }
+    }
+
+    #[test]
+    #[ignore = "manual benchmark: decodes all bundled item frames with both implementations"]
+    fn profile_item_frame_decode() {
+        use std::time::{Duration, Instant};
+        let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/client/Assets/Textures/Items");
+        let mut baseline = Duration::ZERO;
+        let mut optimized = Duration::ZERO;
+        let mut frame_count = 0;
+        for entry in std::fs::read_dir(assets).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|ext| ext.to_str()).is_none_or(|ext| !ext.eq_ignore_ascii_case("agf")) {
+                continue;
+            }
+            let sheet = super::load_sheet(&path).unwrap();
+            for (frame, info) in sheet.frames.iter().enumerate() {
+                if info.2 == 0 || info.3 == 0 { continue; }
+                let started = Instant::now();
+                let expected = legacy_decode(&sheet, frame as i32);
+                baseline += started.elapsed();
+                let started = Instant::now();
+                let actual = decode_frame(&sheet, frame as i32).unwrap();
+                optimized += started.elapsed();
+                assert_eq!(expected.rgba, actual.rgba, "{} frame {frame}", path.display());
+                frame_count += 1;
+            }
+        }
+        eprintln!("AGF frames={frame_count} baseline_ms={:.3} direct_ms={:.3}", baseline.as_secs_f64() * 1000.0, optimized.as_secs_f64() * 1000.0);
+    }
 }

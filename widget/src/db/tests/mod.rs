@@ -7,6 +7,8 @@ use super::*;
 
 mod browse;
 mod character_assets;
+mod items_bilingual;
+mod performance;
 
 #[test]
 fn display_modes_keep_chinese_and_english() {

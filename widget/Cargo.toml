@@ -1,6 +1,6 @@
 [package]
 name = "gersang-widget"
-version = "1.0.1"
+version = "1.1.1"
 edition = "2021"
 rust-version = "1.92"
 description = "Small dark Gersang reference widget"

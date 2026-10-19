@@ -2,6 +2,108 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "1.1.1",
+      "date": "2026-10-20",
+      "sections": [
+        {
+          "kind": "added",
+          "en": [
+            "Copy Chinese and English record names separately from detail headings, without IDs, quantities or descriptions.",
+            "Open full character details with portraits, base stats, skills and progression links. The catalog now includes 15 mounts and 33 spirit forms, with bundled portraits and animation previews.",
+            "See recorded monster drop rates beside items and through MCP. Unknown rates remain marked as unavailable, and normal and single-player drop conditions stay separate."
+          ],
+          "zh-TW": [
+            "可在詳情頁標題分別複製中文及英文名稱，不包含編號、數量或說明。",
+            "角色可開啟完整詳情，查看頭像、基礎能力、技能及進階關聯。圖鑑新增 15 隻坐騎及 33 個精靈形態，並附帶頭像及動畫預覽。",
+            "怪物掉落物旁及 MCP 查詢均可查看已記錄的掉落率；未知機率維持未記錄，並分開保留一般與單人限定的掉落條件。"
+          ]
+        },
+        {
+          "kind": "improved",
+          "en": [
+            "Expand a character region into ranks, with consistent ordering, region-specific counts and representative portraits for categories.",
+            "Mount lists show riding requirements and movement bonuses. Spirit lists group by family element and grade; details show skill effects first, with base stats available on demand.",
+            "Show a spirit's required previous form, intimacy and materials on the form being obtained, including grade-four-to-five recipes on grade-five pages. Keep the next-form navigation link.",
+            "Find monster drops by item name, alias or item code, then sort by recorded drop rate and highlight the selected item. Unknown rates sort last; multiple slots are not added together.",
+            "Choose calculator folders directly by name and icon, with keyboard navigation and a layout that adapts to narrow windows.",
+            "Keep full-mode navigation in place when selecting the current sidebar page. Back follows the current hierarchy, while Escape first dismisses calculator dialogs and returns from saved sheets to the editor."
+          ],
+          "zh-TW": [
+            "角色地區目錄可展開階級，採用一致的階級次序，並顯示該地區的角色數量及分類代表頭像。",
+            "坐騎列表直接顯示馬術要求及移速加成。精靈按系別與階級排列，詳情優先顯示技能效果，基礎能力可按需展開。",
+            "精靈的前置形態、所需親密度及材料顯示在目標形態頁，例如五階頁顯示四階升至五階的條件，並保留前往下一形態的連結。",
+            "可按道具名稱、別名或編號尋找掉落怪物，再依已記錄掉落率排序並標示所選道具。未知機率排在最後，多個掉落欄位不合併計算。",
+            "計算器收藏、儲存及移動合成表時，可直接按資料夾名稱與圖示選取，並支援鍵盤導覽及窄視窗排列。",
+            "完整模式重按目前側欄頁面時保留現有狀態；返回操作依循目前層級，Escape 則先關閉計算器對話框，再從收藏返回編輯器。"
+          ]
+        },
+        {
+          "kind": "fixed",
+          "en": [
+            "Keep copy feedback centered at the bottom of the content area, without adding a border around the copied name.",
+            "Keep long character and companion names visible when list summaries or trailing information share the row, including narrow windows.",
+            "Preserve the cursor and draft text while editing calculator quantities and comma-separated prices. Invalid fields remain visible and prevent saving or exporting until corrected.",
+            "Make recipe and unit-price actions respond to the first click. Materials with a single recipe expand immediately without an extra recipe picker.",
+            "Remove duplicate formation recipes that showed incorrect output quantities, keeping crafting batches and fees consistent with the current recipes."
+          ],
+          "zh-TW": [
+            "複製回饋固定在內容區底部中央顯示，不再為已複製名稱加上邊框。",
+            "修正角色及坐騎、精靈名稱與摘要或右側資料同列時可能被擠壓或截斷的問題，窄視窗亦保留名稱空間。",
+            "編輯計算器數量及含千位分隔符的單價時保留游標與輸入文字；無效欄位會保留供修正，全部修正前不能儲存或匯出。",
+            "修正配方及單價操作需要再次點擊的問題；只有一個配方的材料會直接展開，毋須再次選擇。",
+            "移除產出數量不正確的重複陣型配方，讓製作批次及費用依照現行配方計算。"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-10-19",
+      "sections": [
+        {
+          "kind": "added",
+          "en": [
+            "Connect Codex, Cursor or Claude to the local, read-only catalog through stdio MCP. Full mode includes setup guides for catalog search, drops, quest dependencies, recipes and direct-material cost calculations.",
+            "Browse quests by chain, quest giver or region in full mode, with objective and reward icons and a zoomable prerequisite roadmap.",
+            "Calculate crafting costs in full mode using your own material prices. Optionally expand nested recipes or reuse a saved cost sheet, with indented sub-materials and crafting fees included.",
+            "Save cost sheets in folders, share individual sheets or entire folders using offline codes, and export JPGs with automatic pagination for long lists.",
+            "Read bundled release history offline in English or Traditional Chinese, following your language setting."
+          ],
+          "zh-TW": [
+            "透過本機唯讀 stdio MCP，讓 Codex、Cursor 或 Claude 查詢圖鑑。完整模式提供連接教學，支援圖鑑搜尋、掉落、任務依賴、配方及直接材料成本計算。",
+            "完整模式可按任務鏈、委託 NPC 或地區瀏覽任務，並以圖示查看目標及獎勵，以及可縮放的前置任務路線圖。",
+            "完整模式可按自行輸入的材料單價計算合成成本，並選擇展開子配方或重用已收藏的成本表；子材料以縮排顯示，合成費用亦納入計算。",
+            "可將成本表存入資料夾，以離線分享碼傳送單份表格或整個資料夾，並匯出 JPG；長清單會自動分頁。",
+            "可離線查看隨程式附帶的更新紀錄，並依語言設定顯示英文或繁體中文。"
+          ]
+        },
+        {
+          "kind": "improved",
+          "en": [
+            "Full and widget modes share consistent colors and bilingual item names. Full-mode search preserves browsing context, with clearer previews and side-by-side item and set details.",
+            "Settings adapt to the full-mode window width, with improved keyboard navigation and full-name previews for long catalog entries.",
+            "Improve large-catalog browsing performance by caching image work and limiting rendering to visible list rows."
+          ],
+          "zh-TW": [
+            "完整與小窗模式統一配色及雙語道具名稱；完整模式搜尋保留瀏覽位置，並提供更清晰的預覽及並排顯示的道具、套裝詳情。",
+            "設定頁會按完整模式的視窗寬度調整排列，並改善鍵盤導覽，讓較長的圖鑑名稱可完整預覽。",
+            "透過圖片處理快取及只繪製可見清單列，改善大型圖鑑的瀏覽效能。"
+          ]
+        },
+        {
+          "kind": "fixed",
+          "en": [
+            "Limit global F1–F9 shortcuts and the Keys settings page to widget mode, and remove shortcut hints from full-mode navigation.",
+            "Keep empty quest search results inside the quest browser, with a clear-search action."
+          ],
+          "zh-TW": [
+            "全域 F1–F9 快捷鍵及快捷鍵設定頁只在小窗模式提供，並移除完整模式導覽列的快捷鍵提示。",
+            "任務搜尋沒有結果時仍保留任務瀏覽介面，並提供清除搜尋操作。"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.0.1",
       "date": "2026-10-18",
       "sections": [

@@ -12,13 +12,14 @@ A bilingual reference for the game 巨商 / Gersang. Full mode supports browsing
 
 ## Operating Context
 
-The app has a full desktop mode, a compact widget mode, and a collapsed floating category bar. The user considers widget mode acceptable; the current redesign focuses on full mode.
+The app has a full desktop mode, a compact widget mode, and a collapsed floating category bar. All modes share the full desktop mode's slate palette and bronze accents. Widget mode retains its compact layout and interactions; the floating bar retains its translucent presentation.
 
 ## Capabilities and Constraints
 
 - Preserve the local catalog, search, favourites, links, filters, category order, keyboard navigation and settings.
 - Keep the shared Slint UI compatible with both Windows and macOS.
-- Preserve the compact widget's appearance and interaction model.
+- Keep colors and shared control styles consistent across modes while preserving the compact widget's layout, density and interaction model.
+- Full and widget mode share opaque base surfaces; preserve the user's window opacity setting and the collapsed bar's transparency.
 - Default full window is 1280 × 800 logical pixels; it must remain usable at 960 × 640.
 - Use the existing platform fonts: Microsoft JhengHei UI on Windows and PingFang TC on macOS.
 - No game installation is needed for the bundled reference. Optional battle animation assets are not included.

@@ -8,6 +8,7 @@ use slint::{ComponentHandle, Image, Model, ModelRc, VecModel};
 use crate::{calculator_export, db, icons, window, App, CalcChoice, CalcMaterial, CalcSaved};
 
 mod library;
+mod nested;
 
 type IconCache = Rc<RefCell<HashMap<String, Image>>>;
 struct Controller {
@@ -167,6 +168,7 @@ impl Controller {
             app.set_calculator_selected_meta("".into());
             app.set_calculator_selected_has_icon(false);
             app.set_calculator_materials(ModelRc::default());
+            app.set_calculator_has_nested(false);
             app.set_calculator_recipes(ModelRc::default());
             app.set_calculator_share_enabled(false);
             app.set_calculator_complete(false);
@@ -231,13 +233,23 @@ impl Controller {
         *self.recipes.borrow_mut() = recipe_ids;
         app.set_calculator_recipes(ModelRc::new(VecModel::from(recipe_labels)));
         app.set_calculator_recipe_index(0);
-        let rows = breakdown
-            .materials
+        let display_rows = nested::rows(&breakdown);
+        app.set_calculator_has_nested(display_rows.iter().any(|row| row.line.nested.is_some()));
+        let rows = display_rows
             .iter()
-            .map(|line| {
+            .map(|row| {
+                let line = row.line;
                 let (icon, has_icon) = self.icon(line.key.code);
+                let can_expand = line.key.enhance == 0
+                    && row.depth < db::MAX_NESTED_DEPTH
+                    && self.book.as_ref().is_ok_and(|book| {
+                        !self
+                            .catalog
+                            .calculator_recipes(book, line.key.code, &lang)
+                            .is_empty()
+                    });
                 CalcMaterial {
-                    key: format!("{}:{}", line.key.code, line.key.enhance).into(),
+                    key: row.key.clone().into(),
                     title: line.title.clone().into(),
                     subtitle: if line.key.enhance > 0 {
                         format!(
@@ -250,13 +262,15 @@ impl Controller {
                         "".into()
                     },
                     quantity: number(line.quantity).into(),
-                    price: line.unit_price.map(number).unwrap_or_default().into(),
-                    subtotal: line
-                        .line_total
-                        .map(number)
-                        .unwrap_or_else(|| "—".into())
-                        .into(),
-                    missing_price: line.unit_price.is_none(),
+                    price: nested::unit_price(line, english).into(),
+                    subtotal: nested::subtotal(line).into(),
+                    missing_price: line.line_total.is_none(),
+                    depth: row.depth as i32,
+                    nested: line.nested.is_some(),
+                    can_expand,
+                    can_reuse: row.depth < db::MAX_NESTED_DEPTH
+                        && self.can_reuse(line.key.code, line.key.enhance),
+                    detail: nested::detail(line, english).into(),
                     icon,
                     has_icon,
                 }
@@ -281,8 +295,8 @@ impl Controller {
             if complete {
                 format!(
                     "{} {} · {}",
-                    breakdown.priced,
-                    tr(english, "種材料已填價", "materials priced"),
+                    breakdown.priced_leaves,
+                    tr(english, "種基礎材料已填價", "leaf materials priced"),
                     tr(
                         english,
                         "單位：兩；每件成本按實際產出計算",
@@ -292,8 +306,12 @@ impl Controller {
             } else {
                 format!(
                     "{} {} · {}",
-                    breakdown.materials.len() - breakdown.priced,
-                    tr(english, "種材料尚未填價", "materials still unpriced"),
+                    breakdown.leaf_count - breakdown.priced_leaves,
+                    tr(
+                        english,
+                        "種基礎材料尚未填價",
+                        "leaf materials still unpriced"
+                    ),
                     tr(
                         english,
                         "0 代表免費，留空代表未知",
@@ -303,7 +321,14 @@ impl Controller {
             }
             .into(),
         );
-        app.set_calculator_notice(notices(doc, english).into());
+        let mut notice = notices(doc, english);
+        if breakdown.materials.iter().any(|line| line.nested.is_some()) {
+            notice.push(' ');
+            notice.push_str(tr(english,
+                "子配方同樣不含失敗重試及學習費；子材料單價按目前所需數量分攤整批費用，包含餘量。",
+                "Sub-recipes also exclude failed attempts and learning fees. Computed material prices allocate whole-batch costs, including surplus, to the required quantity."));
+        }
+        app.set_calculator_notice(notice.into());
     }
     fn commit(&self, app: &App, next: db::CalcDocument, info: &str) -> bool {
         if let Some(error) = &self.load_error {
@@ -336,12 +361,10 @@ impl Controller {
             if preserve_quantity {
                 next.quantity = old.quantity;
             }
-            for row in &mut next.materials {
-                row.unit_price = old
-                    .materials
-                    .iter()
-                    .find(|old| old.code == row.code && old.enhance == row.enhance)
-                    .and_then(|old| old.unit_price);
+            let keep_nested = preserve_quantity && old.item_code == next.item_code;
+            if let Err(error) = nested::preserve_sources(&mut next, old, keep_nested) {
+                app.set_calculator_error(error.into());
+                return;
             }
         }
         if self.commit(app, next, "") && !preserve_quantity {
@@ -354,76 +377,92 @@ impl Controller {
         let doc = current
             .as_ref()
             .ok_or("請先選擇道具 / Select an item first")?;
-        let costs = doc.calculate()?;
-        let english = app.get_lang() == "en-zh";
-        let rows = costs
-            .materials
-            .iter()
-            .map(|line| calculator_export::CardRow {
+        card_document(doc, app.get_lang() == "en-zh", |code| self.icon(code).0)
+    }
+}
+
+fn card_document(
+    doc: &db::CalcDocument,
+    english: bool,
+    icon_for: impl Fn(i64) -> Image,
+) -> Result<calculator_export::CardData, String> {
+    let costs = doc.calculate()?;
+    let rows = nested::rows(&costs)
+        .into_iter()
+        .map(|row| {
+            let line = row.line;
+            calculator_export::CardRow {
                 title: line.title.clone(),
                 quantity: number(line.quantity),
-                unit_price: line
-                    .unit_price
-                    .map(number)
-                    .unwrap_or_else(|| tr(english, "待填", "Unpriced").into()),
-                subtotal: line.line_total.map(number).unwrap_or_else(|| "—".into()),
-                icon: self.icon(line.key.code).0,
-                unpriced: line.unit_price.is_none(),
-            })
-            .collect();
-        Ok(calculator_export::CardData {
-            english,
-            title: doc.title.clone(),
-            subtitle: format!("{} · #{}", doc.source, doc.recipe_id),
-            quantity: number(costs.output_units),
-            fee: number(costs.fee),
-            total_label: tr(
-                english,
-                if costs.total.is_some() {
-                    "成本合計"
+                unit_price: if line.nested.is_none() && line.unit_price.is_none() {
+                    tr(english, "待填", "Unpriced").into()
                 } else {
-                    "已知成本 · 尚有材料未填價"
+                    nested::unit_price(line, english)
                 },
-                if costs.total.is_some() {
-                    "Total cost"
-                } else {
-                    "Known cost · unpriced materials remain"
-                },
-            )
-            .into(),
-            total: number(costs.known_total),
-            per_unit: costs
-                .total
-                .map(|n| per_unit(n, costs.output_units))
-                .unwrap_or_else(|| "—".into()),
-            notice: if doc.success == Some(100) {
-                tr(
-                    english,
-                    "用家自訂單價。成本不含配方學習費。",
-                    "User-supplied prices. Recipe learning fees excluded.",
-                )
-                .into()
-            } else {
-                tr(
-                    english,
-                    "用家自訂單價。成本不含失敗重試或學習費。",
-                    "User-supplied prices. Failed attempts and learning fees excluded.",
-                )
-                .into()
-            },
-            metadata: format!(
-                "DB {} · {}",
-                doc.catalog_version,
-                tr(
-                    english,
-                    "離線配方快照 · 單位：兩",
-                    "Offline recipe snapshot · Currency: coins"
-                )
-            ),
-            icon: self.icon(doc.item_code).0,
-            rows,
+                subtotal: nested::subtotal(line),
+                icon: icon_for(line.key.code),
+                unpriced: line.line_total.is_none(),
+                depth: row.depth,
+                context: row.context,
+                nested: line.nested.is_some(),
+                detail: nested::detail(line, english),
+            }
         })
-    }
+        .collect();
+    Ok(calculator_export::CardData {
+        english,
+        title: doc.title.clone(),
+        subtitle: format!("{} · #{}", doc.source, doc.recipe_id),
+        quantity: number(costs.output_units),
+        fee: number(costs.fee),
+        total_label: tr(
+            english,
+            if costs.total.is_some() {
+                "成本合計"
+            } else {
+                "已知成本 · 尚有材料未填價"
+            },
+            if costs.total.is_some() {
+                "Total cost"
+            } else {
+                "Known cost · unpriced materials remain"
+            },
+        )
+        .into(),
+        total: number(costs.known_total),
+        per_unit: costs
+            .total
+            .map(|n| per_unit(n, costs.output_units))
+            .unwrap_or_else(|| "—".into()),
+        notice: if doc.success == Some(100)
+            && !costs.materials.iter().any(|line| line.nested.is_some())
+        {
+            tr(
+                english,
+                "用家自訂單價。成本不含配方學習費。",
+                "User-supplied prices. Recipe learning fees excluded.",
+            )
+            .into()
+        } else {
+            tr(
+                english,
+                "用家自訂單價。成本不含失敗重試或學習費。",
+                "User-supplied prices. Failed attempts and learning fees excluded.",
+            )
+            .into()
+        },
+        metadata: format!(
+            "DB {} · {}",
+            doc.catalog_version,
+            tr(
+                english,
+                "離線配方快照 · 單位：兩",
+                "Offline recipe snapshot · Currency: coins"
+            )
+        ),
+        icon: icon_for(doc.item_code),
+        rows,
+    })
 }
 
 pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
@@ -462,6 +501,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
         active_entry: Cell::new(active.map(|(_, entry)| entry)),
     });
     library::install_callbacks(app, &controller);
+    nested::install_callbacks(app, &controller);
     let weak = app.as_weak();
     let c = Rc::clone(&controller);
     app.on_calculator_refresh(move || {
@@ -547,10 +587,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
         let Some(mut doc) = c.document.borrow().clone() else {
             return;
         };
-        let Some((code, enhance)) = key.split_once(':') else {
-            return;
-        };
-        let (Ok(code), Ok(enhance)) = (code.parse::<i64>(), enhance.parse::<i64>()) else {
+        let Some(path) = nested::parse_path(&key) else {
             return;
         };
         let price = match parse_amount(&text, app.get_lang() == "en-zh") {
@@ -561,13 +598,14 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
                 return;
             }
         };
-        if let Some(row) = doc
-            .materials
-            .iter_mut()
-            .find(|m| m.code == code && m.enhance == enhance)
-        {
-            row.unit_price = price;
+        let Some(row) = doc.ingredient_at_mut(&path) else {
+            return;
+        };
+        // An expanded subtotal is computed from its children, never overwritten.
+        if row.nested.is_some() {
+            return;
         }
+        row.unit_price = price;
         let valid = c.commit(&app, doc, "");
         app.set_calculator_input_valid(valid);
     });

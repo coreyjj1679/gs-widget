@@ -36,7 +36,7 @@ mod work;
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
 pub use quest_items::{QuestItemRef, QuestItemSet};
-pub use calculator::{CalcCatalog, CalcDocument, decode_calculator, encode_calculator, load_calculator, save_calculator, calculator_export_dir};
+pub use calculator::{CalcCatalog, CalcDocument, CalcLine, CalcBreakdown, MAX_NESTED_DEPTH, MAX_TOTAL_MATERIALS, decode_calculator, encode_calculator, load_calculator, save_calculator, calculator_export_dir};
 pub use calculator_library::{CalcLibrary, load_calculator_library, save_calculator_library, encode_calculator_folder, decode_calculator_folder};
 pub use user_data::initialize_user_data;
 pub use monster::MonsterQuery;
@@ -118,7 +118,7 @@ impl Catalog {
             .filter(|code| !code.is_empty())
             .filter_map(|code| {
                 let id = code.trim_start_matches('#').parse::<i64>().ok()?;
-                let item = self.index.items.iter().find(|item| item.code_str == id.to_string())?;
+                let item = self.index.find_item(id)?;
                 let name = lead(lang, &item.en, &item.zh);
                 Some(Hit {
                     title: if name.is_empty() { format!("#{id}") } else { name },

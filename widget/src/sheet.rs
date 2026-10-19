@@ -7,7 +7,7 @@ use slint::{Image, Model, ModelRc, SharedString, VecModel};
 use super::db;
 use super::agf;
 use super::icons::{cached_icon, image_from_icon, note_lines};
-use super::list::{picture_key, plain_hits, publish};
+use super::list::{item_row_names, picture_key, plain_hits, publish};
 use super::{App, Fact, Hit, IconJob, Session, QuestMapNode, QuestMapSegment};
 
 pub(crate) fn open_scope(
@@ -242,6 +242,8 @@ pub(crate) fn focus_section(app: &App, key: &str) {
 }
 
 pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key: &str, keep_sheet: bool) {
+    super::perf::begin_update();
+    let _timer = super::perf::Span::new("detail.open", 1);
     if !keep_sheet {
         app.set_item_tab("".into());
         app.set_item_source("".into());
@@ -257,8 +259,8 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
         .strip_prefix("monster:")
         .map(|code| catalog.monster_quests(code, &app.get_lang()))
         .unwrap_or_default();
-    let (rows, mut jobs) = link_rows(cache, links, gen);
-    let (related_rows, related_jobs) = link_rows(cache, related_hits, gen);
+    let (rows, mut jobs) = link_rows(cache, links, gen, catalog, &app.get_lang());
+    let (related_rows, related_jobs) = link_rows(cache, related_hits, gen, catalog, &app.get_lang());
     jobs.extend(related_jobs);
     app.set_related(ModelRc::new(VecModel::from(related_rows)));
     if key.starts_with("item:") || key.starts_with("set:") {
@@ -576,6 +578,8 @@ pub(crate) fn link_rows(
     cache: &RefCell<HashMap<String, Image>>,
     hits: Vec<db::Hit>,
     gen: u64,
+    catalog: &db::Catalog,
+    lang: &str,
 ) -> (Vec<Hit>, Vec<IconJob>) {
     let mut rows = Vec::with_capacity(hits.len());
     let mut jobs = Vec::new();
@@ -598,10 +602,11 @@ pub(crate) fn link_rows(
             }
         }
         let no_image = !has_icon && (hit.key.starts_with("item:") || hit.key.starts_with("recipe:"));
+        let (alternate_name, subtitle) = item_row_names(catalog, &hit.key, &hit.subtitle, lang);
         rows.push(Hit {
             title: SharedString::from(hit.title),
-            alternate_name: Default::default(),
-            subtitle: SharedString::from(hit.subtitle),
+            alternate_name: SharedString::from(alternate_name),
+            subtitle: SharedString::from(subtitle),
             detail: SharedString::default(),
             monster_drops: Default::default(),
             spawn_places: Default::default(),
@@ -640,4 +645,29 @@ pub(crate) fn link_rows(
         });
     }
     (rows, jobs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn item_source_links_show_both_names_and_keep_the_quantity() {
+        let catalog = db::Catalog::open().expect("db");
+        let cache = RefCell::new(HashMap::new());
+        for lang in ["zh-en", "en-zh"] {
+            let mut item = catalog.search("item", "11656", lang, "", "").into_iter()
+                .find(|row| row.key == "item:11656").expect("item");
+            let expected_alternate = catalog.item_alternate_name(&item.key, lang);
+            item.subtitle = format!("{expected_alternate} · × 3");
+            let monster = catalog.monster_records("M24", lang, "", "", "").into_iter()
+                .find(|row| row.key == "monster:M24").expect("deer");
+            let monster_subtitle = monster.subtitle.clone();
+            let (rows, _) = link_rows(&cache, vec![item, monster], 1, &catalog, lang);
+            assert_eq!(rows[0].alternate_name.as_str(), expected_alternate);
+            assert_eq!(rows[0].subtitle.as_str(), "× 3");
+            assert_eq!(rows[1].alternate_name.as_str(), "");
+            assert_eq!(rows[1].subtitle.as_str(), monster_subtitle);
+        }
+    }
 }

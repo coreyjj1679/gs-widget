@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory = $true)][string]$TestRoot
 )
 
-# Exercise the real accessible Settings/App controls and native PageDown key.
+# Exercise accessible settings/calculator controls and native navigation keys.
 # Each case uses a fresh disposable profile and a refused network proxy; the
 # application has no special test entry point or replacement release endpoint.
 $ErrorActionPreference = "Stop"
@@ -50,21 +50,42 @@ public static class GersangChangelogKeys
     [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
     private static extern uint SendInput(uint count, Input[] inputs, int size);
 
-    public static void PageDown(IntPtr window)
+    private static Input KeyInput(ushort key, bool released)
     {
+        var input = new Input();
+        input.Type = 1; // INPUT_KEYBOARD
+        input.Data.Keyboard.VirtualKey = key;
+        input.Data.Keyboard.Flags = released ? 2u : 0u; // KEYEVENTF_KEYUP
+        return input;
+    }
+
+    public static void Send(IntPtr window, ushort key, bool control, bool shift)
+    {
+        if (window == IntPtr.Zero)
+            throw new InvalidOperationException("Cannot send a key without the app window");
         if (GetForegroundWindow() != window && !SetForegroundWindow(window))
-            throw new InvalidOperationException("Cannot focus the app for the PageDown key");
+            throw new InvalidOperationException("Cannot focus the app for a navigation key");
         if (GetForegroundWindow() != window)
             throw new InvalidOperationException("The app did not become the foreground window");
-        var inputs = new Input[2];
-        inputs[0].Type = 1; // INPUT_KEYBOARD
-        inputs[0].Data.Keyboard.VirtualKey = 0x22; // VK_NEXT / PageDown
-        inputs[1].Type = 1;
-        inputs[1].Data.Keyboard.VirtualKey = 0x22;
-        inputs[1].Data.Keyboard.Flags = 2; // KEYEVENTF_KEYUP
-        if (SendInput(2, inputs, Marshal.SizeOf(typeof(Input))) != 2)
-            throw new InvalidOperationException("Cannot send PageDown: " + Marshal.GetLastWin32Error());
+        var inputs = new Input[2 + (control ? 2 : 0) + (shift ? 2 : 0)];
+        int index = 0;
+        if (control) inputs[index++] = KeyInput(0x11, false); // VK_CONTROL
+        if (shift) inputs[index++] = KeyInput(0x10, false); // VK_SHIFT
+        inputs[index++] = KeyInput(key, false);
+        inputs[index++] = KeyInput(key, true);
+        if (shift) inputs[index++] = KeyInput(0x10, true);
+        if (control) inputs[index++] = KeyInput(0x11, true);
+        if (SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(Input))) != inputs.Length)
+        {
+            int error = Marshal.GetLastWin32Error();
+            // A partial send must not leave a modifier held for the next case.
+            var release = new Input[] { KeyInput(key, true), KeyInput(0x10, true), KeyInput(0x11, true) };
+            SendInput((uint)release.Length, release, Marshal.SizeOf(typeof(Input)));
+            throw new InvalidOperationException("Cannot send navigation key: " + error);
+        }
     }
+
+    public static void PageDown(IntPtr window) { Send(window, 0x22, false, false); }
 }
 '@
 }
@@ -83,19 +104,62 @@ function Read-ChangelogUi {
     return Get-Content -Raw -LiteralPath $summary.json | ConvertFrom-Json
 }
 
-function Invoke-ObservedButton {
-    param([System.Diagnostics.Process]$AppProcess, $Tree, [string[]]$Names, [string]$Directory)
-    $buttons = @($Tree.nodes | Where-Object {
-        $_.PSObject.Properties.Name -contains "name" -and $_.controlType -eq "ControlType.Button" -and
+function Invoke-ObservedControl {
+    param(
+        [System.Diagnostics.Process]$AppProcess, $Tree, [string[]]$Names, [string]$Directory,
+        [ValidateSet("Button", "TabItem")][string]$ControlType = "Button"
+    )
+    $controls = @($Tree.nodes | Where-Object {
+        $_.PSObject.Properties.Name -contains "name" -and $_.controlType -eq "ControlType.$ControlType" -and
         $_.enabled -and -not $_.offscreen -and $Names -ccontains $_.name
     })
-    if ($buttons.Count -ne 1) { throw "Expected one observed button named $($Names -join ' / '), found $($buttons.Count)" }
-    $null = & (Join-Path $PSScriptRoot "windows_update_ui.ps1") -Mode Act -ProcessId $AppProcess.Id -OutputDirectory $Directory -ButtonName $buttons[0].name
+    if ($controls.Count -ne 1) { throw "Expected one observed $ControlType named $($Names -join ' / '), found $($controls.Count)" }
+    $null = & (Join-Path $PSScriptRoot "windows_update_ui.ps1") -Mode Act -ProcessId $AppProcess.Id -OutputDirectory $Directory -ControlName $controls[0].name -ControlType $ControlType
 }
 
 function Ui-Names {
     param($Tree)
     return @($Tree.nodes | Where-Object { $_.PSObject.Properties.Name -contains "name" } | ForEach-Object { $_.name })
+}
+
+function Assert-UiNames {
+    param($Tree, [string[]]$Required = @(), [string[]]$Absent = @())
+    $names = @(Ui-Names -Tree $Tree)
+    foreach ($name in $Required) {
+        if ($names -cnotcontains $name) { throw "Expected UI text absent: $name" }
+    }
+    foreach ($name in $Absent) {
+        if ($names -ccontains $name) { throw "Unexpected UI text present: $name" }
+    }
+}
+
+function Assert-ModeControl {
+    param(
+        $Tree, [string]$Name, [bool]$Expected,
+        [ValidateSet("Button", "TabItem")][string]$ControlType = "Button"
+    )
+    $modeControls = @($Tree.nodes | Where-Object {
+        $_.PSObject.Properties.Name -contains "name" -and
+        $_.controlType -eq "ControlType.$ControlType" -and $_.name -ceq $Name
+    })
+    if ($Expected) {
+        if ($modeControls.Count -ne 1 -or -not $modeControls[0].enabled -or $modeControls[0].offscreen) {
+            throw "Expected one usable mode-specific ${ControlType}: $Name"
+        }
+    } elseif ($modeControls.Count -ne 0) {
+        throw "$ControlType should not exist in this window mode: $Name"
+    }
+}
+
+function Read-AfterKey {
+    param(
+        [System.Diagnostics.Process]$AppProcess, [UInt16]$VirtualKey,
+        [string]$Directory, [bool]$Control = $false, [bool]$Shift = $false
+    )
+    $window = [GersangSmokeWindow]::Find([uint32]$AppProcess.Id)
+    [GersangChangelogKeys]::Send($window, $VirtualKey, $Control, $Shift)
+    Start-Sleep -Milliseconds 400
+    return Read-ChangelogUi -AppProcess $AppProcess -Directory $Directory
 }
 
 function Visible-ChangelogNames {
@@ -129,7 +193,7 @@ $report = [ordered]@{
     appVersion = $currentVersion
     startedAtUtc = [DateTime]::UtcNow.ToString("o")
     network = "HTTP/HTTPS/ALL_PROXY point to refused localhost port 1; no endpoint override"
-    scope = "Real Windows GUI, Settings/App buttons, native PageDown, bundled history in both languages and modes"
+    scope = "Real Windows GUI: mode-specific calculator/Keys visibility, settings keyboard navigation, bundled history and native PageDown in both languages and modes"
     cases = $cases
 }
 $overrides = @{
@@ -170,11 +234,57 @@ try {
                 Wait-Gui -AppProcess $appProcess
                 Assert-GuiResponsive -AppProcess $appProcess -Seconds 3
                 $caseResult["processId"] = $appProcess.Id
+                $english = $language -eq "en-zh"
+                $fullMode = $mode -eq "full"
+                $calculateLabel = if ($english) { "Calculate" } else { "計算" }
+                $calculatorHeading = if ($english) { "Crafting cost" } else { "合成成本" }
+                $calculatorPickerPrefix = if ($english) { "Craftable item: " } else { "合成道具：" }
+                $overviewHeading = if ($english) { "Explore the compendium" } else { "探索巨商圖鑑" }
+                $keysLabel = if ($english) { "Keys" } else { "快捷鍵" }
+                $keysHeading = if ($english) { "Global keys" } else { "全域快捷鍵" }
+                $aliasesLabel = if ($english) { "Aliases" } else { "別名" }
+                $aliasesHeading = if ($english) { "Search aliases" } else { "搜尋別名" }
+                $appLabel = if ($english) { "App" } else { "程式" }
                 $initial = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "01-initial")
-                Invoke-ObservedButton -AppProcess $appProcess -Tree $initial -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "02-open-settings")
+                Assert-ModeControl -Tree $initial -Name $calculateLabel -Expected $fullMode
+                $caseResult["calculatorModeVisibility"] = $true
+                if ($fullMode) {
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $initial -Names @($calculateLabel) -Directory (Join-Path $directory "01a-open-calculator")
+                    $initial = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "01b-calculator")
+                    Assert-UiNames -Tree $initial -Required @($calculatorHeading) -Absent @($overviewHeading)
+                    $pickers = @(Ui-Names -Tree $initial | Where-Object { $_.StartsWith($calculatorPickerPrefix, [StringComparison]::Ordinal) })
+                    if ($pickers.Count -ne 1) { throw "Calculator did not expose one craftable-item picker" }
+                }
+                # Opening settings from the calculator must retain working keyboard
+                # navigation and return to that calculator when settings is closed.
+                Invoke-ObservedControl -AppProcess $appProcess -Tree $initial -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "02-open-settings")
                 $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03-settings")
-                $appLabel = if ($language -eq "en-zh") { "App" } else { "程式" }
-                Invoke-ObservedButton -AppProcess $appProcess -Tree $settings -Names @($appLabel) -Directory (Join-Path $directory "04-open-app")
+                Assert-ModeControl -Tree $settings -Name $keysLabel -Expected (-not $fullMode) -ControlType TabItem
+                $caseResult["keysModeVisibility"] = $true
+                Invoke-ObservedControl -AppProcess $appProcess -Tree $settings -Names @($aliasesLabel) -ControlType TabItem -Directory (Join-Path $directory "03a-open-aliases")
+                $aliases = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03b-aliases")
+                Assert-UiNames -Tree $aliases -Required @($aliasesHeading)
+                $nextHeading = if ($fullMode) { "Gersang v$currentVersion" } else { $keysHeading }
+                $forward = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x09 -Control $true -Directory (Join-Path $directory "03c-ctrl-tab")
+                Assert-UiNames -Tree $forward -Required @($nextHeading) -Absent @($aliasesHeading)
+                $backward = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x09 -Control $true -Shift $true -Directory (Join-Path $directory "03d-ctrl-shift-tab")
+                Assert-UiNames -Tree $backward -Required @($aliasesHeading) -Absent @($nextHeading)
+                # The active tab also supports the standard left/right arrow keys.
+                $forward = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x27 -Directory (Join-Path $directory "03e-right-arrow")
+                Assert-UiNames -Tree $forward -Required @($nextHeading) -Absent @($aliasesHeading)
+                $settings = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x25 -Directory (Join-Path $directory "03f-left-arrow")
+                Assert-UiNames -Tree $settings -Required @($aliasesHeading) -Absent @($nextHeading)
+                $caseResult["settingsKeyboardNavigation"] = $true
+                if ($fullMode) {
+                    $calculator = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03g-close-settings")
+                    Assert-UiNames -Tree $calculator -Required @($calculatorHeading) -Absent @($aliasesHeading)
+                    $overview = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03h-close-calculator")
+                    Assert-UiNames -Tree $overview -Required @($overviewHeading) -Absent @($calculatorHeading)
+                    $caseResult["calculatorOpenAndEscape"] = $true
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $overview -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "03i-reopen-settings")
+                    $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03j-settings")
+                }
+                Invoke-ObservedControl -AppProcess $appProcess -Tree $settings -Names @($appLabel) -ControlType TabItem -Directory (Join-Path $directory "04-open-app")
                 $appTree = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "05-app-top")
                 $expectedWidth = if ($mode -eq "full") { 960 } else { 560 }
                 $expectedHeight = if ($mode -eq "full") { 640 } else { 600 }
@@ -182,7 +292,6 @@ try {
                     throw "Unexpected window size: $($appTree.screenshot.width)x$($appTree.screenshot.height), expected ${expectedWidth}x${expectedHeight}"
                 }
                 $caseResult["windowSize"] = "$($appTree.screenshot.width)x$($appTree.screenshot.height)"
-                $english = $language -eq "en-zh"
                 $languageKey = if ($english) { "en" } else { "zh-TW" }
                 $otherLanguageKey = if ($english) { "zh-TW" } else { "en" }
                 $heading = if ($english) { "Changelog" } else { "更新日誌" }
@@ -270,4 +379,4 @@ finally {
     Write-Evidence -Path (Join-Path $root "changelog-report.json") -Value $report
 }
 if ($report.status -ne "passed") { throw "Bilingual changelog smoke failed; inspect changelog-report.json and screenshots" }
-Write-Output "English and Traditional Chinese changelogs were readable offline in widget and full modes."
+Write-Output "Offline native GUI checks passed for both languages and modes: calculator/Keys visibility, settings navigation, and readable changelogs."

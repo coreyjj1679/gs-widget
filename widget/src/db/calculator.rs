@@ -1,4 +1,4 @@
-//! Direct recipe costing and portable, self-contained offline calculation documents.
+//! Recursive recipe costing and portable, self-contained offline calculation documents.
 //! Prices are user input; no catalogue prices, labels, or recipes are changed.
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
@@ -13,7 +13,15 @@ use super::user_data::{preferences_dir, write_preference_checked};
 use super::Catalog;
 
 const VERSION: u32 = 1;
+const NESTED_VERSION: u32 = 2;
 const PREFIX: &str = "GS-C1";
+const NESTED_PREFIX: &str = "GS-C2";
+/// Maximum nested levels below the top-level recipe (whose depth is zero).
+pub const MAX_NESTED_DEPTH: usize = 8;
+/// Maximum material rows across a complete calculation tree.
+pub const MAX_TOTAL_MATERIALS: usize = 512;
+
+mod nested;
 const MAX_PACKED: usize = 48 * 1024;
 const MAX_JSON: usize = 256 * 1024;
 const MAX_CODE: usize = MAX_PACKED * 4 / 3 + 80;
@@ -61,6 +69,10 @@ pub struct CalcIngredient {
     pub per_batch: i64,
     /// None is unknown. Some(0) is an explicit zero-cost input.
     pub unit_price: Option<i64>,
+    /// An independent snapshot; its requested quantity is derived from this row.
+    /// The direct price is retained while this source is active.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nested: Option<Box<CalcDocument>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -70,6 +82,9 @@ pub struct CalcLine {
     pub quantity: i64,
     pub unit_price: Option<i64>,
     pub line_total: Option<i64>,
+    /// Includes known nested material costs and nested fees, even if incomplete.
+    pub known_total: i64,
+    pub nested: Option<Box<CalcBreakdown>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,13 +92,15 @@ pub struct CalcBreakdown {
     pub batches: i64,
     pub output_units: i64,
     pub fee: i64,
-    /// Sum of entered material costs, excluding all unpriced rows.
+    /// Sum of known material costs, including fees of nested recipes.
     pub material_total: i64,
     /// Entered material costs plus crafting fees. This can be incomplete.
     pub known_total: i64,
-    /// Present only after every material has an explicit unit price.
+    /// Present only after every active leaf has an explicit unit price.
     pub total: Option<i64>,
     pub priced: usize,
+    pub leaf_count: usize,
+    pub priced_leaves: usize,
     pub materials: Vec<CalcLine>,
 }
 
@@ -91,82 +108,6 @@ fn valid_text(value: &str, limit: usize, allow_empty: bool) -> bool {
     value.len() <= limit
         && (allow_empty || !value.trim().is_empty())
         && !value.chars().any(char::is_control)
-}
-
-impl CalcDocument {
-    pub fn calculate(&self) -> Result<CalcBreakdown, String> {
-        if self.version != VERSION {
-            return Err(format!(
-                "不支援的計算版本 {} / Unsupported calculation version",
-                self.version
-            ));
-        }
-        if !valid_text(&self.catalog_version, 64, true)
-            || !valid_text(&self.language, 32, false)
-            || !valid_text(&self.title, 1024, false)
-            || !valid_text(&self.source, 256, false)
-            || self.recipe_id <= 0
-            || self.item_code <= 0
-            || self.quantity <= 0
-            || self.output <= 0
-            || self.fee_per_batch < 0
-            || self.learn_fee.is_some_and(|fee| fee < 0)
-            || self.success.is_some_and(|rate| !(1..=100).contains(&rate))
-            || self.materials.is_empty()
-            || self.materials.len() > MAX_MATERIALS
-        {
-            return Err("配方資料或數量無效 / Invalid recipe data or quantity".into());
-        }
-        let batches = self.quantity / self.output + i64::from(self.quantity % self.output != 0);
-        let output_units = self.output.checked_mul(batches).ok_or(OVERFLOW)?;
-        let fee = self.fee_per_batch.checked_mul(batches).ok_or(OVERFLOW)?;
-        let mut keys = BTreeSet::new();
-        let mut material_total = 0_i64;
-        let mut priced = 0;
-        let mut materials = Vec::with_capacity(self.materials.len());
-        for material in &self.materials {
-            let key = ItemKey {
-                code: material.code,
-                enhance: material.enhance,
-            };
-            if key.code <= 0
-                || key.enhance < 0
-                || !keys.insert(key)
-                || material.per_batch <= 0
-                || !valid_text(&material.title, 1024, false)
-                || material.unit_price.is_some_and(|price| price < 0)
-            {
-                return Err("材料資料重複或無效 / Duplicate or invalid material data".into());
-            }
-            let quantity = material.per_batch.checked_mul(batches).ok_or(OVERFLOW)?;
-            let line_total = material
-                .unit_price
-                .map(|price| price.checked_mul(quantity).ok_or(OVERFLOW))
-                .transpose()?;
-            if let Some(total) = line_total {
-                priced += 1;
-                material_total = material_total.checked_add(total).ok_or(OVERFLOW)?;
-            }
-            materials.push(CalcLine {
-                key,
-                title: material.title.clone(),
-                quantity,
-                unit_price: material.unit_price,
-                line_total,
-            });
-        }
-        let known_total = material_total.checked_add(fee).ok_or(OVERFLOW)?;
-        Ok(CalcBreakdown {
-            batches,
-            output_units,
-            fee,
-            material_total,
-            known_total,
-            total: (priced == materials.len()).then_some(known_total),
-            priced,
-            materials,
-        })
-    }
 }
 
 impl Catalog {
@@ -310,6 +251,7 @@ impl Catalog {
                     title,
                     per_batch: qty,
                     unit_price: None,
+                    nested: None,
                 });
             }
         }
@@ -353,7 +295,7 @@ fn deserialize(body: &[u8]) -> Result<CalcDocument, String> {
     }
     let header: Header =
         serde_json::from_slice(body).map_err(|_| "計算資料格式錯誤 / Invalid calculation data")?;
-    if header.version != VERSION {
+    if !matches!(header.version, VERSION | NESTED_VERSION) {
         return Err(format!(
             "不支援的計算版本 {} / Unsupported calculation version",
             header.version
@@ -439,8 +381,13 @@ pub fn encode_calculator(document: &CalcDocument) -> Result<String, String> {
     if packed.len() > MAX_PACKED {
         return Err("計算資料過大 / Calculation data is too large".into());
     }
+    let prefix = if document.version == NESTED_VERSION {
+        NESTED_PREFIX
+    } else {
+        PREFIX
+    };
     Ok(format!(
-        "{PREFIX}.{}.{}",
+        "{prefix}.{}.{}",
         base64_encode(&packed),
         checksum(&packed)
     ))
@@ -454,7 +401,14 @@ pub fn decode_calculator(code: &str) -> Result<CalcDocument, String> {
     let prefix = pieces.next().unwrap_or_default();
     let body = pieces.next().unwrap_or_default();
     let check = pieces.next().unwrap_or_default();
-    if prefix != PREFIX || pieces.next().is_some() || check.len() != 32 {
+    let expected_version = match prefix {
+        PREFIX => VERSION,
+        NESTED_PREFIX => NESTED_VERSION,
+        _ => {
+            return Err("分享碼格式或版本不支援 / Unsupported share code format or version".into())
+        }
+    };
+    if pieces.next().is_some() || check.len() != 32 {
         return Err("分享碼格式或版本不支援 / Unsupported share code format or version".into());
     }
     let packed = base64_decode(body)?;
@@ -470,7 +424,11 @@ pub fn decode_calculator(code: &str) -> Result<CalcDocument, String> {
     if json.len() > MAX_JSON || decoder.total_in() != packed.len() as u64 {
         return Err("分享碼資料過大或格式錯誤 / Oversized or invalid share code data".into());
     }
-    deserialize(&json)
+    let document = deserialize(&json)?;
+    if document.version != expected_version {
+        return Err("分享碼版本與資料不符 / Share code version does not match its data".into());
+    }
+    Ok(document)
 }
 
 fn load_from(path: &Path) -> Result<Option<CalcDocument>, String> {
