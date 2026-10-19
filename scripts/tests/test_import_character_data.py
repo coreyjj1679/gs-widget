@@ -4,6 +4,7 @@ import importlib.util
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "import_character_data.py"
@@ -25,7 +26,7 @@ class CharacterImportTest(unittest.TestCase):
         self.source = Path(self.temp.name) / "source.db"
         self.target = Path(self.temp.name) / "target.db"
         self.client = Path(self.temp.name) / "client"
-        with sqlite3.connect(self.source) as source:
+        with closing(sqlite3.connect(self.source)) as source, source:
             source.execute("CREATE TABLE raw_sheet(archive,member,title,table_name)")
             source.execute("CREATE TABLE raw_doc(archive,member,body)")
             source.execute("CREATE TABLE strings(object,id,lang,text,PRIMARY KEY(object,id,lang))")
@@ -65,7 +66,7 @@ class CharacterImportTest(unittest.TestCase):
                     source.execute("INSERT INTO strings VALUES ('OnlineText.dat',?,?,?)", (f"{gts:08d}", lang, value))
             source.execute("INSERT INTO raw_doc VALUES ('gersang.gcs', 2500, ?)", ('SetCharacterBasisData(x, "name, with comma", 11, 583, 0, "F16")\nSetCharacterBasisData(x, "dragon", 12, 1009, 0, "H29")',))
             source.executemany("INSERT INTO monster_sprites VALUES (?,?)", [("F16", "water.agf"), ("H29", "fire.agf")])
-        with sqlite3.connect(self.target) as target:
+        with closing(sqlite3.connect(self.target)) as target, target:
             target.execute(CHARACTERS)
             target.execute("INSERT INTO characters VALUES ('U00',1,0,'Porter',10,0,0,'original.agf',1,'original-sprite.agf')")
             target.execute("CREATE TABLE strings(object,id,lang,text,PRIMARY KEY(object,id,lang))")
@@ -85,7 +86,7 @@ class CharacterImportTest(unittest.TestCase):
         return importer.import_character_data(self.source, self.target, client_root=self.client)
 
     def snapshot(self):
-        with sqlite3.connect(self.target) as target:
+        with closing(sqlite3.connect(self.target)) as target, target:
             return list(target.iterdump())
 
     def test_import_preserves_base_units_companion_relations_and_existing_data(self):
@@ -93,7 +94,7 @@ class CharacterImportTest(unittest.TestCase):
         result = self.run_import()
         self.assertEqual(self.source.read_bytes(), original_source)
         self.assertEqual(result["counts"]["characters_with_stats"], 3)
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             self.assertEqual(db.execute("SELECT strength,hp,mp,attack_speed,unit_type,element,element_value FROM character_stats WHERE code='H29'").fetchone(), (3000, 15000, 2000, None, None, 2, 20))
             self.assertEqual(db.execute("SELECT count(*) FROM character_stats WHERE code LIKE 'mount:%'").fetchone()[0], 0)
             self.assertEqual(db.execute("SELECT rank,portrait_path,portrait_frame,sprite_path FROM characters WHERE code='F16'").fetchone(), (14, "Assets/Textures/UI/Portraits/PORTRAIT_INVEN_2.AGF", 283, "water.agf"))
@@ -109,14 +110,14 @@ class CharacterImportTest(unittest.TestCase):
 
     def test_terminal_evolution_and_placeholder_riding_requirements_are_excluded(self):
         self.run_import()
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             self.assertEqual(db.execute("SELECT count(*) FROM character_facts WHERE code='H29' AND label_en='Evolution intimacy'").fetchone()[0], 0)
             self.assertEqual(db.execute("SELECT DISTINCT kind FROM character_materials WHERE kind LIKE 'riding:%'").fetchall(), [("riding:2",)])
             self.assertEqual(db.execute("SELECT count(*) FROM character_facts WHERE value_en LIKE '%Temporary%' OR label_en LIKE '%level 3%'").fetchone()[0], 0)
 
     def test_family_and_grade_do_not_depend_on_combat_type_or_chain_position(self):
         self.run_import()
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             self.assertEqual(db.execute("SELECT code,family_element,spirit_attribute,spirit_grade,spirit_group,evolution_root,evolution_order FROM character_companions WHERE kind='spirit' ORDER BY evolution_order").fetchall(), [
                 ("F16", 2, 3, 1, 3, "F16", 1),
                 ("H29", 2, 3, 4, 3, "F16", 2),
@@ -127,12 +128,12 @@ class CharacterImportTest(unittest.TestCase):
             self.assertEqual(db.execute("SELECT riding_level,field_move_speed,movement_bonus,movement_scope,family_element,spirit_grade FROM character_companions WHERE code='mount:3'").fetchone(), (2, 3, 3, 0, None, None))
 
     def test_non_elemental_pet_groups_stay_separate_and_do_not_invent_earlier_stages(self):
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             for code, group, grade in [("F38", 6, 2), ("T109", 7, 2), ("K08", 8, 1)]:
                 self.row(db, "stats", {"ID": code, "Name": code, "Name Code": "11", "Type": "0"})
                 self.row(db, "spirits", {"CharacterID": code, "CharacterName": code, importer.ATTRIBUTE: "6", importer.GRADE: str(grade), "Group": str(group), "SkillGTS": "20"})
         self.run_import()
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             self.assertEqual(db.execute("SELECT code,family_element,spirit_group,spirit_grade,evolution_root,evolution_order FROM character_companions WHERE family_element=0 ORDER BY spirit_group").fetchall(), [
                 ("F38", 0, 6, 2, "F38", 1),
                 ("T109", 0, 7, 2, "T109", 1),
@@ -141,12 +142,12 @@ class CharacterImportTest(unittest.TestCase):
 
     def test_invalid_evolution_graph_rolls_back_instead_of_misgrouping(self):
         before = self.target.read_bytes()
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'UPDATE {self.tables["spirits"]} SET "Upper CharacterID"=? WHERE CharacterID=?', ("F16", "H29"))
         with self.assertRaisesRegex(ValueError, "Cycle"):
             self.run_import()
         self.assertEqual(self.target.read_bytes(), before)
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'UPDATE {self.tables["spirits"]} SET "Upper CharacterID"=? WHERE CharacterID=?', ("0", "H29"))
             db.execute(f'UPDATE {self.tables["spirits"]} SET {importer.quoted(importer.ATTRIBUTE)}=? WHERE CharacterID=?', ("2", "H29"))
         with self.assertRaisesRegex(ValueError, "crosses spirit family"):
@@ -154,13 +155,13 @@ class CharacterImportTest(unittest.TestCase):
         self.assertEqual(self.target.read_bytes(), before)
 
     def test_absent_movement_bonus_stays_null_and_duplicate_traits_are_rejected(self):
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'UPDATE {self.tables["skins"]} SET "이동속도"=0 WHERE "스킨 번호"=1')
         self.run_import()
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             self.assertEqual(db.execute("SELECT movement_bonus,movement_scope FROM character_companions WHERE code='mount:1'").fetchone(), (None, None))
         before = self.snapshot()
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'UPDATE {self.tables["skins"]} SET "특성 종류5"=1 WHERE "스킨 번호"=3')
         with self.assertRaisesRegex(ValueError, "Ambiguous movement traits"):
             self.run_import()
@@ -171,13 +172,13 @@ class CharacterImportTest(unittest.TestCase):
         directory.mkdir(parents=True)
         for filename in ("veho01n11hsu.AGF", "VEHO14N11HSU.AGF", "veho03n11hsu.AGF", "VHHO14N11HSU.AGF"):
             (directory / filename).write_bytes(b"asset fixture")
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             # The vehicle token is the join, not the numerical mount ID. An
             # ID-based filename guess would select the wrong HO03 sheet here.
             db.execute(f'UPDATE {self.tables["vehicles"]} SET Vehicle=? WHERE ID=?', ("HO14", "3"))
         result = self.run_import()
         self.assertEqual(result["counts"]["mount_sprite_assets"], 2)
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             self.assertEqual(db.execute("SELECT sprite_path FROM characters WHERE code='mount:3'").fetchone()[0], "Assets/Textures/HeroCharacter/VEHO14N11HSU.AGF")
         before = self.snapshot()
         self.run_import()
@@ -190,12 +191,12 @@ class CharacterImportTest(unittest.TestCase):
             (directory / filename).write_bytes(b"asset fixture")
         result = self.run_import()
         self.assertEqual(result["counts"]["mount_sprite_assets"], 0)
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             self.assertEqual(db.execute("SELECT sprite_path FROM characters WHERE code='mount:3'").fetchone()[0], "")
             self.assertEqual(db.execute("SELECT count(*) FROM character_companions").fetchone()[0], 4)
 
     def test_missing_vehicle_join_rejects_import_without_rewriting_target(self):
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'DELETE FROM {self.tables["vehicles"]} WHERE ID=3')
         before = self.snapshot()
         with self.assertRaisesRegex(ValueError, "Missing vehicle asset mapping"):
@@ -210,14 +211,14 @@ class CharacterImportTest(unittest.TestCase):
 
     def test_invalid_source_leaves_every_target_table_unchanged(self):
         before = self.target.read_bytes()
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'UPDATE {self.tables["stats"]} SET Life=? WHERE ID=?', ("not a number", "H29"))
         with self.assertRaisesRegex(ValueError, "Invalid integer"):
             self.run_import()
         self.assertEqual(self.target.read_bytes(), before)
 
     def test_write_failure_rolls_back_new_tables_and_companion_rows(self):
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             db.execute("CREATE TRIGGER reject_companion BEFORE INSERT ON characters WHEN NEW.rank=14 BEGIN SELECT RAISE(ABORT,'test rejection'); END")
         before = self.snapshot()
         with self.assertRaisesRegex(sqlite3.IntegrityError, "test rejection"):
@@ -225,7 +226,7 @@ class CharacterImportTest(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
 
     def test_companion_code_collision_is_not_overwritten(self):
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             db.execute("INSERT INTO characters VALUES ('F16',2,1,'Unrelated hero',99,0,0,'user.agf',1,'user-sprite.agf')")
         before = self.snapshot()
         with self.assertRaisesRegex(ValueError, "collides"):
@@ -233,13 +234,13 @@ class CharacterImportTest(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
 
     def test_missing_material_and_ambiguous_sheet_are_rejected(self):
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             db.execute("DELETE FROM items WHERE code=101")
         with self.assertRaisesRegex(ValueError, "missing material"):
             self.run_import()
-        with sqlite3.connect(self.target) as db:
+        with closing(sqlite3.connect(self.target)) as db, db:
             db.execute("INSERT INTO items VALUES (101)")
-        with sqlite3.connect(self.source) as db:
+        with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'CREATE TABLE duplicate_stats AS SELECT * FROM {self.tables["stats"]}')
             db.execute("INSERT INTO raw_sheet VALUES ('gersang.gcs',9999,'duplicate','duplicate_stats')")
         with self.assertRaisesRegex(ValueError, "Expected one stats source sheet"):

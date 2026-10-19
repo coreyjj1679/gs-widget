@@ -41,14 +41,14 @@
           "kind": "fixed",
           "en": [
             "Keep copy feedback centered at the bottom of the content area, without adding a border around the copied name.",
-            "Keep long character and companion names visible when list summaries or trailing information share the row, including narrow windows.",
+            "Prevent item and character names from collapsing to only an ellipsis in lists, and keep companion summaries and icons aligned.",
             "Preserve the cursor and draft text while editing calculator quantities and comma-separated prices. Invalid fields remain visible and prevent saving or exporting until corrected.",
             "Make recipe and unit-price actions respond to the first click. Materials with a single recipe expand immediately without an extra recipe picker.",
             "Remove duplicate formation recipes that showed incorrect output quantities, keeping crafting batches and fees consistent with the current recipes."
           ],
           "zh-TW": [
             "複製回饋固定在內容區底部中央顯示，不再為已複製名稱加上邊框。",
-            "修正角色及坐騎、精靈名稱與摘要或右側資料同列時可能被擠壓或截斷的問題，窄視窗亦保留名稱空間。",
+            "修正道具及角色在列表上可能只顯示省略號的問題，並保持坐騎、精靈摘要與圖片對齊。",
             "編輯計算器數量及含千位分隔符的單價時保留游標與輸入文字；無效欄位會保留供修正，全部修正前不能儲存或匯出。",
             "修正配方及單價操作需要再次點擊的問題；只有一個配方的材料會直接展開，毋須再次選擇。",
             "移除產出數量不正確的重複陣型配方，讓製作批次及費用依照現行配方計算。"
