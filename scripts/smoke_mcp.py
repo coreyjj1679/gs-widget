@@ -142,6 +142,12 @@ def smoke(binary, database, packaged):
             assert first["results"][0]["key"] != later["results"][0]["key"]
             monster = client.call("get_entity", {"key": "monster:M24", "language": "en"})
             assert monster["stats"]["hp"] > 0
+            # Character data must remain available without starting the GUI or
+            # initializing a personal profile to discover portraits/animations.
+            for key in ["hero:D115", "hero:mount:3", "hero:V03"]:
+                character = client.call("get_entity", {"key": key, "language": "en"})
+                assert character["key"] == key and character["kind"] == "hero"
+                assert character["name"] and character["facts"]
             drop_key = next(row["key"] for row in monster["related"] if row["key"].startswith("item:"))
             drops = client.call("find_item_drops", {"item_code": int(drop_key.split(":")[1]), "limit": 50})
             assert any(row["key"] == "monster:M24" for row in drops["results"])

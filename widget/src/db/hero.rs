@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use rusqlite::Connection;
 
 use super::{Catalog, Hit};
 use super::character_data::{companion_summary, load_companions};
 use super::names::{NameTrie, fuzzy_rows, haystack, plain_name};
-use super::paths::{client_asset_roots, resolve_client_file};
+use super::paths::resolve_client_file;
 use super::rows::{ChainBook, ChainStep, Combo, HeroRow, HeroSkill, Index, ItemRow, RosterUse};
 use super::store::{online, table_exists};
 use super::text::{caption, commas, lead, phrase, trail};
@@ -393,7 +393,7 @@ pub(in crate::db) fn roster_kind(note: &str, target_zh: &str, combo: bool, lang:
 
 pub(in crate::db) fn load_heroes(
     conn: &Connection,
-    client_root: &Path,
+    asset_roots: &[PathBuf],
     texts: &HashMap<String, String>,
 ) -> Result<Vec<HeroRow>, String> {
     if !table_exists(conn, "characters") {
@@ -423,8 +423,6 @@ pub(in crate::db) fn load_heroes(
         .map_err(|err| err.to_string())?;
     let skills = load_hero_skills(conn, texts)?;
     let mut companions = load_companions(conn);
-    let data = conn.path().map(Path::new).and_then(Path::parent).unwrap_or(client_root);
-    let asset_roots = client_asset_roots(client_root, data);
     let mut heroes = Vec::new();
     for row in rows {
         let (code, nation, rank, ko, name_gts, desc_gts, hire_gts, portrait, frame, sprite) =
@@ -465,7 +463,7 @@ pub(in crate::db) fn load_heroes(
             hire_zh,
             names: haystack(&borrowed),
             skills: mine,
-            icon: hero_icon(&asset_roots, &portrait, frame, &sprite),
+            icon: hero_icon(asset_roots, &portrait, frame, &sprite),
             companion,
         });
     }

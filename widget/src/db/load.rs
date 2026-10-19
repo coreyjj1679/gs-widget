@@ -67,6 +67,7 @@ impl Index {
     pub(in crate::db) fn load(
         conn: &Connection,
         client_root: &Path,
+        hero_asset_roots: &[PathBuf],
         pictures: &HashMap<String, (PathBuf, i32)>,
         alias_text: &str,
     ) -> Result<Self, String> {
@@ -80,7 +81,7 @@ impl Index {
         let recipes = load_recipes(conn, &texts, &item_icons)?;
         let quests = load_quests(conn)?;
         let npcs = load_npcs(conn, client_root, &texts)?;
-        let heroes = load_heroes(conn, client_root, &texts)?;
+        let heroes = load_heroes(conn, hero_asset_roots, &texts)?;
         let book = load_chains(conn, &texts, &items)?;
         let (works, yards) = load_works(conn, client_root, &texts)?;
         let formulas = load_formulas(conn)?;

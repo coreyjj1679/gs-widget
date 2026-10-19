@@ -54,6 +54,10 @@ jobs:
         run: cargo +$env:RUST_TOOLCHAIN test --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET -- --skip battle_frames_skip_blanks_and_reuse_the_decoded_frame
       - name: Build Windows app for native UI verification
         run: cargo +$env:RUST_TOOLCHAIN build --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET
+      - name: Verify Windows MCP startup without GUI preferences
+        run: |
+          python scripts/smoke_mcp.py --exe "$env:GITHUB_WORKSPACE/widget/target/$env:WINDOWS_TARGET/debug/gersang-widget.exe" --database "$env:GITHUB_WORKSPACE/data/gersang.db"
+          if ($LASTEXITCODE -ne 0) { throw "Windows MCP smoke test failed" }
       - name: Save the tested executable for UI diagnostics
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
