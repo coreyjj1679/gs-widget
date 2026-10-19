@@ -193,7 +193,7 @@ $report = [ordered]@{
     appVersion = $currentVersion
     startedAtUtc = [DateTime]::UtcNow.ToString("o")
     network = "HTTP/HTTPS/ALL_PROXY point to refused localhost port 1; no endpoint override"
-    scope = "Real Windows GUI: mode-specific calculator/Keys visibility, settings keyboard navigation, bundled history and native PageDown in both languages and modes"
+    scope = "Real Windows GUI: mode-specific calculator/Keys visibility, settings keyboard navigation, native PageDown/PageUp and readable bundled history in both languages and modes"
     cases = $cases
 }
 $overrides = @{
@@ -239,6 +239,7 @@ try {
                 $calculateLabel = if ($english) { "Calculate" } else { "計算" }
                 $calculatorHeading = if ($english) { "Crafting cost" } else { "合成成本" }
                 $calculatorPickerPrefix = if ($english) { "Craftable item: " } else { "合成道具：" }
+                $overviewLabel = if ($english) { "Overview" } else { "圖鑑總覽" }
                 $overviewHeading = if ($english) { "Explore the compendium" } else { "探索巨商圖鑑" }
                 $keysLabel = if ($english) { "Keys" } else { "快捷鍵" }
                 $keysHeading = if ($english) { "Global keys" } else { "全域快捷鍵" }
@@ -278,11 +279,17 @@ try {
                 if ($fullMode) {
                     $calculator = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03g-close-settings")
                     Assert-UiNames -Tree $calculator -Required @($calculatorHeading) -Absent @($aliasesHeading)
-                    $overview = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03h-close-calculator")
+                    # Calculator is a top-level destination. Escape dismisses
+                    # local UI; the explicit Overview control returns home.
+                    $calculator = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x1B -Directory (Join-Path $directory "03h-calculator-escape")
+                    Assert-UiNames -Tree $calculator -Required @($calculatorHeading) -Absent @($overviewHeading)
+                    $caseResult["calculatorStaysOpenOnEscape"] = $true
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $calculator -Names @($overviewLabel) -Directory (Join-Path $directory "03i-open-overview")
+                    $overview = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03j-overview")
                     Assert-UiNames -Tree $overview -Required @($overviewHeading) -Absent @($calculatorHeading)
-                    $caseResult["calculatorOpenAndEscape"] = $true
-                    Invoke-ObservedControl -AppProcess $appProcess -Tree $overview -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "03i-reopen-settings")
-                    $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03j-settings")
+                    $caseResult["calculatorOverviewNavigation"] = $true
+                    Invoke-ObservedControl -AppProcess $appProcess -Tree $overview -Names @("設定 / Settings", "Settings", "設定") -Directory (Join-Path $directory "03k-reopen-settings")
+                    $settings = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "03l-settings")
                 }
                 Invoke-ObservedControl -AppProcess $appProcess -Tree $settings -Names @($appLabel) -ControlType TabItem -Directory (Join-Path $directory "04-open-app")
                 $appTree = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory "05-app-top")
@@ -309,25 +316,41 @@ try {
                 }
                 $names = @(Ui-Names -Tree $appTree)
                 if ($names -cnotcontains "Gersang v$currentVersion") { throw "App settings does not show the installed version" }
+                # Cover real page-key navigation independently from the reading
+                # scan: PageDown overlaps only 32px, less than a wrapped entry.
+                $initialReadable = @(Visible-ChangelogNames -Tree $appTree | Where-Object { $expected.Contains($_) })
+                $pageDown = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x22 -Directory (Join-Path $directory "05a-history-page-down")
+                $pagedReadable = @(Visible-ChangelogNames -Tree $pageDown | Where-Object { $expected.Contains($_) })
+                $newlyReadable = @($pagedReadable | Where-Object { $initialReadable -cnotcontains $_ })
+                $leftViewport = @($initialReadable | Where-Object { $pagedReadable -cnotcontains $_ })
+                if ($newlyReadable.Count -eq 0 -or $leftViewport.Count -eq 0) { throw "PageDown did not move the changelog content" }
+                $current = Read-AfterKey -AppProcess $appProcess -VirtualKey 0x21 -Directory (Join-Path $directory "05b-history-page-up")
+                $restoredReadable = @(Visible-ChangelogNames -Tree $current)
+                $notRestored = @($initialReadable | Where-Object { $restoredReadable -cnotcontains $_ })
+                if ($notRestored.Count -gt 0) { throw "PageUp did not restore the initial readable changelog text: $($notRestored -join '; ')" }
+                $caseResult["changelogPageKeys"] = $true
                 $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
                 $visible = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
                 $snapshots = [System.Collections.Generic.List[object]]::new()
-                $current = $appTree
-                for ($page = 0; $page -lt 8; $page++) {
+                for ($sample = 0; $sample -lt 64; $sample++) {
                     $names = @(Ui-Names -Tree $current)
                     foreach ($name in $names) { $null = $seen.Add($name) }
                     foreach ($name in (Visible-ChangelogNames -Tree $current)) { $null = $visible.Add($name) }
                     foreach ($wrong in $otherLanguageText) {
                         if ($names -ccontains $wrong) { throw "Changelog contains the other language: $wrong" }
                     }
-                    $snapshots.Add(@{ page = $page; screenshot = $current.screenshot.path; visibleNames = @(Visible-ChangelogNames -Tree $current) })
+                    $snapshots.Add(@{ sample = $sample; screenshot = $current.screenshot.path; visibleNames = @(Visible-ChangelogNames -Tree $current) })
                     $missing = @($expected | Where-Object { -not $seen.Contains($_) })
                     $notVisible = @($expected | Where-Object { -not $visible.Contains($_) })
                     if ($missing.Count -eq 0 -and $notVisible.Count -eq 0) { break }
                     $window = [GersangSmokeWindow]::Find([uint32]$appProcess.Id)
-                    [GersangChangelogKeys]::PageDown($window)
+                    # Four supported DownArrow inputs move 192px, retaining
+                    # enough overlap to show each wrapped paragraph in full.
+                    for ($step = 0; $step -lt 4; $step++) {
+                        [GersangChangelogKeys]::Send($window, 0x28, $false, $false)
+                    }
                     Start-Sleep -Milliseconds 500
-                    $current = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory ("06-history-page-{0:D2}" -f ($page + 1)))
+                    $current = Read-ChangelogUi -AppProcess $appProcess -Directory (Join-Path $directory ("06-history-sample-{0:D2}" -f ($sample + 1)))
                 }
                 $caseResult["snapshots"] = $snapshots
                 $caseResult["missingAccessibleText"] = $missing

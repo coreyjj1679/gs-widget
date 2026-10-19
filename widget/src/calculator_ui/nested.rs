@@ -443,43 +443,54 @@ mod tests {
     }
     #[test]
     fn changing_recipe_variant_preserves_nested_prices_and_rebatches() {
-        let catalog = db::Catalog::open().unwrap();
-        let book = catalog.calculator_catalog().unwrap();
-        let mut old = catalog.calculator_document(&book, 1020, "en-zh").unwrap();
-        let index = old
-            .materials
-            .iter()
-            .position(|row| row.code == 6946)
-            .unwrap();
-        let mut beads = catalog.calculator_document(&book, 653, "en-zh").unwrap();
-        for row in &mut beads.materials {
-            row.unit_price = Some(7);
-        }
-        old.set_nested(&[index], Some(beads)).unwrap();
-        let mut next = catalog.calculator_document(&book, 623, "en-zh").unwrap();
-        next.quantity = 21;
-        preserve_sources(&mut next, &old, true).unwrap();
-        let next_index = next
-            .materials
-            .iter()
-            .position(|row| row.code == 6946)
-            .unwrap();
-        assert!(next.materials[next_index]
-            .nested
-            .as_ref()
+        // Offline variants keep this behavior independent of duplicated catalogue rows.
+        let document = |item, material, output, per_batch| {
+            serde_json::from_value::<db::CalcDocument>(serde_json::json!({
+                "version": 1,
+                "catalog_version": "offline",
+                "language": "en-zh",
+                "recipe_id": item,
+                "item_code": item,
+                "title": format!("Item {item}"),
+                "source": "Snapshot",
+                "output": output,
+                "fee_per_batch": 0,
+                "learn_fee": null,
+                "success": null,
+                "quantity": 1,
+                "materials": [{
+                    "code": material,
+                    "enhance": 0,
+                    "title": format!("Material {material}"),
+                    "per_batch": per_batch,
+                    "unit_price": null
+                }]
+            }))
             .unwrap()
-            .materials
-            .iter()
-            .all(|row| row.unit_price == Some(7)));
+        };
+        let mut old = document(100, 200, 1, 3);
+        old.materials[0].unit_price = Some(11);
+        let mut child = document(200, 300, 4, 7);
+        child.materials[0].unit_price = Some(7);
+        old.set_nested(&[0], Some(child)).unwrap();
+
+        let mut next = document(100, 200, 5, 6);
+        next.recipe_id = 101;
+        next.quantity = 11;
+        let mut independent = next.clone();
+        preserve_sources(&mut next, &old, true).unwrap();
+        assert_eq!(next.materials[0].unit_price, Some(11));
+        assert_eq!(next.ingredient_at(&[0, 0]).unwrap().unit_price, Some(7));
         let cost = next.calculate().unwrap();
-        assert_eq!(cost.batches, 2);
-        assert_eq!(cost.materials[next_index].quantity, 20);
-        assert_eq!(
-            cost.materials[next_index].nested.as_ref().unwrap().batches,
-            20
-        );
-        let mut independent = catalog.calculator_document(&book, 623, "en-zh").unwrap();
+        assert_eq!(cost.batches, 3);
+        assert_eq!(cost.materials[0].quantity, 18);
+        let child_cost = cost.materials[0].nested.as_ref().unwrap();
+        assert_eq!((child_cost.batches, child_cost.output_units), (5, 20));
+        assert_eq!(child_cost.materials[0].quantity, 35);
+        assert_eq!(cost.total, Some(245));
+
         preserve_sources(&mut independent, &old, false).unwrap();
-        assert!(independent.materials.iter().all(|row| row.nested.is_none()));
+        assert!(independent.materials[0].nested.is_none());
+        assert_eq!(independent.materials[0].unit_price, Some(11));
     }
 }

@@ -27,6 +27,9 @@ pub(crate) fn open_scope(
     app.set_viewing_quest(false);
     app.set_viewing_npc(false);
     app.set_viewing_hero(false);
+    app.set_hero_stats(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_effects(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_spirit(false);
     app.set_viewing_item(false);
     app.set_viewing_set(false);
     app.set_item_tab("".into());
@@ -162,7 +165,7 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
         groups.push(group);
     }
     let preferred = if keep_sheet { app.get_item_source().to_string() } else { String::new() };
-    let pick = if groups.iter().any(|(header, _)| header.key.as_str() == preferred) {
+    let pick = if (keep_sheet && preferred.is_empty()) || groups.iter().any(|(header, _)| header.key.as_str() == preferred) {
         preferred
     } else if groups.iter().any(|(header, _)| header.key.as_str() == "need") {
         "need".to_string()
@@ -223,8 +226,8 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
     app.set_links(ModelRc::new(VecModel::from(shown)));
     if !keep_sheet {
         app.set_cursor(0);
+        app.set_drop_offset(0.0);
     }
-    app.set_drop_offset(0.0);
 }
 
 pub(crate) fn focus_section(app: &App, key: &str) {
@@ -274,6 +277,11 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     for job in jobs {
         let _ = session.jobs.send(job);
     }
+    // Expanding a character section only replaces related rows. Keep the
+    // existing facts and images mounted so the scroll position stays stable.
+    if keep_sheet && key.starts_with("hero:") {
+        return;
+    }
     let mut shown = false;
     if let Some((path, frame)) = icon {
         if let Ok(icon) = agf::frame_rgba(&path, frame) {
@@ -300,12 +308,16 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
         app.set_show_element(false);
     }
     app.set_show_battle(false);
-    if let Some(code) = key.strip_prefix("monster:") {
-        if let Some((path, frame)) = catalog.battle_sprite(code) {
-            if let Some(image) = cached_icon(cache, &path, frame) {
-                app.set_battle_icon(image);
-                app.set_show_battle(true);
-            }
+    let sprite = if let Some(code) = key.strip_prefix("monster:") {
+        catalog.battle_sprite(code)
+    } else {
+        key.strip_prefix("hero:").and_then(|code| catalog.hero_battle_sprite(code))
+    };
+    if let Some((path, frame)) = sprite {
+        let first = agf::playable_frames(&path).ok().and_then(|frames| frames.first().copied()).unwrap_or(frame);
+        if let Some(image) = cached_icon(cache, &path, first) {
+            app.set_battle_icon(image);
+            app.set_show_battle(true);
         }
     }
     let lang = app.get_lang().to_string();
@@ -314,10 +326,15 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     app.set_viewing_quest(false);
     app.set_viewing_npc(false);
     app.set_viewing_hero(false);
+    app.set_hero_stats(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_effects(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_spirit(false);
     app.set_viewing_item(false);
     app.set_viewing_set(false);
     clear_quest_nav(app);
-    app.set_drop_offset(0.0);
+    if !keep_sheet {
+        app.set_drop_offset(0.0);
+    }
     if let Some(code) = key.strip_prefix("monster:") {
         if let Some((name, alt, id, lines)) = catalog.monster_sheet(code, &lang) {
             apply_sheet(&app, name, alt, id, lines);
@@ -379,6 +396,15 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     } else if let Some(code) = key.strip_prefix("hero:") {
         if let Some((name, alt, heading, lines, note)) = catalog.hero_sheet(code, &lang) {
             apply_sheet(&app, name, alt, heading, lines);
+            let stats = catalog.hero_stat_lines(code, &lang).into_iter().map(|(label, value)| Fact {
+                label: label.into(), value: value.into(), ..Fact::default()
+            }).collect::<Vec<_>>();
+            app.set_hero_stats(ModelRc::new(VecModel::from(stats)));
+            let effects = catalog.hero_effect_lines(code, &lang).into_iter().map(|(label, value)| Fact {
+                label: label.into(), value: value.into(), ..Fact::default()
+            }).collect::<Vec<_>>();
+            app.set_hero_effects(ModelRc::new(VecModel::from(effects)));
+            app.set_hero_spirit(catalog.hero_is_spirit(code));
             app.set_sheet_note(note.into());
             app.set_viewing_hero(true);
         } else {

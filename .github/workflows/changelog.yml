@@ -1,9 +1,7 @@
 name: Windows bilingual changelog
 
-# This verifies feature branches and PRs without creating a tag or Release.
+# This verifies PRs without creating a tag or Release.
 on:
-  push:
-    branches: ["codex/bilingual-changelog"]
   pull_request:
     paths:
       - ".github/workflows/changelog.yml"
@@ -56,6 +54,13 @@ jobs:
         run: cargo +$env:RUST_TOOLCHAIN test --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET -- --skip battle_frames_skip_blanks_and_reuse_the_decoded_frame
       - name: Build Windows app for native UI verification
         run: cargo +$env:RUST_TOOLCHAIN build --locked --manifest-path widget/Cargo.toml --target $env:WINDOWS_TARGET
+      - name: Save the tested executable for UI diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-changelog-test-app
+          path: widget/target/x86_64-pc-windows-msvc/debug/gersang-widget.exe
+          if-no-files-found: error
+          retention-days: 1
       - name: Read both languages and window modes with network requests blocked
         run: |
           ./scripts/smoke_windows_changelog.ps1 -ExePath "$env:GITHUB_WORKSPACE/widget/target/$env:WINDOWS_TARGET/debug/gersang-widget.exe" -RepositoryRoot "$env:GITHUB_WORKSPACE" -TestRoot "$env:RUNNER_TEMP/bilingual changelog"

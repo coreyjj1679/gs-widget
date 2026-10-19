@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use rusqlite::Connection;
 
 use super::{Catalog, Hit};
+use super::character_data::{companion_summary, load_companions};
 use super::names::{NameTrie, fuzzy_rows, haystack, plain_name};
+use super::paths::{client_asset_roots, resolve_client_file};
 use super::rows::{ChainBook, ChainStep, Combo, HeroRow, HeroSkill, Index, ItemRow, RosterUse};
 use super::store::{online, table_exists};
 use super::text::{caption, commas, lead, phrase, trail};
@@ -21,7 +23,7 @@ pub(in crate::db) fn hero_sheet_parts(hero: &HeroRow, lang: &str) -> (String, St
     };
     let mut facts = Vec::new();
     let nation = lead(lang, &hero.nation_en, &hero.nation_zh);
-    if !nation.is_empty() {
+    if !nation.is_empty() && hero.rank < 13 {
         facts.push((phrase("nation", lang), nation));
     }
     let hire = tidy(&lead(lang, &hero.hire_en, &hero.hire_zh));
@@ -29,12 +31,19 @@ pub(in crate::db) fn hero_sheet_parts(hero: &HeroRow, lang: &str) -> (String, St
         facts.push((phrase("hire", lang), hire));
     }
     for skill in &hero.skills {
-        let text = tidy(&lead(lang, &skill.en, &skill.zh));
-        let shown = if text.is_empty() { skill.name.clone() } else { text };
+        // Empty skill slots in the source use the literal "0". Clean each
+        // language before fallback so a missing translation cannot hide a real one.
+        let clean = |value: &str| {
+            let value = tidy(value);
+            if value == "0" { String::new() } else { value }
+        };
+        let name = clean(&skill.name);
+        let text = lead(lang, &clean(&skill.en), &clean(&skill.zh));
+        let shown = if text.is_empty() { name.clone() } else { text };
         if shown.is_empty() {
             continue;
         }
-        let label = if skill.name.is_empty() { phrase("skill", lang) } else { skill.name.clone() };
+        let label = if name.is_empty() { phrase("skill", lang) } else { name };
         facts.push((label, shown));
     }
     (title, alt, heading, facts, tidy(&lead(lang, &hero.desc_en, &hero.desc_zh)))
@@ -66,16 +75,14 @@ pub(in crate::db) fn hero_rank_pair(rank: i64) -> (&'static str, &'static str) {
         10 => ("Awakened", "覺醒"),
         11 => ("Legend", "傳說"),
         12 => ("Wisdom King", "明王"),
+        13 => ("Mounts", "坐騎"),
+        14 => ("Spirit", "精靈"),
         _ => ("", ""),
     }
 }
 
 pub(in crate::db) fn hero_tier_pair(rank: i64) -> (&'static str, &'static str) {
-    match rank {
-        1 => ("1st class", "一轉"),
-        2 => ("2nd class", "二轉"),
-        _ => hero_rank_pair(rank),
-    }
+    hero_rank_pair(rank)
 }
 
 pub(in crate::db) fn hero_land_pair(mask: i64) -> (&'static str, &'static str) {
@@ -101,7 +108,7 @@ pub(in crate::db) fn hero_land_order(mask: i64) -> usize {
 }
 
 pub(in crate::db) fn hero_rank_order(rank: i64) -> usize {
-    [0, 1, 2, 3, 10, 11, 12, 9, 6, 7, 8, 5, 4]
+    [0, 1, 2, 3, 10, 11, 12, 9, 6, 7, 8, 5, 4, 13, 14]
         .iter()
         .position(|item| *item == rank)
         .unwrap_or(50)
@@ -415,6 +422,9 @@ pub(in crate::db) fn load_heroes(
         })
         .map_err(|err| err.to_string())?;
     let skills = load_hero_skills(conn, texts)?;
+    let mut companions = load_companions(conn);
+    let data = conn.path().map(Path::new).and_then(Path::parent).unwrap_or(client_root);
+    let asset_roots = client_asset_roots(client_root, data);
     let mut heroes = Vec::new();
     for row in rows {
         let (code, nation, rank, ko, name_gts, desc_gts, hire_gts, portrait, frame, sprite) =
@@ -428,7 +438,12 @@ pub(in crate::db) fn load_heroes(
         let (nation_en, nation_zh) = hero_nation(nation);
         let (rank_en, rank_zh) = hero_rank_pair(rank);
         let mine = skills.get(&code).cloned().unwrap_or_default();
+        let companion = companions.remove(&code).or_else(|| matches!(rank, 13 | 14).then(Default::default));
         let mut parts = vec![ko.clone(), plain_name(&ko), en.clone(), zh.clone(), nation_en.clone(), nation_zh.clone()];
+        if let Some(companion) = &companion {
+            parts.push(companion_summary(companion, rank, "en"));
+            parts.push(companion_summary(companion, rank, "zh"));
+        }
         for skill in &mine {
             parts.push(skill.name.clone());
             parts.push(skill.en.clone());
@@ -450,11 +465,42 @@ pub(in crate::db) fn load_heroes(
             hire_zh,
             names: haystack(&borrowed),
             skills: mine,
-            icon: hero_icon(client_root, &portrait, frame, &sprite),
+            icon: hero_icon(&asset_roots, &portrait, frame, &sprite),
+            companion,
         });
     }
-    heroes.sort_by(|a, b| a.zh.cmp(&b.zh).then(a.en.cmp(&b.en)).then(a.code.cmp(&b.code)));
+    heroes.sort_by(hero_order);
     Ok(heroes)
+}
+
+fn hero_order(a: &HeroRow, b: &HeroRow) -> std::cmp::Ordering {
+    let bucket = |hero: &HeroRow| match hero.rank { 13 => 1, 14 => 2, _ => 0 };
+    bucket(a).cmp(&bucket(b)).then_with(|| {
+        match a.rank {
+            13 if b.rank == 13 => {
+                let level = |hero: &HeroRow| hero.companion.as_ref().and_then(|row| row.riding_level).unwrap_or(i64::MAX);
+                level(a).cmp(&level(b)).then(a.code.cmp(&b.code))
+            }
+            14 if b.rank == 14 => {
+                fn key(hero: &HeroRow) -> (i64, i64, &str, i64, &str) {
+                    let row = hero.companion.as_ref();
+                    let element = row.and_then(|row| row.family_element).map(|value| if value == 0 { 6 } else { value }).unwrap_or(i64::MAX);
+                    let grade = row.and_then(|row| row.spirit_grade).unwrap_or(i64::MAX);
+                    let root = row.and_then(|row| row.evolution_root.as_deref()).unwrap_or(&hero.code);
+                    let order = row.and_then(|row| row.evolution_order).unwrap_or(i64::MAX);
+                    (element, grade, root, order, &hero.code)
+                }
+                key(a).cmp(&key(b))
+            }
+            _ => a.zh.cmp(&b.zh).then(a.en.cmp(&b.en)).then(a.code.cmp(&b.code)),
+        }
+    })
+}
+
+fn hero_region_order(a: &HeroRow, b: &HeroRow) -> std::cmp::Ordering {
+    hero_rank_order(a.rank).cmp(&hero_rank_order(b.rank))
+        .then(a.rank.cmp(&b.rank))
+        .then_with(|| hero_order(a, b))
 }
 
 pub(in crate::db) fn load_hero_skills(conn: &Connection, texts: &HashMap<String, String>) -> Result<HashMap<String, Vec<HeroSkill>>, String> {
@@ -479,24 +525,55 @@ pub(in crate::db) fn load_hero_skills(conn: &Connection, texts: &HashMap<String,
     Ok(skills)
 }
 
-pub(in crate::db) fn hero_icon(client_root: &Path, portrait: &str, frame: i64, sprite: &str) -> Option<(PathBuf, i32)> {
+pub(in crate::db) fn hero_icon(client_roots: &[PathBuf], portrait: &str, frame: i64, sprite: &str) -> Option<(PathBuf, i32)> {
     if !portrait.is_empty() && frame >= 0 {
-        let path = client_root.join(portrait.replace('\\', "/"));
-        if path.is_file() {
+        if let Some(path) = client_roots.iter().find_map(|root| resolve_client_file(root, portrait)) {
             return Some((path, frame as i32));
         }
     }
     if sprite.is_empty() {
         return None;
     }
-    let path = client_root.join(sprite.replace('\\', "/"));
-    path.is_file().then_some((path, 0))
+    client_roots.iter().find_map(|root| resolve_client_file(root, sprite)).map(|path| (path, 0))
 }
 
 impl Catalog {
+    pub fn hero_region_ranks(&self, nation: &str, lang: &str) -> Vec<Hit> {
+        let Ok(nation) = nation.parse::<i64>() else { return Vec::new() };
+        self.index.hero_rank_groups(Some(nation), lang, false)
+    }
+
+    pub fn hero_region_records(&self, nation: &str, rank: &str, lang: &str) -> Vec<Hit> {
+        if nation.parse::<i64>().is_err() || rank.parse::<i64>().is_err() {
+            return Vec::new();
+        }
+        self.index.hero_hits("", "", lang, rank, nation, usize::MAX)
+    }
+
+    pub fn hero_is_spirit(&self, code: &str) -> bool {
+        self.index.heroes.iter().any(|hero| hero.code == code && hero.rank == 14)
+    }
+
     pub fn hero_sheet(&self, code: &str, lang: &str) -> Option<(String, String, String, Vec<(String, String)>, String)> {
         let hero = self.index.heroes.iter().find(|hero| hero.code == code)?;
-        Some(hero_sheet_parts(hero, lang))
+        let (title, alt, heading, mut facts, note) = hero_sheet_parts(hero, lang);
+        let mut details = self.hero_data_facts(code, lang);
+        details.append(&mut facts);
+        Some((title, alt, heading, details, note))
+    }
+
+    pub fn hero_portrait(&self, code: &str) -> Option<(PathBuf, i32)> {
+        self.index.heroes.iter().find(|hero| hero.code == code).and_then(|hero| hero.icon.clone())
+    }
+
+    pub fn hero_battle_sprite(&self, code: &str) -> Option<(PathBuf, i32)> {
+        let relative: String = self.conn.query_row(
+            "SELECT sprite_path FROM characters WHERE code = ?1", [code], |row| row.get(0),
+        ).ok()?;
+        if relative.is_empty() {
+            return None;
+        }
+        self.character_file(&relative).map(|path| (path, 0))
     }
 
     pub fn hero_mark(&self) -> Option<(PathBuf, i32)> {
@@ -504,11 +581,15 @@ impl Catalog {
     }
 
     pub(in crate::db) fn open_hero(&self, code: &str, lang: &str) -> (String, Vec<Hit>, Option<(PathBuf, i32)>) {
-        let Some(hero) = self.index.heroes.iter().find(|hero| hero.code == code) else {
+        if !self.index.heroes.iter().any(|hero| hero.code == code) {
             return (phrase("missing-hero", lang), Vec::new(), None);
-        };
-        let (name, alt, heading, facts, note) = hero_sheet_parts(hero, lang);
-        let links = self.index.hero_chain(code, lang);
+        }
+        let (name, alt, heading, facts, note) = self.hero_sheet(code, lang).expect("indexed hero");
+        let mut all_facts = self.hero_effect_lines(code, lang);
+        all_facts.extend(self.hero_stat_lines(code, lang));
+        all_facts.extend(facts);
+        let mut links = self.index.hero_chain(code, lang);
+        links.extend(self.hero_data_links(code, lang));
         let mut text = name.clone();
         if !alt.is_empty() {
             text.push_str(&format!("\n{alt}"));
@@ -516,20 +597,37 @@ impl Catalog {
         if !heading.is_empty() {
             text.push_str(&format!("\n{heading}"));
         }
-        for (label, value) in &facts {
+        for (label, value) in &all_facts {
             text.push_str(&format!("\n{label}  {value}"));
         }
         if !note.is_empty() {
             text.push_str(&format!("\n{note}"));
         }
-        (text, links, hero.icon.clone())
+        (text, links, self.hero_portrait(code))
     }
 }
 
 impl Index {
+    fn representative_hero_icon(&self, rank: Option<i64>, nation: Option<i64>) -> Option<(PathBuf, i32)> {
+        self.heroes.iter()
+            .filter(|hero| rank.is_none_or(|rank| hero.rank == rank) && nation.is_none_or(|nation| hero.nation == nation))
+            .filter(|hero| hero.icon.is_some())
+            .min_by_key(|hero| {
+                let is_portrait = hero.icon.as_ref().is_some_and(|(path, _)| {
+                    path.to_string_lossy().to_ascii_lowercase().contains("portrait")
+                });
+                (!is_portrait, &hero.code)
+            })
+            .and_then(|hero| hero.icon.clone())
+    }
+
     pub(in crate::db) fn hero_rank_hits(&self, lang: &str) -> Vec<Hit> {
+        self.hero_rank_groups(None, lang, false)
+    }
+
+    fn hero_rank_groups(&self, nation: Option<i64>, lang: &str, legacy_tier: bool) -> Vec<Hit> {
         let mut counts: HashMap<i64, i64> = HashMap::new();
-        for hero in &self.heroes {
+        for hero in self.heroes.iter().filter(|hero| nation.is_none_or(|nation| hero.nation == nation)) {
             *counts.entry(hero.rank).or_default() += 1;
         }
         let mut ranks: Vec<i64> = counts.keys().copied().collect();
@@ -537,14 +635,18 @@ impl Index {
         ranks
             .into_iter()
             .map(|rank| {
-                let (en, zh) = hero_rank_pair(rank);
+                let (en, zh) = if legacy_tier { hero_tier_pair(rank) } else { hero_rank_pair(rank) };
                 let count = format!("{} {}", commas(counts[&rank]), phrase("heroes", lang));
                 let title = lead(lang, en, zh);
                 Hit {
                     title: if title.is_empty() { rank.to_string() } else { title },
                     subtitle: caption(&trail(lang, en, zh), count),
-                    key: format!("rank:{rank}"),
-                    icon: None,
+                    key: match nation {
+                        Some(_) if legacy_tier => format!("band:{rank}"),
+                        Some(nation) => format!("land-rank:{nation}:{rank}"),
+                        None => format!("rank:{rank}"),
+                    },
+                    icon: self.representative_hero_icon(Some(rank), nation),
                     solo: false,
                     aside: String::new(),
                     badge: None,
@@ -570,7 +672,7 @@ impl Index {
                     title: lead(lang, en, zh),
                     subtitle: caption(&trail(lang, en, zh), count),
                     key: format!("land:{mask}"),
-                    icon: None,
+                    icon: self.representative_hero_icon(None, Some(mask)),
                     solo: false,
                     aside: String::new(),
                     badge: None,
@@ -582,41 +684,28 @@ impl Index {
 
     pub(in crate::db) fn hero_tier_hits(&self, nation: &str, lang: &str) -> Vec<Hit> {
         let Ok(nation) = nation.parse::<i64>() else { return Vec::new() };
-        let mut counts: HashMap<i64, i64> = HashMap::new();
-        for hero in self.heroes.iter().filter(|hero| hero.nation == nation) {
-            *counts.entry(hero.rank).or_default() += 1;
-        }
-        let mut ranks: Vec<i64> = counts.keys().copied().collect();
-        ranks.sort_by_key(|rank| (hero_rank_order(*rank), *rank));
-        ranks
-            .into_iter()
-            .map(|rank| {
-                let (en, zh) = hero_tier_pair(rank);
-                let count = format!("{} {}", commas(counts[&rank]), phrase("heroes", lang));
-                let title = lead(lang, en, zh);
-                Hit {
-                    title: if title.is_empty() { rank.to_string() } else { title },
-                    subtitle: caption(&trail(lang, en, zh), count),
-                    key: format!("band:{rank}"),
-                    icon: None,
-                    solo: false,
-                    aside: String::new(),
-                    badge: None,
-                    chip: String::new(),
-                }
-            })
-            .collect()
+        self.hero_rank_groups(Some(nation), lang, true)
     }
 
     pub(in crate::db) fn hero_hits(&self, query: &str, folded: &str, lang: &str, rank: &str, nation: &str, limit: usize) -> Vec<Hit> {
+        if limit == 0 {
+            return Vec::new();
+        }
         let wanted = rank.parse::<i64>().ok();
         let land = nation.parse::<i64>().ok();
         let listed = |hero: &HeroRow| {
             wanted.is_none_or(|rank| hero.rank == rank) && land.is_none_or(|nation| hero.nation == nation)
         };
+        let region_order = land.is_some() && wanted.is_none();
+        let mut candidates: Vec<_> = self.heroes.iter().filter(|hero| listed(hero)).collect();
+        // Apply directory order before the limit, so a short regional result
+        // starts with the same ranks as the full regional directory.
+        if region_order {
+            candidates.sort_by(|a, b| hero_region_order(a, b));
+        }
         let mut picked = Vec::new();
-        for hero in &self.heroes {
-            if !listed(hero) || !self.name_hit(query, folded, &hero.code, &hero.names) {
+        for hero in candidates {
+            if !self.name_hit(query, folded, &hero.code, &hero.names) {
                 continue;
             }
             picked.push(hero);
@@ -629,21 +718,37 @@ impl Index {
                 listed(hero) && !self.name_hit(query, folded, &hero.code, &hero.names)
             }, |hero| &hero.names));
         }
+        if region_order {
+            picked.sort_by(|a, b| hero_region_order(a, b));
+        } else if picked.iter().all(|hero| hero.rank == 13) || picked.iter().all(|hero| hero.rank == 14) {
+            picked.sort_by(|a, b| hero_order(a, b));
+        }
         picked
             .into_iter()
             .map(|hero| {
                 let (title, alt) = hero_names(lang, hero);
                 let (en, zh) = hero_rank_pair(hero.rank);
                 let rank_name = if wanted.is_some() { String::new() } else { lead(lang, en, zh) };
+                let companion = matches!(hero.rank, 13 | 14);
+                let aside = if companion {
+                    hero.companion.as_ref().map(|row| companion_summary(row, hero.rank, lang)).unwrap_or_default()
+                } else {
+                    lead(lang, &hero.nation_en, &hero.nation_zh)
+                };
+                let chip = match hero.rank {
+                    13 => "mount".to_string(),
+                    14 => format!("spirit:{}", hero.companion.as_ref().and_then(|row| row.family_element).map(|value| value.to_string()).unwrap_or_else(|| "unknown".into())),
+                    _ => String::new(),
+                };
                 Hit {
                     title,
-                    subtitle: caption(&alt, rank_name),
+                    subtitle: if companion { alt } else { caption(&alt, rank_name) },
                     key: format!("hero:{}", hero.code),
                     icon: hero.icon.clone(),
                     solo: false,
-                    aside: lead(lang, &hero.nation_en, &hero.nation_zh),
+                    aside,
                     badge: None,
-                    chip: String::new(),
+                    chip,
                 }
             })
             .collect()
@@ -930,5 +1035,136 @@ impl Index {
                 chip: String::new(),
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn regional_rank_directory_scopes_counts_portraits_and_record_keys() {
+        let catalog = Catalog::open().expect("catalog");
+        let groups = catalog.hero_region_ranks("1", "zh");
+        let ranks: Vec<_> = groups.iter().map(|hit| hit.key.strip_prefix("land-rank:1:").unwrap().parse::<i64>().unwrap()).collect();
+        assert_eq!(ranks, [0, 1, 2, 3, 10, 11, 12, 6, 7, 5, 4]);
+        let english = catalog.hero_region_ranks("1", "en");
+        let mut total = 0;
+        for (group, rank) in groups.iter().zip(ranks) {
+            let expected: Vec<_> = catalog.index.heroes.iter().filter(|hero| hero.nation == 1 && hero.rank == rank).collect();
+            let records = catalog.hero_region_records("1", &rank.to_string(), "zh");
+            assert_eq!(records.len(), expected.len());
+            assert!(records.iter().all(|hit| expected.iter().any(|hero| hit.key == format!("hero:{}", hero.code))));
+            assert!(group.subtitle.contains(&format!("{} {}", commas(expected.len() as i64), phrase("heroes", "zh"))));
+            assert_eq!(group.title, hero_rank_pair(rank).1);
+            assert!(group.icon.is_some());
+            assert!(expected.iter().any(|hero| hero.icon == group.icon));
+            assert_eq!(group.icon, english.iter().find(|hit| hit.key == group.key).unwrap().icon);
+            total += records.len();
+        }
+        assert_eq!(total, catalog.index.heroes.iter().filter(|hero| hero.nation == 1).count());
+        let mercenaries = catalog.hero_region_records("1", "0", "zh");
+        assert!(mercenaries.iter().any(|hit| hit.key == "hero:U08" && hit.title == "儒生"));
+        assert!(catalog.index.hero_tier_hits("1", "zh").iter().all(|hit| hit.key.starts_with("band:")));
+        assert!(catalog.hero_region_ranks("invalid", "zh").is_empty());
+        assert!(catalog.hero_region_ranks("999", "zh").is_empty());
+        assert!(catalog.hero_region_records("invalid", "0", "zh").is_empty());
+        assert!(catalog.hero_region_records("1", "invalid", "zh").is_empty());
+    }
+
+    #[test]
+    fn mixed_regional_records_follow_rank_tabs_before_limiting() {
+        let catalog = Catalog::open().expect("catalog");
+        let all = catalog.index.hero_hits("", "", "zh", "", "1", usize::MAX);
+        let rank = |hit: &Hit| catalog.index.heroes.iter().find(|hero| hit.key == format!("hero:{}", hero.code)).unwrap().rank;
+        let mut ranks: Vec<_> = all.iter().map(rank).collect();
+        ranks.dedup();
+        assert_eq!(ranks, [0, 1, 2, 3, 10, 11, 12, 6, 7, 5, 4]);
+        let limited = catalog.index.hero_hits("", "", "zh", "", "1", 5);
+        assert_eq!(limited.iter().map(|hit| &hit.key).collect::<Vec<_>>(), all.iter().take(5).map(|hit| &hit.key).collect::<Vec<_>>());
+        assert!(limited.iter().all(|hit| rank(hit) == 0));
+        assert!(catalog.index.hero_hits("", "", "zh", "", "1", 0).is_empty());
+        let english = catalog.index.hero_hits("", "", "en", "", "1", usize::MAX);
+        assert_eq!(all.iter().map(|hit| &hit.key).collect::<Vec<_>>(), english.iter().map(|hit| &hit.key).collect::<Vec<_>>());
+
+        // The regional directory retains riding-level and element/grade order.
+        let other = catalog.index.hero_hits("", "", "zh", "", "0", usize::MAX);
+        for companion_rank in ["13", "14"] {
+            let regional = catalog.hero_region_records("0", companion_rank, "zh");
+            let global = catalog.index.hero_hits("", "", "zh", companion_rank, "", usize::MAX);
+            let filtered: Vec<_> = other.iter().filter(|hit| rank(hit).to_string() == companion_rank).map(|hit| &hit.key).collect();
+            assert_eq!(regional.iter().map(|hit| &hit.key).collect::<Vec<_>>(), global.iter().map(|hit| &hit.key).collect::<Vec<_>>());
+            assert_eq!(filtered, global.iter().map(|hit| &hit.key).collect::<Vec<_>>());
+        }
+    }
+
+    #[test]
+    fn empty_skill_slots_do_not_become_zero_facts() {
+        let catalog = Catalog::open().expect("catalog");
+        for lang in ["zh-en", "en-zh"] {
+            let monk = catalog.hero_sheet("U68", lang).expect("monk");
+            assert!(monk.3.iter().all(|(label, value)| label != "0" && value != "0"));
+            assert!(monk.3.iter().any(|(label, _)| label == &phrase("hire", lang)));
+
+            let general = catalog.hero_sheet("U87", lang).expect("general with skill");
+            assert!(general.3.iter().any(|(label, value)| label == "폭뢰격" && !value.is_empty()));
+        }
+        // The sentinel is specific to unused skill slots, not numeric character stats.
+        assert!(catalog.hero_stat_lines("U00", "en").iter().any(|(label, value)| label == "MP" && value == "0"));
+    }
+
+    #[test]
+    fn mount_lists_show_riding_and_speed_in_required_level_order() {
+        let catalog = Catalog::open().expect("catalog");
+        assert_eq!(hero_rank_pair(13), ("Mounts", "坐騎"));
+        let mounts = catalog.index.hero_hits("", "", "zh", "13", "", usize::MAX);
+        assert_eq!(mounts.len(), 15);
+        let levels: Vec<_> = mounts.iter().map(|hit| {
+            assert_eq!(hit.chip, "mount");
+            assert!(hit.aside.contains("馬術 ") && hit.aside.contains("主角移速 +"));
+            assert!(!hit.aside.contains("地圖"));
+            assert!(!hit.subtitle.contains("馬術"));
+            catalog.index.heroes.iter().find(|hero| hit.key == format!("hero:{}", hero.code))
+                .unwrap().companion.as_ref().unwrap().riding_level.unwrap()
+        }).collect();
+        assert!(levels.windows(2).all(|pair| pair[0] <= pair[1]));
+        assert_eq!(levels.iter().filter(|level| **level == 1).count(), 4);
+    }
+
+    #[test]
+    fn spirit_lists_group_actual_family_and_order_each_evolution_grade() {
+        let catalog = Catalog::open().expect("catalog");
+        let spirits = catalog.index.hero_hits("", "", "zh", "14", "", usize::MAX);
+        assert_eq!(spirits.len(), 33);
+        let water: Vec<_> = spirits.iter().filter(|hit| hit.chip == "spirit:2").map(|hit| hit.key.as_str()).collect();
+        assert_eq!(water, ["hero:F16", "hero:F19", "hero:F22", "hero:H29", "hero:V03"]);
+        assert!(spirits.iter().find(|hit| hit.key == "hero:F22").unwrap().aside.starts_with("水 · "));
+        let mut previous = None;
+        for hit in &spirits {
+            let hero = catalog.index.heroes.iter().find(|hero| hit.key == format!("hero:{}", hero.code)).unwrap();
+            let data = hero.companion.as_ref().unwrap();
+            let element = data.family_element.unwrap();
+            let key = (if element == 0 { 6 } else { element }, data.spirit_grade.unwrap());
+            if let Some(previous) = previous { assert!(previous <= key); }
+            previous = Some(key);
+        }
+        let english = catalog.index.hero_hits("", "", "en", "14", "", usize::MAX);
+        assert_eq!(spirits.iter().map(|hit| &hit.key).collect::<Vec<_>>(), english.iter().map(|hit| &hit.key).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn spirit_effects_are_prioritized_without_duplicate_detail_facts() {
+        let catalog = Catalog::open().expect("catalog");
+        assert!(catalog.hero_is_spirit("F22"));
+        assert!(!catalog.hero_is_spirit("U68"));
+        let effects = catalog.hero_effect_lines("H30", "en");
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].0, "Skill effect");
+        assert!(effects[0].1.contains("ATK +500"));
+        let sheet = catalog.hero_sheet("H30", "en").unwrap();
+        assert!(sheet.3.iter().all(|(label, _)| label != "Skill effect"));
+        let text = catalog.open_hero("H30", "en").0;
+        assert!(text.find("Skill effect").unwrap() < text.find("STR  ").unwrap());
+        assert_eq!(text.matches("ATK +500").count(), 1);
     }
 }

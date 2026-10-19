@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OpenFlags};
 
 mod alias;
+mod copy_name;
+mod character_data;
 mod hero;
 mod item;
 mod load;
@@ -207,6 +209,9 @@ impl Catalog {
         }
         if let Some(land) = key.strip_prefix("land:") {
             return self.index.hero_hits("", "", lang, "", land, usize::MAX);
+        }
+        if let Some((land, rank)) = key.strip_prefix("land-rank:").and_then(|scope| scope.split_once(':')) {
+            return self.hero_region_records(land, rank, lang);
         }
         if let Some(category) = key.strip_prefix("icat:") {
             return if category == "set" {

@@ -80,8 +80,8 @@ fn labels_follow_the_display_mode() {
     assert_eq!(hero_rank_label("9", "en-zh"), "Four Kings");
     assert_eq!(hero_land_label("1", "zh-en"), "朝鮮");
     assert_eq!(hero_land_label("10", "en-zh"), "Japan");
-    assert_eq!(hero_tier_label("1", "zh-en"), "一轉");
-    assert_eq!(hero_tier_label("2", "en-zh"), "2nd class");
+    assert_eq!(hero_tier_label("1", "zh-en"), "一次將帥");
+    assert_eq!(hero_tier_label("2", "en-zh"), "2nd general");
     assert_eq!(relation_label("dropped-by", "zh-en"), "掉落");
     assert_eq!(relation_label("dropped-by", "en-zh"), "Drops");
     assert!(!client_label().is_empty());

@@ -1,6 +1,6 @@
 //! Full-mode crafting cost calculator. Shared documents carry their own recipe snapshot.
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 use slint::{ComponentHandle, Image, Model, ModelRc, VecModel};
@@ -21,6 +21,50 @@ struct Controller {
     library: RefCell<Result<db::CalcLibrary, String>>,
     folder_id: Cell<u64>,
     active_entry: Cell<Option<u64>>,
+    input_errors: RefCell<InputErrors>,
+}
+
+// A valid edit in one field must not hide another field's invalid draft or
+// re-enable saving a snapshot that differs from the visible input.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum InputField {
+    Quantity,
+    Price(String),
+}
+struct InvalidDraft {
+    text: String,
+    error: String,
+}
+#[derive(Default)]
+struct InputErrors(BTreeMap<InputField, InvalidDraft>);
+impl InputErrors {
+    fn record(&mut self, field: InputField, text: &str, result: Result<(), String>) -> bool {
+        match result {
+            Ok(()) => {
+                self.0.remove(&field);
+                true
+            }
+            Err(error) => {
+                self.0.insert(
+                    field,
+                    InvalidDraft {
+                        text: text.into(),
+                        error,
+                    },
+                );
+                false
+            }
+        }
+    }
+    fn first(&self) -> Option<&str> {
+        self.0.values().next().map(|draft| draft.error.as_str())
+    }
+    fn draft(&self, field: &InputField) -> Option<&str> {
+        self.0.get(field).map(|draft| draft.text.as_str())
+    }
+    fn clear(&mut self) {
+        self.0.clear();
+    }
 }
 
 fn tr<'a>(english: bool, zh: &'a str, en: &'a str) -> &'a str {
@@ -57,12 +101,15 @@ fn parse_amount(input: &str, english: bool) -> Result<Option<i64>, String> {
     if text.is_empty() {
         return Ok(None);
     }
+    // Commas in this UI field are display separators. Inserting or deleting a
+    // digit in a formatted price temporarily changes the group lengths (for
+    // example, 1,000 -> 1,2000); normalize only after the edit is accepted.
+    // Keep rejecting empty groups and anything except ASCII decimal digits.
+    // Share/import validation remains in db::calculator and is unaffected.
     let groups: Vec<_> = text.split(',').collect();
     let valid = groups
         .iter()
-        .all(|g| !g.is_empty() && g.bytes().all(|c| c.is_ascii_digit()))
-        && (groups.len() == 1
-            || (groups[0].len() <= 3 && groups[1..].iter().all(|g| g.len() == 3)));
+        .all(|g| !g.is_empty() && g.bytes().all(|c| c.is_ascii_digit()));
     if !valid {
         return Err(tr(
             english,
@@ -162,7 +209,7 @@ impl Controller {
         let lang = app.get_lang();
         let english = lang == "en-zh";
         let current = self.document.borrow();
-        app.set_calculator_error(self.load_error.clone().unwrap_or_default().into());
+        self.publish_input_errors(app);
         let Some(doc) = current.as_ref() else {
             app.set_calculator_selected_name("".into());
             app.set_calculator_selected_meta("".into());
@@ -243,13 +290,18 @@ impl Controller {
                 let can_expand = line.key.enhance == 0
                     && row.depth < db::MAX_NESTED_DEPTH
                     && self.book.as_ref().is_ok_and(|book| {
-                        !self
+                        let recipe_count = self
                             .catalog
                             .calculator_recipes(book, line.key.code, &lang)
-                            .is_empty()
+                            .len();
+                        recipe_count > usize::from(line.nested.is_some())
                     });
+                let errors = self.input_errors.borrow();
+                let draft = errors.draft(&InputField::Price(row.key.clone()));
                 CalcMaterial {
                     key: row.key.clone().into(),
+                    draft: draft.unwrap_or_default().into(),
+                    has_draft: draft.is_some(),
                     title: line.title.clone().into(),
                     subtitle: if line.key.enhance > 0 {
                         format!(
@@ -330,17 +382,90 @@ impl Controller {
         }
         app.set_calculator_notice(notice.into());
     }
+    fn publish_input_errors(&self, app: &App) {
+        let errors = self.input_errors.borrow();
+        let error = self.load_error.as_deref().or_else(|| errors.first());
+        app.set_calculator_input_valid(error.is_none());
+        app.set_calculator_error(error.unwrap_or_default().into());
+        let quantity = errors.draft(&InputField::Quantity);
+        app.set_calculator_quantity_draft(quantity.unwrap_or_default().into());
+        app.set_calculator_quantity_has_draft(quantity.is_some());
+        // Drafts live with the controller, not only the transient editor, so
+        // visiting Saved, Settings, or another page cannot hide invalid input.
+        // Publish changed metadata without recalculating costs or rebuilding rows.
+        let rows = app.get_calculator_materials();
+        for index in 0..rows.row_count() {
+            let Some(mut row) = rows.row_data(index) else {
+                continue;
+            };
+            let draft = errors.draft(&InputField::Price(row.key.to_string()));
+            let text = draft.unwrap_or_default();
+            if row.has_draft != draft.is_some() || row.draft.as_str() != text {
+                row.has_draft = draft.is_some();
+                row.draft = text.into();
+                rows.set_row_data(index, row);
+            }
+        }
+    }
+    fn record_input(
+        &self,
+        app: &App,
+        field: InputField,
+        text: &str,
+        result: Result<(), String>,
+    ) -> bool {
+        let valid = self.input_errors.borrow_mut().record(field, text, result);
+        self.publish_input_errors(app);
+        valid
+    }
+    fn commit_input(
+        &self,
+        app: &App,
+        field: InputField,
+        text: &str,
+        next: db::CalcDocument,
+    ) -> bool {
+        // Remove this field's previous failure before render publishes the new
+        // value, so an old invalid draft cannot overwrite a corrected edit.
+        // Any calculation or persistence failure below records the new draft.
+        self.input_errors
+            .borrow_mut()
+            .record(field.clone(), text, Ok(()));
+        let result = if self.persist_document(app, next, "") {
+            Ok(())
+        } else {
+            Err(app.get_calculator_error().to_string())
+        };
+        self.record_input(app, field, text, result)
+    }
     fn commit(&self, app: &App, next: db::CalcDocument, info: &str) -> bool {
+        if !self.persist_document(app, next, info) {
+            return false;
+        }
+        // Selecting/importing a document replaces every raw input draft. Price
+        // edits use commit_input instead so errors in other fields survive.
+        self.input_errors.borrow_mut().clear();
+        self.publish_input_errors(app);
+        app.set_calculator_input_revision(app.get_calculator_input_revision().wrapping_add(1));
+        true
+    }
+    fn persist_document(&self, app: &App, next: db::CalcDocument, info: &str) -> bool {
         if let Some(error) = &self.load_error {
             app.set_calculator_error(error.clone().into());
             return false;
+        }
+        // Valid edits are already committed on each keystroke. Enter or focus
+        // loss should only format the field, not save and rebuild the same
+        // document again while the user is clicking the next control.
+        if self.document.borrow().as_ref() == Some(&next) {
+            app.set_calculator_info(info.into());
+            return true;
         }
         if let Err(error) = next.calculate().and_then(|_| db::save_calculator(&next)) {
             app.set_calculator_error(error.into());
             return false;
         }
         *self.document.borrow_mut() = Some(next);
-        app.set_calculator_input_valid(true);
         self.render(app);
         app.set_calculator_info(info.into());
         true
@@ -499,6 +624,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
         library: RefCell::new(library),
         folder_id: Cell::new(folder_id),
         active_entry: Cell::new(active.map(|(_, entry)| entry)),
+        input_errors: RefCell::default(),
     });
     library::install_callbacks(app, &controller);
     nested::install_callbacks(app, &controller);
@@ -557,57 +683,56 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
     let weak = app.as_weak();
     let c = Rc::clone(&controller);
     app.on_calculator_quantity_changed(move |text| {
-        let Some(app) = weak.upgrade() else { return };
-        let Some(mut doc) = c.document.borrow().clone() else {
-            return;
+        let Some(app) = weak.upgrade() else {
+            return false;
         };
-        match parse_amount(&text, app.get_lang() == "en-zh") {
-            Ok(Some(value)) if value > 0 => {
-                doc.quantity = value;
-                let valid = c.commit(&app, doc, "");
-                app.set_calculator_input_valid(valid);
-            }
-            _ => {
-                app.set_calculator_input_valid(false);
-                app.set_calculator_error(
+        let Some(mut doc) = c.document.borrow().clone() else {
+            return false;
+        };
+        let english = app.get_lang() == "en-zh";
+        let value = match parse_amount(&text, english) {
+            Ok(Some(value)) if value > 0 => value,
+            result => {
+                let error = result.err().unwrap_or_else(|| {
                     tr(
-                        app.get_lang() == "en-zh",
+                        english,
                         "製作數量必須是大於 0 的整數。",
                         "Crafting quantity must be a positive whole number.",
                     )
-                    .into(),
-                );
+                    .into()
+                });
+                return c.record_input(&app, InputField::Quantity, &text, Err(error));
             }
-        }
+        };
+        doc.quantity = value;
+        c.commit_input(&app, InputField::Quantity, &text, doc)
     });
     let weak = app.as_weak();
     let c = Rc::clone(&controller);
     app.on_calculator_price_changed(move |key, text| {
-        let Some(app) = weak.upgrade() else { return };
+        let Some(app) = weak.upgrade() else {
+            return false;
+        };
         let Some(mut doc) = c.document.borrow().clone() else {
-            return;
+            return false;
         };
         let Some(path) = nested::parse_path(&key) else {
-            return;
+            return false;
         };
+        let field = InputField::Price(key.to_string());
         let price = match parse_amount(&text, app.get_lang() == "en-zh") {
             Ok(price) => price,
-            Err(error) => {
-                app.set_calculator_input_valid(false);
-                app.set_calculator_error(error.into());
-                return;
-            }
+            Err(error) => return c.record_input(&app, field, &text, Err(error)),
         };
         let Some(row) = doc.ingredient_at_mut(&path) else {
-            return;
+            return false;
         };
         // An expanded subtotal is computed from its children, never overwritten.
         if row.nested.is_some() {
-            return;
+            return false;
         }
         row.unit_price = price;
-        let valid = c.commit(&app, doc, "");
-        app.set_calculator_input_valid(valid);
+        c.commit_input(&app, field, &text, doc)
     });
     let weak = app.as_weak();
     let c = Rc::clone(&controller);
@@ -683,20 +808,98 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
 mod tests {
     use super::*;
     #[test]
-    fn prices_distinguish_blank_zero_and_valid_grouping() {
+    fn price_edits_keep_blank_unknown_and_zero_free() {
         assert_eq!(parse_amount("", false).unwrap(), None);
+        assert_eq!(parse_amount(" ", false).unwrap(), None);
         assert_eq!(parse_amount("0", false).unwrap(), Some(0));
+        assert_eq!(parse_amount("0,000", false).unwrap(), Some(0));
         assert_eq!(parse_amount(" 1,234,567 ", false).unwrap(), Some(1_234_567));
+    }
+    #[test]
+    fn formatted_price_accepts_insertion_and_deletion_between_commas() {
+        // Editing any group must retain the new value even before commas have
+        // been regrouped by the formatter on Enter or focus loss.
+        for (edit, expected, formatted) in [
+            ("1,2000", 12_000, "12,000"),
+            ("1,00", 100, "100"),
+            ("1000,000", 1_000_000, "1,000,000"),
+            ("1,2345,678", 12_345_678, "12,345,678"),
+            ("1,23,567", 123_567, "123,567"),
+            (
+                "9,223,372,036,854,775,807",
+                i64::MAX,
+                "9,223,372,036,854,775,807",
+            ),
+        ] {
+            assert_eq!(parse_amount(edit, false).unwrap(), Some(expected));
+            assert_eq!(number(expected), formatted);
+            assert_eq!(parse_amount(formatted, true).unwrap(), Some(expected));
+        }
+    }
+    #[test]
+    fn price_edits_reject_junk_ambiguous_separators_and_overflow() {
         for bad in [
             "-1",
-            "1,23",
+            "+1",
+            ",",
+            ",123",
+            "123,",
             "1,,000",
             "1.5",
-            "1000,000",
+            "1 000",
+            "1, 000",
+            "1e3",
+            "12a,000",
+            "１２３",
+            "١٢٣",
+            "1，000",
             "9223372036854775808",
+            "9,223,372,036,854,775,808",
         ] {
-            assert!(parse_amount(bad, false).is_err());
+            assert!(parse_amount(bad, false).is_err(), "accepted {bad:?}");
         }
+    }
+    #[test]
+    fn correcting_one_draft_keeps_other_fields_invalid_until_corrected() {
+        let mut errors = InputErrors::default();
+        let first_price = InputField::Price("0".into());
+        let nested_price = InputField::Price("1/0".into());
+        assert!(!errors.record(first_price.clone(), "12a", Err("Invalid price".into())));
+        assert!(!errors.record(InputField::Quantity, "", Err("Invalid quantity".into())));
+        assert!(!errors.record(
+            nested_price.clone(),
+            "9,000,000",
+            Err("Cost overflow".into())
+        ));
+        assert_eq!(errors.first(), Some("Invalid quantity"));
+
+        assert!(errors.record(InputField::Quantity, "1", Ok(())));
+        assert_eq!(errors.first(), Some("Invalid price"));
+        assert_eq!(errors.draft(&first_price), Some("12a"));
+        assert!(errors.record(first_price.clone(), "12", Ok(())));
+        assert_eq!(errors.draft(&first_price), None);
+        assert_eq!(errors.first(), Some("Cost overflow"));
+        // Even a syntactically correct price must stay invalid if saving fails.
+        assert!(!errors.record(nested_price.clone(), "100", Err("Cannot save draft".into())));
+        assert_eq!(errors.first(), Some("Cannot save draft"));
+        assert_eq!(errors.draft(&nested_price), Some("100"));
+        assert!(errors.record(nested_price, "100", Ok(())));
+        assert_eq!(errors.first(), None);
+    }
+    #[test]
+    fn invalid_drafts_can_be_restored_until_document_is_replaced() {
+        let mut errors = InputErrors::default();
+        let price = InputField::Price("0/1".into());
+        errors.record(InputField::Quantity, "", Err("Invalid quantity".into()));
+        errors.record(price.clone(), "1,,000", Err("Invalid price".into()));
+        // Recreating the UI must recover both the text and the fact that a
+        // blank quantity is an invalid draft, not an absent draft.
+        assert_eq!(errors.draft(&InputField::Quantity), Some(""));
+        assert_eq!(errors.draft(&price), Some("1,,000"));
+        errors.clear();
+        assert_eq!(errors.first(), None);
+        assert_eq!(errors.draft(&InputField::Quantity), None);
+        assert_eq!(errors.draft(&price), None);
     }
     #[test]
     fn unit_average_uses_fixed_point_rounding() {

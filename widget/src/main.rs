@@ -199,6 +199,41 @@ fn refresh_mode_pages(app: &App, full: bool, catalog: &db::Catalog, session: &Se
     }
     if !app.get_category().is_empty() && app.get_viewing().is_empty() {
         let query = app.get_query().to_string();
+        if app.get_category() == "hero" {
+            if full && query.is_empty() {
+                let place = app.get_place();
+                let area = app.get_area();
+                if !place.is_empty() {
+                    let scope = if app.get_hero_group() == "land" {
+                        if area.is_empty() { format!("land:{place}") } else { format!("land-rank:{place}:{area}") }
+                    } else {
+                        format!("rank:{place}")
+                    };
+                    app.set_expanded(scope.into());
+                    app.set_place("".into());
+                    app.set_place_name("".into());
+                    app.set_area("".into());
+                    app.set_area_name("".into());
+                }
+            } else if !full && query.is_empty() {
+                let scope = app.get_expanded().to_string();
+                let lang = app.get_lang();
+                if let Some((nation, rank)) = scope.strip_prefix("land-rank:").and_then(|scope| scope.split_once(':')) {
+                    app.set_place(nation.into());
+                    app.set_place_name(db::hero_land_label(nation, &lang).into());
+                    app.set_area(rank.into());
+                    app.set_area_name(db::hero_tier_label(rank, &lang).into());
+                } else if let Some(nation) = scope.strip_prefix("land:") {
+                    app.set_place(nation.into());
+                    app.set_place_name(db::hero_land_label(nation, &lang).into());
+                    app.set_area("".into());
+                    app.set_area_name("".into());
+                } else if let Some(rank) = scope.strip_prefix("rank:") {
+                    app.set_place(rank.into());
+                    app.set_place_name(db::hero_rank_label(rank, &lang).into());
+                }
+            }
+        }
         publish(app, catalog, session, favourites, &app.get_category(), &query);
     } else if app.get_category().is_empty() {
         if full {
@@ -1149,6 +1184,7 @@ fn main() {
     });
 
     let open_app = app.as_weak();
+    let copy_name_catalog = Rc::clone(&catalog);
     let open_catalog = catalog;
     let open_current = current;
     let open_session = session;
@@ -1220,26 +1256,35 @@ fn main() {
             return;
         }
         let full_monsters = app.get_full_mode() && app.get_category() == "monster";
+        let hero_regions = app.get_full_mode() && app.get_category() == "hero" && app.get_hero_group() == "land";
         let was_global = full_monsters && app.get_filter_global();
         if full_monsters {
             app.set_filter_global(false);
         }
         if app.get_expanded().as_str() == key && !was_global {
-            if full_monsters && key == "all:" {
+            if (full_monsters && key == "all:") || (hero_regions && key.starts_with("land-rank:")) {
                 return;
+            }
+            if hero_regions {
+                list::refresh_hero_region_directory(&app, &toggle_catalog, &toggle_session, &toggle_favs.borrow(), "");
             }
             app.set_expanded("".into());
             app.set_detail_key("".into());
             app.set_detail_title("".into());
             app.set_detail_index(-1);
             app.set_board_monsters(ModelRc::new(VecModel::from(Vec::new())));
-            toggle_session.generation.fetch_add(1, Ordering::Relaxed);
+            if !hero_regions {
+                toggle_session.generation.fetch_add(1, Ordering::Relaxed);
+            }
             return;
         }
         app.set_expanded(key.clone().into());
         app.set_detail_key("".into());
         app.set_detail_title("".into());
         app.set_detail_index(-1);
+        if hero_regions {
+            list::refresh_hero_region_directory(&app, &toggle_catalog, &toggle_session, &toggle_favs.borrow(), &key);
+        }
         reload_board(&app, &toggle_catalog, &toggle_session, &toggle_favs.borrow(), &toggle_list);
     });
     let detail_app = app.as_weak();
@@ -1331,6 +1376,8 @@ fn main() {
         app.set_filter_magic_max("".into());
         app.set_filter_drop_key(key);
         app.set_filter_drop(title);
+        app.set_monster_sort_key(8);
+        app.set_monster_sort_desc(true);
         app.set_expanded("all:".into());
         app.set_list_offset(0.0);
         app.set_cursor(0);
@@ -1547,6 +1594,16 @@ fn main() {
             open_scope(&app, &open_catalog, &open_session, &open_favs.borrow(), &open_current, &open_history, "works");
             return;
         }
+        if let Some((nation, rank)) = key.strip_prefix("land-rank:").and_then(|scope| scope.split_once(':')) {
+            let lang = app.get_lang();
+            app.set_hero_group("land".into());
+            app.set_place(nation.into());
+            app.set_place_name(db::hero_land_label(nation, &lang).into());
+            app.set_area(rank.into());
+            app.set_area_name(db::hero_tier_label(rank, &lang).into());
+            open_scope(&app, &open_catalog, &open_session, &open_favs.borrow(), &open_current, &open_history, "hero");
+            return;
+        }
         if let Some(rank) = key.strip_prefix("band:") {
             let lang = app.get_lang();
             app.set_area(rank.into());
@@ -1657,6 +1714,29 @@ fn main() {
         }
     });
 
+    let copy_name_app = app.as_weak();
+    let copy_name_timer = Timer::default();
+    app.global::<NameCopy>().on_copy(move |key, alternate| {
+        let Some(app) = copy_name_app.upgrade() else { return };
+        let lang = app.get_lang();
+        let english = lang.starts_with("en");
+        let notice = match copy_name_catalog.copyable_name(&key, &lang, alternate) {
+            Some(name) if window::try_copy_to_clipboard(&name) => {
+                if english { format!("Copied: {name}") } else { format!("已複製：{name}") }
+            }
+            Some(_) => if english { "Could not copy. Try again." } else { "未能複製，請再試一次。" }.to_string(),
+            None => if english { "No translated name to copy." } else { "沒有可複製的中英文名稱。" }.to_string(),
+        };
+        app.global::<NameCopy>().set_notice(notice.into());
+        let later = copy_name_app.clone();
+        // Restart one timer so an earlier click cannot dismiss newer feedback.
+        copy_name_timer.start(TimerMode::SingleShot, Duration::from_millis(1800), move || {
+            if let Some(app) = later.upgrade() {
+                app.global::<NameCopy>().set_notice("".into());
+            }
+        });
+    });
+
     let copy_app = app.as_weak();
     app.on_copy_note(move || {
         let Some(app) = copy_app.upgrade() else { return };
@@ -1721,21 +1801,21 @@ fn main() {
     let anim_timer = Timer::default();
     anim_timer.start(TimerMode::Repeated, Duration::from_millis(140), move || {
         let Some(app) = anim_app.upgrade() else { return };
-        if !app.get_battle_view() || !app.get_animate_battle() {
+        if !app.get_animate_battle() || app.get_collapsed() || !app.get_show_battle()
+            || app.get_settings_open() || app.get_calculator_open() || app.get_mcp_open() {
             return;
         }
-        let code = app
-            .get_viewing()
-            .strip_prefix("monster:")
-            .map(str::to_string)
-            .or_else(|| app.get_detail_key().strip_prefix("monster:").map(str::to_string));
-        let Some(code) = code else { return };
+        let key = if app.get_viewing().is_empty() { app.get_detail_key() } else { app.get_viewing() }.to_string();
+        let hero = key.starts_with("hero:");
+        if !hero && !app.get_battle_view() { return; }
+        let Some(code) = key.strip_prefix(if hero { "hero:" } else { "monster:" }) else { return };
         let mut clip = anim_clip.borrow_mut();
-        if clip.code != code {
-            clip.code = code.clone();
+        if clip.code != key {
+            clip.code = key.clone();
             clip.frames.clear();
             anim_tick.set(0);
-            if let Some((path, _)) = anim_catalog.battle_sprite(&code) {
+            let sprite = if hero { anim_catalog.hero_battle_sprite(code) } else { anim_catalog.battle_sprite(code) };
+            if let Some((path, _)) = sprite {
                 if let Ok(frames) = agf::playable_frames(&path) {
                     clip.path = path;
                     clip.frames = frames;
@@ -1753,7 +1833,7 @@ fn main() {
         let Ok(icon) = agf::frame_rgba(&path, frame) else { return };
         let image = image_from_icon(icon);
         app.set_battle_icon(image.clone());
-        show_battle_frame(&app, &format!("monster:{code}"), image);
+        if !hero { show_battle_frame(&app, &key, image); }
     });
     if app.get_full_mode() && app.get_category().is_empty() {
         show_home_saved(&app, &boot_catalog, &boot_session, &favourites.borrow());

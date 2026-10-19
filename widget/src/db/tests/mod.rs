@@ -6,6 +6,7 @@ use super::search::{is_floor_suffix, place_split};
 use super::*;
 
 mod browse;
+mod character_assets;
 mod items_bilingual;
 mod performance;
 
@@ -459,8 +460,8 @@ fn hero_sheet_shows_rank_nation_and_hire() {
     assert!(lands.iter().any(|hit| hit.key == "land:1" && hit.title == "朝鮮"));
     let tiers = catalog.search_scoped("hero", "", "zh-en", "1", "", "land", "");
     assert!(tiers.iter().any(|hit| hit.key == "band:0" && hit.title == "傭兵"));
-    assert!(tiers.iter().any(|hit| hit.key == "band:1" && hit.title == "一轉"));
-    assert!(tiers.iter().any(|hit| hit.key == "band:2" && hit.title == "二轉"));
+    assert!(tiers.iter().any(|hit| hit.key == "band:1" && hit.title == "一次將帥"));
+    assert!(tiers.iter().any(|hit| hit.key == "band:2" && hit.title == "二次將帥"));
     let swords = catalog.search_scoped("hero", "", "zh-en", "1", "", "land", "0");
     assert!(swords.iter().any(|hit| hit.key == "hero:U86"));
     assert!(catalog.hero_mark().is_some());

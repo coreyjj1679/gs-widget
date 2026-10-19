@@ -192,7 +192,12 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
         return;
     }
     let hits = if links { app.get_links() } else { app.get_hits() };
-    if paint_model(&hits, row_key, icon.clone(), has_icon) {
+    let painted = if links {
+        paint_model(&hits, row_key, icon.clone(), has_icon)
+    } else {
+        paint_catalog_models(&hits, &app.get_catalog_sections(), row_key, icon.clone(), has_icon)
+    };
+    if painted {
         return;
     }
     if links {
@@ -201,6 +206,14 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
     } else {
         paint_model(&app.get_board_monsters(), row_key, icon, has_icon);
     }
+}
+
+fn paint_catalog_models(hits: &ModelRc<Hit>, sections: &ModelRc<Hit>, row_key: &str, icon: Image, has_icon: bool) -> bool {
+    let painted = paint_model(hits, row_key, icon.clone(), has_icon);
+    // Browsing can share one model; searching keeps the directory in a separate
+    // model. Both use indexed key lookup, after the worker's generation check.
+    let section_painted = sections != hits && paint_model(sections, row_key, icon, has_icon);
+    painted || section_painted
 }
 
 fn painted_quest_chips(
@@ -330,14 +343,46 @@ pub(crate) fn image_from_icon(icon: agf::Icon) -> Image {
 
 #[cfg(test)]
 mod tests {
-    use super::{discard_stale_targets, indexed_row, note_lines, paint_model, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items, IconTarget};
+    use super::{discard_stale_targets, indexed_row, note_lines, paint_catalog_models, paint_model, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items, IconTarget};
     use crate::{Hit, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
     use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
+
+    #[test]
+    fn directory_portraits_update_shared_and_separate_search_models_by_key() {
+        let sections = ModelRc::new(VecModel::from(vec![Hit {
+            key: "land-rank:1:0".into(),
+            title: "傭兵".into(),
+            aside: "expanded".into(),
+            ..Default::default()
+        }]));
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(paint_catalog_models(&sections, &sections, "land-rank:1:0", image.clone(), true));
+        assert!(sections.row_data(0).unwrap().has_icon);
+
+        let results = ModelRc::new(VecModel::from(vec![Hit {
+            key: "hero:U08".into(),
+            title: "儒生".into(),
+            ..Default::default()
+        }]));
+        assert!(paint_catalog_models(&results, &sections, "land-rank:1:0", Image::default(), false));
+        let section = sections.row_data(0).unwrap();
+        assert!(!section.has_icon);
+        assert_eq!(section.title.as_str(), "傭兵");
+        assert_eq!(section.aside.as_str(), "expanded");
+        assert!(!results.row_data(0).unwrap().has_icon);
+        assert!(paint_catalog_models(&results, &sections, "land-rank:1:0", image.clone(), true));
+        assert!(sections.row_data(0).unwrap().has_icon);
+        assert!(paint_catalog_models(&results, &sections, "hero:U08", image, true));
+        assert!(results.row_data(0).unwrap().has_icon);
+        assert!(!paint_catalog_models(&results, &sections, "land-rank:10:0", Image::default(), false));
+    }
 
     fn drop_model(count: usize) -> (ModelRc<Hit>, ModelRc<MonsterDrop>) {
         let drops = ModelRc::new(VecModel::from((0..count).map(|slot| MonsterDrop {
             key: format!("item:{slot}").into(),
             title: format!("Item {slot}").into(),
+            drop_rate: "0.001%".into(),
+            selected: slot == 1,
             ..Default::default()
         }).collect::<Vec<_>>()));
         let hits = ModelRc::new(VecModel::from(vec![Hit {
@@ -360,6 +405,8 @@ mod tests {
         let loaded = drops.row_data(1).expect("loaded image slot");
         assert_eq!(loaded.key.as_str(), "item:1");
         assert_eq!(loaded.title.as_str(), "Item 1");
+        assert_eq!(loaded.drop_rate.as_str(), "0.001%");
+        assert!(loaded.selected);
         assert!(loaded.has_icon);
         assert_eq!(loaded.icon.size().width, 1);
         assert_eq!(hits.row_data(0).expect("monster").drop1.size().width, 0);
@@ -370,6 +417,8 @@ mod tests {
         let failed = hits.row_data(0).expect("updated monster").monster_drops.row_data(1).expect("failed image slot");
         assert_eq!(failed.key.as_str(), "item:1");
         assert_eq!(failed.title.as_str(), "Item 1");
+        assert_eq!(failed.drop_rate.as_str(), "0.001%");
+        assert!(failed.selected);
         assert!(!failed.has_icon);
     }
 

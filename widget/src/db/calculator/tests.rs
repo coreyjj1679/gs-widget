@@ -234,6 +234,34 @@ fn real_recipe_1040_uses_exact_direct_materials_and_fees() {
 }
 
 #[test]
+fn doll_catalog_uses_only_the_unified_single_unit_recipe() {
+    let catalog = Catalog::open().expect("db");
+    let book = catalog.calculator_catalog().unwrap();
+    let recipes = catalog.calculator_recipes(&book, 12438, "en-zh");
+    assert_eq!(
+        recipes
+            .iter()
+            .map(|recipe| recipe.recipe_id)
+            .collect::<Vec<_>>(),
+        vec![1020]
+    );
+    assert_eq!(recipes[0].output, 1);
+    assert!(catalog
+        .index
+        .recipes
+        .iter()
+        .all(|recipe| recipe.source != "formation"));
+
+    let mut document = catalog.calculator_document(&book, 1020, "en-zh").unwrap();
+    document.quantity = 21;
+    let cost = document.calculate().unwrap();
+    assert_eq!(
+        (cost.batches, cost.output_units, cost.fee),
+        (21, 21, 2_100_000_000)
+    );
+}
+
+#[test]
 fn item_dropdown_deduplicates_and_only_contains_complete_non_reinforcement_recipes() {
     let catalog = Catalog::open().expect("db");
     let book = catalog.calculator_catalog().unwrap();

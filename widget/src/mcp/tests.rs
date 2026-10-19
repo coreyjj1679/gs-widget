@@ -116,7 +116,22 @@ fn monster_drops_match_reverse_lookup_and_combat_stats() {
         .unwrap()
         .iter()
         .any(|row| row["key"] == "monster:M24"));
-    assert!(sources["results"][0]["drop_rate"].is_null());
+    let licorice = server
+        .invoke("find_item_drops", json!({"item_code": 143, "limit": 50}))
+        .unwrap();
+    let deer = licorice["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["key"] == "monster:M24")
+        .unwrap();
+    assert_eq!(deer["drop_rate"], 0.055);
+    assert_eq!(deer["drop_rate_percent"], 5.5);
+    assert_eq!(deer["drop_rate_per_100000"], 5500);
+    assert_eq!(deer["drops"].as_array().unwrap().len(), 1);
+    assert_eq!(deer["drops"][0]["slot"], 1);
+    assert_eq!(deer["drops"][0]["solo_only"], false);
+    assert_eq!(deer["drops"][0]["drop_rate_per_100000"], 5500);
 }
 
 #[test]
@@ -190,7 +205,10 @@ fn calculator_preserves_unknown_prices_and_checks_materials() {
 fn quest_dependencies_use_internal_ids_and_return_both_directions() {
     let server = server();
     let rows = server
-        .invoke("search_catalog", json!({"category": "quest", "query": "50001", "limit": 50}))
+        .invoke(
+            "search_catalog",
+            json!({"category": "quest", "query": "50001", "limit": 50}),
+        )
         .unwrap();
     let (child, parent) = rows["results"]
         .as_array()
