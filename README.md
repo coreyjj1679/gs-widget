@@ -6,7 +6,7 @@ The catalog is `data/gersang.db`. Pictures are in `data/client`.
 
 ## Download for Windows
 
-1. Open [Releases](https://github.com/coreyjj1679/gs-widget/releases/latest) and download **`gs-widget-v1.0.0-windows-x64.zip`** (or the newer version's ZIP).
+1. Open [Releases](https://github.com/coreyjj1679/gs-widget/releases/latest) and download **`gs-widget-v1.1.0-windows-x64.zip`** (or the newer version's ZIP).
 2. Extract the entire ZIP to a writable folder, such as `%LOCALAPPDATA%\Programs\gs-widget`. Keep `gersang-widget.exe` and `data` together.
 3. Open `gersang-widget.exe`. Windows users do not need Git, Rust, Visual Studio, or the game installed. Use the compiled `gs-widget-…-windows-x64.zip` asset; GitHub's **Source code** downloads are for developers.
 
@@ -33,7 +33,7 @@ Day-to-day development happens directly on `develop` while this project has one 
 
 For maintainers, write the next version's user-facing changes in [`release-notes.json`](release-notes.json), with paired English (`en`) and Traditional Chinese (`zh-TW`) entries. Put the newest stable version first, use a `YYYY-MM-DD` release date, and group changes under `added`, `improved`, or `fixed`. Each English bullet must have its Chinese counterpart at the same position. Keep earlier entries so the app can show its bundled release history offline. Do not describe unshipped work as part of an older release.
 
-Bump the package version in `widget/Cargo.toml` and its `gersang-widget` entry in `widget/Cargo.lock`, then validate the notes with `python scripts/release_notes.py --version 1.0.2` (substitute the version being released). Add `--render` to preview the exact English GitHub Release description. Merge and push that release commit to `main`, then create and push the matching stable tag, such as `v1.0.2`.
+Bump the package version in `widget/Cargo.toml` and its `gersang-widget` entry in `widget/Cargo.lock`, then validate the notes with `python scripts/release_notes.py --version 1.1.0` (substitute the version being released). Add `--render` to preview the exact English GitHub Release description. Merge and push that release commit to `main`, then create and push the matching stable tag, such as `v1.1.0`.
 
 Only version-tag pushes trigger the Windows GitHub Actions workflow. It verifies the tagged commit is already in `origin/main` history, checks that the tag matches the package version and has complete bilingual notes, then runs the tests and ZIP packaging. It creates a draft Release titled with the tag, verifies the uploaded ZIP's digest, and publishes the English notes from the same file embedded in the app. The app's release history follows the player's interface language setting. Commit messages are not used to generate notes, and existing public releases are never overwritten. The original `v1.0.0` and `v1.0.1` GitHub descriptions remain empty. Ordinary pushes to `main`, feature or development branches and pull requests do not run this workflow; manual dispatch is disabled.
 
@@ -55,9 +55,9 @@ The F1–F9 shortcuts may require holding Fn/Globe, depending on your keyboard s
 
 ### AI assistants / MCP
 
-The current source includes a local, read-only MCP server. In **Full / 完整** mode, choose **MCP** at the bottom of the sidebar for Codex, Cursor and Claude setup instructions. Copy buttons use this installation's actual executable and catalog paths. The compact widget has no MCP page.
+Version 1.1.0 includes a local, read-only MCP server. In **Full / 完整** mode, choose **MCP** at the bottom of the sidebar for Codex, Cursor and Claude setup instructions. Copy buttons use this installation's actual executable and catalog paths. The compact widget has no MCP page.
 
-The same executable runs without a window when an AI client launches it with `--mcp`. It provides catalog search, details, monster drops, quest dependencies, recipes and cost calculation from user-supplied prices. You do not need Node.js, Python, an API key or a separate server. See [MCP.md](MCP.md) for desktop setup, limitations and verification. This feature requires a build containing these changes; older released ZIPs do not include it.
+The same executable runs without a window when an AI client launches it with `--mcp`. It provides catalog search, details, monster drops, quest dependencies, recipes and cost calculation from user-supplied prices. You do not need Node.js, Python, an API key or a separate server. See [MCP.md](MCP.md) for desktop setup, limitations and verification. Use version 1.1.0 or later; older released ZIPs do not include MCP.
 
 Use **Full / 完整** for the desktop workspace: persistent category navigation, category search, monster comparisons, and a list beside the selected record's details. The overview provides quick entries and saved monsters. Full mode supports windows down to 960 × 640 logical pixels.
 
@@ -71,7 +71,7 @@ In full mode, catalog search keeps the category directory and current preview vi
 
 In full mode, open an item or set to see its picture and bilingual name in a horizontal header, with attributes on the left and sources or pieces on the right. Both columns stay visible and scroll independently. **Tab** switches keyboard focus between them without resetting their scroll positions. The catalog preview also provides **Open details** to reach this page.
 
-Full-mode settings expand with the window. Look, Bar, Keys and App use grouped columns when space allows, then stack at narrower widths; alias rows use the available width with the same editor. The App page places update controls beside the changelog. All nine bar entries remain reachable by scrolling at 960 × 640. Resizing keeps the scroll position within the new content bounds, while widget settings keep their compact layout.
+Full-mode settings expand with the window. Look, Bar and App use grouped columns when space allows, then stack at narrower widths; alias rows use the available width with the same editor. The App page places update controls beside the changelog. All nine bar entries remain reachable by scrolling at 960 × 640. Resizing keeps the scroll position within the new content bounds, while widget settings keep their compact layout.
 
 Settings support **Tab / Shift+Tab** to move between controls and **Ctrl+Tab / Ctrl+Shift+Tab** to switch pages. On the selected settings tab, arrow keys and Home/End select a page. Choice bars use arrow keys and Home/End; buttons use Enter or Space. The opacity slider uses arrow keys for 1%, Page Up/Down for 10%, and Home/End for 25%/100%. Focused controls scroll into view. In Bar settings, Space toggles an entry and **Alt+↑/↓** reorders it. Home in a search field keeps its text-editing behavior.
 

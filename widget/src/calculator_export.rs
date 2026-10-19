@@ -13,9 +13,22 @@ const WIDTH: u32 = 1200;
 const HEIGHT: u32 = 630;
 const ROWS_TOP: f32 = 239.0;
 const ROWS_BOTTOM: f32 = 538.0;
+const ROW_LEFT: f32 = 414.0;
+const TITLE_LEFT: f32 = 452.0;
+const NAME_RIGHT: f32 = 788.0;
+const INDENT: f32 = 18.0;
+const MAX_DEPTH: usize = crate::db::MAX_NESTED_DEPTH;
+const MAX_ROWS: usize = crate::db::MAX_TOTAL_MATERIALS;
+const MAX_PAGES: usize = 128;
 
 pub struct CardRow {
     pub title: String,
+    pub depth: usize,
+    /// Ancestor names; repeated as context when a subtree spans pages.
+    pub context: String,
+    /// This subtotal includes its displayed descendants and is counted once.
+    pub nested: bool,
+    pub detail: String,
     pub quantity: String,
     pub unit_price: String,
     pub subtotal: String,
@@ -41,18 +54,51 @@ pub struct CardData {
 struct RowLayout {
     index: usize,
     lines: Vec<String>,
+    details: Vec<String>,
+    context: Vec<String>,
     height: f32,
     continued: bool,
+}
+
+impl RowLayout {
+    fn context_height(&self) -> f32 {
+        context_height(&self.context)
+    }
+}
+
+fn context_height(lines: &[String]) -> f32 {
+    if lines.is_empty() {
+        0.0
+    } else {
+        lines.len() as f32 * 15.0 + 8.0
+    }
+}
+
+fn row_text_width(row: &CardRow) -> f32 {
+    NAME_RIGHT - TITLE_LEFT - row.depth as f32 * INDENT
+}
+
+fn body_height(title_lines: usize, detail_lines: usize) -> f32 {
+    (title_lines as f32 * 21.0 + detail_lines as f32 * 17.0 + 17.0).max(46.0)
+}
+
+fn export_limit_error(english: bool) -> String {
+    if english {
+        "This breakdown is too large for readable JPG cards. Share its offline code instead."
+    } else {
+        "這份明細太大，無法匯出完整且清晰的 JPG 卡片；請改用離線分享碼。"
+    }
+    .into()
 }
 
 /// Save every material on one or more 1200 × 630 JPEG cards, without overwriting
 /// earlier exports. The caller should show the returned path and page count.
 pub fn export_card(data: &CardData) -> Result<Vec<PathBuf>, String> {
     validate_card(data)?;
+    let pages = paginate(&data.rows).map_err(|_| export_limit_error(data.english))?;
     let directory = crate::db::calculator_export_dir();
     fs::create_dir_all(&directory).map_err(|e| format!("無法建立匯出資料夾：{e}"))?;
     let options = render_options();
-    let pages = paginate(&data.rows);
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| format!("無法讀取匯出時間：{e}"))?
@@ -139,37 +185,164 @@ fn render_options() -> resvg::usvg::Options<'static> {
     options
 }
 
-fn paginate(rows: &[CardRow]) -> Vec<Vec<RowLayout>> {
+// Only the repeated breadcrumb may abbreviate. Every original title/detail
+// remains on its own row(s), so an abbreviated path never discards source data.
+fn continuation_context(row: &CardRow, continued: bool) -> Vec<String> {
+    let context = if !row.context.is_empty() {
+        row.context.as_str()
+    } else if continued {
+        row.title.as_str()
+    } else {
+        return Vec::new();
+    };
+    let mut lines = wrap(context, (1156.0 - ROW_LEFT - 18.0) / 12.0);
+    if lines.len() > 2 {
+        lines = lines.split_off(lines.len() - 2);
+        // Reserve room for the ellipsis without pushing text into a price column.
+        lines[0] = format!("… {}", lines[0].trim_start());
+        while display_width(&lines[0]) > (1156.0 - ROW_LEFT - 18.0) / 12.0 {
+            let at = lines[0].char_indices().nth(2).map(|(at, _)| at);
+            if let Some(at) = at {
+                lines[0].remove(at);
+            } else {
+                break;
+            }
+        }
+    }
+    lines
+}
+
+fn paginate(rows: &[CardRow]) -> Result<Vec<Vec<RowLayout>>, ()> {
     let mut pages = Vec::new();
     let mut page = Vec::new();
     let mut height = 0.0;
+    let capacity = ROWS_BOTTOM - ROWS_TOP;
     for (index, row) in rows.iter().enumerate() {
-        let lines = wrap(&row.title, 21.0);
-        // Imported snapshots may contain a much longer name than the local
-        // catalog. Continue its text on another page instead of clipping it.
-        for (part, lines) in lines.chunks(13).enumerate() {
-            let row_height = (lines.len() as f32 * 21.0 + 17.0).max(46.0);
-            if !page.is_empty() && height + row_height > ROWS_BOTTOM - ROWS_TOP {
-                pages.push(page);
-                page = Vec::new();
-                height = 0.0;
+        if row.depth > MAX_DEPTH || rows.len() > MAX_ROWS {
+            return Err(());
+        }
+        let width = row_text_width(row);
+        let titles = wrap(&row.title, width / 16.0);
+        let details = if row.detail.is_empty() {
+            Vec::new()
+        } else {
+            wrap(&row.detail, width / 12.0)
+        };
+        let full_height = body_height(titles.len(), details.len());
+        // Keep a parent's complete description and at least the beginning of its
+        // first child together whenever that pair fits on an otherwise empty page.
+        if row.nested
+            && rows
+                .get(index + 1)
+                .is_some_and(|next| next.depth > row.depth)
+            && !page.is_empty()
+            && height + full_height + 46.0 > capacity
+            && full_height + 46.0 + context_height(&continuation_context(row, false)) <= capacity
+        {
+            pages.push(std::mem::take(&mut page));
+            height = 0.0;
+        }
+        let mut title_at = 0;
+        let mut detail_at = 0;
+        let mut continued = false;
+        while title_at < titles.len() || detail_at < details.len() {
+            if pages.len() >= MAX_PAGES {
+                return Err(());
             }
+            let context = if page.is_empty() && (row.depth > 0 || continued) {
+                continuation_context(row, continued)
+            } else {
+                Vec::new()
+            };
+            let context_h = context_height(&context);
+            let available = capacity - height - context_h;
+            let remainder_height = body_height(titles.len() - title_at, details.len() - detail_at);
+            let fresh_context_h = context_height(&continuation_context(row, continued));
+            // Move an ordinary row intact; split only text too tall for a page.
+            // A first child may use the space deliberately reserved by its parent.
+            let after_parent = page.last().is_some_and(|previous: &RowLayout| {
+                previous.index + 1 == index
+                    && rows[previous.index].nested
+                    && row.depth > rows[previous.index].depth
+            });
+            if !page.is_empty()
+                && (available < 46.0
+                    || (remainder_height > available
+                        && remainder_height + fresh_context_h <= capacity
+                        && !after_parent))
+            {
+                pages.push(std::mem::take(&mut page));
+                height = 0.0;
+                continue;
+            }
+            let mut next_title = title_at;
+            let mut next_detail = detail_at;
+            while next_title < titles.len()
+                && body_height(next_title + 1 - title_at, 0) <= available
+            {
+                next_title += 1;
+            }
+            if next_title == titles.len() {
+                while next_detail < details.len()
+                    && body_height(next_title - title_at, next_detail + 1 - detail_at) <= available
+                {
+                    next_detail += 1;
+                }
+            }
+            if next_title == title_at && next_detail == detail_at {
+                return Err(());
+            }
+            let row_height =
+                body_height(next_title - title_at, next_detail - detail_at) + context_h;
             page.push(RowLayout {
                 index,
-                lines: lines.to_vec(),
+                lines: titles[title_at..next_title].to_vec(),
+                details: details[detail_at..next_detail].to_vec(),
+                context,
                 height: row_height,
-                continued: part != 0,
+                continued,
             });
             height += row_height;
+            title_at = next_title;
+            detail_at = next_detail;
+            continued = true;
+            if title_at < titles.len() || detail_at < details.len() {
+                pages.push(std::mem::take(&mut page));
+                height = 0.0;
+            }
         }
     }
     if !page.is_empty() || pages.is_empty() {
         pages.push(page);
     }
-    pages
+    if pages.len() > MAX_PAGES {
+        return Err(());
+    }
+    Ok(pages)
 }
 
 fn validate_card(data: &CardData) -> Result<(), String> {
+    if data.rows.len() > MAX_ROWS
+        || data.rows.iter().enumerate().any(|(index, row)| {
+            row.depth > MAX_DEPTH
+                || row.title.is_empty()
+                || row.title.len() > 4096
+                || row.detail.len() > 4096
+                || row.context.len() > 16384
+                || (index == 0 && row.depth != 0)
+                || (index > 0
+                    && (row.depth > data.rows[index - 1].depth + 1
+                        || (row.depth > data.rows[index - 1].depth
+                            && !data.rows[index - 1].nested)))
+                || (row.nested
+                    && !data
+                        .rows
+                        .get(index + 1)
+                        .is_some_and(|next| next.depth == row.depth + 1))
+        })
+    {
+        return Err(export_limit_error(data.english));
+    }
     if wrap(&data.title, 45.0).len() > 3
         || display_width(&data.subtitle) > 64.0
         || wrap(&data.notice, 23.0).len() > 4
@@ -210,8 +383,8 @@ fn render_page(
         paint_icon(
             &mut raster,
             &data.rows[layout.index].icon,
-            414,
-            y as u32 + 9,
+            (ROW_LEFT + data.rows[layout.index].depth as f32 * INDENT) as u32,
+            (y + layout.context_height()) as u32 + 9,
             26,
         );
         y += layout.height;
@@ -328,7 +501,11 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
     metric(
         &mut svg,
         393.0,
-        label("製作費用", "Crafting fees"),
+        if data.rows.iter().any(|row| row.nested) {
+            label("主配方費用", "Top-level fee")
+        } else {
+            label("製作費用", "Crafting fees")
+        },
         &data.fee,
     );
     metric(
@@ -360,6 +537,21 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
         "start",
         label("材料明細", "MATERIAL BREAKDOWN"),
     );
+    if data.rows.iter().any(|row| row.nested) {
+        text(
+            &mut svg,
+            ROW_LEFT,
+            187.0,
+            11.0,
+            "#a8b2c1",
+            400,
+            "start",
+            label(
+                "縮排子項已計入上層小計，請勿重複相加。",
+                "Indented costs are included in their parent subtotal.",
+            ),
+        );
+    }
     text(
         &mut svg,
         884.0,
@@ -394,22 +586,68 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
     let mut y = ROWS_TOP;
     for layout in rows {
         let row = &data.rows[layout.index];
+        for (index, context) in layout.context.iter().enumerate() {
+            text(
+                &mut svg,
+                ROW_LEFT + 18.0,
+                y + 12.0 + index as f32 * 15.0,
+                12.0,
+                "#929dad",
+                400,
+                "start",
+                context,
+            );
+        }
+        if !layout.context.is_empty() {
+            text(
+                &mut svg,
+                ROW_LEFT,
+                y + 12.0,
+                12.0,
+                "#d8b77b",
+                500,
+                "start",
+                "↳",
+            );
+        }
+        let body_y = y + layout.context_height();
+        let title_x = TITLE_LEFT + row.depth as f32 * INDENT;
+        if row.depth > 0 {
+            let branch_x = ROW_LEFT + row.depth as f32 * INDENT - 8.0;
+            let _ = write!(
+                svg,
+                r##"<path d="M{branch_x} {}v12h5" stroke="#48505a" fill="none"/>"##,
+                body_y + 10.0
+            );
+        }
         for (index, name) in layout.lines.iter().enumerate() {
             text(
                 &mut svg,
-                452.0,
-                y + 26.0 + index as f32 * 21.0,
+                title_x,
+                body_y + 26.0 + index as f32 * 21.0,
                 16.0,
                 "#edf1f7",
-                400,
+                if row.nested { 600 } else { 400 },
                 "start",
                 name,
+            );
+        }
+        for (index, detail) in layout.details.iter().enumerate() {
+            text(
+                &mut svg,
+                title_x,
+                body_y + 22.0 + layout.lines.len() as f32 * 21.0 + index as f32 * 17.0,
+                12.0,
+                "#a8b2c1",
+                400,
+                "start",
+                detail,
             );
         }
         text(
             &mut svg,
             884.0,
-            y + 26.0,
+            body_y + 26.0,
             fitted_size(&row.quantity, 84.0, 15.0),
             "#c9d2df",
             400,
@@ -424,7 +662,7 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
             text(
                 &mut svg,
                 1018.0,
-                y + 26.0,
+                body_y + 26.0,
                 fitted_size(&row.unit_price, 120.0, 15.0),
                 if row.unpriced { "#d8b77b" } else { "#a8b2c1" },
                 400,
@@ -434,16 +672,16 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
             text(
                 &mut svg,
                 1156.0,
-                y + 26.0,
+                body_y + 26.0,
                 fitted_size(&row.subtotal, 124.0, 15.0),
                 if row.unpriced { "#d8b77b" } else { "#edf1f7" },
-                500,
+                if row.nested { 600 } else { 500 },
                 "end",
                 &row.subtotal,
             );
         }
         y += layout.height;
-        line(&mut svg, 414.0, y - 2.0, 1156.0, "#272f3a");
+        line(&mut svg, ROW_LEFT, y - 2.0, 1156.0, "#272f3a");
     }
     if rows.is_empty() {
         text(
@@ -466,10 +704,17 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
             "#d8b77b",
             400,
             "start",
-            label(
-                "— 尚未輸入單價；已知成本不包括這些材料。",
-                "— Price not supplied; known cost excludes these materials.",
-            ),
+            if data.rows.iter().any(|row| row.nested) {
+                label(
+                    "未知部分未計入已知成本；上層小計已含已填子項。",
+                    "Unknown portions are excluded; parent subtotals include priced children.",
+                )
+            } else {
+                label(
+                    "— 尚未輸入單價；已知成本不包括這些材料。",
+                    "— Price not supplied; known cost excludes these materials.",
+                )
+            },
         );
     }
     line(&mut svg, 44.0, 579.0, 1156.0, "#303945");
@@ -633,6 +878,10 @@ mod tests {
             rows: (0..count)
                 .map(|index| CardRow {
                     title: format!("材料 {index} <&> 強化的白水晶"),
+                    depth: 0,
+                    context: String::new(),
+                    nested: false,
+                    detail: String::new(),
                     quantity: "238".into(),
                     unit_price: "100,000".into(),
                     subtotal: "23,800,000".into(),
@@ -646,7 +895,7 @@ mod tests {
     #[test]
     fn pages_preserve_every_row_in_order_and_repeat_totals() {
         let data = card(25);
-        let pages = paginate(&data.rows);
+        let pages = paginate(&data.rows).unwrap();
         assert!(pages.len() > 1);
         assert_eq!(
             pages
@@ -669,7 +918,7 @@ mod tests {
         let mut data = card(1);
         data.subtitle =
             r#"</text><image href="file:///private/secret"/><script>alert(1)</script>"#.into();
-        let pages = paginate(&data.rows);
+        let pages = paginate(&data.rows).unwrap();
         let svg = page_svg(&data, &pages[0], 1, 1);
         assert!(svg.contains("&lt;&amp;&gt;"));
         assert!(!svg.contains("材料 0 <&>"));
@@ -682,7 +931,7 @@ mod tests {
     fn unusually_long_imported_material_name_continues_without_losing_text() {
         let mut data = card(1);
         data.rows[0].title = "白".repeat(1000);
-        let pages = paginate(&data.rows);
+        let pages = paginate(&data.rows).unwrap();
         assert!(pages.len() > 1);
         let reconstructed = pages
             .iter()
@@ -701,7 +950,7 @@ mod tests {
     #[test]
     fn produces_real_1200_by_630_jpeg() {
         let data = card(4);
-        let pages = paginate(&data.rows);
+        let pages = paginate(&data.rows).unwrap();
         let options = render_options();
         assert!(
             (options.image_href_resolver.resolve_string)("file:///private/secret", &options)
@@ -736,5 +985,193 @@ mod tests {
         assert_ne!(first, second);
         assert_eq!(fs::read(&first).unwrap(), b"keep");
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    fn nested_card(count: usize) -> CardData {
+        let mut data = card(0);
+        while data.rows.len() < count {
+            let mut ancestors = Vec::new();
+            for depth in 0..=MAX_DEPTH {
+                if data.rows.len() == count {
+                    break;
+                }
+                let index = data.rows.len();
+                let title = format!("材料 {index} · 強化的白水晶 / Refined crystal");
+                let nested = depth < MAX_DEPTH && index + 1 < count;
+                data.rows.push(CardRow {
+                    title: title.clone(),
+                    depth,
+                    context: ancestors.join(" › "),
+                    nested,
+                    detail: if nested {
+                        "合成 2 批 · 產出 6 · 多出 2 · 已含製作費 10".into()
+                    } else {
+                        "原料價格由用家提供 / User-supplied price".into()
+                    },
+                    quantity: "4".into(),
+                    unit_price: "9.50".into(),
+                    subtotal: "38".into(),
+                    icon: Image::default(),
+                    unpriced: index % 7 == 0,
+                });
+                ancestors.push(title);
+            }
+        }
+        data
+    }
+
+    fn assert_complete_layout(data: &CardData, pages: &[Vec<RowLayout>]) {
+        let mut titles = vec![String::new(); data.rows.len()];
+        let mut details = vec![String::new(); data.rows.len()];
+        let mut first_fragments = Vec::new();
+        for page in pages {
+            assert!(!page.is_empty());
+            assert!(page.iter().map(|row| row.height).sum::<f32>() <= ROWS_BOTTOM - ROWS_TOP);
+            for row in page {
+                if !row.continued {
+                    first_fragments.push(row.index);
+                }
+                titles[row.index].push_str(&row.lines.concat());
+                details[row.index].push_str(&row.details.concat());
+                let width = row_text_width(&data.rows[row.index]);
+                for line in &row.lines {
+                    assert!(display_width(line) * 16.0 <= width + 0.1);
+                }
+                for line in &row.details {
+                    assert!(display_width(line) * 12.0 <= width + 0.1);
+                }
+            }
+            if data.rows[page[0].index].depth > 0 {
+                assert!(
+                    !page[0].context.is_empty(),
+                    "nested page must retain ancestor context"
+                );
+            }
+        }
+        assert_eq!(first_fragments, (0..data.rows.len()).collect::<Vec<_>>());
+        for (index, row) in data.rows.iter().enumerate() {
+            assert_eq!(titles[index], row.title);
+            assert_eq!(details[index], row.detail);
+        }
+    }
+
+    #[test]
+    fn nested_pagination_preserves_134_rows_through_depth_eight() {
+        let data = nested_card(134);
+        validate_card(&data).unwrap();
+        let pages = paginate(&data.rows).unwrap();
+        assert!(pages.len() > 10);
+        assert_complete_layout(&data, &pages);
+        for (index, page) in pages.iter().enumerate() {
+            let svg = page_svg(&data, page, index + 1, pages.len());
+            assert!(svg.contains("主配方費用"));
+            assert!(svg.contains("子項已計入上層小計"));
+            assert!(svg.contains("上層小計已含已填子項"));
+            assert!(svg.contains(&data.total));
+        }
+    }
+
+    #[test]
+    fn parent_moves_with_first_child_at_a_page_boundary() {
+        let mut data = card(7);
+        data.rows[5].nested = true;
+        data.rows[6].depth = 1;
+        data.rows[6].context = data.rows[5].title.clone();
+        validate_card(&data).unwrap();
+        let pages = paginate(&data.rows).unwrap();
+        assert_eq!(
+            pages[0].iter().map(|row| row.index).collect::<Vec<_>>(),
+            vec![0, 1, 2, 3, 4]
+        );
+        assert_eq!(
+            pages[1].iter().map(|row| row.index).collect::<Vec<_>>(),
+            vec![5, 6]
+        );
+        assert_complete_layout(&data, &pages);
+    }
+
+    #[test]
+    fn long_nested_title_and_detail_continue_without_losing_or_executing_text() {
+        let mut data = card(2);
+        data.rows[0].nested = true;
+        data.rows[1].depth = 1;
+        data.rows[1].context = data.rows[0].title.clone();
+        data.rows[1].title = "白".repeat(1000);
+        data.rows[1].detail =
+            "Detail <image href='file:///private/secret'/> & <script>bad()</script> ".repeat(30);
+        validate_card(&data).unwrap();
+        let pages = paginate(&data.rows).unwrap();
+        assert!(pages.len() > 5);
+        assert_complete_layout(&data, &pages);
+        for (index, page) in pages.iter().enumerate() {
+            let svg = page_svg(&data, page, index + 1, pages.len());
+            assert!(!svg.contains("<image"));
+            assert!(!svg.contains("<script"));
+        }
+    }
+
+    #[test]
+    fn invalid_trees_and_excessive_page_counts_are_rejected() {
+        let mut data = card(2);
+        data.rows[1].depth = 1; // Its parent was not declared a rollup.
+        assert!(validate_card(&data).is_err());
+        data.rows[0].nested = true;
+        data.rows[1].depth = MAX_DEPTH + 1;
+        assert!(validate_card(&data).is_err());
+        data = card(MAX_ROWS + 1);
+        assert!(validate_card(&data).is_err());
+        data = card(MAX_ROWS);
+        for row in &mut data.rows {
+            row.title = "白".repeat(1000);
+        }
+        assert!(paginate(&data.rows).is_err());
+    }
+
+    fn encode_page(
+        data: &CardData,
+        page: &[RowLayout],
+        number: usize,
+        count: usize,
+        options: &resvg::usvg::Options<'_>,
+    ) -> Vec<u8> {
+        let raster = render_page(data, page, number, count, options).unwrap();
+        let mut encoded = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, 94)
+            .encode_image(&image::DynamicImage::ImageRgba8(raster))
+            .unwrap();
+        let decoded = image::load_from_memory(&encoded).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (WIDTH, HEIGHT));
+        assert_eq!(&encoded[..2], &[0xff, 0xd8]);
+        encoded
+    }
+
+    #[test]
+    fn every_nested_page_encodes_as_a_complete_jpeg() {
+        let mut data = nested_card(25);
+        data.english = true;
+        let pages = paginate(&data.rows).unwrap();
+        assert_complete_layout(&data, &pages);
+        let options = render_options();
+        for (index, page) in pages.iter().enumerate() {
+            let _ = encode_page(&data, page, index + 1, pages.len(), &options);
+        }
+    }
+
+    /// Explicit artifact generation for visual QA, not part of the normal suite.
+    #[test]
+    #[ignore = "writes first/middle/last nested JPG previews for visual review"]
+    fn writes_nested_card_previews() {
+        let data = nested_card(134);
+        let pages = paginate(&data.rows).unwrap();
+        assert_complete_layout(&data, &pages);
+        let directory = std::env::temp_dir().join("gs-nested-card-previews");
+        fs::create_dir_all(&directory).unwrap();
+        let options = render_options();
+        for index in [0, pages.len() / 2, pages.len() - 1] {
+            let bytes = encode_page(&data, &pages[index], index + 1, pages.len(), &options);
+            let path = directory.join(format!("nested-cost-{:03}.jpg", index + 1));
+            fs::write(&path, bytes).unwrap();
+            println!("{}", path.display());
+        }
     }
 }

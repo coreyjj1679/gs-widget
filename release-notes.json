@@ -2,6 +2,53 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "1.1.0",
+      "date": "2026-10-19",
+      "sections": [
+        {
+          "kind": "added",
+          "en": [
+            "Connect Codex, Cursor or Claude to the local, read-only catalog through stdio MCP. Full mode includes setup guides for catalog search, drops, quest dependencies, recipes and direct-material cost calculations.",
+            "Browse quests by chain, quest giver or region in full mode, with objective and reward icons and a zoomable prerequisite roadmap.",
+            "Calculate crafting costs in full mode using your own material prices. Optionally expand nested recipes or reuse a saved cost sheet, with indented sub-materials and crafting fees included.",
+            "Save cost sheets in folders, share individual sheets or entire folders using offline codes, and export JPGs with automatic pagination for long lists.",
+            "Read bundled release history offline in English or Traditional Chinese, following your language setting."
+          ],
+          "zh-TW": [
+            "透過本機唯讀 stdio MCP，讓 Codex、Cursor 或 Claude 查詢圖鑑。完整模式提供連接教學，支援圖鑑搜尋、掉落、任務依賴、配方及直接材料成本計算。",
+            "完整模式可按任務鏈、委託 NPC 或地區瀏覽任務，並以圖示查看目標及獎勵，以及可縮放的前置任務路線圖。",
+            "完整模式可按自行輸入的材料單價計算合成成本，並選擇展開子配方或重用已收藏的成本表；子材料以縮排顯示，合成費用亦納入計算。",
+            "可將成本表存入資料夾，以離線分享碼傳送單份表格或整個資料夾，並匯出 JPG；長清單會自動分頁。",
+            "可離線查看隨程式附帶的更新紀錄，並依語言設定顯示英文或繁體中文。"
+          ]
+        },
+        {
+          "kind": "improved",
+          "en": [
+            "Full and widget modes share consistent colors and bilingual item names. Full-mode search preserves browsing context, with clearer previews and side-by-side item and set details.",
+            "Settings adapt to the full-mode window width, with improved keyboard navigation and full-name previews for long catalog entries.",
+            "Improve large-catalog browsing performance by caching image work and limiting rendering to visible list rows."
+          ],
+          "zh-TW": [
+            "完整與小窗模式統一配色及雙語道具名稱；完整模式搜尋保留瀏覽位置，並提供更清晰的預覽及並排顯示的道具、套裝詳情。",
+            "設定頁會按完整模式的視窗寬度調整排列，並改善鍵盤導覽，讓較長的圖鑑名稱可完整預覽。",
+            "透過圖片處理快取及只繪製可見清單列，改善大型圖鑑的瀏覽效能。"
+          ]
+        },
+        {
+          "kind": "fixed",
+          "en": [
+            "Limit global F1–F9 shortcuts and the Keys settings page to widget mode, and remove shortcut hints from full-mode navigation.",
+            "Keep empty quest search results inside the quest browser, with a clear-search action."
+          ],
+          "zh-TW": [
+            "全域 F1–F9 快捷鍵及快捷鍵設定頁只在小窗模式提供，並移除完整模式導覽列的快捷鍵提示。",
+            "任務搜尋沒有結果時仍保留任務瀏覽介面，並提供清除搜尋操作。"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.0.1",
       "date": "2026-10-18",
       "sections": [

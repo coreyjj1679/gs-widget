@@ -2,7 +2,7 @@
 
 在巨商圖鑑切換到 **完整 / Full** 模式，按左側最底部的 **MCP**。選擇你的 AI 程式，再按頁面的步驟連接。頁面會按目前安裝位置產生設定，毋須自己修改範例路徑。
 
-This source build includes a local stdio MCP server in the existing executable. Open **Full → MCP** for installation-specific copyable settings. Older releases do not include this feature until a new build is published.
+Version 1.1.0 and later include a local stdio MCP server in the existing executable. Open **Full → MCP** for installation-specific copyable settings. Older releases do not include MCP.
 
 ## Windows 用戶
 
