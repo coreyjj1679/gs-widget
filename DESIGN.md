@@ -178,6 +178,8 @@ Full mode 與 compact widget 的展開視窗外框都使用 12px 圓角；視窗
 
 完整模式以左側導覽切換總覽、計算、圖鑑、設定與 MCP。計算頁與圖鑑頂層不重複放「返回總覽」；返回箭頭只在記錄歷史、子分類、任務分組及 Legacy 地區目錄等有上一層時出現，標題在無箭頭時對齊頁面內距。小窗保留返回入口。重按目前的計算、MCP、設定或圖鑑頂層不重新載入；在詳細頁或子分類按所屬側欄仍可回分類首頁。計算頁的 Escape 先取消目前的儲存、匯入或資料夾操作，再從收藏返回編輯器；計算與 MCP 頂層不因 Escape 跳回總覽。
 
+計算頁的「我的收藏」以小星星加文字標示；新增資料夾使用資料夾加號。收藏、儲存和移動合成表共用直接點選的資料夾圖示與名稱，窄版自動換行，多資料夾使用有界捲動，並支援方向鍵、Home／End、Enter／Space 及完整名稱提示。選取與鍵盤焦點分開顯示。材料的配方／單價操作首次點擊即可啟動；選擇子配方後先收起選單再更新材料。數字編輯時保留游標與原始文字，逗號分組不阻擋插入或刪除數字，完成輸入後才重新格式化；無效文字保留供修正，任何欄位仍有錯誤時停用儲存與匯出。
+
 Full mode 側欄分類可直接拖曳重排，保留排序儲存和鍵盤替代操作。設定入口使用使用者要求的 ⚙️ 加文字標籤；小窗／完整模式以雙選項滑塊標示目前模式。兩個桌面平台共用 Slint 實作。
 
 ## Keyboard and long record names
@@ -185,3 +187,5 @@ Full mode 側欄分類可直接拖曳重排，保留排序儲存和鍵盤替代�
 設定頁以 Tab／Shift+Tab 走訪控制，選取中的頁籤是頁籤列唯一的 Tab 停靠點；方向鍵、Home／End 切換頁籤，Ctrl+Tab／Ctrl+Shift+Tab 可從內容切換分頁。ChoiceBar 是單一焦點的選項群組，按鈕支援 Enter／Space。透明度每次方向鍵增減 1%，Page Up／Down 增減 10%，Home／End 到 25%／100%。焦點沿用 accent 框，控制移到可視範圍；浮動列支援 Space 顯示切換及 Alt+上下排序，排序後焦點跟隨分類身份。搜尋框的 Home 保留文字游標行首行為。
 
 CatalogRow／HitRow 保留既有列高與虛擬化；hover 提示完整主名稱、第二語言與來源資訊，去除重複內容。Ctrl+I 開啟單一、不搶焦點的完整文字浮層，長內容可捲動，Esc 關閉。目錄記錄列的原生焦點與預覽選取分開，上下鍵移動列，Enter／Space 開啟預覽。完整文字也提供給無障礙描述。
+
+When a material has one recipe, Expand recipe applies it immediately; an expanded single-recipe material only offers Use unit price, without a redundant Change recipe action. Multiple recipes keep the picker.

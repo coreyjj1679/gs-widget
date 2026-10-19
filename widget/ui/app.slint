@@ -4386,7 +4386,13 @@ export component App inherits Window {
     in-out property <bool> calculator-complete;
     in-out property <bool> calculator-compact-total;
     in-out property <bool> calculator-input-valid: true;
+    in-out property <int> calculator-input-revision: 0;
+    in-out property <string> calculator-quantity-draft;
+    in-out property <bool> calculator-quantity-has-draft: false;
     in-out property <bool> calculator-library-open: false;
+    changed calculator-library-open => {
+        if (!root.calculator-library-open) { root.calculator-refresh(); }
+    }
     in-out property <[string]> calculator-folders;
     in-out property <int> calculator-folder-index;
     in-out property <[CalcSaved]> calculator-saved;
@@ -4407,8 +4413,8 @@ export component App inherits Window {
     callback calculator-search(string);
     callback calculator-select-item(string);
     callback calculator-select-recipe(int);
-    callback calculator-quantity-changed(string);
-    callback calculator-price-changed(string, string);
+    callback calculator-quantity-changed(string) -> bool;
+    callback calculator-price-changed(string, string) -> bool;
     callback calculator-request-nested-options(string, bool);
     callback calculator-select-nested(string, string);
     callback calculator-clear-nested(string);
@@ -6951,6 +6957,8 @@ export component App inherits Window {
                     selected-has-icon: root.calculator-selected-has-icon;
                     selected-meta: root.calculator-selected-meta;
                     quantity: root.calculator-quantity;
+                    quantity-draft: root.calculator-quantity-draft;
+                    quantity-has-draft: root.calculator-quantity-has-draft;
                     material-total: root.calculator-material-total;
                     fee: root.calculator-fee;
                     total: root.calculator-total;
@@ -6963,6 +6971,7 @@ export component App inherits Window {
                     complete: root.calculator-complete;
                     compact-total: root.calculator-compact-total;
                     input-valid: root.calculator-input-valid;
+                    input-revision: root.calculator-input-revision;
                     library-open <=> root.calculator-library-open;
                     folders: root.calculator-folders;
                     folder-index <=> root.calculator-folder-index;
@@ -6983,8 +6992,8 @@ export component App inherits Window {
                     search-query(q) => { root.calculator-search(q); }
                     select-item(id) => { root.calculator-select-item(id); }
                     select-recipe(index) => { root.calculator-select-recipe(index); }
-                    quantity-changed(q) => { root.calculator-quantity-changed(q); }
-                    price-changed(key, q) => { root.calculator-price-changed(key, q); }
+                    quantity-changed(q) => { return root.calculator-quantity-changed(q); }
+                    price-changed(key, q) => { return root.calculator-price-changed(key, q); }
                     request-nested-options(key, reuse) => { root.calculator-request-nested-options(key, reuse); }
                     select-nested(key, id) => { root.calculator-select-nested(key, id); }
                     clear-nested(key) => { root.calculator-clear-nested(key); }

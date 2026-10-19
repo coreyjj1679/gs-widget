@@ -1,0 +1,182 @@
+import { ScrollView } from "std-widgets.slint";
+import { DesktopTheme, DesktopIcon } from "desktop.slint";
+
+// Compact text-and-icon actions share the calculator's direct folder controls.
+export component CalcIconButton inherits Rectangle {
+    in property <string> label;
+    in property <string> icon-path;
+    in property <bool> enabled: true;
+    in property <bool> selected: false;
+    callback clicked();
+    height: 34px;
+    min-width: caption.preferred-width + 48px;
+    horizontal-stretch: 0;
+    border-radius: 5px;
+    background: root.selected ? DesktopTheme.selected : tap.has-hover && root.enabled ? DesktopTheme.hover-strong : DesktopTheme.control;
+    border-width: 1px;
+    border-color: action-focus.has-focus ? DesktopTheme.accent : root.selected ? DesktopTheme.border : transparent;
+    opacity: root.enabled ? 1 : 0.45;
+    forward-focus: action-focus;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => {
+        if (root.enabled) { action-focus.focus(); root.clicked(); }
+    }
+    HorizontalLayout {
+        padding-left: 10px; padding-right: 10px; spacing: 8px;
+        Rectangle {
+            width: 16px; height: 100%;
+            DesktopIcon {
+                y: (parent.height - self.height) / 2;
+                width: 16px; height: 16px;
+                path: root.icon-path;
+                ink: root.selected ? DesktopTheme.accent : DesktopTheme.secondary;
+            }
+        }
+        caption := Text {
+            text: root.label;
+            font-size: 13px; color: DesktopTheme.text;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+    }
+    action-focus := FocusScope {
+        width: 100%; height: 100%; enabled: root.enabled;
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) {
+                root.clicked(); return accept;
+            }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        width: 100%; height: 100%; enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { action-focus.focus(); root.clicked(); }
+    }
+}
+
+// A single keyboard stop lets arrows traverse a bounded, scrollable folder grid.
+export component CalcFolderChoices inherits Rectangle {
+    in property <[string]> folders;
+    in-out property <int> current-index;
+    in property <bool> enabled: true;
+    in property <bool> english;
+    in property <int> max-visible-rows: 2;
+    callback selected(int);
+    property <int> columns: max(1, floor((root.width - 6px) / 168px));
+    property <int> rows: max(1, ceil(root.folders.length / root.columns));
+    property <length> cell-width: max(0px, (root.width - 12px - (root.columns - 1) * 6px) / root.columns);
+    height: min(root.rows, max(1, root.max-visible-rows)) * 40px - 6px;
+    vertical-stretch: 0;
+    forward-focus: choices-focus;
+    accessible-role: groupbox;
+    accessible-label: root.english ? "Folders" : "資料夾";
+    accessible-description: root.english ? "Use arrow keys to select a folder." : "可用方向鍵選取資料夾。";
+    opacity: root.enabled ? 1 : 0.45;
+    changed current-index => { root.reveal-current(); }
+    changed columns => { root.reveal-current(); }
+    changed rows => { root.reveal-current(); }
+    changed height => { root.reveal-current(); }
+    function reveal-current() {
+        let top = floor(max(0, root.current-index) / root.columns) * 40px;
+        if (top < -folder-scroll.content-y) { folder-scroll.content-y = -top; }
+        else if (top + 34px > -folder-scroll.content-y + root.height) {
+            folder-scroll.content-y = root.height - top - 34px;
+        }
+        folder-scroll.content-y = max(min(0px, folder-scroll.content-y), min(0px, root.height - folder-scroll.content-height));
+    }
+    function choose(index: int) {
+        if (!root.enabled || root.folders.length == 0) { return; }
+        let next = min(root.folders.length - 1, max(0, index));
+        if (next != root.current-index) {
+            root.current-index = next;
+            root.selected(next);
+        }
+        root.reveal-current();
+    }
+    folder-scroll := ScrollView {
+        width: 100%; height: 100%;
+        content-width: self.width;
+        content-height: root.rows * 40px - 6px;
+        horizontal-scrollbar-policy: always-off;
+        for folder[index] in root.folders: Rectangle {
+            x: mod(index, root.columns) * (root.cell-width + 6px);
+            y: floor(index / root.columns) * 40px;
+            width: root.cell-width; height: 34px;
+            border-radius: 5px;
+            border-width: 1px;
+            border-color: root.current-index == index ? DesktopTheme.accent : DesktopTheme.border;
+            background: root.current-index == index ? DesktopTheme.selected : folder-tap.has-hover && root.enabled ? DesktopTheme.hover : DesktopTheme.surface;
+            accessible-role: radio-button;
+            accessible-label: folder;
+            accessible-enabled: root.enabled;
+            accessible-checkable: true;
+            accessible-checked: root.current-index == index;
+            accessible-item-index: index;
+            accessible-action-default => {
+                if (root.enabled) { choices-focus.focus(); root.choose(index); }
+            }
+            HorizontalLayout {
+                padding-left: 9px; padding-right: 9px; spacing: 7px;
+                Rectangle {
+                    width: 16px; height: 100%;
+                    DesktopIcon {
+                        y: (parent.height - self.height) / 2;
+                        width: 16px; height: 16px;
+                        path: "M3 6 L9 6 L11 8 L21 8 L21 20 L3 20 Z M3 6 L3 4 L9 4 L11 6 L19 6 L19 8";
+                        ink: root.current-index == index ? DesktopTheme.accent : DesktopTheme.secondary;
+                    }
+                }
+                Text {
+                    horizontal-stretch: 1; min-width: 0px;
+                    text: folder;
+                    font-size: 13px; font-weight: root.current-index == index ? 600 : 400;
+                    color: root.current-index == index ? DesktopTheme.text : DesktopTheme.secondary;
+                    vertical-alignment: center; overflow: elide;
+                    accessible-role: none;
+                }
+            }
+            Rectangle {
+                x: 3px; y: 3px; width: parent.width - 6px; height: parent.height - 6px;
+                border-radius: 3px; border-width: 1px;
+                border-color: choices-focus.has-focus && root.current-index == index ? DesktopTheme.accent : transparent;
+            }
+            folder-tap := TouchArea {
+                width: 100%; height: 100%; enabled: root.enabled;
+                mouse-cursor: pointer;
+                clicked => { choices-focus.focus(); root.choose(index); }
+            }
+            Tooltip {
+                Rectangle {
+                    width: min(folder-label.preferred-width + 20px, 400px);
+                    height: folder-label.preferred-height + 16px;
+                    background: DesktopTheme.raised; border-radius: 4px;
+                    border-width: 1px; border-color: DesktopTheme.border;
+                    folder-label := Text {
+                        x: 10px; y: 8px; width: parent.width - 20px;
+                        text: folder; font-size: 13px; color: DesktopTheme.text; wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+    choices-focus := FocusScope {
+        width: 100%; height: 100%;
+        enabled: root.enabled && root.folders.length > 0;
+        focus-on-click: false;
+        focus-gained => { root.reveal-current(); }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.choose(root.current-index); return accept; }
+            if (event.text == Key.LeftArrow) { root.choose(root.current-index - 1); return accept; }
+            if (event.text == Key.RightArrow) { root.choose(root.current-index + 1); return accept; }
+            if (event.text == Key.UpArrow) { root.choose(root.current-index - root.columns); return accept; }
+            if (event.text == Key.DownArrow) { root.choose(root.current-index + root.columns); return accept; }
+            if (event.text == Key.Home) { root.choose(0); return accept; }
+            if (event.text == Key.End) { root.choose(root.folders.length - 1); return accept; }
+            return reject;
+        }
+    }
+}
