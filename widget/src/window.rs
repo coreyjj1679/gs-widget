@@ -9,11 +9,11 @@ mod macos;
 mod windows;
 
 #[cfg(target_os = "macos")]
-pub(crate) use macos::{copy_to_clipboard, focus_window, open_source_repository, primary_screen, work_area_at};
+pub(crate) use macos::{copy_to_clipboard, try_copy_to_clipboard, focus_window, open_source_repository, primary_screen, work_area_at};
 #[cfg(target_os = "macos")]
 pub(crate) use macos::position_scale;
 #[cfg(windows)]
-pub(crate) use windows::{copy_to_clipboard, focus_window, open_source_repository, primary_screen, work_area_at};
+pub(crate) use windows::{copy_to_clipboard, try_copy_to_clipboard, focus_window, open_source_repository, primary_screen, work_area_at};
 
 #[cfg(test)]
 mod tests {

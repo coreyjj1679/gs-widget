@@ -155,6 +155,18 @@ pub(in crate::db) struct HeroRow {
     pub(in crate::db) skills: Vec<HeroSkill>,
     pub(in crate::db) names: String,
     pub(in crate::db) icon: Option<(PathBuf, i32)>,
+    pub(in crate::db) companion: Option<CompanionRow>,
+}
+
+#[derive(Default)]
+pub(in crate::db) struct CompanionRow {
+    pub(in crate::db) riding_level: Option<i64>,
+    pub(in crate::db) movement_bonus: Option<i64>,
+    pub(in crate::db) movement_scope: Option<i64>,
+    pub(in crate::db) family_element: Option<i64>,
+    pub(in crate::db) spirit_grade: Option<i64>,
+    pub(in crate::db) evolution_root: Option<String>,
+    pub(in crate::db) evolution_order: Option<i64>,
 }
 
 pub(in crate::db) struct NpcRow {

@@ -51,11 +51,35 @@ The F1–F9 shortcuts may require holding Fn/Globe, depending on your keyboard s
 
 ## Interface
 
+### AI assistants / MCP
+
+The current source includes a local, read-only MCP server. In **Full / 完整** mode, choose **MCP** at the bottom of the sidebar for Codex, Cursor and Claude setup instructions. Copy buttons use this installation's actual executable and catalog paths. The compact widget has no MCP page.
+
+The same executable runs without a window when an AI client launches it with `--mcp`. It provides catalog search, details, monster drops, quest dependencies, recipes and cost calculation from user-supplied prices. You do not need Node.js, Python, an API key or a separate server. See [MCP.md](MCP.md) for desktop setup, limitations and verification. This feature requires a build containing these changes; older released ZIPs do not include it.
+
 Use **Full / 完整** for the desktop workspace: persistent category navigation, category search, monster comparisons, and a list beside the selected record's details. The overview provides quick entries and saved monsters. Full mode supports windows down to 960 × 640 logical pixels.
 
 Use **Widget / 小窗** for the compact interface, or **–** for the floating category bar. The compact mode keeps its existing warm palette. Both systems share the Slint interface; macOS uses PingFang TC and Windows uses Microsoft JhengHei UI. See [DESIGN.md](DESIGN.md) for the implemented design tokens and layout rules.
 
+Left-click a name in a record's detail heading to copy that name. Chinese and English headings copy separately, including item, quest, character, NPC and monster names; recipe headings copy the result item's name. Only the canonical name is copied, without IDs, quantities or descriptions. Hover to see the full name and copy hint, or focus the name and press Enter, Space or Ctrl+C. Existing list and related-record links continue to open their records. This is included in the current source build.
+
+Copy feedback appears at the bottom centre of the content area (beside the sidebar in Full mode). Names stay borderless.
+
+### Characters, mounts and spirits
+
+The character directory includes **Mounts** and **Spirit**, with a fixed representative portrait for each category where an image is available. Select a character for a preview, then choose **Open full details** to view its portrait, base stats, skills and progression materials. Chinese and English names copy separately. The compact widget opens the same scrollable detail page. Mount lists show the required riding level and movement bonus, ordered by riding level. Spirits are grouped by their spirit family element and ordered by grade; this family can differ from a low-grade spirit's combat element. Spirit skill effects appear first, with base stats available under **Show base stats**.
+
+The bundled catalog contains base stats for 263 characters and 33 spirit forms, plus 15 mounts with their recorded bonuses, riding requirements and materials. Unknown fields are omitted; mount bonuses are not presented as character base stats. These records come from the local parsed game database, rather than the older reference websites. Maintainers can refresh them transactionally with `python3 scripts/import_character_data.py /path/to/gersang-full.db` (see `--help` for options).
+
+Character, spirit and mount portraits use the bundled portrait atlases. The bundle also includes animation sheets for all 33 spirit forms and base mount artwork for all 15 mounts, with a play/pause control. Mount previews show the base artwork; the game's additional layered glow effects are not composited. Other character animations can be supplied through `GERSANG_CLIENT` or `data/client.txt`. Configured client paths are checked case-insensitively when an asset is absent from the bundle. Missing assets show an unavailable message, and fully transparent animation frames are skipped.
+
 ## Data
+
+Monster drops show the client catalog's recorded percentage beside each item. Unmatched rates appear as **未記錄 / Not recorded** (or **—** in the icon strip); they are not treated as zero. Single-player drops retain their existing label. These are the client's base values, before any in-game bonuses or events.
+
+In full-mode monster filters, search the drop-item dropdown by name, alias or item code (for example `#11608`). It lists only items with monster drop sources. Selecting an item filters its monsters and sorts their recorded drop rates from high to low; the sort direction can be reversed, and unknown rates always remain last. The selected drop is highlighted in each monster's drops. If an item occurs in multiple slots, sorting uses the highest recorded slot rate, without adding different conditions together.
+
+To refresh rates after replacing the catalog, run `python3 scripts/import_drop_rates.py /path/to/gs-parser/data/gersang-full.db --target data/gersang.db`. The importer matches monster and item codes within the same normal/single-player drop mode, preserves existing drop rows, and stores the original integer in `monster_drops.drop_rate_per_100000` (`5500` means `5.5%`). Source metadata is recorded in `meta` under `drop_rates_source`. Map-specific boss rewards and reward pools are not merged into per-monster rates.
 
 The first source build downloads dependencies and can take a few minutes. Keep the repository's `data` folder in place: the program locates the catalog from the executable or working directory. You can also set `GERSANG_DB` to the catalog file's path. Windows preferences are stored under `%LOCALAPPDATA%\gs-widget`; macOS preferences remain beside the active database.
 

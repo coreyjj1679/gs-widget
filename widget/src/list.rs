@@ -5,12 +5,23 @@ use slint::{Image, Model, ModelRc, SharedString, VecModel};
 
 use super::db;
 use super::icons::cached_icon;
-use super::{App, Hit, IconJob, MonsterDrop, Session};
+use super::{App, Hit, IconJob, MonsterDrop, QuestBrowseGroup, QuestItemRow, Session};
+
+pub(crate) fn publish_quest_groups(app: &App, catalog: &db::Catalog, grouping: &str, query: &str) {
+    let needle = query.trim().to_lowercase();
+    let groups = catalog.quest_browse_groups(grouping, &app.get_lang()).into_iter()
+        .filter(|row| needle.is_empty() || format!("{} {}", row.title, row.subtitle).to_lowercase().contains(&needle))
+        .map(|row| QuestBrowseGroup {
+            key: row.key.into(), title: row.title.into(), subtitle: row.subtitle.into(), count: row.aside.into(),
+        }).collect::<Vec<_>>();
+    app.set_quest_browse_groups(ModelRc::new(VecModel::from(groups)));
+}
 
 fn section_key(key: &str) -> bool {
     key.starts_with("craft:")
         || key.starts_with("rank:")
         || key.starts_with("land:")
+        || key.starts_with("land-rank:")
         || key.starts_with("icat:")
         || key.starts_with("qsrc:")
         || key.starts_with("yard:")
@@ -20,6 +31,96 @@ fn section_key(key: &str) -> bool {
 pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favourites: &HashSet<String>, category: &str, text: &str) {
     let lang = app.get_lang().to_string();
     let nation = app.get_nation().to_string();
+    if category == "quest" && app.get_full_mode() {
+        let primary = catalog.quest_categories(&lang);
+        let group = |keys: &[&str]| plain_hits(primary.iter().filter(|row| keys.contains(&row.key.as_str())).cloned().collect());
+        app.set_quest_all(plain_hits(primary.iter().filter(|row| row.key == "qcat:all").cloned().collect()).pop().unwrap_or_default());
+        app.set_quest_standard_all(plain_hits(primary.iter().filter(|row| row.key == "qcat:standard").cloned().collect()).pop().unwrap_or_default());
+        app.set_quest_recurring_categories(ModelRc::new(VecModel::from(group(&["qcat:daily", "qcat:weekly", "qcat:scheduled"]))));
+        app.set_quest_growth_categories(ModelRc::new(VecModel::from(group(&["qcat:starter", "qcat:intro"]))));
+        app.set_quest_other_categories(ModelRc::new(VecModel::from(group(&["qcat:letter", "qcat:mercenary", "qcat:dispatch"]))));
+        let category = app.get_quest_category().to_string();
+        let mut categories = primary.clone();
+        if category.starts_with("qgroup:") {
+            let mut selected = primary[0].clone();
+            selected.key = category.clone();
+            selected.title = catalog.quest_browse_group_title(&category, &lang);
+            categories.insert(1, selected);
+        }
+        app.set_quest_category_names(ModelRc::new(VecModel::from(categories.iter().map(|row| SharedString::from(row.title.as_str())).collect::<Vec<_>>())));
+        app.set_quest_categories(ModelRc::new(VecModel::from(plain_hits(categories.clone()))));
+        let title = categories.iter().find(|row| row.key == category).map(|row| row.title.clone()).unwrap_or_default();
+        app.set_quest_category_title(title.into());
+        // Searching switches to records while preserving the selected category/group.
+        if !text.trim().is_empty() { app.set_quest_summary(false); }
+        if app.get_quest_summary() {
+            let english = lang.starts_with("en");
+            let entries = [
+                ("chain", "按任務鏈", "By quest chain", "沿完整流程與分支瀏覽", "Follow complete paths and branches"),
+                ("npc", "按 NPC", "By NPC", "從委託人尋找任務", "Find quests by their quest giver"),
+                ("region", "按地區", "By region", "依 NPC 所在地；未註明者另列", "By NPC location, with an unknown group"),
+            ].into_iter().map(|(key, zh, en, zh_note, en_note)| {
+                let mut row = primary[0].clone();
+                row.key = key.into();
+                row.title = if english { en } else { zh }.into();
+                row.subtitle = if english { en_note } else { zh_note }.into();
+                row.aside = catalog.quest_browse_groups(key, &lang).len().to_string();
+                row
+            }).collect();
+            app.set_quest_browse_entries(ModelRc::new(VecModel::from(plain_hits(entries))));
+            if !app.get_quest_grouping().is_empty() {
+                publish_quest_groups(app, catalog, &app.get_quest_grouping(), &app.get_quest_group_query());
+            }
+        }
+        let hits = if app.get_quest_summary() {
+            primary
+        } else if category.starts_with("qgroup:") {
+            catalog.quest_browse_group_records(&category, text, &lang)
+        } else {
+            catalog.quest_category_records(&category, text, &lang)
+        };
+        let ids: Vec<_> = hits.iter().filter_map(|hit| hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok())).collect();
+        let summaries = catalog.quest_list_summaries(&ids, &lang);
+        let item_previews = catalog.quest_item_previews(&ids, &lang);
+        let item_sets: Vec<db::QuestItemSet> = hits.iter().map(|hit| {
+            hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok())
+                .and_then(|id| item_previews.get(&id).cloned()).unwrap_or_default()
+        }).collect();
+        let mut alternates = Vec::with_capacity(hits.len());
+        let mut objectives = Vec::with_capacity(hits.len());
+        let mut rewards = Vec::with_capacity(hits.len());
+        let mut reward_items = Vec::with_capacity(hits.len());
+        let mut reward_stats = Vec::with_capacity(hits.len());
+        for hit in &hits {
+            let id = hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok()).unwrap_or_default();
+            alternates.push(SharedString::from(catalog.quest_alternate_title(id, &lang)));
+            let summary = summaries.get(&id).cloned().unwrap_or_default();
+            objectives.push(SharedString::from(summary.summary));
+            rewards.push(SharedString::from(summary.rewards));
+            reward_items.push(SharedString::from(summary.reward_items));
+            reward_stats.push(SharedString::from(summary.reward_stats));
+        }
+        app.set_quest_alternate_titles(ModelRc::new(VecModel::from(alternates)));
+        app.set_quest_objective_summaries(ModelRc::new(VecModel::from(objectives)));
+        app.set_quest_reward_summaries(ModelRc::new(VecModel::from(rewards)));
+        app.set_quest_reward_items(ModelRc::new(VecModel::from(reward_items)));
+        app.set_quest_reward_stats(ModelRc::new(VecModel::from(reward_stats)));
+        app.set_detail_key("".into());
+        app.set_detail_index(-1);
+        app.set_quest_map_open(false);
+        show_rows(app, session, catalog, &nation, hits, favourites, false);
+        let gen = session.generation.load(Ordering::Relaxed);
+        let mut pending = HashSet::new();
+        let mut jobs = Vec::new();
+        let item_rows = item_sets.into_iter().map(|items| QuestItemRow {
+            required_items: super::quest_icons::item_chips(catalog, session, &items.required, gen, false, &mut pending, &mut jobs),
+            reward_icons: super::quest_icons::item_chips(catalog, session, &items.rewards, gen, false, &mut pending, &mut jobs),
+            other_objectives: items.other_objectives.into(),
+        }).collect::<Vec<_>>();
+        app.set_quest_item_rows(ModelRc::new(VecModel::from(item_rows)));
+        for job in jobs { let _ = session.jobs.send(job); }
+        return;
+    }
     let full_monsters = category == "monster" && app.get_full_mode();
     if full_monsters {
         refresh_region_rows(app, catalog);
@@ -80,6 +181,17 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
                 }
             }
         }
+        if category == "hero" && hits.iter().any(|hit| hit.key == previous_scope) {
+            opened = previous_scope.clone();
+        }
+        if category == "hero" && app.get_hero_group() == "land" {
+            if hero_region_parent(&previous_scope).is_some_and(|parent| hits.iter().any(|hit| hit.key == parent))
+                && !catalog.section_records(&previous_scope, &lang).is_empty()
+            {
+                opened = previous_scope.clone();
+            }
+            hits = hero_region_directory(catalog, hits, &opened, &lang);
+        }
     }
     show_rows(app, session, catalog, &nation, hits, favourites, false);
     if board && (monster_scope_key(&previous_scope) || app.get_filter_global() || !nation.is_empty() || query.is_active()) {
@@ -96,9 +208,55 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
     }
     if !opened.is_empty() {
         app.set_expanded(opened.clone().into());
+        if category == "hero" && app.get_hero_group() == "land" {
+            if let Some(cursor) = app.get_hits().iter().position(|row| row.key.as_str() == opened) {
+                app.set_cursor(cursor as i32);
+                app.invoke_reveal_list(cursor as i32);
+            }
+        }
         let records = catalog.section_records(&opened, &lang);
         show_board_monsters(app, session, catalog, &nation, records, favourites);
     }
+}
+
+fn hero_region_parent(key: &str) -> Option<String> {
+    if key.starts_with("land:") {
+        Some(key.to_string())
+    } else {
+        key.strip_prefix("land-rank:").and_then(|scope| scope.split_once(':'))
+            .map(|(nation, _)| format!("land:{nation}"))
+    }
+}
+
+fn hero_region_directory(catalog: &db::Catalog, regions: Vec<db::Hit>, selected: &str, lang: &str) -> Vec<db::Hit> {
+    let parent = hero_region_parent(selected);
+    let mut rows = Vec::new();
+    for mut region in regions {
+        region.chip = "label".into();
+        let ranks = if parent.as_deref() == Some(region.key.as_str()) {
+            region.aside = "expanded".into();
+            catalog.hero_region_ranks(region.key.strip_prefix("land:").unwrap_or_default(), lang)
+        } else {
+            Vec::new()
+        };
+        rows.push(region);
+        rows.extend(ranks.into_iter().map(|mut rank| {
+            rank.chip = "label".into();
+            rank
+        }));
+    }
+    rows
+}
+
+pub(crate) fn refresh_hero_region_directory(app: &App, catalog: &db::Catalog, session: &Session, favourites: &HashSet<String>, selected: &str) {
+    let lang = app.get_lang();
+    let regions = catalog.search_scoped("hero", "", &lang, "", "", "land", "");
+    let rows = hero_region_directory(catalog, regions, selected, &lang);
+    let cursor_key = if selected.is_empty() { app.get_expanded().to_string() } else { selected.to_string() };
+    let cursor = rows.iter().position(|row| row.key == cursor_key).unwrap_or(0);
+    show_rows(app, session, catalog, &app.get_nation(), rows, favourites, false);
+    app.set_cursor(cursor as i32);
+    app.invoke_reveal_list(cursor as i32);
 }
 
 fn monster_scope_key(key: &str) -> bool {
@@ -191,6 +349,27 @@ mod tests {
     use super::picture_key;
 
     #[test]
+    fn region_directory_keeps_scoped_ranks_under_their_parent() {
+        let catalog = super::db::Catalog::open().expect("catalog");
+        let regions = catalog.search_scoped("hero", "", "zh", "", "", "land", "");
+        let rows = super::hero_region_directory(&catalog, regions.clone(), "land-rank:1:0", "zh");
+        let korea = rows.iter().position(|row| row.key == "land:1").unwrap();
+        assert_eq!(rows[korea].aside, "expanded");
+        assert_eq!(rows[korea + 1].key, "land-rank:1:0");
+        assert_eq!(rows[korea + 1].title, "傭兵");
+        let ranks: Vec<_> = rows.iter().filter(|row| row.key.starts_with("land-rank:")).collect();
+        assert_eq!(ranks.len(), catalog.hero_region_ranks("1", "zh").len());
+        assert!(ranks.iter().all(|row| row.key.starts_with("land-rank:1:")));
+        let mercenaries = catalog.section_records(&rows[korea + 1].key, "zh");
+        assert!(mercenaries.iter().any(|row| row.key == "hero:U08" && row.title == "儒生"));
+        assert!(mercenaries.len() < catalog.section_records("land:1", "zh").len());
+        assert!(catalog.section_records("land-rank:1:invalid", "zh").is_empty());
+        let closed = super::hero_region_directory(&catalog, regions.clone(), "", "zh");
+        assert_eq!(closed.len(), regions.len());
+        assert!(closed.iter().all(|row| row.aside != "expanded"));
+    }
+
+    #[test]
     fn picture_keys_are_the_pages_that_carry_an_icon() {
         assert!(picture_key("item:1"));
         assert!(picture_key("set:79"));
@@ -280,6 +459,26 @@ mod tests {
         let expected: Vec<_> = sorted.iter().take(300).map(|hit| hit.key.clone()).collect();
         assert_eq!(actual, expected);
         assert!(all.iter().skip(300).any(|hit| expected.contains(&hit.key)), "top results must include records beyond the original saved cap");
+    }
+
+    #[test]
+    fn drop_rate_sort_keeps_highest_first_across_search_and_favourites() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let all = super::full_monster_records(&catalog, "", "zh-en", "", "", "", "all:", false);
+        let favourites = std::collections::HashSet::from(["O39".into(), "O14".into(), "O12".into()]);
+        let query = super::db::MonsterQuery { drop: "item:11608".into(), sort_key: 8, sort_desc: true, ..Default::default() };
+        let ranked = super::full_monster_results(&catalog, all.clone(), &favourites, false, &query, true);
+        assert_eq!(ranked.len(), 13);
+        assert_eq!(ranked.iter().take(3).map(|hit| hit.key.as_str()).collect::<Vec<_>>(),
+            ["monster:O12", "monster:O142", "monster:O192"]);
+        assert_eq!(ranked.last().unwrap().key, "monster:O39", "unknown favourite stays behind known rates");
+        let saved = super::full_monster_results(&catalog, all, &favourites, true, &query, true);
+        assert_eq!(saved.iter().map(|hit| hit.key.as_str()).collect::<Vec<_>>(),
+            ["monster:O12", "monster:O14", "monster:O39"]);
+        let searched = super::full_monster_records(&catalog, "黑市", "zh-en", "", "", "", "all:", false);
+        let ranked = super::full_monster_results(&catalog, searched, &favourites, false, &query, true);
+        assert_eq!(ranked.iter().map(|hit| hit.key.as_str()).collect::<Vec<_>>(),
+            ["monster:O193", "monster:O194"]);
     }
 }
 
@@ -371,7 +570,15 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
     } else {
         std::collections::HashMap::new()
     };
-    let gen = session.generation.fetch_add(1, Ordering::Relaxed) + 1;
+    // A section opens beside the directory that is still loading its icons.
+    // Keep both models in the same generation; only replacing the main list
+    // invalidates their pending jobs. Jobs for old section rows are keyed and
+    // cannot paint a different record when a section changes.
+    let gen = if board {
+        session.generation.load(Ordering::Relaxed)
+    } else {
+        session.generation.fetch_add(1, Ordering::Relaxed) + 1
+    };
     let flow_titles: Vec<String> = hits.iter().map(|hit| hit.title.clone()).collect();
     let flow_chips: Vec<String> = hits.iter().map(|hit| hit.chip.clone()).collect();
     let mut rows = Vec::with_capacity(hits.len());
@@ -426,6 +633,8 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
                 MonsterDrop {
                     key: drop.key.clone().into(),
                     title: drop.title.clone().into(),
+                    drop_rate: drop.drop_rate.clone().into(),
+                    selected: drop.key == app.get_filter_drop_key().as_str(),
                     has_icon: icon.is_some(),
                     icon: icon.unwrap_or_default(),
                 }

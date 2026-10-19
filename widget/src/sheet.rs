@@ -8,7 +8,7 @@ use super::db;
 use super::agf;
 use super::icons::{cached_icon, image_from_icon, note_lines};
 use super::list::{picture_key, plain_hits, publish};
-use super::{App, Fact, Hit, IconJob, Session};
+use super::{App, Fact, Hit, IconJob, Session, QuestMapNode, QuestMapSegment};
 
 pub(crate) fn open_scope(
     app: &App,
@@ -27,6 +27,9 @@ pub(crate) fn open_scope(
     app.set_viewing_quest(false);
     app.set_viewing_npc(false);
     app.set_viewing_hero(false);
+    app.set_hero_stats(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_effects(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_spirit(false);
     app.set_viewing_item(false);
     app.set_viewing_set(false);
     app.set_item_tab("".into());
@@ -162,7 +165,7 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
         groups.push(group);
     }
     let preferred = if keep_sheet { app.get_item_source().to_string() } else { String::new() };
-    let pick = if groups.iter().any(|(header, _)| header.key.as_str() == preferred) {
+    let pick = if (keep_sheet && preferred.is_empty()) || groups.iter().any(|(header, _)| header.key.as_str() == preferred) {
         preferred
     } else if groups.iter().any(|(header, _)| header.key.as_str() == "need") {
         "need".to_string()
@@ -223,8 +226,8 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
     app.set_links(ModelRc::new(VecModel::from(shown)));
     if !keep_sheet {
         app.set_cursor(0);
+        app.set_drop_offset(0.0);
     }
-    app.set_drop_offset(0.0);
 }
 
 pub(crate) fn focus_section(app: &App, key: &str) {
@@ -272,6 +275,11 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     for job in jobs {
         let _ = session.jobs.send(job);
     }
+    // Expanding a character section only replaces related rows. Keep the
+    // existing facts and images mounted so the scroll position stays stable.
+    if keep_sheet && key.starts_with("hero:") {
+        return;
+    }
     let mut shown = false;
     if let Some((path, frame)) = icon {
         if let Ok(icon) = agf::frame_rgba(&path, frame) {
@@ -298,12 +306,16 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
         app.set_show_element(false);
     }
     app.set_show_battle(false);
-    if let Some(code) = key.strip_prefix("monster:") {
-        if let Some((path, frame)) = catalog.battle_sprite(code) {
-            if let Some(image) = cached_icon(cache, &path, frame) {
-                app.set_battle_icon(image);
-                app.set_show_battle(true);
-            }
+    let sprite = if let Some(code) = key.strip_prefix("monster:") {
+        catalog.battle_sprite(code)
+    } else {
+        key.strip_prefix("hero:").and_then(|code| catalog.hero_battle_sprite(code))
+    };
+    if let Some((path, frame)) = sprite {
+        let first = agf::playable_frames(&path).ok().and_then(|frames| frames.first().copied()).unwrap_or(frame);
+        if let Some(image) = cached_icon(cache, &path, first) {
+            app.set_battle_icon(image);
+            app.set_show_battle(true);
         }
     }
     let lang = app.get_lang().to_string();
@@ -312,10 +324,15 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     app.set_viewing_quest(false);
     app.set_viewing_npc(false);
     app.set_viewing_hero(false);
+    app.set_hero_stats(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_effects(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_hero_spirit(false);
     app.set_viewing_item(false);
     app.set_viewing_set(false);
     clear_quest_nav(app);
-    app.set_drop_offset(0.0);
+    if !keep_sheet {
+        app.set_drop_offset(0.0);
+    }
     if let Some(code) = key.strip_prefix("monster:") {
         if let Some((name, alt, id, lines)) = catalog.monster_sheet(code, &lang) {
             apply_sheet(&app, name, alt, id, lines);
@@ -377,6 +394,15 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     } else if let Some(code) = key.strip_prefix("hero:") {
         if let Some((name, alt, heading, lines, note)) = catalog.hero_sheet(code, &lang) {
             apply_sheet(&app, name, alt, heading, lines);
+            let stats = catalog.hero_stat_lines(code, &lang).into_iter().map(|(label, value)| Fact {
+                label: label.into(), value: value.into(), ..Fact::default()
+            }).collect::<Vec<_>>();
+            app.set_hero_stats(ModelRc::new(VecModel::from(stats)));
+            let effects = catalog.hero_effect_lines(code, &lang).into_iter().map(|(label, value)| Fact {
+                label: label.into(), value: value.into(), ..Fact::default()
+            }).collect::<Vec<_>>();
+            app.set_hero_effects(ModelRc::new(VecModel::from(effects)));
+            app.set_hero_spirit(catalog.hero_is_spirit(code));
             app.set_sheet_note(note.into());
             app.set_viewing_hero(true);
         } else {
@@ -404,9 +430,18 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
             app.set_sheet_code(code.into());
             let mut facts = Vec::new();
             let mut picks = Vec::new();
-            for (index, (label, value, key)) in tasks.into_iter().enumerate() {
+            let alternate_tasks = if app.get_full_mode() {
+                let alternate_lang = if lang.starts_with("en") { "zh-en" } else { "en-zh" };
+                catalog.quest_sheet(quest_id, alternate_lang).map(|sheet| sheet.3).unwrap_or_default()
+            } else { Vec::new() };
+            for (index, (label, mut value, key)) in tasks.into_iter().enumerate() {
                 if !key.is_empty() {
                     picks.push(index as i32);
+                    if let Some((_, alternate, alternate_key)) = alternate_tasks.get(index) {
+                        if alternate_key == &key && !alternate.is_empty() && alternate != &value {
+                            value = format!("{value}\n{alternate}");
+                        }
+                    }
                 }
                 let (icon, has_icon) = catalog
                     .linked_icon(&key)
@@ -440,6 +475,52 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                 })
                 .collect();
             app.set_reward_facts(ModelRc::new(VecModel::from(rewards)));
+            let classification: Vec<_> = catalog.quest_classification_facts(quest_id, &lang).into_iter()
+                .map(|(label, value, key)| Fact {
+                    label: label.into(), value: value.into(), key: key.into(),
+                    icon: Image::default(), has_icon: false, section: Default::default(),
+                }).collect();
+            app.set_quest_classification(ModelRc::new(VecModel::from(classification)));
+            let (dependencies, note) = catalog.quest_dependency_rows(quest_id, &lang);
+            app.set_quest_dependencies(ModelRc::new(VecModel::from(plain_hits(dependencies))));
+            app.set_quest_dependency_note(note.into());
+            let graph = catalog.quest_dependency_graph(quest_id, &lang);
+            let ids = graph.nodes.iter().filter_map(|node| node.hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok())).collect::<Vec<_>>();
+            let item_previews = catalog.quest_item_previews(&ids, &lang);
+            let mut pending_items = HashSet::new();
+            let mut item_jobs = Vec::new();
+            app.set_quest_map_nodes(ModelRc::new(VecModel::from(graph.nodes.into_iter().map(|node| {
+                let items = node.hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok())
+                    .and_then(|id| item_previews.get(&id)).cloned().unwrap_or_default();
+                let preview = node.hit.key.strip_prefix("quest:")
+                    .and_then(|id| id.parse::<i64>().ok())
+                    .map(|id| catalog.quest_map_preview(id, &lang))
+                    .unwrap_or_default();
+                let alternate = node.hit.key.strip_prefix("quest:")
+                    .and_then(|id| id.parse::<i64>().ok())
+                    .map(|id| catalog.quest_alternate_title(id, &lang)).unwrap_or_default();
+                QuestMapNode {
+                    key: node.hit.key.into(), title: node.hit.title.into(), subtitle: node.hit.subtitle.into(),
+                    relation: node.hit.aside.into(), x: node.x, y: node.y, state: node.state, cyclic: node.cyclic,
+                    summary: preview.summary.into(), objectives: preview.objectives.into(),
+                    rewards: preview.rewards.into(), brief: preview.brief.into(),
+                    reward_items: preview.reward_items.into(), reward_stats: preview.reward_stats.into(),
+                    required_items: super::quest_icons::item_chips(catalog, session, &items.required, gen, true, &mut pending_items, &mut item_jobs),
+                    reward_icons: super::quest_icons::item_chips(catalog, session, &items.rewards, gen, true, &mut pending_items, &mut item_jobs),
+                    other_objectives: items.other_objectives.into(),
+                    alternate: alternate.into(),
+                }
+            }).collect::<Vec<_>>())));
+            for job in item_jobs { let _ = session.jobs.send(job); }
+            app.set_quest_map_segments(ModelRc::new(VecModel::from(graph.segments.into_iter().map(|line| QuestMapSegment {
+                x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2,
+                cyclic: line.cyclic, unresolved: line.unresolved, highlighted: line.highlighted, arrow: line.arrow,
+            }).collect::<Vec<_>>())));
+            app.set_quest_map_width(graph.width);
+            app.set_quest_map_height(graph.height);
+            app.set_quest_map_focus_x(graph.selected_x);
+            app.set_quest_map_focus_y(graph.selected_y);
+            app.set_quest_map_note(graph.note.into());
             let (prev, next) = catalog.quest_chain(quest_id, &lang);
             app.set_chain_prev(ModelRc::new(VecModel::from(plain_hits(prev.into_iter().collect()))));
             app.set_chain_next(ModelRc::new(VecModel::from(plain_hits(next))));
@@ -478,6 +559,11 @@ pub(crate) fn apply_sheet(app: &App, name: String, alt: String, id: String, line
 }
 
 pub(crate) fn clear_quest_nav(app: &App) {
+    app.set_quest_map_nodes(ModelRc::new(VecModel::from(Vec::<QuestMapNode>::new())));
+    app.set_quest_map_segments(ModelRc::new(VecModel::from(Vec::<QuestMapSegment>::new())));
+    app.set_quest_dependencies(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
+    app.set_quest_classification(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
+    app.set_quest_dependency_note("".into());
     app.set_chain_prev(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
     app.set_chain_next(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
     app.set_reward_facts(ModelRc::new(VecModel::from(Vec::<Fact>::new())));

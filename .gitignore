@@ -1,5 +1,6 @@
 widget/target/
 dist/
+.impeccable/review/
 **/__pycache__/
 *.py[cod]
 

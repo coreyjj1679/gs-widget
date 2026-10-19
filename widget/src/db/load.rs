@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 
-use super::alias::{alias_editor_text_in, parse_alias_book};
+use super::alias::parse_alias_book;
 use super::hero::{load_chains, load_heroes};
 use super::item::{load_item_icons, load_items, load_sets};
 use super::monster::{load_locations, load_monsters, load_places, nation_counts};
@@ -68,7 +68,7 @@ impl Index {
         conn: &Connection,
         client_root: &Path,
         pictures: &HashMap<String, (PathBuf, i32)>,
-        data_dir: &Path,
+        alias_text: &str,
     ) -> Result<Self, String> {
         let texts = load_online(conn)?;
         let locations = load_locations(conn)?;
@@ -87,7 +87,7 @@ impl Index {
         let (sets, set_magic) = load_sets(conn, &texts, &item_icons)?;
         let towns = load_towns(conn, &texts)?;
         let charts = load_charts(conn, &texts)?;
-        let aliases = RefCell::new(parse_alias_book(&alias_editor_text_in(data_dir)));
+        let aliases = RefCell::new(parse_alias_book(alias_text));
         Ok(Self {
             monsters,
             nations,

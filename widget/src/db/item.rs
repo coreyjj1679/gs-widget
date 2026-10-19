@@ -828,7 +828,7 @@ impl Catalog {
         };
         Some((
             lead(lang, &en, &zh),
-            String::new(),
+            trail(lang, &en, &zh),
             format!("#{code}"),
             self.item_lines(code, lang, price, weight),
             self.item_note(desc_gts, &description, lang),

@@ -5,9 +5,12 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, OpenFlags};
 
 mod alias;
+mod copy_name;
+mod character_data;
 mod hero;
 mod item;
 mod load;
+pub(crate) mod mcp;
 mod monster;
 mod names;
 mod npc;
@@ -17,6 +20,10 @@ mod calculator;
 mod calculator_library;
 mod prefs;
 mod quest;
+mod quest_catalog;
+mod quest_graph;
+mod quest_groups;
+mod quest_items;
 mod recipe;
 mod rows;
 mod search;
@@ -28,6 +35,7 @@ mod work;
 
 pub use alias::{alias_rows, save_alias_text};
 pub use paths::client_label;
+pub use quest_items::{QuestItemRef, QuestItemSet};
 pub use calculator::{CalcCatalog, CalcDocument, decode_calculator, encode_calculator, load_calculator, save_calculator, calculator_export_dir};
 pub use calculator_library::{CalcLibrary, load_calculator_library, save_calculator_library, encode_calculator_folder, decode_calculator_folder};
 pub use user_data::initialize_user_data;
@@ -86,7 +94,8 @@ impl Catalog {
         let client_root = locate_client(stored, db.parent().unwrap_or(Path::new(".")));
         let characters = characters_dir(&client_root, db.parent().unwrap_or(Path::new(".")));
         let pictures = choose_pictures(&client_root, &load_sprites(&conn), &load_portraits(&conn));
-        let index = Index::load(&conn, &client_root, &pictures, &user_data::preferences_dir())?;
+        let aliases = alias::alias_editor_text_in(&user_data::preferences_dir());
+        let index = Index::load(&conn, &client_root, &pictures, &aliases)?;
         Ok(Self {
             conn,
             client_root,
@@ -200,6 +209,9 @@ impl Catalog {
         }
         if let Some(land) = key.strip_prefix("land:") {
             return self.index.hero_hits("", "", lang, "", land, usize::MAX);
+        }
+        if let Some((land, rank)) = key.strip_prefix("land-rank:").and_then(|scope| scope.split_once(':')) {
+            return self.hero_region_records(land, rank, lang);
         }
         if let Some(category) = key.strip_prefix("icat:") {
             return if category == "set" {

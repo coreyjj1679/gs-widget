@@ -34,7 +34,14 @@ pub fn playable_frames(path: &Path) -> Result<Vec<i32>, String> {
         .frames
         .iter()
         .enumerate()
-        .filter(|(_, frame)| frame.2 > 0 && frame.3 > 0)
+        .filter(|(index, frame)| {
+            // Some action sheets retain fully transparent, positive-size tail
+            // frames. Their encoded alpha is enough to skip them without
+            // decoding or changing the cached frame pixels.
+            frame.2 > 0 && frame.3 > 0
+                && sheet.raw.get(sheet.offsets[*index]..sheet.offsets[*index + 1])
+                    .is_some_and(|pixels| pixels.chunks_exact(4).any(|pixel| pixel[0] != 0))
+        })
         .map(|(index, _)| index as i32)
         .collect();
     Ok(frames)
