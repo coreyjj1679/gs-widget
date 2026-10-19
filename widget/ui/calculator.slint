@@ -488,15 +488,39 @@ export component CalculatorPane inherits Rectangle {
     callback export-card();
     callback copy-code();
     callback import-code(string);
-    callback close();
     property <bool> saving: false;
     property <string> save-name;
+    property <string> save-name-source;
+    property <bool> dismiss-library-requested: false;
     property <length> editor-scroll-y: 0px;
     property <bool> importing: false;
     property <string> import-text;
     property <length> cost-width: root.width < 820px ? 114px : 150px;
     property <length> quantity-width: root.width < 820px ? 62px : 84px;
     background: DesktopTheme.canvas;
+    forward-focus: pane-focus;
+    init => { pane-focus.focus(); }
+    changed library-open => {
+        if (!root.library-open) { pane-focus.focus(); }
+    }
+
+    pane-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-tab-navigation: false;
+        focus-on-click: true;
+        key-pressed(event) => {
+            if (event.text != Key.Escape) { return reject; }
+            if (root.library-open) {
+                root.dismiss-library-requested = true;
+            } else if (root.saving) {
+                root.saving = false;
+                self.focus();
+            } else if (root.importing) {
+                root.importing = false;
+                self.focus();
+            }
+            return accept;
+        }
 
     VerticalLayout {
         spacing: 16px;
@@ -526,18 +550,17 @@ export component CalculatorPane inherits Rectangle {
                     root.saving = !root.saving;
                     root.importing = false;
                     root.editor-scroll-y = 0px;
-                    root.save-name = root.active-saved-name != "" ? root.active-saved-name : root.selected-name;
+                    let suggested-name = root.active-saved-name != "" ? root.active-saved-name : root.selected-name;
+                    if (root.save-name-source != suggested-name) {
+                        root.save-name = suggested-name;
+                        root.save-name-source = root.save-name;
+                    }
                 }
             }
             Button {
                 text: root.library-open ? (root.english ? "Continue calculating" : "繼續計算") : (root.english ? "Saved (" + root.saved-count + ")" : "我的收藏（" + root.saved-count + "）");
                 height: 32px;
                 clicked => { root.library-open = !root.library-open; root.saving = false; }
-            }
-            Button {
-                text: root.english ? "Back" : "返回";
-                height: 32px; min-width: 64px;
-                clicked => { root.close(); }
             }
         }
         if root.error != "": Text {
@@ -552,6 +575,8 @@ export component CalculatorPane inherits Rectangle {
             saved: root.saved;
             library-error: root.library-error;
             error: root.error;
+            dismiss-requested <=> root.dismiss-library-requested;
+            back => { root.library-open = false; }
             select-folder(index) => { root.select-folder(index); }
             new-folder(name) => { root.new-folder(name); }
             rename-folder(name) => { root.rename-folder(name); }
@@ -966,5 +991,6 @@ export component CalculatorPane inherits Rectangle {
         if root.info != "": Text {
             text: root.info; color: DesktopTheme.accent; font-size: 12px; wrap: word-wrap;
         }
+    }
     }
 }
