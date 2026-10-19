@@ -1331,6 +1331,8 @@ fn main() {
         app.set_filter_magic_max("".into());
         app.set_filter_drop_key(key);
         app.set_filter_drop(title);
+        app.set_monster_sort_key(8);
+        app.set_monster_sort_desc(true);
         app.set_expanded("all:".into());
         app.set_list_offset(0.0);
         app.set_cursor(0);

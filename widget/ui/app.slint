@@ -139,6 +139,8 @@ export struct MonsterDrop {
     key: string,
     title: string,
     alternate-name: string,
+    drop-rate: string,
+    selected: bool,
     icon: image,
     has-icon: bool,
 }
@@ -2155,6 +2157,7 @@ component MonsterDropPicker inherits Rectangle {
     in property <bool> english;
     in-out property <bool> open: false;
     property <int> option-index: 0;
+    property <length> option-height: 44px;
     property <bool> popup-visible: popup.is-open;
     callback request(string);
     callback edit(string);
@@ -2181,7 +2184,7 @@ component MonsterDropPicker inherits Rectangle {
     changed popup-visible => { root.open = root.popup-visible; }
     Text {
         x: 10px; y: 0px; width: parent.width - (root.query == "" ? 42px : 72px); height: 100%;
-        text: root.query == "" ? (root.english ? "Search or choose an item…" : "搜尋或選擇掉落物…") : root.query;
+        text: root.query == "" ? (root.english ? "Item name or #ID…" : "輸入道具名稱或 #編號…") : root.query;
         color: root.query == "" ? DesktopTheme.secondary : DesktopTheme.text;
         font-size: 13px; overflow: elide; vertical-alignment: center;
     }
@@ -2211,7 +2214,7 @@ component MonsterDropPicker inherits Rectangle {
     popup := PopupWindow {
         x: 0px; y: root.height + 4px;
         width: max(root.width, 320px);
-        height: 64px + min(max(root.options.length, 1), 6) * 36px;
+        height: 64px + min(max(root.options.length, 1), 6) * root.option-height;
         close-policy: close-on-click-outside;
         forward-focus: query-input;
         Rectangle {
@@ -2221,8 +2224,9 @@ component MonsterDropPicker inherits Rectangle {
             query-input := LineEdit {
                 x: 8px; y: 8px; width: parent.width - 16px; height: 32px;
                 text: root.query;
-                placeholder-text: root.english ? "Type an item name…" : "輸入道具名稱…";
-                edited => { root.option-index = 0; root.edit(self.text); }
+                placeholder-text: root.english ? "Name or #ID, e.g. #11608…" : "名稱或 #編號，例如 #11608…";
+                accessible-label: root.english ? "Search monster drops by item name or ID" : "以道具名稱或編號搜尋怪物掉落物";
+                edited => { root.option-index = 0; options-scroll.content-y = 0px; root.edit(self.text); }
                 accepted => {
                     if (root.option-index >= 0 && root.option-index < root.options.length) {
                         root.choose(root.options[root.option-index].key, root.options[root.option-index].title);
@@ -2233,9 +2237,9 @@ component MonsterDropPicker inherits Rectangle {
                     if (event.text == Key.Escape) { root.open = false; return accept; }
                     if (event.text == Key.DownArrow || event.text == Key.UpArrow) {
                         root.option-index = max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
-                        if (root.option-index * 36px < -options-scroll.content-y) { options-scroll.content-y = -root.option-index * 36px; }
-                        else if ((root.option-index + 1) * 36px > -options-scroll.content-y + options-scroll.height) {
-                            options-scroll.content-y = options-scroll.height - (root.option-index + 1) * 36px;
+                        if (root.option-index * root.option-height < -options-scroll.content-y) { options-scroll.content-y = -root.option-index * root.option-height; }
+                        else if ((root.option-index + 1) * root.option-height > -options-scroll.content-y + options-scroll.height) {
+                            options-scroll.content-y = options-scroll.height - (root.option-index + 1) * root.option-height;
                         }
                         return accept;
                     }
@@ -2245,18 +2249,26 @@ component MonsterDropPicker inherits Rectangle {
             options-scroll := Flickable {
                 x: 4px; y: 48px; width: parent.width - 8px; height: parent.height - 56px;
                 content-width: self.width;
-                content-height: max(root.options.length * 36px, self.height);
+                content-height: max(root.options.length * root.option-height, self.height);
                 for option[i] in root.options: Rectangle {
-                    x: 0px; y: i * 36px; width: parent.width; height: 36px;
+                    x: 0px; y: i * root.option-height; width: parent.width; height: root.option-height;
                     border-radius: 3px;
-                    background: option-touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
+                    background: option.key == root.selected-key ? DesktopTheme.selected : option-touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
+                    border-width: 1px;
+                    border-color: option.key == root.selected-key ? DesktopTheme.accent : transparent;
                     accessible-role: button;
-                    accessible-label: option.title + " · " + option.subtitle + (root.english ? " monsters" : " 隻怪物");
+                    accessible-label: option.title + " · " + option.aside + " · " + option.subtitle + (root.english ? " monsters" : " 隻怪物");
+                    accessible-description: option.key == root.selected-key ? (root.english ? "Selected drop" : "已選掉落物") : "";
                     accessible-action-default => { root.choose(option.key, option.title); root.open = false; }
                     Text {
-                        x: 10px; y: 0px; width: parent.width - 112px; height: 100%;
+                        x: 10px; y: 4px; width: parent.width - 112px; height: 20px;
                         text: option.title; font-size: 13px; color: DesktopTheme.text;
                         overflow: elide; vertical-alignment: center;
+                    }
+                    Text {
+                        x: 10px; y: 24px; width: parent.width - 112px; height: 16px;
+                        text: option.aside; font-size: 11px; color: DesktopTheme.secondary;
+                        vertical-alignment: center;
                     }
                     Text {
                         x: parent.width - 98px; y: 0px; width: 88px; height: 100%;
@@ -2523,9 +2535,13 @@ component BoardFilter inherits Rectangle {
     property <[string]> element-labels: root.english ? ["All", "None", "Fire", "Water", "Wind", "Thunder", "Earth"] : ["全部", "無", "火", "水", "風", "雷", "地"];
     property <length> drop-width: (root.width - 20px) * 0.55;
     property <length> sort-width: root.width < 620px ? 168px : 200px;
-    property <[string]> sort-labels: root.english ? ["Default order", "ELA", "Hit resist", "Magic resist", "HP", "MP", "Experience", "Name"] : ["原排序", "屬性值（ELA）", "打擊抗性", "魔法抗性", "體力", "魔力", "經驗", "名稱"];
+    property <[string]> sort-labels: root.drop-key != ""
+        ? (root.english ? ["Default order", "ELA", "Hit resist", "Magic resist", "HP", "MP", "Experience", "Name", "Drop rate"] : ["原排序", "屬性值（ELA）", "打擊抗性", "魔法抗性", "體力", "魔力", "經驗", "名稱", "掉落率"])
+        : (root.english ? ["Default order", "ELA", "Hit resist", "Magic resist", "HP", "MP", "Experience", "Name"] : ["原排序", "屬性值（ELA）", "打擊抗性", "魔法抗性", "體力", "魔力", "經驗", "名稱"]);
     property <string> sort-direction: root.sort-desc ? "↓" : "↑";
     property <string> sort-direction-description: root.sort-key == 7 ? (root.sort-desc ? "Z → A" : "A → Z") : root.sort-desc ? (root.english ? "High → low" : "由高至低") : (root.english ? "Low → high" : "由低至高");
+    property <string> sort-help: root.sort-direction-description + (root.sort-key == 8
+        ? (root.english ? "\nSelected item only; unknown rates stay last.\nMultiple drop slots use the highest rate, without adding them." : "\n只比較所選道具，未記錄機率排最後。\n同一怪物有多個掉落欄時取最高值，不加總。") : "");
     property <int> advanced-count: (root.hit-min != "" || root.hit-max != "" ? 1 : 0) + (root.magic-min != "" || root.magic-max != "" ? 1 : 0);
     property <string> summary: (root.sort-key > 0 ? root.sort-labels[root.sort-key] + " " + root.sort-direction + " · " : "")
         + (root.global-scope ? (root.english ? "All monsters" : "所有怪物") : root.scope-title)
@@ -2626,17 +2642,17 @@ component BoardFilter inherits Rectangle {
         if root.sort-key != 0: MonsterTool {
             x: 72px + root.sort-width; y: 136px; width: 36px; height: 32px;
             label: root.sort-direction; label-size: 18px; active: true;
-            accessible-label: (root.english ? "Sort direction: " : "排序方向：") + root.sort-direction-description;
+            accessible-label: (root.english ? "Sort direction: " : "排序方向：") + root.sort-help;
             clicked => { root.toggle-sort-direction(); }
             Tooltip {
                 Rectangle {
-                    width: direction-tip.preferred-width + 20px; height: 32px;
+                    width: min(direction-tip.preferred-width + 20px, 360px); height: direction-tip.preferred-height + 16px;
                     background: DesktopTheme.raised; border-radius: 4px;
                     border-width: 1px; border-color: DesktopTheme.border;
                     direction-tip := Text {
-                        x: 10px; width: parent.width - 20px; height: 100%;
-                        text: root.sort-direction-description;
-                        font-size: 13px; color: DesktopTheme.text; vertical-alignment: center;
+                        x: 10px; y: 8px; width: parent.width - 20px; height: self.preferred-height;
+                        text: root.sort-help;
+                        font-size: 13px; color: DesktopTheme.text; wrap: word-wrap;
                     }
                 }
             }
@@ -2729,6 +2745,10 @@ component DropContextMenu inherits PopupWindow {
 component MonsterDropIcon inherits Rectangle {
     in property <MonsterDrop> drop;
     in property <bool> english;
+    property <bool> rate-known: root.drop.drop-rate.ends-with("%");
+    property <string> rate-description: root.rate-known
+        ? (root.english ? "Drop rate: " : "掉落率：") + root.drop.drop-rate
+        : (root.english ? "Drop rate not recorded" : "掉落率未記錄");
     callback open(string);
     callback find-monsters(string, string);
     property <length> context-x: 0px;
@@ -2737,14 +2757,14 @@ component MonsterDropIcon inherits Rectangle {
         root.context-x = x; root.context-y = y;
         context.show();
     }
-    width: 28px; height: 28px;
+    width: 80px; height: 28px;
     border-radius: 4px;
-    background: touch.has-hover ? DesktopTheme.hover-strong : transparent;
+    background: touch.has-hover ? DesktopTheme.hover-strong : root.drop.selected ? DesktopTheme.selected : transparent;
     border-width: 1px;
-    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    border-color: root.drop.selected || focus.has-focus ? DesktopTheme.accent : transparent;
     accessible-role: button;
     accessible-label: drop.title;
-    accessible-description: drop.alternate-name;
+    accessible-description: (root.drop.alternate-name != "" ? root.drop.alternate-name + " · " : "") + (root.drop.selected ? (root.english ? "Selected drop · " : "已選掉落物 · ") : "") + root.rate-description;
     accessible-action-default => { root.open(root.drop.key); }
     forward-focus: focus;
     if root.drop.has-icon: Image {
@@ -2755,6 +2775,13 @@ component MonsterDropIcon inherits Rectangle {
         x: 6px; y: 6px; width: 16px; height: 16px;
         path: "M4 6 L12 2 L20 6 L20 18 L12 22 L4 18 Z M4 6 L12 10 L20 6 M12 10 L12 22";
         ink: DesktopTheme.secondary;
+    }
+    Text {
+        x: 28px; y: 0px; width: parent.width - 30px; height: 100%;
+        text: root.rate-known ? root.drop.drop-rate : "—";
+        font-size: 12px; font-weight: root.drop.selected ? 600 : 400;
+        color: root.drop.selected ? DesktopTheme.text : DesktopTheme.secondary;
+        vertical-alignment: center;
     }
     focus := FocusScope {
         x: 0px; y: 0px; width: 100%; height: 100%;
@@ -2791,7 +2818,7 @@ component MonsterDropIcon inherits Rectangle {
             tip := Text {
                 x: 10px; y: 8px; width: parent.width - 20px;
                 height: self.preferred-height;
-                text: root.drop.title + (root.drop.alternate-name != "" ? "\n" + root.drop.alternate-name : ""); font-size: 13px;
+                text: root.drop.title + (root.drop.alternate-name != "" ? "\n" + root.drop.alternate-name : "") + "\n" + root.rate-description; font-size: 13px;
                 color: DesktopTheme.text; wrap: word-wrap;
             }
         }
@@ -2843,7 +2870,9 @@ component MonsterTableRow inherits Rectangle {
     callback favourite-clicked();
     callback open-drop(string);
     callback find-drop-monsters(string, string);
-    height: 128px;
+    property <int> drop-columns: root.width >= 924px ? 10 : 5;
+    property <length> drop-cell-width: (root.width - 124px - (root.drop-columns - 1) * 4px) / root.drop-columns;
+    height: root.drop-columns == 10 ? 128px : 160px;
     border-radius: 6px;
     border-width: 1px;
     border-color: selected ? DesktopTheme.accent : transparent;
@@ -2907,14 +2936,13 @@ component MonsterTableRow inherits Rectangle {
         text: (root.english ? "Drops " : "掉落 ") + root.hit.drop-total;
         font-size: 12px; color: DesktopTheme.secondary; vertical-alignment: center;
     }
-    HorizontalLayout {
-        x: 80px; y: 96px; width: parent.width - 124px; height: 28px;
-        spacing: 2px; alignment: start;
-        for drop in root.hit.monster-drops: MonsterDropIcon {
-            drop: drop; english: root.english;
-            open(key) => { root.open-drop(key); }
-            find-monsters(key, title) => { root.find-drop-monsters(key, title); }
-        }
+    for drop[i] in root.hit.monster-drops: MonsterDropIcon {
+        x: 80px + mod(i, root.drop-columns) * (root.drop-cell-width + 4px);
+        y: 96px + floor(i / root.drop-columns) * 32px;
+        width: root.drop-cell-width;
+        drop: drop; english: root.english;
+        open(key) => { root.open-drop(key); }
+        find-monsters(key, title) => { root.find-drop-monsters(key, title); }
     }
     StarMark {
         x: parent.width - 32px; y: 6px; filled: root.hit.favourite;
@@ -2930,6 +2958,7 @@ component MonsterTableRow inherits Rectangle {
 component CompactRecordLink inherits Rectangle {
     in property <string> title;
     in property <string> alternate: "";
+    in property <string> aside;
     in property <image> icon;
     in property <bool> has-icon;
     in property <bool> drop-context-enabled: false;
@@ -2948,7 +2977,7 @@ component CompactRecordLink inherits Rectangle {
     background: tap.has-hover ? DesktopTheme.hover-strong : transparent;
     accessible-role: button;
     accessible-label: title;
-    accessible-description: alternate;
+    accessible-description: root.alternate + (root.aside != "" ? (root.alternate != "" ? " · " : "") + (root.english ? "Drop rate: " : "掉落率：") + root.aside : "");
     accessible-action-default => { root.clicked(); }
     forward-focus: focus;
     if root.has-icon: Image {
@@ -2957,7 +2986,7 @@ component CompactRecordLink inherits Rectangle {
     }
     label := Text {
         x: root.has-icon ? 32px : 4px; y: 5px;
-        width: parent.width - self.x - 4px; height: self.preferred-height;
+        width: parent.width - self.x - (root.aside != "" ? rate-label.preferred-width + 16px : 4px); height: self.preferred-height;
         text: root.title; font-size: 13px; color: DesktopTheme.accent;
         wrap: word-wrap;
     }
@@ -2967,6 +2996,12 @@ component CompactRecordLink inherits Rectangle {
         visible: root.alternate != "";
         text: root.alternate; font-size: 12px; color: DesktopTheme.secondary;
         wrap: word-wrap;
+    }
+    rate-label := Text {
+        x: parent.width - self.preferred-width - 4px; y: 5px;
+        width: self.preferred-width; height: 20px;
+        text: root.aside; font-size: 12px; color: DesktopTheme.secondary;
+        vertical-alignment: center;
     }
     if root.drop-context-enabled && focus.has-focus: Rectangle {
         x: 0px; y: 0px; width: 100%; height: 100%;
@@ -3029,6 +3064,8 @@ component LegacyPlace inherits Rectangle {
 component LegacyDropLink inherits Rectangle {
     in property <string> title;
     in property <string> alternate: "";
+    in property <string> drop-rate;
+    in property <bool> selected: false;
     in property <string> separator;
     in property <length> available-width;
     in property <bool> english;
@@ -3042,18 +3079,19 @@ component LegacyDropLink inherits Rectangle {
     }
     width: min(label.preferred-width, max(1px, root.available-width));
     height: max(20px, label.preferred-height);
+    background: root.selected ? DesktopTheme.selected : transparent;
     accessible-role: button;
     accessible-label: root.title;
-    accessible-description: root.alternate;
+    accessible-description: (root.alternate != "" ? root.alternate + " · " : "") + (root.selected ? (root.english ? "Selected drop · " : "已選掉落物 · ") : "") + (root.english ? "Drop rate: " : "掉落率：") + root.drop-rate;
     accessible-action-default => { root.clicked(); }
     forward-focus: focus;
     label := Text {
         x: 0px; y: 0px; width: parent.width; height: self.preferred-height;
-        text: root.title + root.separator;
-        font-size: 13px; wrap: word-wrap;
-        color: tap.has-hover || focus.has-focus ? DesktopTheme.text : DesktopTheme.accent;
+        text: root.title + " (" + root.drop-rate + ")" + root.separator;
+        font-size: 13px; font-weight: root.selected ? 600 : 400; wrap: word-wrap;
+        color: root.selected || tap.has-hover || focus.has-focus ? DesktopTheme.text : DesktopTheme.accent;
     }
-    if focus.has-focus: Rectangle {
+    if root.selected || focus.has-focus: Rectangle {
         x: 0px; y: parent.height - 1px; width: 100%; height: 1px;
         background: DesktopTheme.accent;
     }
@@ -3321,7 +3359,7 @@ component LegacyMonsterRow inherits Rectangle {
             }
             for drop[i] in root.hit.monster-drops: LegacyDropLink {
                 available-width: description.width;
-                title: drop.title; alternate: drop.alternate-name; english: root.english;
+                title: drop.title; alternate: drop.alternate-name; drop-rate: drop.drop-rate; selected: drop.selected; english: root.english;
                 separator: i + 1 < root.hit.monster-drops.length ? (root.english ? ", " : "、") : "";
                 clicked => { root.open-drop(drop.key); }
                 find-monsters => { root.find-drop-monsters(drop.key, drop.title); }
@@ -4217,6 +4255,7 @@ component InlineMonster inherits Rectangle {
                     visible: r * root.drop-columns + c < root.drops.length;
                     title: root.drops[r * root.drop-columns + c].title;
                     alternate: root.drops[r * root.drop-columns + c].alternate-name;
+                    aside: root.drops[r * root.drop-columns + c].aside;
                     icon: root.drops[r * root.drop-columns + c].icon;
                     has-icon: root.drops[r * root.drop-columns + c].has-icon;
                     drop-context-enabled: root.drops[r * root.drop-columns + c].key.starts-with("item:");
@@ -6248,6 +6287,7 @@ export component App inherits Window {
         root.apply-filter(true);
     }
     function edit-monster-drop(text: string) {
+        if (root.monster-sort-key == 8) { root.monster-sort-key = 0; }
         root.filter-drop = text;
         root.filter-drop-key = "";
         root.suggest-drops(text);
@@ -6256,10 +6296,13 @@ export component App inherits Window {
     function select-monster-drop(key: string, title: string) {
         root.filter-drop-key = key;
         root.filter-drop = title;
+        root.monster-sort-key = 8;
+        root.monster-sort-desc = true;
         root.filter-drop-open = false;
         root.apply-filter(true);
     }
     function clear-monster-drop() {
+        if (root.monster-sort-key == 8) { root.monster-sort-key = 0; }
         root.filter-drop = "";
         root.filter-drop-key = "";
         root.suggest-drops("");
@@ -6305,7 +6348,7 @@ export component App inherits Window {
         if (root.region-country-open) { root.filter-drop-open = false; root.filter-sort-open = false; root.monster-page-settings-open = false; }
     }
     callback toggle-board(string);
-    property <length> monster-row: 136px;
+    property <length> monster-row: (root.monster-board ? root.monster-board-width : root.pane-w - 2 * root.page-pad) >= 924px ? 136px : 168px;
     property <length> monster-board-width: pane-w - 2 * page-pad - (menu-open ? (pane-w < 900px ? 176px : 192px) + 24px : 0px);
     property <int> monster-board-columns: 1;
     property <int> monster-list-columns: 1;
@@ -7667,7 +7710,7 @@ export component App inherits Window {
                                         x: mod(i, root.monster-board-columns) * (self.width + 16px);
                                         y: floor(i / root.monster-board-columns) * root.monster-row + (root.detail-index >= 0 && floor(i / root.monster-board-columns) > floor(root.detail-index / root.monster-board-columns) ? root.detail-h : 0px);
                                         width: (parent.width - (root.monster-board-columns - 1) * 16px) / root.monster-board-columns;
-                                        height: 128px;
+                                        height: root.monster-row - 8px;
                                         if root.detail-key == mon.key || (board-row-slot.y + board-row-slot.height >= -root.list-offset - 2 * root.monster-row && board-row-slot.y <= -root.list-offset + monster-board-list.height + 2 * root.monster-row): MonsterTableRow {
                                             x: 0px; y: 0px; width: parent.width;
                                             hit: mon;
@@ -8114,7 +8157,7 @@ export component App inherits Window {
                             x: mod(i, root.monster-list-columns) * (self.width + 16px);
                             y: floor(i / root.monster-list-columns) * root.list-row;
                             width: (parent.width - (root.monster-list-columns - 1) * 16px) / root.monster-list-columns;
-                            height: 128px;
+                            height: root.monster-row - 8px;
                             if root.cursor == i || root.detail-key == row.key || (search-row-slot.y + search-row-slot.height >= -root.list-offset - 2 * root.list-row && search-row-slot.y <= -root.list-offset + table.height + 2 * root.list-row): MonsterTableRow {
                                 x: 0px; y: 0px; width: parent.width;
                                 selected: root.cursor == i;

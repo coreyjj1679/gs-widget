@@ -580,6 +580,26 @@ mod tests {
         assert_eq!(actual, expected);
         assert!(all.iter().skip(300).any(|hit| expected.contains(&hit.key)), "top results must include records beyond the original saved cap");
     }
+
+    #[test]
+    fn drop_rate_sort_keeps_highest_first_across_search_and_favourites() {
+        let catalog = super::db::Catalog::open().expect("db");
+        let all = super::full_monster_records(&catalog, "", "zh-en", "", "", "", "all:", false);
+        let favourites = std::collections::HashSet::from(["O39".into(), "O14".into(), "O12".into()]);
+        let query = super::db::MonsterQuery { drop: "item:11608".into(), sort_key: 8, sort_desc: true, ..Default::default() };
+        let ranked = super::full_monster_results(&catalog, all.clone(), &favourites, false, &query, true);
+        assert_eq!(ranked.len(), 13);
+        assert_eq!(ranked.iter().take(3).map(|hit| hit.key.as_str()).collect::<Vec<_>>(),
+            ["monster:O12", "monster:O142", "monster:O192"]);
+        assert_eq!(ranked.last().unwrap().key, "monster:O39", "unknown favourite stays behind known rates");
+        let saved = super::full_monster_results(&catalog, all, &favourites, true, &query, true);
+        assert_eq!(saved.iter().map(|hit| hit.key.as_str()).collect::<Vec<_>>(),
+            ["monster:O12", "monster:O14", "monster:O39"]);
+        let searched = super::full_monster_records(&catalog, "黑市", "zh-en", "", "", "", "all:", false);
+        let ranked = super::full_monster_results(&catalog, searched, &favourites, false, &query, true);
+        assert_eq!(ranked.iter().map(|hit| hit.key.as_str()).collect::<Vec<_>>(),
+            ["monster:O193", "monster:O194"]);
+    }
 }
 
 pub(crate) fn picture_key(key: &str) -> bool {
@@ -750,6 +770,8 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
                     key: drop.key.clone().into(),
                     title: drop.title.clone().into(),
                     alternate_name: catalog.item_alternate_name(&drop.key, &lang).into(),
+                    drop_rate: drop.drop_rate.clone().into(),
+                    selected: drop.key == app.get_filter_drop_key().as_str(),
                     has_icon: icon.is_some(),
                     icon: icon.unwrap_or_default(),
                 }

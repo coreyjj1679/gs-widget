@@ -55,6 +55,7 @@ This source build includes a local stdio MCP server in the existing executable. 
 - 只讀取本機圖鑑及既有別名；不遷移設定、不修改收藏、不保存計算文件、不操控遊戲，也不提供任意 SQL／檔案存取工具。
 - MCP 不會打開網路監聽埠或檢查更新。AI 客戶端自身仍按其設定處理送入對話的查詢結果。
 - 圖鑑是離線快照，成功結果附帶 `catalog_version`。沒有即時市價，沒有記錄的掉落率不作推測。
+- `find_item_drops` 提供掉落率：`drop_rate` 是 0～1 的機率、`drop_rate_percent` 是百分比、`drop_rate_per_100000` 是原始十萬分率，例如 `5500`＝`0.055`＝`5.5%`。未知值為 `null`；`drops` 保留各欄位及單人限定條件。同一怪物有多個掉落欄位時，頂層掉落率為 `null`，請讀取 `drops`，不把多個欄位推算為綜合機率。
 - 成本只計直接材料及製作費；未填單價保持未知，明確填 `0` 才代表免費。不計學習費及失敗重試；不完整／強化配方會標示無法計算。
 - 這是同機桌面／CLI 連接。Claude 網頁版的自訂 connector 需要雲端可到達的遠端 MCP，不能直接使用本機執行檔。[Claude connector 官方說明](https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities)
 

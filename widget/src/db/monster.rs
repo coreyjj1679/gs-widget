@@ -149,7 +149,31 @@ pub struct MonsterBrief {
 pub struct MonsterDropBrief {
     pub key: String,
     pub title: String,
+    pub drop_rate: String,
     pub icon: Option<(PathBuf, i32)>,
+}
+
+// Older user-supplied catalogs still contain drops, even without rate enrichment.
+pub(in crate::db) fn drop_rate_column(conn: &Connection) -> &'static str {
+    if conn.prepare("SELECT d.drop_rate_per_100000 FROM monster_drops d LIMIT 0").is_ok() {
+        "d.drop_rate_per_100000"
+    } else {
+        "NULL"
+    }
+}
+
+fn drop_rate_text(rate: Option<i64>, lang: &str) -> String {
+    let Some(rate) = rate.filter(|value| (0..=100_000).contains(value)) else {
+        return chrome_text(lang, "未記錄", "Not recorded");
+    };
+    let whole = rate / 1_000;
+    let remainder = rate % 1_000;
+    if remainder == 0 {
+        format!("{whole}%")
+    } else {
+        let fraction = format!("{remainder:03}");
+        format!("{whole}.{}%", fraction.trim_end_matches('0'))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -179,6 +203,7 @@ impl Default for MonsterQuery {
 impl MonsterQuery {
     pub fn has_sort(&self) -> bool {
         (1..=7).contains(&self.sort_key)
+            || (self.sort_key == 8 && drop_item_code(&self.drop).is_some())
     }
 
     pub fn is_active(&self) -> bool {
@@ -186,6 +211,19 @@ impl MonsterQuery {
             || self.hit_min >= 0 || self.hit_max >= 0 || self.magic_min >= 0 || self.magic_max >= 0
             || !self.drop.trim().is_empty() || self.has_sort()
     }
+}
+
+fn drop_item_code(query: &str) -> Option<i64> {
+    let query = query.trim();
+    let digits = query.strip_prefix("item:").or_else(|| query.strip_prefix('#')).unwrap_or(query).trim();
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse::<i64>().ok().filter(|code| *code > 0)
+}
+
+fn invalid_drop_code(query: &str) -> bool {
+    (query.starts_with("item:") || query.starts_with('#')) && drop_item_code(query).is_none()
 }
 
 fn within_bounds(value: Option<i64>, min: i64, max: i64) -> bool {
@@ -202,6 +240,24 @@ fn compare_optional_stat(a: Option<i64>, b: Option<i64>, descending: bool) -> st
         (None, Some(_)) => std::cmp::Ordering::Greater,
         (None, None) => std::cmp::Ordering::Equal,
     }
+}
+
+fn sort_monsters_by_drop_rate(conn: &Connection, hits: &mut [Hit], item: i64, descending: bool) {
+    let rate_column = drop_rate_column(conn);
+    // Different slots may have separate conditions or rolls. Rank by the highest
+    // recorded slot rate; adding them would invent a combined probability.
+    let sql = format!(
+        "SELECT d.monster_code, MAX(CASE WHEN {rate_column} BETWEEN 0 AND 100000 THEN {rate_column} END)
+         FROM monster_drops d WHERE d.item_code = ?1 GROUP BY d.monster_code"
+    );
+    let mut rates: HashMap<String, Option<i64>> = HashMap::new();
+    if let Ok(mut stmt) = conn.prepare(&sql) {
+        if let Ok(rows) = stmt.query_map([item], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?))) {
+            rates.extend(rows.filter_map(Result::ok));
+        }
+    }
+    let rate = |hit: &Hit| hit.key.strip_prefix("monster:").and_then(|code| rates.get(code)).copied().flatten();
+    hits.sort_by(|a, b| compare_optional_stat(rate(a), rate(b), descending).then(a.key.cmp(&b.key)));
 }
 
 fn monster_brief_names(values: &[String], lang: &str) -> String {
@@ -235,8 +291,115 @@ fn monster_brief_summary(drops: &[String], places: &[String], lang: &str) -> Str
 
 #[cfg(test)]
 mod brief_tests {
-    use super::{monster_alternate_name, monster_brief_summary, Catalog, MonsterQuery};
+    use super::{drop_item_code, drop_rate_column, drop_rate_text, monster_alternate_name, monster_brief_summary, sort_monsters_by_drop_rate, Catalog, Hit, MonsterQuery};
     use std::collections::HashSet;
+
+    fn drop_sort_hit(code: &str) -> Hit {
+        Hit {
+            title: code.into(), subtitle: String::new(), key: format!("monster:{code}"),
+            icon: None, solo: false, badge: None, aside: String::new(), chip: String::new(),
+        }
+    }
+
+    #[test]
+    fn exact_drop_codes_enable_rate_sort_without_changing_default_sort_precedence() {
+        for query in ["11608", "#11608", "item:11608", "  #0011608  "] {
+            assert_eq!(drop_item_code(query), Some(11608));
+            assert!(MonsterQuery { drop: query.into(), sort_key: 8, ..Default::default() }.has_sort());
+        }
+        for query in ["", "Holy Star", "item:", "#", "item:-1", "#0", "0", "-1", "#abc", "item:1x", "9223372036854775808"] {
+            assert_eq!(drop_item_code(query), None);
+            assert!(!MonsterQuery { drop: query.into(), sort_key: 8, ..Default::default() }.has_sort());
+        }
+        for sort_key in 1..=7 {
+            assert!(MonsterQuery { sort_key, ..Default::default() }.has_sort());
+        }
+        assert!(!MonsterQuery::default().has_sort());
+    }
+
+    #[test]
+    fn drop_probability_sort_uses_maximum_slot_rate_and_keeps_unknowns_last() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE monster_drops (monster_code TEXT, slot INTEGER, item_code INTEGER, drop_rate_per_100000 INTEGER);
+            INSERT INTO monster_drops VALUES
+                ('A', 1, 11608, 100), ('A', 9, 11608, 100),
+                ('B', 1, 11608, 150), ('C', 1, 11608, 0), ('D', 1, 11608, NULL),
+                ('E', 1, 11608, NULL), ('E', 9, 11608, 100), ('E', 2, 999, 100000),
+                ('F', 1, 11608, -1), ('G', 1, 11608, 100001);").unwrap();
+        for (descending, expected) in [
+            (false, ["C", "A", "E", "B", "D", "F", "G"]),
+            (true, ["B", "A", "E", "C", "D", "F", "G"]),
+        ] {
+            let mut hits = ["G", "E", "D", "C", "F", "B", "A"].map(drop_sort_hit);
+            sort_monsters_by_drop_rate(&conn, &mut hits, 11608, descending);
+            assert_eq!(hits.iter().map(|hit| hit.title.as_str()).collect::<Vec<_>>(), expected);
+        }
+    }
+
+    #[test]
+    fn drop_probability_sort_on_older_catalogs_uses_deterministic_unknown_order() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE monster_drops (monster_code TEXT, slot INTEGER, item_code INTEGER);
+            INSERT INTO monster_drops VALUES ('B', 1, 11608), ('A', 9, 11608);").unwrap();
+        for descending in [false, true] {
+            let mut hits = ["B", "A"].map(drop_sort_hit);
+            sort_monsters_by_drop_rate(&conn, &mut hits, 11608, descending);
+            assert_eq!(hits.iter().map(|hit| hit.key.as_str()).collect::<Vec<_>>(), ["monster:A", "monster:B"]);
+        }
+    }
+
+    #[test]
+    fn exact_drop_search_accepts_all_code_forms_in_both_languages_and_excludes_nondrops() {
+        let catalog = Catalog::open().expect("db");
+        let item = catalog.index.items.iter().find(|item| item.code_str == "11608").expect("holy star");
+        let nondrop: i64 = catalog.conn.query_row(
+            "SELECT i.code FROM items i WHERE NOT EXISTS (
+                SELECT 1 FROM monster_drops d JOIN monsters m ON m.code = d.monster_code WHERE d.item_code = i.code
+             ) ORDER BY i.code LIMIT 1", [], |row| row.get(0),
+        ).unwrap();
+        for lang in ["zh-en", "en-zh"] {
+            let all = catalog.monster_records("", lang, "", "", "");
+            let expected = catalog.narrow_monsters(all.clone(), -1, -1, -1, "item:11608");
+            for query in ["11608", "#11608", "item:11608"] {
+                let choices = catalog.drop_options(query, lang);
+                assert_eq!(choices.len(), 1);
+                assert_eq!(choices[0].key, "item:11608");
+                assert_eq!(choices[0].aside, "#11608");
+                assert_eq!(choices[0].subtitle, "13");
+                assert_eq!(choices[0].title, super::lead(lang, &item.en, &item.zh));
+                let filtered = catalog.narrow_monsters(all.clone(), -1, -1, -1, query);
+                assert_eq!(filtered.iter().map(|hit| &hit.key).collect::<Vec<_>>(), expected.iter().map(|hit| &hit.key).collect::<Vec<_>>());
+            }
+            for name in [&item.en, &item.zh] {
+                assert!(catalog.drop_options(name, lang).iter().any(|hit| hit.key == "item:11608"));
+            }
+            for query in [nondrop.to_string(), format!("#{nondrop}"), format!("item:{nondrop}")] {
+                assert!(catalog.drop_options(&query, lang).is_empty());
+            }
+            for invalid in ["#abc", "#0", "item:", "item:-1"] {
+                assert!(catalog.drop_options(invalid, lang).is_empty());
+                assert!(catalog.narrow_monsters(all.clone(), -1, -1, -1, invalid).is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn holy_star_drop_probability_sort_uses_confirmed_rates_and_preserves_unknowns() {
+        let catalog = Catalog::open().expect("db");
+        let known_desc = ["O12", "O142", "O192", "O13", "O143", "O193", "O14", "O144", "O194"];
+        let known_asc = ["O14", "O144", "O194", "O13", "O143", "O193", "O12", "O142", "O192"];
+        let unknown = ["O156", "O157", "O38", "O39"];
+        for lang in ["zh-en", "en-zh"] {
+            for (descending, known) in [(false, known_asc), (true, known_desc)] {
+                let mut all = catalog.monster_records("", lang, "", "", "");
+                all.reverse();
+                let query = MonsterQuery { drop: "#11608".into(), sort_key: 8, sort_desc: descending, ..Default::default() };
+                let actual = catalog.refine_monsters(all, &query);
+                let expected: Vec<_> = known.iter().chain(&unknown).map(|code| format!("monster:{code}")).collect();
+                assert_eq!(actual.iter().map(|hit| &hit.key).collect::<Vec<_>>(), expected.iter().collect::<Vec<_>>());
+            }
+        }
+    }
 
     #[test]
     fn lightning_ranges_sort_real_ela_and_resistance_values_with_deterministic_ties() {
@@ -423,10 +586,55 @@ mod brief_tests {
             for (link, drop) in card.drop_items.iter().zip(&drops) {
                 assert_eq!(link.key, drop.key);
                 assert_eq!(link.title, drop.title);
+                assert_eq!(link.drop_rate, drop.aside);
             }
             assert!(drops.iter().all(|drop| card.summary.contains(&drop.title)), "{}", card.summary);
             assert!(card.summary.ends_with(place), "{}", card.summary);
             assert!(place.ends_with(&card.spawn_places));
+        }
+    }
+
+    #[test]
+    fn drop_rates_preserve_precision_and_distinguish_zero_from_unknown() {
+        for (raw, expected) in [(0, "0%"), (1, "0.001%"), (10, "0.01%"), (100, "0.1%"),
+            (1_000, "1%"), (5_500, "5.5%"), (12_345, "12.345%"), (100_000, "100%")] {
+            assert_eq!(drop_rate_text(Some(raw), "zh-en"), expected);
+            assert_eq!(drop_rate_text(Some(raw), "en-zh"), expected);
+        }
+        assert_eq!(drop_rate_text(None, "zh-en"), "未記錄");
+        assert_eq!(drop_rate_text(None, "en-zh"), "Not recorded");
+        assert_eq!(drop_rate_text(Some(-1), "zh-en"), "未記錄");
+        assert_eq!(drop_rate_text(Some(100_001), "en-zh"), "Not recorded");
+    }
+
+    #[test]
+    fn older_catalogs_keep_drop_queries_without_rate_column() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE monster_drops (monster_code TEXT, slot INTEGER, item_code INTEGER);
+            INSERT INTO monster_drops VALUES ('M24', 1, 143);").unwrap();
+        let rate: Option<i64> = conn.query_row(
+            &format!("SELECT {} FROM monster_drops d", drop_rate_column(&conn)), [], |row| row.get(0)
+        ).unwrap();
+        assert_eq!(rate, None);
+        conn.execute_batch("ALTER TABLE monster_drops ADD COLUMN drop_rate_per_100000 INTEGER;
+            UPDATE monster_drops SET drop_rate_per_100000 = 5500;").unwrap();
+        let rate: Option<i64> = conn.query_row(
+            &format!("SELECT {} FROM monster_drops d", drop_rate_column(&conn)), [], |row| row.get(0)
+        ).unwrap();
+        assert_eq!(rate, Some(5500));
+    }
+
+    #[test]
+    fn bundled_deer_drops_show_imported_rate_in_cards_and_details() {
+        let catalog = Catalog::open().expect("db");
+        for lang in ["zh-en", "en-zh"] {
+            let cards = catalog.monster_cards(&["M24".into()], lang);
+            let card = cards.get("M24").expect("deer");
+            let herb = card.drop_items.iter().find(|drop| drop.key == "item:143").expect("licorice");
+            assert_eq!(herb.drop_rate, "5.5%");
+            let drops = catalog.monster_drops("M24", lang);
+            assert_eq!(drops.iter().find(|drop| drop.key == "item:143").unwrap().aside, "5.5%");
+            assert!(card.summary.contains("5.5%"));
         }
     }
 
@@ -503,11 +711,20 @@ impl Catalog {
                 hits.sort_by_cached_key(|hit| (hit.title.trim().is_empty(), hit.title.to_lowercase(), hit.key.clone()));
             }
         }
+        if query.sort_key == 8 {
+            if let Some(item) = drop_item_code(&query.drop) {
+                sort_monsters_by_drop_rate(&self.conn, &mut hits, item, query.sort_desc);
+            }
+        }
         hits
     }
 
     pub fn drop_options(&self, query: &str, lang: &str) -> Vec<Hit> {
         let query = query.trim();
+        if invalid_drop_code(query) {
+            return Vec::new();
+        }
+        let exact_code = drop_item_code(query);
         let folded = query.to_lowercase();
         let aliases = alias_codes(&self.index.aliases.borrow(), &folded);
         let mut stmt = match self.conn.prepare(
@@ -525,7 +742,11 @@ impl Catalog {
         let mut choices: Vec<(i64, i64, String, &super::rows::ItemRow)> = self.index.items.iter().filter_map(|item| {
             let code = item.code_str.parse::<i64>().ok()?;
             let count = *counts.get(&code)?;
-            if !name_match(query, &folded, &item.code_str, &item.names) && !aliases.contains(&item.code_str) {
+            let matches = match exact_code {
+                Some(exact) => code == exact,
+                None => name_match(query, &folded, &item.code_str, &item.names) || aliases.contains(&item.code_str),
+            };
+            if !matches {
                 return None;
             }
             let title = lead(lang, &item.en, &item.zh);
@@ -547,7 +768,7 @@ impl Catalog {
             icon: self.item_icon(code),
             solo: false,
             badge: None,
-            aside: String::new(),
+            aside: format!("#{code}"),
             chip: String::new(),
         }).collect()
     }
@@ -744,9 +965,10 @@ impl Catalog {
             }
         }
         let mut drop_names: HashMap<String, Vec<String>> = HashMap::new();
+        let rate_column = drop_rate_column(&self.conn);
         let drops = format!(
             "SELECT d.monster_code, d.item_code, d.slot, IFNULL(i.name_ko, ''),
-                    IFNULL(se.text, ''), IFNULL(sz.text, '')
+                    IFNULL(se.text, ''), IFNULL(sz.text, ''), {rate_column}
              FROM monster_drops d
              LEFT JOIN items i ON i.code = d.item_code
              LEFT JOIN strings se ON se.object = 'OnlineText.dat' AND se.lang = 'en'
@@ -764,9 +986,10 @@ impl Catalog {
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, Option<i64>>(6)?,
                 ))
             }) {
-                for (code, item, slot, ko, en, zh) in rows.flatten() {
+                for (code, item, slot, ko, en, zh, rate) in rows.flatten() {
                     let Some(card) = cards.get_mut(&code) else { continue };
                     card.drop_total += 1;
                     let icon = self.item_icon(item);
@@ -780,12 +1003,14 @@ impl Catalog {
                     if slot >= 9 {
                         name.push_str(&format!(" ({})", phrase("solo-drop", lang)));
                     }
+                    let drop_rate = drop_rate_text(rate, lang);
+                    drop_names.entry(code).or_default().push(format!("{name} ({drop_rate})"));
                     card.drop_items.push(MonsterDropBrief {
                         key: format!("item:{item}"),
                         title: name.clone(),
+                        drop_rate,
                         icon,
                     });
-                    drop_names.entry(code).or_default().push(name);
                 }
             }
         }
@@ -885,11 +1110,12 @@ impl Catalog {
     }
 
     pub(in crate::db) fn monster_drops(&self, code: &str, lang: &str) -> Vec<Hit> {
+        let rate_column = drop_rate_column(&self.conn);
         let mut stmt = self
             .conn
-            .prepare(
+            .prepare(&format!(
                 "SELECT d.slot, d.item_code, i.name_ko, IFNULL(se.text, ''), IFNULL(sz.text, ''),
-                        i.large_image, i.large_frame
+                        i.large_image, i.large_frame, {rate_column}
                  FROM monster_drops d
                  JOIN items i ON i.code = d.item_code
                  LEFT JOIN strings se ON se.object = 'OnlineText.dat' AND se.lang = 'en'
@@ -898,9 +1124,9 @@ impl Catalog {
                     AND i.name_gts > 0 AND sz.id = printf('%08d', i.name_gts)
                  WHERE d.monster_code = ?1
                  ORDER BY d.slot",
-            )
+            ))
             .expect("drops");
-        let rows: Vec<(i64, i64, String, String, String, i64)> = stmt
+        let rows: Vec<(i64, i64, String, String, String, i64, Option<i64>)> = stmt
             .query_map([code], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
@@ -909,13 +1135,14 @@ impl Catalog {
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
                     row.get::<_, i64>(6)?,
+                    row.get::<_, Option<i64>>(7)?,
                 ))
             })
             .expect("drop rows")
             .filter_map(Result::ok)
             .collect();
         rows.into_iter()
-            .map(|(slot, item, en, zh, image, frame)| {
+            .map(|(slot, item, en, zh, image, frame, rate)| {
                 let solo = slot >= 9;
                 let name = lead(lang, &en, &zh);
                 Hit {
@@ -928,7 +1155,7 @@ impl Catalog {
                     key: format!("item:{item}"),
                     icon: self.icon_path(&image, frame),
                     solo,
-                    aside: String::new(),
+                    aside: drop_rate_text(rate, lang),
                 badge: None,
                     chip: String::new(),
                 }
@@ -1020,13 +1247,10 @@ impl Catalog {
 
     pub(in crate::db) fn narrow_monsters(&self, hits: Vec<super::Hit>, element: i64, ela_min: i64, ela_max: i64, drop: &str) -> Vec<super::Hit> {
         let drop = drop.trim();
-        let exact_drop = match drop.strip_prefix("item:") {
-            Some(code) => match code.parse::<i64>() {
-                Ok(code) if code > 0 => Some(code),
-                _ => return Vec::new(),
-            },
-            None => None,
-        };
+        if invalid_drop_code(drop) {
+            return Vec::new();
+        }
+        let exact_drop = drop_item_code(drop);
         if element < 0 && ela_min < 0 && ela_max < 0 && drop.is_empty() {
             return hits;
         }

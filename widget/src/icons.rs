@@ -338,6 +338,8 @@ mod tests {
         let drops = ModelRc::new(VecModel::from((0..count).map(|slot| MonsterDrop {
             key: format!("item:{slot}").into(),
             title: format!("Item {slot}").into(),
+            drop_rate: "0.001%".into(),
+            selected: slot == 1,
             ..Default::default()
         }).collect::<Vec<_>>()));
         let hits = ModelRc::new(VecModel::from(vec![Hit {
@@ -360,6 +362,8 @@ mod tests {
         let loaded = drops.row_data(1).expect("loaded image slot");
         assert_eq!(loaded.key.as_str(), "item:1");
         assert_eq!(loaded.title.as_str(), "Item 1");
+        assert_eq!(loaded.drop_rate.as_str(), "0.001%");
+        assert!(loaded.selected);
         assert!(loaded.has_icon);
         assert_eq!(loaded.icon.size().width, 1);
         assert_eq!(hits.row_data(0).expect("monster").drop1.size().width, 0);
@@ -370,6 +374,8 @@ mod tests {
         let failed = hits.row_data(0).expect("updated monster").monster_drops.row_data(1).expect("failed image slot");
         assert_eq!(failed.key.as_str(), "item:1");
         assert_eq!(failed.title.as_str(), "Item 1");
+        assert_eq!(failed.drop_rate.as_str(), "0.001%");
+        assert!(failed.selected);
         assert!(!failed.has_icon);
     }
 

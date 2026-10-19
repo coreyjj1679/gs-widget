@@ -1,5 +1,5 @@
 //! Read-only catalog access for MCP. No GUI, preference migration or saved calculations.
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 
 use serde_json::{json, Value};
@@ -23,6 +23,61 @@ fn facts(rows: Vec<(String, String)>) -> Vec<Value> {
     rows.into_iter()
         .map(|(label, value)| json!({"label": label, "value": value}))
         .collect()
+}
+
+type DropSlots = Vec<(i64, Option<i64>)>;
+
+fn item_drop_sources(
+    conn: &rusqlite::Connection,
+    code: i64,
+) -> Result<BTreeMap<String, DropSlots>, String> {
+    let rate_column = super::monster::drop_rate_column(conn);
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT d.monster_code, d.slot, {rate_column} FROM monster_drops d WHERE d.item_code = ?1 ORDER BY d.monster_code, d.slot"
+        ))
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([code], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, Option<i64>>(2)?,
+            ))
+        })
+        .map_err(|error| error.to_string())?;
+    let mut sources: BTreeMap<String, DropSlots> = BTreeMap::new();
+    for row in rows {
+        let (monster, slot, rate) = row.map_err(|error| error.to_string())?;
+        sources.entry(monster).or_default().push((slot, rate));
+    }
+    Ok(sources)
+}
+
+fn drop_rates(rate: Option<i64>) -> Value {
+    let rate = rate.filter(|value| (0..=100_000).contains(value));
+    json!({
+        "drop_rate": rate.map(|value| value as f64 / 100_000.0),
+        "drop_rate_percent": rate.map(|value| value as f64 / 1_000.0),
+        "drop_rate_per_100000": rate,
+    })
+}
+
+fn drop_details(slots: &[(i64, Option<i64>)]) -> Value {
+    // Multiple slots can have different conditions or independent rolls. Do not
+    // turn their rates into an unsupported aggregate probability.
+    let mut result = drop_rates(if slots.len() == 1 { slots[0].1 } else { None });
+    result["solo_only"] = json!(slots.iter().all(|(slot, _)| *slot >= 9));
+    result["drops"] = json!(slots
+        .iter()
+        .map(|&(slot, rate)| {
+            let mut entry = drop_rates(rate);
+            entry["slot"] = json!(slot);
+            entry["solo_only"] = json!(slot >= 9);
+            entry
+        })
+        .collect::<Vec<_>>());
+    result
 }
 
 impl Catalog {
@@ -196,24 +251,23 @@ impl Catalog {
         if !self.mcp_exists("item", &code.to_string()) {
             return Err("Item not found".into());
         }
-        let mut statement = self.conn.prepare(
-            "SELECT monster_code, MIN(slot) FROM monster_drops WHERE item_code = ?1 GROUP BY monster_code ORDER BY monster_code",
-        ).map_err(|error| error.to_string())?;
-        let sources: Vec<(String, i64)> = statement
-            .query_map([code], |row| Ok((row.get(0)?, row.get(1)?)))
-            .map_err(|error| error.to_string())?
-            .collect::<Result<_, _>>()
-            .map_err(|error| error.to_string())?;
-        let rows = sources.into_iter().filter_map(|(monster, slot)| {
-            self.monster_sheet(&monster, lang).map(|sheet| json!({
-                "key": format!("monster:{monster}"), "name": sheet.0, "alternate_name": sheet.1,
-                "solo_only": slot >= 9, "locations": self.place_names(&monster, lang), "drop_rate": null,
-            }))
-        }).collect();
+        let sources = item_drop_sources(&self.conn, code)?;
+        let rows = sources
+            .into_iter()
+            .filter_map(|(monster, slots)| {
+                self.monster_sheet(&monster, lang).map(|sheet| {
+                    let mut row = drop_details(&slots);
+                    row["key"] = json!(format!("monster:{monster}"));
+                    row["name"] = json!(sheet.0);
+                    row["alternate_name"] = json!(sheet.1);
+                    row["locations"] = json!(self.place_names(&monster, lang));
+                    row
+                })
+            })
+            .collect();
         let mut result = page(rows, offset, limit);
         result["item_code"] = json!(code);
-        result["note"] =
-            json!("Monster drops only. Drop probabilities are not recorded in this catalog.");
+        result["note"] = json!("Monster drops only. drop_rate is a probability from 0 to 1; drop_rate_percent is a percentage; drop_rate_per_100000 is the source integer. Unknown rates are null. Each drops entry preserves its slot and solo-only condition. Top-level rates are null when multiple slots exist; no combined probability is inferred.");
         Ok(result)
     }
 
@@ -330,5 +384,59 @@ pub fn database_path() -> Result<std::path::PathBuf, String> {
         None => super::paths::find_db()?
             .canonicalize()
             .map_err(|error| error.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mcp_drop_slots_preserve_conditions_and_unknown_rates() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE monster_drops (monster_code TEXT, item_code INTEGER, slot INTEGER, drop_rate_per_100000 INTEGER);
+             INSERT INTO monster_drops VALUES ('M1', 143, 2, 5500), ('M1', 143, 9, 12000),
+                 ('M2', 143, 1, NULL), ('M3', 143, 10, 0), ('M1', 144, 3, 500);",
+        )
+        .unwrap();
+        let sources = item_drop_sources(&conn, 143).unwrap();
+        assert_eq!(sources.len(), 3);
+        let mixed = drop_details(&sources["M1"]);
+        assert!(mixed["drop_rate"].is_null());
+        assert!(mixed["drop_rate_percent"].is_null());
+        assert_eq!(mixed["solo_only"], false);
+        assert_eq!(mixed["drops"].as_array().unwrap().len(), 2);
+        assert_eq!(mixed["drops"][0]["slot"], 2);
+        assert_eq!(mixed["drops"][0]["solo_only"], false);
+        assert_eq!(mixed["drops"][0]["drop_rate"], 0.055);
+        assert_eq!(mixed["drops"][1]["slot"], 9);
+        assert_eq!(mixed["drops"][1]["solo_only"], true);
+        assert_eq!(mixed["drops"][1]["drop_rate_percent"], 12.0);
+
+        let unknown = drop_details(&sources["M2"]);
+        assert!(unknown["drop_rate"].is_null());
+        assert!(unknown["drops"][0]["drop_rate_per_100000"].is_null());
+        let zero = drop_details(&sources["M3"]);
+        assert_eq!(zero["drop_rate"], 0.0);
+        assert_eq!(zero["drop_rate_percent"], 0.0);
+        assert_eq!(zero["drop_rate_per_100000"], 0);
+        assert_eq!(zero["solo_only"], true);
+    }
+
+    #[test]
+    fn mcp_drop_slots_support_legacy_catalog_without_rates() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE monster_drops (monster_code TEXT, item_code INTEGER, slot INTEGER);
+             INSERT INTO monster_drops VALUES ('M24', 143, 1);",
+        )
+        .unwrap();
+        let sources = item_drop_sources(&conn, 143).unwrap();
+        let deer = drop_details(&sources["M24"]);
+        assert!(deer["drop_rate"].is_null());
+        assert_eq!(deer["drops"][0]["slot"], 1);
+        assert!(deer["drops"][0]["drop_rate_percent"].is_null());
+        assert!(deer["drops"][0]["drop_rate_per_100000"].is_null());
     }
 }
