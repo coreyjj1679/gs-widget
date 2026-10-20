@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use image::{imageops, RgbaImage};
-use slint::Image;
 
 const WIDTH: u32 = 1200;
 const HEIGHT: u32 = 630;
@@ -32,7 +31,7 @@ pub struct CardRow {
     pub quantity: String,
     pub unit_price: String,
     pub subtotal: String,
-    pub icon: Image,
+    pub icon: Option<RgbaImage>,
     pub unpriced: bool,
 }
 
@@ -47,7 +46,7 @@ pub struct CardData {
     pub per_unit: String,
     pub notice: String,
     pub metadata: String,
-    pub icon: Image,
+    pub icon: Option<RgbaImage>,
     pub rows: Vec<CardRow>,
 }
 
@@ -829,22 +828,17 @@ fn wrap(text: &str, width: f32) -> Vec<String> {
     lines
 }
 
-fn paint_icon(canvas: &mut RgbaImage, icon: &Image, x: u32, y: u32, side: u32) {
-    let Some(buffer) = icon.to_rgba8() else {
+fn paint_icon(canvas: &mut RgbaImage, icon: &Option<RgbaImage>, x: u32, y: u32, side: u32) {
+    let Some(source) = icon.as_ref() else {
         return;
     };
-    if buffer.width() == 0 || buffer.height() == 0 {
+    if source.width() == 0 || source.height() == 0 {
         return;
     }
-    let Some(source) =
-        RgbaImage::from_raw(buffer.width(), buffer.height(), buffer.as_bytes().to_vec())
-    else {
-        return;
-    };
     let scale = (side as f32 / source.width() as f32).min(side as f32 / source.height() as f32);
     let width = (source.width() as f32 * scale).round().max(1.0) as u32;
     let height = (source.height() as f32 * scale).round().max(1.0) as u32;
-    let image = imageops::resize(&source, width, height, imageops::FilterType::Nearest);
+    let image = imageops::resize(source, width, height, imageops::FilterType::Nearest);
     imageops::overlay(
         canvas,
         &image,
@@ -869,7 +863,7 @@ mod tests {
             per_unit: "—".into(),
             notice: "單價未填齊。\n未計重試成本。".into(),
             metadata: "Catalog 23 · Recipe #1040".into(),
-            icon: Image::default(),
+            icon: None,
             rows: (0..count)
                 .map(|index| CardRow {
                     title: format!("材料 {index} <&> 強化的白水晶"),
@@ -880,7 +874,7 @@ mod tests {
                     quantity: "238".into(),
                     unit_price: "100,000".into(),
                     subtotal: "23,800,000".into(),
-                    icon: Image::default(),
+                    icon: None,
                     unpriced: index == 0,
                 })
                 .collect(),
@@ -944,20 +938,27 @@ mod tests {
 
     #[test]
     fn produces_real_1200_by_630_jpeg() {
-        let data = card(4);
-        let pages = paginate(&data.rows).unwrap();
-        let options = render_options();
-        assert!(
-            (options.image_href_resolver.resolve_string)("file:///private/secret", &options)
-                .is_none()
-        );
-        assert!((options.image_href_resolver.resolve_data)(
-            "image/svg+xml",
-            std::sync::Arc::new(b"<svg/>".to_vec()),
-            &options
-        )
-        .is_none());
-        let raster = render_page(&data, &pages[0], 1, pages.len(), &options).unwrap();
+        let mut data = card(4);
+        let icon_color = image::Rgba([220, 30, 20, 255]);
+        data.icon = Some(RgbaImage::from_pixel(2, 2, icon_color));
+        // The actual rendering payload must cross the thread boundary without
+        // any Slint image/window state, including when it contains real icons.
+        let raster = std::thread::spawn(move || {
+            let pages = paginate(&data.rows).unwrap();
+            let options = render_options();
+            assert!(
+                (options.image_href_resolver.resolve_string)("file:///private/secret", &options)
+                    .is_none()
+            );
+            assert!((options.image_href_resolver.resolve_data)(
+                "image/svg+xml",
+                std::sync::Arc::new(b"<svg/>".to_vec()),
+                &options
+            )
+            .is_none());
+            render_page(&data, &pages[0], 1, pages.len(), &options).unwrap()
+        }).join().unwrap();
+        assert_eq!(raster.get_pixel(50, 65), &icon_color);
         let mut encoded = Vec::new();
         image::codecs::jpeg::JpegEncoder::new_with_quality(&mut encoded, 94)
             .encode_image(&image::DynamicImage::ImageRgba8(raster))
@@ -1006,7 +1007,7 @@ mod tests {
                     quantity: "4".into(),
                     unit_price: "9.50".into(),
                     subtotal: "38".into(),
-                    icon: Image::default(),
+                    icon: None,
                     unpriced: index % 7 == 0,
                 });
                 ancestors.push(title);

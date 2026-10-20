@@ -28,10 +28,6 @@ pub(crate) fn focus_window() {
     }
 }
 
-pub(crate) fn copy_to_clipboard(text: &str) {
-    if !try_copy_to_clipboard(text) { eprintln!("無法複製到 macOS 剪貼簿"); }
-}
-
 pub(crate) fn try_copy_to_clipboard(text: &str) -> bool {
     let pasteboard = NSPasteboard::generalPasteboard();
     pasteboard.clearContents();

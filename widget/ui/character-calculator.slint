@@ -1,0 +1,487 @@
+import { UiLanguage } from "language.slint";
+import { ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
+import { DesktopTheme, DesktopIcon } from "desktop.slint";
+import { CalcNumber } from "calculator.slint";
+
+export struct CharacterCalcChoice {
+    id: string,
+    title: string,
+    subtitle: string,
+    icon: image,
+    has-icon: bool,
+}
+
+export struct CharacterCalcMaterial {
+    key: string,
+    title: string,
+    subtitle: string,
+    quantity: string,
+    price: string,
+    draft: string,
+    has-draft: bool,
+    subtotal: string,
+    missing-price: bool,
+    icon: image,
+    has-icon: bool,
+}
+
+global CharacterCalcLanguage {
+    public pure function tr(en: string, zh: string, ko: string) -> string {
+        return UiLanguage.primary == "ko" ? ko : UiLanguage.tr(en, zh);
+    }
+}
+
+component CharacterCalcArt inherits Rectangle {
+    in property <image> icon;
+    in property <bool> has-icon;
+    width: 32px;
+    height: 32px;
+    if root.has-icon: Image {
+        width: 100%; height: 100%;
+        source: root.icon;
+        image-fit: contain;
+    }
+    if !root.has-icon: DesktopIcon {
+        x: 7px; y: 7px; width: 18px; height: 18px;
+        path: "M16 7 A4 4 0 1 1 8 7 A4 4 0 1 1 16 7 M4 21 L4 18 C4 13 20 13 20 18 L20 21";
+        ink: DesktopTheme.muted;
+    }
+}
+
+component CharacterPicker inherits Rectangle {
+    in property <string> selected-name;
+    in property <image> selected-icon;
+    in property <bool> selected-has-icon;
+    in property <[CharacterCalcChoice]> options;
+    property <string> query;
+    property <int> option-index: 0;
+    property <length> scroll-y: 0px;
+    property <bool> open: popup.is-open;
+    callback request(string);
+    callback choose(string);
+    height: 42px;
+    min-width: 0px;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: root.open || picker-focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    background: DesktopTheme.control;
+    forward-focus: picker-focus;
+    accessible-role: combobox;
+    accessible-label: CharacterCalcLanguage.tr("Character or mercenary: ", "角色／傭兵：", "캐릭터 / 용병: ") + (root.selected-name == "" ? CharacterCalcLanguage.tr("Choose a character", "尚未選擇", "선택해 주세요") : root.selected-name);
+    accessible-value: root.selected-name;
+    accessible-expandable: true;
+    accessible-expanded: root.open;
+    accessible-action-default => { root.show-options(); }
+    accessible-action-expand => { root.show-options(); }
+
+    function show-options() {
+        root.query = "";
+        root.option-index = 0;
+        root.request("");
+        root.scroll-y = 0px;
+        popup.show();
+    }
+    // Close from the picker, whose lifetime survives destruction of the popup.
+    function close-options() { popup.close(); picker-focus.focus(); }
+    function choose-option(id: string) {
+        root.close-options();
+        root.choose(id);
+    }
+    function choose-current() {
+        if (root.option-index >= 0 && root.option-index < root.options.length) {
+            root.choose-option(root.options[root.option-index].id);
+        }
+    }
+    if root.selected-name != "": CharacterCalcArt {
+        x: 7px; y: 5px;
+        icon: root.selected-icon; has-icon: root.selected-has-icon;
+    }
+    Text {
+        x: root.selected-name == "" ? 12px : 47px;
+        width: parent.width - self.x - 36px; height: 100%;
+        text: root.selected-name == "" ? CharacterCalcLanguage.tr("Search for a character or mercenary…", "搜尋可合成的角色或傭兵…", "합성할 캐릭터 또는 용병 검색…") : root.selected-name;
+        color: root.selected-name == "" ? DesktopTheme.secondary : DesktopTheme.text;
+        font-size: 14px; overflow: elide; vertical-alignment: center;
+    }
+    DesktopIcon {
+        x: parent.width - 27px; y: 13px; width: 16px; height: 16px;
+        path: root.open ? "M6 15 L12 9 L18 15" : "M6 9 L12 15 L18 9";
+        ink: DesktopTheme.secondary;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { picker-focus.focus(); root.show-options(); }
+    }
+    picker-focus := FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space || event.text == Key.DownArrow) {
+                root.show-options(); return accept;
+            }
+            return reject;
+        }
+    }
+    popup := PopupWindow {
+        x: 0px; y: root.height + 4px;
+        width: root.width;
+        height: 64px + min(max(root.options.length, 1), 5) * 52px;
+        close-policy: close-on-click-outside;
+        forward-focus: query-input;
+        Rectangle {
+            background: DesktopTheme.surface-alt;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: DesktopTheme.border;
+            query-input := LineEdit {
+                x: 8px; y: 8px; width: parent.width - 16px; height: 34px;
+                text <=> root.query;
+                placeholder-text: CharacterCalcLanguage.tr("Type a character name…", "輸入角色或傭兵名稱…", "캐릭터 또는 용병 이름 입력…");
+                accessible-label: CharacterCalcLanguage.tr("Search craftable characters and mercenaries", "搜尋可合成的角色與傭兵", "합성 가능한 캐릭터 및 용병 검색");
+                edited => {
+                    root.option-index = 0;
+                    choices.content-y = 0px;
+                    root.request(self.text);
+                }
+                accepted => { root.choose-current(); }
+                key-pressed(event) => {
+                    if (event.text == Key.Escape) { root.close-options(); return accept; }
+                    if (event.text == Key.DownArrow || event.text == Key.UpArrow) {
+                        root.option-index = max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
+                        if (root.option-index * 52px < -choices.content-y) {
+                            choices.content-y = -root.option-index * 52px;
+                        } else if ((root.option-index + 1) * 52px > -choices.content-y + choices.height) {
+                            choices.content-y = choices.height - (root.option-index + 1) * 52px;
+                        }
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+            choices := Flickable {
+                x: 4px; y: 50px; width: parent.width - 8px; height: parent.height - 58px;
+                content-width: self.width;
+                content-y <=> root.scroll-y;
+                content-height: max(root.options.length * 52px, self.height);
+                for option[i] in root.options: Rectangle {
+                    x: 0px; y: i * 52px; width: parent.width; height: 52px;
+                    border-radius: 4px;
+                    background: option-touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
+                    accessible-role: button;
+                    accessible-label: option.title;
+                    accessible-description: option.subtitle;
+                    accessible-item-selectable: true;
+                    accessible-item-selected: root.option-index == i;
+                    accessible-action-default => { root.choose-option(option.id); }
+                    CharacterCalcArt { x: 8px; y: 10px; icon: option.icon; has-icon: option.has-icon; }
+                    Text {
+                        x: 50px; y: option.subtitle == "" ? 15px : 6px;
+                        width: parent.width - 60px; height: 22px;
+                        text: option.title; font-size: 14px; color: DesktopTheme.text;
+                        overflow: elide; vertical-alignment: center;
+                    }
+                    if option.subtitle != "": Text {
+                        x: 50px; y: 29px; width: parent.width - 60px; height: 17px;
+                        text: option.subtitle; font-size: 12px; color: DesktopTheme.secondary;
+                        overflow: elide; vertical-alignment: center;
+                    }
+                    option-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.choose-option(option.id); }
+                    }
+                }
+                if root.options.length == 0: Text {
+                    x: 12px; width: parent.width - 24px; height: 52px;
+                    text: CharacterCalcLanguage.tr("No matching characters. Try another name.", "找不到可合成角色，請換個名稱搜尋。", "검색 결과가 없습니다. 다른 이름을 입력해 주세요.");
+                    font-size: 13px; color: DesktopTheme.secondary;
+                    vertical-alignment: center; wrap: word-wrap;
+                }
+            }
+        }
+    }
+}
+
+export component CharacterCalculatorPane inherits Rectangle {
+    in property <[CharacterCalcChoice]> candidates;
+    in property <string> selected-name;
+    in property <image> selected-icon;
+    in property <bool> selected-has-icon;
+    in property <[string]> routes;
+    in-out property <int> route-index;
+    in property <string> quantity;
+    in property <string> quantity-draft;
+    in property <bool> quantity-has-draft;
+    in property <[CharacterCalcMaterial]> materials;
+    in property <string> conditions;
+    in property <string> material-total;
+    in property <string> fee;
+    in property <string> total;
+    in property <string> unit-total;
+    in property <string> status;
+    in property <string> notice;
+    in property <string> error;
+    in property <bool> complete;
+    in property <int> input-revision;
+    callback search-query(string);
+    callback select-character(string);
+    callback select-route(int);
+    callback quantity-changed(string) -> bool;
+    callback price-changed(string, string) -> bool;
+    property <length> cost-width: root.width < 820px ? 114px : 150px;
+    property <length> quantity-width: root.width < 820px ? 54px : 76px;
+    property <length> editor-scroll-y: 0px;
+    background: DesktopTheme.canvas;
+
+    changed selected-name => { root.editor-scroll-y = 0px; }
+    changed route-index => { root.editor-scroll-y = 0px; }
+    VerticalLayout {
+        spacing: 14px;
+        VerticalLayout {
+            spacing: 6px;
+            Text {
+                text: CharacterCalcLanguage.tr("Character / mercenary crafting cost", "角色／傭兵合成成本", "캐릭터 / 용병 합성 비용");
+                font-size: 21px; font-weight: 600; color: DesktopTheme.text;
+                wrap: word-wrap;
+            }
+            Text {
+                text: CharacterCalcLanguage.tr("Choose a character and enter material prices for its crafting route.", "選擇角色或傭兵，依合成路線填入材料單價。", "캐릭터 또는 용병을 선택하고 합성 경로에 필요한 재료 단가를 입력하세요.");
+                font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
+            }
+        }
+        HorizontalLayout {
+            spacing: 18px;
+            VerticalLayout {
+                horizontal-stretch: 1; min-width: 0px; spacing: 7px;
+                Text {
+                    text: CharacterCalcLanguage.tr("Character / mercenary", "合成角色／傭兵", "합성할 캐릭터 / 용병");
+                    color: DesktopTheme.secondary; font-size: 12px;
+                }
+                CharacterPicker {
+                    selected-name: root.selected-name;
+                    selected-icon: root.selected-icon;
+                    selected-has-icon: root.selected-has-icon;
+                    options: root.candidates;
+                    request(query) => { root.search-query(query); }
+                    choose(id) => { root.select-character(id); }
+                }
+            }
+            VerticalLayout {
+                width: 110px; spacing: 7px;
+                Text {
+                    text: CharacterCalcLanguage.tr("Output quantity", "合成數量", "합성 수량");
+                    color: DesktopTheme.secondary; font-size: 12px;
+                }
+                CalcNumber {
+                    height: 42px;
+                    value: root.quantity;
+                    reset-token: root.input-revision;
+                    draft: root.quantity-draft;
+                    has-draft: root.quantity-has-draft;
+                    label: CharacterCalcLanguage.tr("Number of characters to craft", "角色合成數量", "합성할 캐릭터 수량");
+                    enabled: root.selected-name != "";
+                    commit(value) => { return root.quantity-changed(value); }
+                }
+            }
+        }
+        if root.error != "": Text {
+            text: root.error; color: #f0b5ad; font-size: 13px; wrap: word-wrap;
+            accessible-role: text;
+        }
+        editor := ScrollView {
+            vertical-stretch: 1;
+            min-height: 80px;
+            content-y <=> root.editor-scroll-y;
+            content-width: self.width;
+            content-height: editor-content.preferred-height;
+            horizontal-scrollbar-policy: always-off;
+            editor-content := VerticalLayout {
+                width: editor.width - 12px;
+                spacing: 12px;
+                if root.selected-name == "": VerticalLayout {
+                    spacing: 10px;
+                    padding-top: 38px;
+                    padding-bottom: 38px;
+                    Text {
+                        text: CharacterCalcLanguage.tr("Start with the character you want to craft", "從想合成的角色或傭兵開始", "합성할 캐릭터 또는 용병을 선택하세요");
+                        color: DesktopTheme.text; font-size: 17px; font-weight: 600;
+                        horizontal-alignment: center; wrap: word-wrap;
+                    }
+                    Text {
+                        text: CharacterCalcLanguage.tr("Choose a character with a crafting route.\nRequired materials, characters and fees will appear here.", "選單只列出有合成路線的角色與傭兵。\n選擇後，這裡會列出所需材料、角色與費用。", "합성 경로가 있는 캐릭터와 용병만 표시됩니다.\n선택하면 필요한 재료, 캐릭터 및 비용을 확인할 수 있습니다.");
+                        color: DesktopTheme.secondary; font-size: 13px;
+                        horizontal-alignment: center; wrap: word-wrap;
+                    }
+                }
+                if root.selected-name != "": VerticalLayout {
+                    spacing: 12px;
+                    if root.routes.length > 1: HorizontalLayout {
+                        spacing: 12px;
+                        Text {
+                            text: CharacterCalcLanguage.tr("Crafting route", "合成路線", "합성 경로");
+                            font-size: 12px; color: DesktopTheme.secondary; vertical-alignment: center;
+                        }
+                        ComboBox {
+                            horizontal-stretch: 1; min-width: 0px;
+                            model: root.routes;
+                            current-index <=> root.route-index;
+                            accessible-label: CharacterCalcLanguage.tr("Choose crafting route", "選擇合成路線", "합성 경로 선택");
+                            selected(value) => { root.select-route(self.current-index); }
+                        }
+                    }
+                    if root.routes.length == 1: Text {
+                        text: CharacterCalcLanguage.tr("Crafting route: ", "合成路線：", "합성 경로: ") + root.routes[0];
+                        font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
+                    }
+                    if root.conditions != "": VerticalLayout {
+                        spacing: 4px;
+                        Text {
+                            text: CharacterCalcLanguage.tr("Requirements", "合成條件", "합성 조건");
+                            font-size: 12px; color: DesktopTheme.secondary;
+                        }
+                        Text {
+                            text: root.conditions;
+                            font-size: 13px; color: DesktopTheme.text; wrap: word-wrap;
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 0px;
+                        HorizontalLayout {
+                            height: 30px; spacing: 12px;
+                            Text {
+                                horizontal-stretch: 1; min-width: 0px;
+                                text: CharacterCalcLanguage.tr("Material / character", "材料／角色", "재료 / 캐릭터");
+                                color: DesktopTheme.secondary; font-size: 12px;
+                            }
+                            Text {
+                                width: root.quantity-width;
+                                text: CharacterCalcLanguage.tr("Quantity", "數量", "수량");
+                                color: DesktopTheme.secondary; font-size: 12px; horizontal-alignment: right;
+                            }
+                            Text {
+                                width: root.cost-width;
+                                text: CharacterCalcLanguage.tr("Unit price", "單價", "단가");
+                                color: DesktopTheme.secondary; font-size: 12px; horizontal-alignment: right;
+                            }
+                            Text {
+                                width: root.cost-width;
+                                text: CharacterCalcLanguage.tr("Subtotal", "小計", "소계");
+                                color: DesktopTheme.secondary; font-size: 12px; horizontal-alignment: right;
+                            }
+                        }
+                        Rectangle { height: 1px; background: DesktopTheme.border; }
+                        for material in root.materials: Rectangle {
+                            height: max(60px, material-row.preferred-height + 20px);
+                            material-row := HorizontalLayout {
+                                x: 0px; y: 10px; width: parent.width;
+                                height: self.preferred-height; spacing: 12px;
+                                HorizontalLayout {
+                                    horizontal-stretch: 1; min-width: 0px; spacing: 10px;
+                                    CharacterCalcArt { icon: material.icon; has-icon: material.has-icon; }
+                                    VerticalLayout {
+                                        horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                                        Text {
+                                            text: material.title; font-size: 14px;
+                                            color: DesktopTheme.text; wrap: word-wrap;
+                                        }
+                                        if material.subtitle != "": Text {
+                                            text: material.subtitle; font-size: 12px;
+                                            color: DesktopTheme.secondary; wrap: word-wrap;
+                                        }
+                                    }
+                                }
+                                Text {
+                                    width: root.quantity-width; text: material.quantity;
+                                    font-size: 14px; color: DesktopTheme.text;
+                                    vertical-alignment: top; horizontal-alignment: right; wrap: word-wrap;
+                                }
+                                CalcNumber {
+                                    width: root.cost-width;
+                                    value: material.price;
+                                    reset-token: root.input-revision;
+                                    draft: material.draft;
+                                    has-draft: material.has-draft;
+                                    label: material.title + CharacterCalcLanguage.tr(" unit price", "單價", " 단가");
+                                    placeholder-text: CharacterCalcLanguage.tr("Not entered", "未輸入", "미입력");
+                                    commit(value) => { return root.price-changed(material.key, value); }
+                                }
+                                Text {
+                                    width: root.cost-width; text: material.subtotal;
+                                    font-size: 14px;
+                                    color: material.missing-price ? DesktopTheme.muted : DesktopTheme.text;
+                                    vertical-alignment: top; horizontal-alignment: right; wrap: word-wrap;
+                                }
+                            }
+                            Rectangle {
+                                y: parent.height - 1px; width: 100%; height: 1px;
+                                background: DesktopTheme.border;
+                            }
+                        }
+                        if root.materials.length == 0: Text {
+                            text: CharacterCalcLanguage.tr("No material inputs are listed for this route.", "此路線沒有列出材料。", "이 경로에 등록된 재료가 없습니다.");
+                            color: DesktopTheme.secondary; font-size: 13px; wrap: word-wrap;
+                        }
+                    }
+                    if root.notice != "": Text {
+                        text: root.notice; font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                    }
+                }
+                Rectangle { height: 4px; }
+            }
+        }
+        if root.selected-name != "": Rectangle { height: 1px; background: DesktopTheme.border; }
+        if root.selected-name != "": HorizontalLayout {
+            spacing: 24px;
+            VerticalLayout {
+                horizontal-stretch: 1; min-width: 0px; spacing: 8px; alignment: start;
+                if root.status != "": Text {
+                    text: root.status;
+                    font-size: 13px; color: root.complete ? DesktopTheme.secondary : DesktopTheme.accent;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: CharacterCalcLanguage.tr("Enter a price per material or character.\nLeave unknown prices blank; enter 0 for no cost.", "請填每件材料或每位角色的取得成本。\n未知可留空，無需成本請填 0。", "재료 또는 캐릭터 1개당 획득 비용을 입력하세요.\n모르는 가격은 비워 두고, 비용이 없으면 0을 입력하세요.");
+                    font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                }
+            }
+            VerticalLayout {
+                width: root.width < 820px ? 294px : 340px;
+                spacing: 8px;
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.complete ? CharacterCalcLanguage.tr("Material cost", "材料成本", "재료 비용") : CharacterCalcLanguage.tr("Priced materials", "已填材料成本", "입력한 재료 비용");
+                        color: DesktopTheme.secondary; font-size: 13px;
+                    }
+                    Text { text: root.material-total; color: DesktopTheme.text; font-size: 13px; }
+                }
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: CharacterCalcLanguage.tr("Crafting fee", "合成費用", "합성 수수료");
+                        color: DesktopTheme.secondary; font-size: 13px;
+                    }
+                    Text { text: root.fee; color: DesktopTheme.text; font-size: 13px; }
+                }
+                Rectangle { height: 1px; background: DesktopTheme.border; }
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.complete ? CharacterCalcLanguage.tr("Total cost", "成本合計", "총비용") : CharacterCalcLanguage.tr("Known cost", "已知成本", "확인된 비용");
+                        color: DesktopTheme.text; font-size: 15px; font-weight: 600; vertical-alignment: center;
+                    }
+                    Text {
+                        text: root.total; color: DesktopTheme.accent;
+                        font-size: root.total.character-count > 17 ? 13px : 20px; font-weight: 600;
+                    }
+                }
+                HorizontalLayout {
+                    Text {
+                        horizontal-stretch: 1;
+                        text: CharacterCalcLanguage.tr("Cost per character", "每位角色成本", "캐릭터당 비용");
+                        color: DesktopTheme.secondary; font-size: 12px;
+                    }
+                    Text { text: root.unit-total; color: DesktopTheme.secondary; font-size: 12px; }
+                }
+            }
+        }
+    }
+}

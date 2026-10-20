@@ -57,7 +57,7 @@ component CalcArt inherits Rectangle {
 
 // Keep live totals current without reformatting the text under the caret.
 // Invalid drafts remain visible; only accepted values are formatted on blur.
-component CalcNumber inherits LineEdit {
+export component CalcNumber inherits LineEdit {
     in property <string> value;
     in property <string> label;
     in property <int> reset-token;
@@ -492,6 +492,7 @@ export component CalculatorPane inherits Rectangle {
     in property <string> notice;
     in property <string> error;
     in property <string> info;
+    in property <bool> export-busy;
     in property <bool> complete;
     in property <bool> compact-total;
     in property <bool> share-enabled;
@@ -536,9 +537,9 @@ export component CalculatorPane inherits Rectangle {
     property <length> quantity-width: root.width < 820px ? 62px : 84px;
     background: DesktopTheme.canvas;
     forward-focus: pane-focus;
-    init => { pane-focus.focus(); }
+    init => { if (root.visible) { pane-focus.focus(); } }
     changed library-open => {
-        if (!root.library-open) { pane-focus.focus(); }
+        if (!root.library-open && root.visible) { pane-focus.focus(); }
     }
 
     pane-focus := FocusScope {
@@ -602,6 +603,11 @@ export component CalculatorPane inherits Rectangle {
         }
         if root.error != "": Text {
             text: root.error; color: #f0b5ad; font-size: 13px; wrap: word-wrap;
+            accessible-role: text;
+        }
+        if root.export-busy: Text {
+            text: UiLanguage.tr("Exporting JPG… You can keep editing while it finishes.", "正在匯出 JPG… 你可以繼續編輯成本清單。");
+            color: DesktopTheme.secondary; font-size: 13px; wrap: word-wrap;
             accessible-role: text;
         }
         if root.library-open: CalculatorLibrary {
@@ -976,8 +982,8 @@ export component CalculatorPane inherits Rectangle {
         HorizontalLayout {
             spacing: 10px;
             Button {
-                text: UiLanguage.tr("Export JPG", "匯出 JPG");
-                enabled: root.share-enabled && root.input-valid;
+                text: root.export-busy ? UiLanguage.tr("Exporting…", "匯出中…") : UiLanguage.tr("Export JPG", "匯出 JPG");
+                enabled: root.share-enabled && root.input-valid && !root.export-busy;
                 height: 34px;
                 clicked => { root.export-card(); }
             }

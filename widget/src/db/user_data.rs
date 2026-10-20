@@ -1,6 +1,8 @@
 //! Keep mutable Windows preferences outside the replaceable application bundle.
 use std::path::{Path, PathBuf};
 
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -26,6 +28,7 @@ const USER_FILES: &[&str] = &[
     "client.txt",
     "planner.json",
     "calculator.json",
+    "character-calculator.json",
     "calculator-library.json",
 ];
 
@@ -96,53 +99,141 @@ pub(in crate::db) fn client_hint_file(data: &Path) -> PathBuf {
     }
 }
 
-/// On Windows, write complete, flushed temporary files before replacing a
-/// preference so interruption cannot truncate the previous copy.
-pub(in crate::db) fn write_preference(path: impl AsRef<Path>, body: impl AsRef<[u8]>) {
+/// A failed save retained on the calling thread until it succeeds. The UI can
+/// compare snapshots to show new failures without repeating dismissed ones.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PreferenceFailure {
+    pub path: PathBuf,
+    pub error: String,
+    pub revision: u64,
+}
+
+struct PendingPreference {
+    failure: PreferenceFailure,
+    body: Vec<u8>,
+    replace: bool,
+}
+
+thread_local! {
+    // Preferences are saved by the UI event loop. Keeping this local also keeps
+    // background/read-only consumers from showing another thread's failures.
+    static FAILED_PREFERENCES: RefCell<BTreeMap<PathBuf, PendingPreference>> = RefCell::new(BTreeMap::new());
+}
+
+pub(crate) fn pending_preference_failures() -> Vec<PreferenceFailure> {
+    FAILED_PREFERENCES.with(|pending| {
+        pending.borrow().values().map(|save| save.failure.clone()).collect()
+    })
+}
+
+/// Read the most recent user selection, including an explicit save waiting to
+/// be retried. Read-modify-write preference edits must build on that value so a
+/// later edit cannot discard an earlier unsaved field. Queued defaults are not
+/// selections and must never hide a value another instance has saved to disk.
+pub(in crate::db) fn read_preference_to_string(path: impl AsRef<Path>) -> io::Result<String> {
     let path = path.as_ref();
-    #[cfg(any(windows, test))]
-    let result = write_preference_checked(path, body);
-    #[cfg(all(not(windows), not(test)))]
-    let result = std::fs::write(path, body);
-    if let Err(error) = result {
-        eprintln!("無法儲存設定 {}：{error}", path.display());
+    let pending = FAILED_PREFERENCES.with(|pending| {
+        pending.borrow().get(path).filter(|save| save.replace).map(|save| save.body.clone())
+    });
+    match pending {
+        Some(body) => String::from_utf8(body)
+            .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error)),
+        None => fs::read_to_string(path),
     }
 }
 
-/// Atomically replace state on every platform and return failures to the UI.
+/// Retry the latest unsaved value for each path on the preference-writing
+/// thread. Reading/dismissing a UI notice never discards these pending values.
+pub(crate) fn retry_failed_preferences() -> Vec<PreferenceFailure> {
+    let pending = FAILED_PREFERENCES.with(|pending| std::mem::take(&mut *pending.borrow_mut()));
+    for (path, mut save) in pending {
+        match atomic_publish(&path, &save.body, save.replace) {
+            Ok(()) => {}
+            // A saved preference always wins over a default created later.
+            Err(error) if !save.replace && error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                save.failure.error = error.to_string();
+                FAILED_PREFERENCES.with(|pending| pending.borrow_mut().insert(path, save));
+            }
+        }
+    }
+    pending_preference_failures()
+}
+
+fn remember_failed_preference(path: &Path, body: &[u8], replace: bool, error: &io::Error) {
+    static NEXT_REVISION: AtomicU64 = AtomicU64::new(1);
+    FAILED_PREFERENCES.with(|pending| {
+        let mut pending = pending.borrow_mut();
+        if let Some(previous) = pending.get_mut(path) {
+            // Loading a fallback/default must not replace a user's pending save.
+            if !replace && previous.replace {
+                return;
+            }
+            if previous.body == body && previous.replace == replace {
+                previous.failure.error = error.to_string();
+                return;
+            }
+        }
+        pending.insert(path.to_path_buf(), PendingPreference {
+            failure: PreferenceFailure {
+                path: path.to_path_buf(),
+                error: error.to_string(),
+                revision: NEXT_REVISION.fetch_add(1, Ordering::Relaxed),
+            },
+            body: body.to_vec(),
+            replace,
+        });
+    });
+}
+
+/// Preserve the platform's ordinary preference write strategy, retaining
+/// failed values so the UI can report and retry saves. Frequent geometry saves
+/// must not add synchronous disk flushes on the macOS UI thread.
+pub(in crate::db) fn write_preference(path: impl AsRef<Path>, body: impl AsRef<[u8]>) {
+    let path = path.as_ref();
+    let body = body.as_ref();
+    #[cfg(any(windows, test))]
+    let result = atomic_write(path, body);
+    #[cfg(all(not(windows), not(test)))]
+    let result = fs::write(path, body);
+    match result {
+        Ok(()) => {
+            FAILED_PREFERENCES.with(|pending| pending.borrow_mut().remove(path));
+        }
+        Err(error) => {
+            eprintln!("無法儲存設定 {}：{error}", path.display());
+            remember_failed_preference(path, body, true, &error);
+        }
+    }
+}
+
+/// Atomically replace state on every platform and return failures to the caller,
+/// which decides whether to roll back or retry its state. An explicit save
+/// supersedes any older queued write so retry cannot restore stale data.
 pub(in crate::db) fn write_preference_checked(
     path: impl AsRef<Path>,
     body: impl AsRef<[u8]>,
 ) -> std::io::Result<()> {
-    atomic_write(path.as_ref(), body.as_ref())
+    let path = path.as_ref();
+    FAILED_PREFERENCES.with(|pending| pending.borrow_mut().remove(path));
+    atomic_write(path, body.as_ref())
 }
 
 // A concurrent migration or another instance's first save must win over a
 // default alias file. Do not use the replacing save operation for defaults.
 pub(in crate::db) fn write_default_preference(path: &Path, body: &[u8]) {
-    #[cfg(any(windows, test))]
-    let result = (|| {
-        let directory = path
-            .parent()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "設定路徑沒有父目錄"))?;
-        let (temporary, mut file) = new_temporary(directory)?;
-        file.write_all(body)?;
-        file.sync_all()?;
-        drop(file);
-        publish(&temporary.0, path, false)
-    })();
-    #[cfg(all(not(windows), not(test)))]
-    let result = {
-        use std::io::Write;
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)
-            .and_then(|mut file| file.write_all(body))
-    };
-    if let Err(error) = result {
-        if error.kind() != std::io::ErrorKind::AlreadyExists {
+    match atomic_publish(path, body, false) {
+        Err(error) if error.kind() != io::ErrorKind::AlreadyExists => {
             eprintln!("無法建立預設設定 {}：{error}", path.display());
+            remember_failed_preference(path, body, false, &error);
+        }
+        _ => {
+            FAILED_PREFERENCES.with(|pending| {
+                let mut pending = pending.borrow_mut();
+                if pending.get(path).is_some_and(|save| !save.replace) {
+                    pending.remove(path);
+                }
+            });
         }
     }
 }
@@ -226,6 +317,10 @@ fn new_temporary(directory: &Path) -> io::Result<(Temporary, File)> {
 }
 
 fn atomic_write(path: &Path, body: &[u8]) -> io::Result<()> {
+    atomic_publish(path, body, true)
+}
+
+fn atomic_publish(path: &Path, body: &[u8], replace: bool) -> io::Result<()> {
     let directory = path
         .parent()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "設定路徑沒有父目錄"))?;
@@ -233,7 +328,7 @@ fn atomic_write(path: &Path, body: &[u8]) -> io::Result<()> {
     file.write_all(body)?;
     file.sync_all()?;
     drop(file);
-    publish(&temporary.0, path, true)
+    publish(&temporary.0, path, replace)
 }
 
 #[cfg(windows)]
@@ -451,6 +546,114 @@ mod tests {
         assert_eq!(fs::read(&target).unwrap(), b"item:123");
         atomic_write(&target, b"item:456\nitem:789").unwrap();
         assert_eq!(fs::read(&target).unwrap(), b"item:456\nitem:789");
+        assert_eq!(fs::read_dir(&profile.0).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn failed_preferences_retain_only_the_latest_value_until_retry_succeeds() {
+        let profile = TestDirectory::new();
+        let parent = profile.0.join("missing");
+        let target = parent.join("view.txt");
+        write_preference(&target, b"first selection");
+        let first = pending_preference_failures();
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].path, target);
+        assert!(!first[0].error.is_empty());
+
+        // Repeated autosaves of the same value should not reopen a dismissed
+        // notification, but a newly failed selection must be distinguishable.
+        write_preference(&target, b"first selection");
+        assert_eq!(pending_preference_failures(), first);
+        write_preference(&target, b"latest selection");
+        let latest = pending_preference_failures();
+        assert_eq!(latest.len(), 1);
+        assert_ne!(latest[0].revision, first[0].revision);
+        assert_eq!(retry_failed_preferences(), latest);
+
+        fs::create_dir(&parent).unwrap();
+        assert!(retry_failed_preferences().is_empty());
+        assert!(pending_preference_failures().is_empty());
+        assert_eq!(fs::read(&target).unwrap(), b"latest selection");
+        assert_eq!(fs::read_dir(&parent).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn retry_cannot_overwrite_a_newer_successful_save() {
+        let profile = TestDirectory::new();
+        let parent = profile.0.join("missing");
+        let target = parent.join("view.txt");
+        write_preference(&target, b"old failed selection");
+        fs::create_dir(&parent).unwrap();
+        write_preference(&target, b"new saved selection");
+        assert!(retry_failed_preferences().is_empty());
+        assert_eq!(fs::read(&target).unwrap(), b"new saved selection");
+    }
+
+    #[test]
+    fn checked_saves_return_errors_and_supersede_older_queued_values() {
+        let profile = TestDirectory::new();
+        let parent = profile.0.join("missing");
+        let target = parent.join("favourites.txt");
+        write_preference(&target, b"old failed selection");
+        assert!(write_preference_checked(&target, b"caller handles this failure").is_err());
+        assert!(pending_preference_failures().is_empty());
+        fs::create_dir(&parent).unwrap();
+        write_preference_checked(&target, b"new saved selection").unwrap();
+        assert!(retry_failed_preferences().is_empty());
+        assert_eq!(fs::read(&target).unwrap(), b"new saved selection");
+    }
+
+    #[test]
+    fn default_retries_never_replace_a_saved_or_pending_user_preference() {
+        let profile = TestDirectory::new();
+        let parent = profile.0.join("missing");
+        let default_target = parent.join("aliases.txt");
+        let selected_target = parent.join("languages.txt");
+        write_default_preference(&default_target, b"default aliases");
+        write_preference(&selected_target, b"user language");
+        write_default_preference(&selected_target, b"default language");
+        assert_eq!(pending_preference_failures().len(), 2);
+
+        fs::create_dir(&parent).unwrap();
+        // Another instance may have saved this while the default was pending.
+        fs::write(&default_target, b"saved aliases").unwrap();
+        assert_eq!(read_preference_to_string(&default_target).unwrap(), "saved aliases");
+        assert_eq!(read_preference_to_string(&selected_target).unwrap(), "user language");
+        assert!(retry_failed_preferences().is_empty());
+        assert_eq!(fs::read(&default_target).unwrap(), b"saved aliases");
+        assert_eq!(fs::read(&selected_target).unwrap(), b"user language");
+    }
+
+    #[test]
+    fn failed_retry_preserves_other_successful_retries() {
+        let profile = TestDirectory::new();
+        let first_parent = profile.0.join("first");
+        let second_parent = profile.0.join("second");
+        let first = first_parent.join("view.txt");
+        let second = second_parent.join("dock.txt");
+        write_preference(&first, b"view selection");
+        write_preference(&second, b"dock selection");
+        fs::create_dir(&first_parent).unwrap();
+        let remaining = retry_failed_preferences();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].path, second);
+        assert_eq!(fs::read(&first).unwrap(), b"view selection");
+
+        fs::write(&first, b"subsequent selection").unwrap();
+        fs::create_dir(&second_parent).unwrap();
+        assert!(retry_failed_preferences().is_empty());
+        assert_eq!(fs::read(&first).unwrap(), b"subsequent selection");
+        assert_eq!(fs::read(&second).unwrap(), b"dock selection");
+    }
+
+    #[test]
+    fn failed_publication_cleans_temporary_file_without_changing_destination() {
+        let profile = TestDirectory::new();
+        let target = profile.0.join("view.txt");
+        fs::create_dir(&target).unwrap();
+        fs::write(target.join("keep"), b"untouched").unwrap();
+        assert!(write_preference_checked(&target, b"selection").is_err());
+        assert_eq!(fs::read(target.join("keep")).unwrap(), b"untouched");
         assert_eq!(fs::read_dir(&profile.0).unwrap().count(), 1);
     }
 }

@@ -171,10 +171,6 @@ extern "system" {
     ) -> isize;
 }
 
-pub(crate) fn copy_to_clipboard(text: &str) {
-    let _ = try_copy_to_clipboard(text);
-}
-
 pub(crate) fn try_copy_to_clipboard(text: &str) -> bool {
     let mut wide: Vec<u16> = text.encode_utf16().collect();
     wide.push(0);

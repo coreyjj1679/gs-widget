@@ -318,6 +318,7 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
     let c = Rc::clone(controller);
     app.on_calculator_export_folder(move || {
         let Some(app) = weak.upgrade() else { return };
+        app.set_calculator_info("".into());
         let library = c.library.borrow();
         let Ok(book) = library.as_ref() else { return };
         let Some(folder) = book
@@ -329,8 +330,8 @@ pub(super) fn install_callbacks(app: &App, controller: &Rc<Controller>) {
         };
         match db::encode_calculator_folder(folder) {
             Ok(code) => {
-                window::copy_to_clipboard(&code);
-                app.set_calculator_error("".into());
+                if !copy_share_code(&app, &code) { return; }
+                c.publish_input_errors(&app);
                 app.set_calculator_info(
                     format!(
                         "{} {} {}",

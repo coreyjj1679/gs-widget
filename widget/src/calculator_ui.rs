@@ -2,15 +2,23 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
+use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::time::Duration;
 
-use slint::{ComponentHandle, Image, Model, ModelRc, VecModel};
+use slint::{ComponentHandle, Image, Model, ModelRc, Timer, TimerMode, VecModel};
 
 use crate::{calculator_export, db, icons, window, App, CalcChoice, CalcMaterial, CalcSaved};
 
 mod library;
 mod nested;
+mod characters;
 
 type IconCache = Rc<RefCell<HashMap<String, Image>>>;
+struct ExportedCard {
+    paths: Vec<std::path::PathBuf>,
+    open_error: Option<String>,
+}
+type ExportResult = Result<ExportedCard, String>;
 struct Controller {
     catalog: Rc<db::Catalog>,
     book: Result<db::CalcCatalog, String>,
@@ -22,6 +30,8 @@ struct Controller {
     folder_id: Cell<u64>,
     active_entry: Cell<Option<u64>>,
     input_errors: RefCell<InputErrors>,
+    export_result: RefCell<Option<Receiver<ExportResult>>>,
+    export_timer: Timer,
 }
 
 // A valid edit in one field must not hide another field's invalid draft or
@@ -502,6 +512,122 @@ impl Controller {
             .ok_or("請先選擇道具 / Select an item first")?;
         card_document(&self.catalog.localized_calculator_document(doc, &app.get_lang()), &app.get_lang(), |code| self.icon(code).0)
     }
+
+    fn export_card(self: &Rc<Self>, app: &App) {
+        if app.get_calculator_export_busy() || !app.get_calculator_input_valid() {
+            return;
+        }
+        app.set_calculator_info("".into());
+        app.set_calculator_error("".into());
+        // Snapshot the current sheet and its small icons on the UI thread.
+        // Font discovery, rasterization, JPEG encoding and file writes run below
+        // with owned pixels, never with Slint images or a live document borrow.
+        let card = match self.card(app) {
+            Ok(card) => card,
+            Err(error) => {
+                app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
+                return;
+            }
+        };
+        let (tx, rx) = mpsc::channel();
+        app.set_calculator_export_busy(true);
+        if let Err(error) = std::thread::Builder::new()
+            .name("calculator-jpg-export".into())
+            .spawn(move || {
+                let result = calculator_export::export_card(&card).map(|paths| {
+                    let open_error = paths.first().and_then(|path| calculator_export::open_export(path).err());
+                    ExportedCard { paths, open_error }
+                });
+                let _ = tx.send(result);
+            })
+        {
+            app.set_calculator_export_busy(false);
+            app.set_calculator_error(format!("{} {error}", tr(&app.get_lang(),
+                "無法開始匯出 JPG，請重試。", "Could not start JPG export. Try again.")).into());
+            return;
+        }
+        *self.export_result.borrow_mut() = Some(rx);
+        let weak_app = app.as_weak();
+        let weak_controller = Rc::downgrade(self);
+        self.export_timer.start(TimerMode::Repeated, Duration::from_millis(100), move || {
+            let (Some(app), Some(controller)) = (weak_app.upgrade(), weak_controller.upgrade()) else {
+                return;
+            };
+            let result = {
+                let receiver = controller.export_result.borrow();
+                let Some(receiver) = receiver.as_ref() else { return };
+                match receiver.try_recv() {
+                    Ok(result) => result,
+                    Err(TryRecvError::Empty) => return,
+                    Err(TryRecvError::Disconnected) => Err(tr(&app.get_lang(),
+                        "JPG 匯出已中斷，請重新匯出。", "JPG export stopped unexpectedly. Try Export JPG again.").into()),
+                }
+            };
+            controller.export_result.borrow_mut().take();
+            controller.export_timer.stop();
+            app.set_calculator_export_busy(false);
+            // A retry in the calculator must also resolve an earlier export
+            // failure that was reported globally while this pane was closed.
+            let publish_global = !app.get_calculator_open()
+                || app.get_feedback_source() == "calculator-export";
+            match result {
+                Ok(ExportedCard { paths, open_error }) => {
+                    if let Some(first) = paths.first() {
+                        app.set_calculator_info(format!("{} {} JPG · {}",
+                            tr(&app.get_lang(), "已匯出", "Exported"),
+                            paths.len(), first.parent().unwrap_or(first).display()).into());
+                        // Do not hide invalid input entered while the snapshot was exporting.
+                        controller.publish_input_errors(&app);
+                        if let Some(error) = open_error {
+                            app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
+                            if publish_global {
+                                crate::feedback::error_for(&app, "calculator-export",
+                                    "JPG 已儲存，但無法開啟圖片。請返回合成成本查看儲存位置。",
+                                    "JPG saved, but the image could not be opened. Open Crafting cost to see its location.",
+                                    "JPG를 저장했지만 이미지를 열 수 없습니다. 제작 비용에서 저장 위치를 확인하세요.");
+                            }
+                        } else if publish_global {
+                            let directory = first.parent().unwrap_or(first).display();
+                            crate::feedback::success_for(&app, "calculator-export",
+                                &format!("已匯出 {} JPG · {directory}", paths.len()),
+                                &format!("Exported {} JPG · {directory}", paths.len()),
+                                &format!("JPG {}개 내보내기 완료 · {directory}", paths.len()));
+                        }
+                    }
+                }
+                Err(error) => {
+                    app.set_calculator_info("".into());
+                    app.set_calculator_error(format!("{}\n{}",
+                        db::localized_error(&app.get_lang(), &error),
+                        tr(&app.get_lang(), "成本清單已保留，可再次按「匯出 JPG」重試。",
+                            "Your cost sheet is unchanged. Try Export JPG again.")).into());
+                    if publish_global {
+                        crate::feedback::error_for(&app, "calculator-export",
+                            "JPG 匯出失敗，成本清單已保留。請返回合成成本查看詳情並重試。",
+                            "JPG export failed. Your cost sheet is unchanged. Open Crafting cost for details and retry.",
+                            "JPG 내보내기에 실패했습니다. 비용표는 유지됩니다. 제작 비용에서 자세한 내용을 확인하고 다시 시도하세요.");
+                    }
+                }
+            }
+        });
+    }
+}
+
+fn card_icon(icon: Image) -> Option<image::RgbaImage> {
+    let pixels = icon.to_rgba8()?;
+    image::RgbaImage::from_raw(pixels.width(), pixels.height(), pixels.as_bytes().to_vec())
+}
+
+fn copy_share_code(app: &App, code: &str) -> bool {
+    app.set_calculator_info("".into());
+    if window::try_copy_to_clipboard(code) {
+        true
+    } else {
+        app.set_calculator_error(tr(&app.get_lang(),
+            "無法複製分享碼到剪貼簿。請重試；成本清單已保留。",
+            "Could not copy the share code to the clipboard. Try again; your cost sheet is unchanged.").into());
+        false
+    }
 }
 
 fn card_document(
@@ -523,7 +649,7 @@ fn card_document(
                     nested::unit_price(line, lang)
                 },
                 subtotal: nested::subtotal(line),
-                icon: icon_for(line.key.code),
+                icon: card_icon(icon_for(line.key.code)),
                 unpriced: line.line_total.is_none(),
                 depth: row.depth,
                 context: row.context,
@@ -583,12 +709,13 @@ fn card_document(
                 "Offline recipe snapshot · Currency: coins"
             )
         ),
-        icon: icon_for(doc.item_code),
+        icon: card_icon(icon_for(doc.item_code)),
         rows,
     })
 }
 
 pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
+    characters::install(app, Rc::clone(&catalog), Rc::clone(&cache));
     let (document, load_error) = match db::load_calculator() {
         Ok(doc) => (doc, None),
         Err(error) => (None, Some(error)),
@@ -623,6 +750,8 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
         folder_id: Cell::new(folder_id),
         active_entry: Cell::new(active.map(|(_, entry)| entry)),
         input_errors: RefCell::default(),
+        export_result: RefCell::default(),
+        export_timer: Timer::default(),
     });
     library::install_callbacks(app, &controller);
     nested::install_callbacks(app, &controller);
@@ -630,6 +759,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
     let c = Rc::clone(&controller);
     app.on_calculator_refresh(move || {
         if let Some(app) = weak.upgrade() {
+            app.invoke_character_calculator_refresh();
             c.render(&app);
             c.search(&app, "");
         }
@@ -737,9 +867,16 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
     let c = Rc::clone(&controller);
     app.on_calculator_copy_code(move || {
         let Some(app) = weak.upgrade() else { return };
+        if !app.get_calculator_input_valid() { return; }
+        app.set_calculator_info("".into());
         let current = c.document.borrow(); let Some(doc) = current.as_ref() else { return };
         match db::encode_calculator(doc) {
-            Ok(code) => { window::copy_to_clipboard(&code); app.set_calculator_info(tr(&app.get_lang(), "分享碼已複製。對方可在「匯入分享碼」貼上，離線還原這份成本清單。", "Code copied. Paste it into Import code to restore this cost sheet offline.").into()); }
+            Ok(code) => {
+                if copy_share_code(&app, &code) {
+                    c.publish_input_errors(&app);
+                    app.set_calculator_info(tr(&app.get_lang(), "分享碼已複製。對方可在「匯入分享碼」貼上，離線還原這份成本清單。", "Code copied. Paste it into Import code to restore this cost sheet offline.").into());
+                }
+            }
             Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
         }
     });
@@ -774,30 +911,7 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
     let c = Rc::clone(&controller);
     app.on_calculator_export_card(move || {
         let Some(app) = weak.upgrade() else { return };
-        match c
-            .card(&app)
-            .and_then(|card| calculator_export::export_card(&card))
-        {
-            Ok(paths) => {
-                if let Some(first) = paths.first() {
-                    let open_result = calculator_export::open_export(first);
-                    app.set_calculator_info(
-                        format!(
-                            "{} {} JPG · {}{}",
-                            tr(&app.get_lang(), "已匯出", "Exported"),
-                            paths.len(),
-                            first.parent().unwrap_or(first).display(),
-                            open_result
-                                .err()
-                                .map(|e| format!("\n{e}"))
-                                .unwrap_or_default()
-                        )
-                        .into(),
-                    );
-                }
-            }
-            Err(error) => app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into()),
-        }
+        c.export_card(&app);
     });
     controller.render(app);
     controller.search(app, "");

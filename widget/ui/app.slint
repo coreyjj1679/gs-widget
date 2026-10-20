@@ -1,3 +1,4 @@
+import { FeedbackBanner } from "feedback.slint";
 import { UiLanguage } from "language.slint";
 export { UiLanguage }
 import { Palette, LineEdit, TextEdit, Button, ComboBox } from "std-widgets.slint";
@@ -19,6 +20,7 @@ export struct QuestItemRow {
 }
 
 import { CalculatorPane, CalcChoice, CalcMaterial, CalcNestedOption, CalcSaved } from "calculator.slint";
+import { CharacterCalculatorPane, CharacterCalcChoice, CharacterCalcMaterial } from "character-calculator.slint";
 export { CalcChoice, CalcMaterial, CalcNestedOption, CalcSaved }
 
 export struct ChangelogItem {
@@ -4784,7 +4786,41 @@ component SearchEmpty inherits Rectangle {
 }
 
 export component App inherits Window {
+    in-out property <string> feedback-message;
+    in-out property <string> feedback-source;
+    in-out property <bool> feedback-error;
+    in-out property <bool> feedback-retry;
+    callback retry-preferences();
+    callback dismiss-feedback();
+    in-out property <bool> calculator-export-busy;
     in-out property <bool> calculator-open: false;
+    in-out property <int> calculator-tab: 0;
+    in-out property <[CharacterCalcChoice]> character-calculator-candidates;
+    in-out property <[CharacterCalcMaterial]> character-calculator-materials;
+    in-out property <[string]> character-calculator-routes;
+    in-out property <int> character-calculator-route-index;
+    in-out property <string> character-calculator-selected-name;
+    in-out property <image> character-calculator-selected-icon;
+    in-out property <bool> character-calculator-selected-has-icon;
+    in-out property <string> character-calculator-quantity: "1";
+    in-out property <string> character-calculator-quantity-draft;
+    in-out property <bool> character-calculator-quantity-has-draft;
+    in-out property <string> character-calculator-conditions;
+    in-out property <string> character-calculator-material-total;
+    in-out property <string> character-calculator-fee;
+    in-out property <string> character-calculator-total;
+    in-out property <string> character-calculator-unit-total;
+    in-out property <string> character-calculator-status;
+    in-out property <string> character-calculator-notice;
+    in-out property <string> character-calculator-error;
+    in-out property <bool> character-calculator-complete;
+    in-out property <int> character-calculator-input-revision;
+    callback character-calculator-refresh();
+    callback character-calculator-search(string);
+    callback character-calculator-select-character(string);
+    callback character-calculator-select-route(int);
+    callback character-calculator-quantity-changed(string) -> bool;
+    callback character-calculator-price-changed(string, string) -> bool;
     in-out property <[CalcChoice]> calculator-candidates;
     in-out property <[CalcMaterial]> calculator-materials;
     in-out property <[CalcNestedOption]> calculator-nested-options;
@@ -5068,7 +5104,7 @@ export component App inherits Window {
     callback animate-changed(bool);
     callback hotkeys-changed(bool);
     callback hotkey-scope-changed(bool);
-    callback alias-save();
+    callback alias-save() -> bool;
     callback alias-cancel();
     callback alias-add();
     callback alias-remove(int);
@@ -6851,8 +6887,8 @@ export component App inherits Window {
     property <length> list-row: full-mode && monster-cards ? root.monster-row : monster-gallery && monster-cards ? 220px : 52px;
     property <length> search-y: category == "patch" ? 128px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 86px : 50px;
     property <length> list-y: full-mode ? search-y + 16px + (monster-results-filter ? filter-h + 16px : 0px) : search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
-    property <length> foot: 26px;
-    property <length> list-view: max(root.height - list-y - 68px, 80px);
+    property <length> foot: 26px + (root.feedback-message != "" ? feedback-banner.height + 12px : 0px);
+    property <length> list-view: max(root.height - list-y - 42px - root.foot, 80px);
     in-out property <bool> form-open: false;
     in-out property <bool> drops-open: false;
     in-out property <bool> related-open: false;
@@ -7404,7 +7440,7 @@ export component App inherits Window {
                 if root.full-mode && root.mcp-open && !root.settings-open: McpPane {
                     x: root.page-pad; y: 18px;
                     width: parent.width - root.page-pad * 2;
-                    height: parent.height - root.foot - 30px;
+                    height: max(parent.height - 30px, 0px);
                     english: UiLanguage.primary == "en";
                     windows: root.mcp-windows;
                     agent <=> root.mcp-agent;
@@ -7420,10 +7456,44 @@ export component App inherits Window {
                     agent-changed => { root.mcp-copy-notice = ""; }
                 }
 
-                if root.full-mode && root.calculator-open && !root.settings-open: CalculatorPane {
+                if root.full-mode && root.calculator-open && !root.settings-open: Rectangle {
                     x: root.page-pad; y: 18px;
                     width: parent.width - root.page-pad * 2;
-                    height: parent.height - root.foot - 30px;
+                    height: 36px;
+                    HorizontalLayout {
+                        spacing: 4px;
+                        item-calc-tab := PatchTab {
+                            label: UiLanguage.tr("Items", "道具");
+                            width: 120px;
+                            active: root.calculator-tab == 0;
+                            arrow-navigation: true;
+                            tab-stop: root.calculator-tab == 0;
+                            clicked => { root.calculator-tab = 0; }
+                            navigate(step) => {
+                                if (step == -2) { root.calculator-tab = 0; }
+                                else { root.calculator-tab = 1; character-calc-tab.focus(); }
+                            }
+                        }
+                        character-calc-tab := PatchTab {
+                            label: UiLanguage.tr("Characters / Mercenaries", "角色／傭兵");
+                            width: UiLanguage.primary == "en" ? 220px : 168px;
+                            active: root.calculator-tab == 1;
+                            arrow-navigation: true;
+                            tab-stop: root.calculator-tab == 1;
+                            clicked => { root.calculator-tab = 1; }
+                            navigate(step) => {
+                                if (step == 2) { root.calculator-tab = 1; }
+                                else { root.calculator-tab = 0; item-calc-tab.focus(); }
+                            }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
+                }
+                if root.full-mode && root.calculator-open && !root.settings-open: CalculatorPane {
+                    visible: root.calculator-tab == 0;
+                    x: root.page-pad; y: 70px;
+                    width: parent.width - root.page-pad * 2;
+                    height: max(parent.height - 82px, 0px);
                     english: UiLanguage.primary == "en";
                     candidates: root.calculator-candidates;
                     materials: root.calculator-materials;
@@ -7447,6 +7517,7 @@ export component App inherits Window {
                     error: root.calculator-error;
                     info: root.calculator-info;
                     share-enabled: root.calculator-share-enabled;
+                    export-busy: root.calculator-export-busy;
                     complete: root.calculator-complete;
                     compact-total: root.calculator-compact-total;
                     input-valid: root.calculator-input-valid;
@@ -7479,6 +7550,37 @@ export component App inherits Window {
                     export-card => { root.calculator-export-card(); }
                     copy-code => { root.calculator-copy-code(); }
                     import-code(code) => { root.calculator-import-code(code); }
+                }
+                if root.full-mode && root.calculator-open && !root.settings-open: CharacterCalculatorPane {
+                    visible: root.calculator-tab == 1;
+                    x: root.page-pad; y: 70px;
+                    width: parent.width - root.page-pad * 2;
+                    height: max(parent.height - 82px, 0px);
+                    candidates: root.character-calculator-candidates;
+                    materials: root.character-calculator-materials;
+                    routes: root.character-calculator-routes;
+                    route-index <=> root.character-calculator-route-index;
+                    selected-name: root.character-calculator-selected-name;
+                    selected-icon: root.character-calculator-selected-icon;
+                    selected-has-icon: root.character-calculator-selected-has-icon;
+                    quantity: root.character-calculator-quantity;
+                    quantity-draft: root.character-calculator-quantity-draft;
+                    quantity-has-draft: root.character-calculator-quantity-has-draft;
+                    conditions: root.character-calculator-conditions;
+                    material-total: root.character-calculator-material-total;
+                    fee: root.character-calculator-fee;
+                    total: root.character-calculator-total;
+                    unit-total: root.character-calculator-unit-total;
+                    status: root.character-calculator-status;
+                    notice: root.character-calculator-notice;
+                    error: root.character-calculator-error;
+                    complete: root.character-calculator-complete;
+                    input-revision: root.character-calculator-input-revision;
+                    search-query(q) => { root.character-calculator-search(q); }
+                    select-character(code) => { root.character-calculator-select-character(code); }
+                    select-route(index) => { root.character-calculator-select-route(index); }
+                    quantity-changed(q) => { return root.character-calculator-quantity-changed(q); }
+                    price-changed(key, q) => { return root.character-calculator-price-changed(key, q); }
                 }
                 if root.category == "" && !root.settings-open && !root.calculator-open && !root.full-mode: home := Rectangle {
                     width: parent.width;
@@ -7609,7 +7711,7 @@ export component App inherits Window {
                 if root.category == "" && !root.settings-open && !root.calculator-open && !root.mcp-open && root.full-mode: Flickable {
                     x: 0px; y: 0px;
                     width: 100%;
-                    height: parent.height - root.foot;
+                    height: parent.height;
                     content-width: self.width;
                     content-height: max(self.height, 550px);
                     Text {
@@ -9654,11 +9756,12 @@ export component App inherits Window {
                 }
                 HorizontalLayout {
                     width: 100%;
-                    height: 100%;
+                    y: parent.height - 26px;
+                    height: 26px;
                     alignment: center;
                     spacing: 8px;
                     Text {
-                        text: (UiLanguage.tr("Client  ", "對應版本  ")) + root.client-version;
+                        text: root.calculator-export-busy ? (UiLanguage.primary == "ko" ? "이미지 내보내는 중…" : UiLanguage.tr("Exporting image…", "正在匯出圖片…")) : (UiLanguage.tr("Client  ", "對應版本  ")) + root.client-version;
                         font-size: 11px;
                         color: DesktopTheme.secondary;
                         vertical-alignment: center;
@@ -10257,10 +10360,11 @@ export component App inherits Window {
                         save => {
                             root.alias-name(i, self.name-draft);
                             root.alias-finish(i);
-                            root.alias-save();
-                            root.alias-edit = -1;
-                            root.alias-hits = [];
-                            root.alias-target = -1;
+                            if (root.alias-save()) {
+                                root.alias-edit = -1;
+                                root.alias-hits = [];
+                                root.alias-target = -1;
+                            }
                         }
                         find-edited(text) => { root.alias-query(i, text); }
                         find-accepted => { root.alias-finish(i); }
@@ -10288,10 +10392,11 @@ export component App inherits Window {
                         text: UiLanguage.tr("Save all", "全部儲存");
                         clicked => {
                             if (root.alias-edit >= 0) { root.alias-finish(root.alias-edit); }
-                            root.alias-save();
-                            root.alias-edit = -1;
-                            root.alias-hits = [];
-                            root.alias-target = -1;
+                            if (root.alias-save()) {
+                                root.alias-edit = -1;
+                                root.alias-hits = [];
+                                root.alias-target = -1;
+                            }
                         }
                     }
                     Button {
@@ -10470,6 +10575,21 @@ export component App inherits Window {
             text: NameCopy.notice; color: DesktopTheme.text; font-size: 13px;
             vertical-alignment: center; horizontal-alignment: center; overflow: elide;
         }
+    }
+
+    feedback-banner := FeedbackBanner {
+        visible: root.feedback-message != "" && !root.collapsed;
+        x: (root.full-mode ? root.nav-w : 0px) + 12px;
+        y: root.height - 26px - self.height - 6px;
+        width: max(root.pane-w - 24px, 120px);
+        message: root.feedback-message;
+        error: root.feedback-error;
+        retry: root.feedback-retry;
+        heading: root.feedback-error ? (UiLanguage.primary == "ko" ? "작업을 완료하지 못했습니다" : UiLanguage.tr("Action needed", "操作未完成")) : (UiLanguage.primary == "ko" ? "완료" : UiLanguage.tr("Done", "已完成"));
+        retry-label: UiLanguage.primary == "ko" ? "다시 저장" : UiLanguage.tr("Retry saving", "重試儲存");
+        dismiss-label: UiLanguage.primary == "ko" ? "닫기" : UiLanguage.tr("Dismiss", "關閉提示");
+        retry-clicked => { root.retry-preferences(); }
+        dismissed => { root.dismiss-feedback(); }
     }
 
 }

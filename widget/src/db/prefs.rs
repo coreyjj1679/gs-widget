@@ -2,10 +2,10 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use super::language::{normalize_lang, primary_lang, secondary_lang, with_secondary_lang};
-use super::user_data::{preferences_dir, write_default_preference, write_preference};
+use super::user_data::{preferences_dir, read_preference_to_string, write_default_preference, write_preference, write_preference_checked};
 
 pub fn load_favourites() -> HashSet<String> {
-    std::fs::read_to_string(favourites_file())
+    read_preference_to_string(favourites_file())
         .unwrap_or_default()
         .lines()
         .map(str::trim)
@@ -14,10 +14,10 @@ pub fn load_favourites() -> HashSet<String> {
         .collect()
 }
 
-pub fn save_favourites(codes: &HashSet<String>) {
+pub fn save_favourites(codes: &HashSet<String>) -> std::io::Result<()> {
     let mut lines: Vec<&str> = codes.iter().map(String::as_str).collect();
     lines.sort_unstable();
-    write_preference(favourites_file(), lines.join("\n"));
+    write_preference_checked(favourites_file(), lines.join("\n"))
 }
 
 pub(in crate::db) fn favourites_file() -> PathBuf {
@@ -25,10 +25,10 @@ pub(in crate::db) fn favourites_file() -> PathBuf {
 }
 
 pub fn load_lang() -> String {
-    if let Ok(text) = std::fs::read_to_string(languages_file()) {
+    if let Ok(text) = read_preference_to_string(languages_file()) {
         return parse_languages(&text);
     }
-    let lang = match std::fs::read_to_string(lang_file()) {
+    let lang = match read_preference_to_string(lang_file()) {
         // In the old preference file even a single code requested bilingual
         // content. Only migrate that meaning here, never in current selections.
         Ok(text) if matches!(text.trim(), "en-zh" | "en") => "en-zh",
@@ -37,7 +37,7 @@ pub fn load_lang() -> String {
     };
     // Do not replace a selection saved by another instance during migration.
     write_default_preference(&languages_file(), format_languages(lang).as_bytes());
-    std::fs::read_to_string(languages_file()).map(|text| parse_languages(&text)).unwrap_or_else(|_| lang.to_string())
+    read_preference_to_string(languages_file()).map(|text| parse_languages(&text)).unwrap_or_else(|_| lang.to_string())
 }
 
 pub fn save_lang(lang: &str) {
@@ -75,7 +75,7 @@ pub(in crate::db) fn set_extra_file() -> PathBuf {
 }
 
 pub fn load_set_extra() -> bool {
-    std::fs::read_to_string(set_extra_file())
+    read_preference_to_string(set_extra_file())
         .ok()
         .is_some_and(|text| text.trim() == "1")
 }
@@ -93,7 +93,7 @@ pub(in crate::db) fn set_extra_name(name: &str) -> bool {
 }
 
 pub fn load_opacity() -> f32 {
-    let text = std::fs::read_to_string(opacity_file()).unwrap_or_default();
+    let text = read_preference_to_string(opacity_file()).unwrap_or_default();
     let percent = text.trim().parse::<f32>().unwrap_or(100.0);
     (percent / 100.0).clamp(0.25, 1.0)
 }
@@ -164,7 +164,7 @@ pub(crate) fn format_view(pref: &ViewPref) -> String {
 }
 
 pub fn load_view() -> ViewPref {
-    std::fs::read_to_string(view_file())
+    read_preference_to_string(view_file())
         .map(|text| parse_view(&text))
         .unwrap_or_else(|_| ViewPref::standard())
 }
@@ -189,7 +189,7 @@ pub fn load_dock() -> DockPref {
         width: 580.0,
         height: 84.0,
     };
-    let text = std::fs::read_to_string(preferences_dir().join("dock.txt")).unwrap_or_default();
+    let text = read_preference_to_string(preferences_dir().join("dock.txt")).unwrap_or_default();
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("v=") {
             pref.vertical = value.trim() == "1";
@@ -241,7 +241,7 @@ pub fn load_home() -> HomePref {
         size_chosen: false,
         order: [0, 1, 2, 3, 4, 5, 6, 7, 8],
     };
-    let text = std::fs::read_to_string(preferences_dir().join("home.txt")).unwrap_or_default();
+    let text = read_preference_to_string(preferences_dir().join("home.txt")).unwrap_or_default();
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("size=") {
             if let Ok(size) = value.trim().parse::<i32>() {
@@ -372,13 +372,13 @@ pub(crate) fn format_window(pref: &WindowPref) -> String {
 
 #[cfg(not(target_os = "macos"))]
 pub fn load_window() -> Option<WindowPref> {
-    let text = std::fs::read_to_string(preferences_dir().join("window.txt")).ok()?;
+    let text = read_preference_to_string(preferences_dir().join("window.txt")).ok()?;
     parse_window(&text)
 }
 
 #[cfg(target_os = "macos")]
 pub fn load_window() -> Option<WindowPref> {
-    let text = std::fs::read_to_string(preferences_dir().join("window-macos.txt")).ok()?;
+    let text = read_preference_to_string(preferences_dir().join("window-macos.txt")).ok()?;
     parse_macos_window(&text, crate::window::position_scale())
 }
 
@@ -476,6 +476,41 @@ pub(in crate::db) fn opacity_file() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{format_languages, format_view, format_window, lang_file, languages_file, load_lang, parse_languages, parse_macos_window, parse_view, parse_window, save_lang, ViewPref};
+
+    #[test]
+    fn favourites_save_reports_failure_and_round_trips_after_recovery() {
+        let path = super::favourites_file();
+        let favourites = ["item:789".to_string(), "item:123".to_string()].into_iter().collect();
+        std::fs::create_dir(&path).unwrap();
+        assert!(super::save_favourites(&favourites).is_err());
+        assert!(super::super::user_data::pending_preference_failures().is_empty());
+        std::fs::remove_dir(&path).unwrap();
+        super::save_favourites(&favourites).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "item:123\nitem:789");
+        assert_eq!(super::load_favourites(), favourites);
+    }
+
+    #[test]
+    fn successive_view_edits_preserve_all_unsaved_fields_when_retried() {
+        let path = super::view_file();
+        std::fs::create_dir(&path).unwrap();
+
+        let mut first = super::load_view();
+        first.battle = false;
+        super::save_view(&first);
+        let mut second = super::load_view();
+        second.animate = false;
+        super::save_view(&second);
+
+        assert!(!second.battle, "the second edit must retain the first unsaved change");
+        assert_eq!(super::super::user_data::pending_preference_failures().len(), 1);
+        std::fs::remove_dir(&path).unwrap();
+        assert!(super::super::user_data::retry_failed_preferences().is_empty());
+        let saved = parse_view(&std::fs::read_to_string(&path).unwrap());
+        assert!(!saved.battle);
+        assert!(!saved.animate);
+        assert_eq!(super::load_view(), saved);
+    }
 
     #[test]
     fn language_settings_round_trip_every_single_and_dual_selection() {

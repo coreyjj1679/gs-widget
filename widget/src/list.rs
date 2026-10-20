@@ -808,6 +808,53 @@ fn number_bound(text: &str) -> i64 {
     }
 }
 
+fn valid_range(minimum: &str, maximum: &str) -> bool {
+    let parse = |text: &str| -> Result<Option<i64>, ()> {
+        let text = text.trim();
+        if text.is_empty() { return Ok(None); }
+        if !text.split(',').all(|part| !part.is_empty() && part.bytes().all(|c| c.is_ascii_digit())) {
+            return Err(());
+        }
+        text.replace(',', "").parse::<i64>().map(Some).map_err(|_| ())
+    };
+    match (parse(minimum), parse(maximum)) {
+        (Ok(Some(min)), Ok(Some(max))) => min <= max,
+        (Ok(_), Ok(_)) => true,
+        _ => false,
+    }
+}
+
+pub(crate) fn validate_monster_filters(app: &App) -> bool {
+    for (minimum, maximum, zh, en, ko) in [
+        (app.get_filter_ela_min(), app.get_filter_ela_max(), "體力", "HP", "체력"),
+        (app.get_filter_hit_min(), app.get_filter_hit_max(), "打擊抗性", "Hit resistance", "타격 저항"),
+        (app.get_filter_magic_min(), app.get_filter_magic_max(), "魔法抗性", "Magic resistance", "마법 저항"),
+    ] {
+        if !valid_range(&minimum, &maximum) {
+            crate::feedback::error_for(app, "monster-filter",
+                &format!("{zh}範圍無效：請輸入非負整數，最低值不可大於最高值；留空代表不限。"),
+                &format!("Invalid {en} range: use non-negative whole numbers, with minimum no greater than maximum. Leave blank for no limit."),
+                &format!("{ko} 범위가 올바르지 않습니다. 0 이상의 정수를 입력하고 최솟값이 최댓값보다 크지 않게 하세요. 제한이 없으면 비워 두세요."));
+            return false;
+        }
+    }
+    if app.get_feedback_source() == "monster-filter" { app.invoke_dismiss_feedback(); }
+    true
+}
+
+#[cfg(test)]
+mod range_validation_tests {
+    #[test]
+    fn invalid_ranges_are_not_silently_treated_as_unbounded() {
+        for (min, max) in [("abc", ""), ("-1", ""), ("3.5", ""), ("100", "10"), ("1,,000", ""), ("9999999999999999999999", "")] {
+            assert!(!super::valid_range(min, max), "{min}..{max}");
+        }
+        for (min, max) in [("", ""), ("0", ""), ("", "2,000"), ("10", "10"), (" 1,000 ", "2,000")] {
+            assert!(super::valid_range(min, max), "{min}..{max}");
+        }
+    }
+}
+
 pub(crate) fn set_row_favourite(app: &App, key: &str, on: bool) {
     mark_favourite(&app.get_board_monsters(), key, on);
     mark_favourite(&app.get_hits(), key, on);

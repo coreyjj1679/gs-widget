@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use super::user_data::{preferences_dir, write_default_preference, write_preference};
+use super::user_data::{preferences_dir, write_default_preference, write_preference_checked};
 
 pub(in crate::db) const SET_NICKS: &[(&str, &str, &str)] = &[
     ("龜天", "多聞天王", "다문천왕"),
@@ -126,12 +126,24 @@ pub(in crate::db) fn alias_entry_text(raw: &str) -> String {
         .join("\n")
 }
 
-pub fn save_alias_text(text: &str) {
+pub fn save_alias_text(text: &str) -> Result<(), String> {
+    save_alias_text_in(&preferences_dir().join("aliases.txt"), text)
+        .map_err(|error| error.to_string())
+}
+
+fn save_alias_text_in(path: &Path, text: &str) -> std::io::Result<()> {
+    // Loading the editor falls back when a file cannot be read. Never let that
+    // fallback overwrite unreadable/corrupt user data when Save is clicked.
+    match std::fs::read_to_string(path) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
     let body = text.replace('\r', "").trim().to_string();
-    write_preference(
-        preferences_dir().join("aliases.txt"),
+    write_preference_checked(
+        path,
         format!("# 一行一個簡稱，後面寫道具編號。\n{body}\n"),
-    );
+    )
 }
 
 pub(in crate::db) fn parse_alias_book(text: &str) -> HashMap<String, HashSet<String>> {
@@ -200,4 +212,37 @@ pub(in crate::db) fn alias_codes(book: &HashMap<String, HashSet<String>>, folded
         }
     }
     codes
+}
+
+#[cfg(test)]
+mod save_tests {
+    use super::*;
+
+    #[test]
+    fn alias_save_reports_failure_without_replacing_existing_data() {
+        let path = preferences_dir().join("aliases.txt");
+        std::fs::create_dir(&path).unwrap();
+        std::fs::write(path.join("keep.txt"), "existing data").unwrap();
+
+        assert!(save_alias_text_in(&path, "SSA 6213").is_err());
+        assert_eq!(std::fs::read_to_string(path.join("keep.txt")).unwrap(), "existing data");
+        assert_eq!(std::fs::read_dir(preferences_dir()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn alias_save_publishes_complete_parseable_rows() {
+        save_alias_text("SSA 6213 6214\n天王 123").unwrap();
+        assert_eq!(alias_rows(), vec![("SSA".into(), "6213 6214".into()), ("天王".into(), "123".into())]);
+    }
+
+    #[test]
+    fn unreadable_alias_file_is_not_overwritten_by_an_editor_fallback() {
+        let path = preferences_dir().join("aliases.txt");
+        let original = [0xff, 0xfe, 0x00];
+        std::fs::write(&path, original).unwrap();
+
+        assert!(alias_rows().is_empty());
+        assert!(save_alias_text("SSA 6213").is_err());
+        assert_eq!(std::fs::read(path).unwrap(), original);
+    }
 }

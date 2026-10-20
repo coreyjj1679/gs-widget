@@ -30,5 +30,6 @@ data/planner.json
 data/mt-cache.sqlite
 
 data/calculator.json
+data/character-calculator.json
 data/calculator-library.json
 data/exports/

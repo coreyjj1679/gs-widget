@@ -5,6 +5,7 @@ mod alias_ui;
 mod changelog;
 mod db;
 mod hotkey;
+mod feedback;
 mod icons;
 mod quest_icons;
 mod list;
@@ -30,12 +31,12 @@ use slint::{Image, Model, ModelRc, Timer, TimerMode, VecModel};
 
 slint::include_modules!();
 
-use alias_ui::{alias_code_list, alias_suggestions, alias_text, refresh_alias_icons, show_alias_rows};
+use alias_ui::{alias_code_list, alias_suggestions, validated_alias_text, refresh_alias_icons, show_alias_rows};
 use icons::{image_from_icon, show_battle_frame, spawn_icon_worker};
 use list::{monster_query, publish, reflow_board, row_index, show_board_monsters, show_home_saved, sync_view_star};
 use sheet::{focus_section, open_scope, show_key};
 use window::{
-    copy_to_clipboard, default_icon_size, default_main_size, enters_full, fit_on_screen, focus_window, full_window_size,
+    default_icon_size, default_main_size, enters_full, fit_on_screen, focus_window, full_window_size,
     leaves_full, place_fitted, place_window, remember_window, work_area_at,
 };
 
@@ -73,6 +74,7 @@ struct AnimClip {
 }
 
 fn reload_board(app: &App, catalog: &db::Catalog, session: &Session, favourites: &std::collections::HashSet<String>, cache: &RefCell<BoardList>) {
+    if app.get_full_mode() && app.get_category() == "monster" && !list::validate_monster_filters(app) { return; }
     let key = if app.get_full_mode() && app.get_category() == "monster" {
         list::monster_filter_scope(app, catalog)
     } else {
@@ -356,6 +358,7 @@ fn main() {
 
     drop(catalog_timer);
     let app = App::new().expect("視窗建立失敗");
+    let _feedback_timer = feedback::install(&app);
     let _performance_timer = perf::install(&app);
     changelog::install(&app);
     let _update_ui = update_ui::install(&app);
@@ -558,7 +561,6 @@ fn main() {
         }
         drop(hits);
         let rows = alias_draft.borrow().clone();
-        alias_catalog.set_aliases(&alias_text(&rows));
         refresh_alias_icons(&app, &alias_catalog, &rows);
         let skip = rows.get(index as usize).map(|(_, codes)| alias_code_list(codes)).unwrap_or_default();
         let query = alias_query_kept.borrow().clone();
@@ -587,7 +589,6 @@ fn main() {
         }
         let Some(app) = alias_app.upgrade() else { return };
         let rows = alias_draft.borrow().clone();
-        alias_catalog.set_aliases(&alias_text(&rows));
         refresh_alias_icons(&app, &alias_catalog, &rows);
     });
     let alias_draft = Rc::clone(&alias_rows);
@@ -654,15 +655,33 @@ fn main() {
     let alias_session = session.clone();
     let alias_favs = Rc::clone(&favourites);
     app.on_alias_save(move || {
-        let text = alias_text(&alias_draft.borrow());
-        alias_catalog.set_aliases(&text);
+        let Some(app) = alias_app.upgrade() else { return false };
+        let text = match validated_alias_text(&alias_draft.borrow(), |code| {
+            !alias_catalog.alias_items(code, &app.get_lang()).is_empty()
+        }) {
+            Ok(text) => text,
+            Err(error) => {
+                show_alias_rows(&app, &alias_catalog, &alias_draft.borrow());
+                app.set_alias_edit(error.row as i32);
+                error.show(&app);
+                return false;
+            }
+        };
+        if let Err(error) = alias_catalog.set_aliases(&text) {
+            crate::feedback::error_for(&app, "aliases",
+                &format!("無法儲存別名，修改仍保留。請檢查資料夾權限及可用空間後重試。{error}"),
+                &format!("Could not save aliases. Your edits are retained. Check folder permissions and free space, then retry. {error}"),
+                &format!("별명을 저장하지 못했습니다. 수정 내용은 유지됩니다. 폴더 권한과 여유 공간을 확인한 후 다시 시도해 주세요. {error}"));
+            return false;
+        }
         *alias_draft.borrow_mut() = db::alias_rows();
-        let Some(app) = alias_app.upgrade() else { return };
         show_alias_rows(&app, &alias_catalog, &alias_draft.borrow());
         let query = app.get_query().to_string();
         if !query.is_empty() {
             publish(&app, &alias_catalog, &alias_session, &alias_favs.borrow(), &app.get_category(), &query);
         }
+        crate::feedback::success_for(&app, "aliases", "別名已儲存。", "Aliases saved.", "별명이 저장되었습니다.");
+        true
     });
 
     let update_aliases = Rc::clone(&alias_rows);
@@ -689,6 +708,7 @@ fn main() {
     let search_favs = Rc::clone(&favourites);
     app.on_query_changed(move |category, text| {
         let Some(app) = search_app.upgrade() else { return };
+        if category == "monster" && app.get_full_mode() && !list::validate_monster_filters(&app) { return; }
         *search_current.borrow_mut() = String::new();
         search_history.borrow_mut().clear();
         let previous_detail = app.get_detail_key().to_string();
@@ -1442,6 +1462,7 @@ fn main() {
             if !app.get_full_mode() || app.get_category() != "monster" {
                 return;
             }
+            if !list::validate_monster_filters(&app) { return; }
             app.set_list_offset(0.0);
             app.set_cursor(0);
             if !app.get_query().trim().is_empty() || app.get_favourites_only()
@@ -1729,13 +1750,18 @@ fn main() {
     app.on_toggle_favourite(move |key| {
         let Some(app) = fav_app.upgrade() else { return };
         let Some(code) = key.strip_prefix("monster:") else { return };
-        {
-            let mut set = favs.borrow_mut();
-            if !set.remove(code) {
-                set.insert(code.to_string());
-            }
+        let mut next = favs.borrow().clone();
+        if !next.remove(code) { next.insert(code.to_string()); }
+        if let Err(error) = db::save_favourites(&next) {
+            eprintln!("Could not save favourites: {error}");
+            feedback::error_for(&app, "favourites",
+                "收藏未能儲存。請確認資料夾可寫入及磁碟空間，再試一次。",
+                "Could not save favourites. Check folder permissions and free disk space, then try again.",
+                "즐겨찾기를 저장하지 못했습니다. 폴더 권한과 디스크 공간을 확인한 후 다시 시도하세요.");
+            return;
         }
-        db::save_favourites(&favs.borrow());
+        *favs.borrow_mut() = next;
+        if app.get_feedback_source() == "favourites" { app.invoke_dismiss_feedback(); }
         sync_view_star(&app, &favs.borrow());
         let starred = favs.borrow().contains(code);
         if app.get_full_mode() && app.get_category().is_empty() {
@@ -1786,7 +1812,12 @@ fn main() {
     let copy_app = app.as_weak();
     app.on_copy_note(move || {
         let Some(app) = copy_app.upgrade() else { return };
-        copy_to_clipboard(&app.get_detail());
+        if !window::try_copy_to_clipboard(&app.get_detail()) {
+            app.set_copied(false);
+            feedback::error_for(&app, "copy-note", "未能複製資料，請再試一次。", "Could not copy the details. Try again.", "정보를 복사하지 못했습니다. 다시 시도하세요.");
+            return;
+        }
+        if app.get_feedback_source() == "copy-note" { app.invoke_dismiss_feedback(); }
         app.set_copied(true);
         let later = copy_app.clone();
         Timer::single_shot(Duration::from_millis(1200), move || {

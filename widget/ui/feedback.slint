@@ -1,0 +1,50 @@
+import { Button } from "std-widgets.slint";
+import { DesktopTheme } from "desktop.slint";
+
+export component FeedbackBanner inherits Rectangle {
+    in property <string> message;
+    in property <string> heading;
+    in property <string> retry-label;
+    in property <string> dismiss-label;
+    in property <bool> error;
+    in property <bool> retry;
+    callback retry-clicked();
+    callback dismissed();
+    height: content.preferred-height + 24px;
+    background: DesktopTheme.surface;
+    border-width: 1px;
+    border-color: root.error ? #d99a95 : DesktopTheme.border;
+    border-radius: 6px;
+    content := VerticalLayout {
+        x: 12px; y: 12px; width: parent.width - 24px; height: parent.height - 24px;
+        spacing: 6px;
+        Text {
+            text: root.heading; font-size: 13px; font-weight: 600;
+            color: root.error ? #f1b5af : DesktopTheme.text;
+            wrap: word-wrap;
+        }
+        Flickable {
+            height: min(message-text.preferred-height, 112px);
+            content-width: self.width;
+            content-height: message-text.preferred-height;
+            message-text := Text {
+                width: parent.width;
+                text: root.message; font-size: 13px; color: DesktopTheme.text;
+                wrap: word-wrap;
+                accessible-label: root.heading + ". " + root.message;
+                accessible-live-region: polite;
+            }
+        }
+        HorizontalLayout {
+            alignment: start; spacing: 8px;
+            if root.retry: Button {
+                text: root.retry-label;
+                clicked => { root.retry-clicked(); }
+            }
+            Button {
+                text: root.dismiss-label;
+                clicked => { root.dismissed(); }
+            }
+        }
+    }
+}

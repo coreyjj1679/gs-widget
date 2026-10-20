@@ -8,6 +8,7 @@ use rusqlite::{Connection, OpenFlags};
 mod alias;
 mod copy_name;
 mod character_data;
+mod character_calculator;
 mod enchant;
 mod hero;
 mod item;
@@ -36,7 +37,7 @@ mod store;
 mod text;
 pub mod terminology;
 mod town;
-mod user_data;
+pub(crate) mod user_data;
 mod work;
 
 pub use language::{normalize_lang, primary_lang, secondary_lang, with_primary_lang, with_secondary_lang};
@@ -46,6 +47,7 @@ pub use paths::client_label;
 pub use quest_items::{QuestItemRef, QuestItemSet};
 pub use calculator::{CalcCatalog, CalcDocument, CalcLine, CalcBreakdown, MAX_NESTED_DEPTH, MAX_TOTAL_MATERIALS, decode_calculator, encode_calculator, load_calculator, save_calculator, calculator_export_dir};
 pub use calculator_library::{CalcLibrary, load_calculator_library, save_calculator_library, encode_calculator_folder, decode_calculator_folder};
+pub use character_calculator::{CharacterCalcDocument, load_character_calculator, save_character_calculator};
 pub use user_data::initialize_user_data;
 pub use monster::MonsterQuery;
 pub use prefs::{DockPref, HomePref, ViewPref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_view, load_window, save_dock, save_favourites, save_full_geometry, save_home, save_lang, save_mode, save_opacity, save_set_extra, save_view, save_window};
@@ -123,9 +125,10 @@ impl Catalog {
         })
     }
 
-    pub fn set_aliases(&self, text: &str) {
-        save_alias_text(text);
+    pub fn set_aliases(&self, text: &str) -> Result<(), String> {
+        save_alias_text(text)?;
         *self.index.aliases.borrow_mut() = parse_alias_book(text);
+        Ok(())
     }
 
     pub fn alias_items(&self, codes: &str, lang: &str) -> Vec<Hit> {
