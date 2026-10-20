@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TARGET = ROOT / "data" / "gersang.db"
-DEFAULT_CLIENT = Path(r"C:\AKInteractive\static")
+DEFAULT_CLIENT = ROOT / "data" / "gcs"
 LEVEL = re.compile(r"Level([0-9]+)\Z")
 
 
