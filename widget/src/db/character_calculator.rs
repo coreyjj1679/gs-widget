@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::hero::{fixed_beast, fixed_credit, hero_names, hero_rank_order, hero_rank_pair, tidy};
+use super::hero::{fixed_beast, hero_names, hero_rank_order, hero_rank_pair, tidy};
 use super::text::lead;
 use super::user_data::{preferences_dir, write_preference_checked};
 use super::{ui_text, Catalog};
@@ -383,7 +383,7 @@ impl Catalog {
                     &format!("石像選項（選 {count} 種不同石像，輸入合計）：{}", alternatives.join("、")),
                     &format!("Statue choices (choose {count} different statues and enter their combined cost): {}", alternatives.join(", "))));
             }
-            let credit = fixed_credit(code);
+            let credit = self.index.beast_credit(code);
             // The original recruitment text is more specific than the older
             // curated fallback (some beasts say 100 there, but 95 in the
             // fallback). Do not display two contradictory credit conditions.
@@ -578,6 +578,50 @@ impl Catalog {
             ("item", code) => self.item_icon(code.parse().ok()?),
             _ => None,
         }
+    }
+
+    pub fn supplement_character_calculator_materials(
+        &self,
+        document: &CharacterCalcDocument,
+    ) -> Result<CharacterCalcDocument, String> {
+        document.calculate()?;
+        let mut updated = document.clone();
+        let Some(route) = self
+            .character_calculator_routes(&document.hero_code, &document.language)
+            .into_iter()
+            .find(|route| route.id == document.route_id)
+        else {
+            return Ok(updated);
+        };
+        // Repair additive material omissions only. A changed prerequisite or
+        // quantity could identify a different historical route; retain that draft.
+        let same_input = |a: &CharacterCalcInput, b: &CharacterCalcInput| {
+            a.key == b.key && a.kind == b.kind && a.per_unit == b.per_unit
+        };
+        if !document
+            .inputs
+            .iter()
+            .all(|old| route.inputs.iter().any(|current| same_input(old, current)))
+            || !route
+                .inputs
+                .iter()
+                .filter(|current| current.kind != "item")
+                .all(|current| document.inputs.iter().any(|old| same_input(old, current)))
+        {
+            return Ok(updated);
+        }
+        let additions = route.inputs.into_iter().filter(|current| {
+            current.kind == "item"
+                && !document.inputs.iter().any(|old| old.key == current.key)
+        });
+        let before_fee = updated
+            .inputs
+            .iter()
+            .position(|input| input.kind == "fee")
+            .unwrap_or(updated.inputs.len());
+        updated.inputs.splice(before_fee..before_fee, additions);
+        updated.calculate()?;
+        Ok(updated)
     }
 
     pub fn localized_character_calculator_document(
@@ -858,6 +902,58 @@ mod tests {
                 .unit_price,
             Some(10_000_000)
         );
+    }
+
+    #[test]
+    fn saved_king_estimates_gain_missing_tablets_without_losing_prices() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (code, missing_key) in [("T50", "item:5750"), ("T51", "item:5748")] {
+            let mut document = catalog
+                .character_calculator_document(code, "combination:0", "zh")
+                .unwrap();
+            document.quantity = 3;
+            document.inputs.retain(|input| input.key != missing_key);
+            for (index, input) in document.inputs.iter_mut().enumerate() {
+                input.unit_price = Some(index as i64 * 1_000);
+            }
+            let previous_cost = document.calculate().unwrap().total.unwrap();
+            let updated = catalog
+                .supplement_character_calculator_materials(&document)
+                .unwrap();
+            assert_eq!(updated.quantity, 3);
+            for previous in &document.inputs {
+                assert!(updated.inputs.contains(previous));
+            }
+            let added = updated.inputs.iter().find(|row| row.key == missing_key).unwrap();
+            assert_eq!((added.per_unit, added.unit_price), (20, None));
+            assert_eq!(updated.inputs.len(), document.inputs.len() + 1);
+            let cost = updated.calculate().unwrap();
+            assert_eq!(cost.known_total, previous_cost);
+            assert_eq!(cost.total, None);
+            assert_eq!(
+                catalog.supplement_character_calculator_materials(&updated).unwrap(),
+                updated
+            );
+
+            let mut historical = document.clone();
+            historical.route_id = "historical-route".into();
+            assert_eq!(
+                catalog.supplement_character_calculator_materials(&historical).unwrap(),
+                historical
+            );
+            let mut changed_quantity = document.clone();
+            changed_quantity.inputs[0].per_unit += 1;
+            assert_eq!(
+                catalog.supplement_character_calculator_materials(&changed_quantity).unwrap(),
+                changed_quantity
+            );
+            let mut changed_prerequisites = document;
+            changed_prerequisites.inputs.retain(|input| input.kind != "hero");
+            assert_eq!(
+                catalog.supplement_character_calculator_materials(&changed_prerequisites).unwrap(),
+                changed_prerequisites
+            );
+        }
     }
 
     #[test]

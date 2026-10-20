@@ -271,6 +271,38 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
     assert!(app.get_character_calculator_error().is_empty());
     assert_eq!(app.get_calculator_quantity_draft(), "item-draft");
 
+    // Reopen an older, fully priced T51 draft that omitted its tablet. The
+    // repaired row must be persisted and shown as unknown, never as free.
+    app.invoke_character_calculator_select_character("T51".into());
+    fill_character_prices(&app);
+    assert!(app.invoke_character_calculator_quantity_changed("3".into()));
+    let mut incomplete = db::load_character_calculator().unwrap().unwrap();
+    incomplete.inputs.retain(|row| row.key != "item:5748");
+    let old_total = incomplete.calculate().unwrap().total.unwrap();
+    db::save_character_calculator(&incomplete).unwrap();
+    super::install(&app, catalog.clone(), Rc::new(RefCell::new(HashMap::new())));
+    assert_eq!(app.get_character_calculator_quantity(), "3");
+    assert!(app.get_character_calculator_error().is_empty());
+    assert!(!app.get_character_calculator_complete());
+    assert_eq!(app.get_character_calculator_unit_total(), "—");
+    assert_eq!(amount(&app.get_character_calculator_total()), old_total);
+    let tablet = character_rows(&app)
+        .into_iter()
+        .find(|row| row.key == "item:5748")
+        .unwrap();
+    assert_eq!(amount(&tablet.quantity), 60);
+    assert!(tablet.price.is_empty());
+    assert!(tablet.missing_price);
+    let repaired = db::load_character_calculator().unwrap().unwrap();
+    assert_eq!(repaired.inputs.len(), incomplete.inputs.len() + 1);
+    for previous in &incomplete.inputs {
+        assert!(repaired.inputs.contains(previous));
+    }
+    assert!(app.invoke_character_calculator_price_changed("item:5748".into(), "100".into()));
+    assert!(app.get_character_calculator_complete());
+    assert_eq!(amount(&app.get_character_calculator_total()), old_total + 6_000);
+    assert_eq!(db::load_calculator().unwrap().unwrap(), item_document);
+
     // Render real controls in the narrow supported window even in normal test
     // runs. Opt-in captures provide review evidence without regular test output.
     app.invoke_character_calculator_select_character("T49".into());

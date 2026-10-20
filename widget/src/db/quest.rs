@@ -163,9 +163,12 @@ impl Catalog {
     }
 
     pub(in crate::db) fn item_quests(&self, code: i64, lang: &str, roles: &[&str], tag: &str) -> Vec<Hit> {
+        if code <= 0 {
+            return Vec::new();
+        }
         let mut stmt = match self.conn.prepare(
             "SELECT quest_id, role FROM quest_steps
-             WHERE lower(kind) = 'item' AND code = ?1
+             WHERE lower(kind) IN ('item', 'book', 'wearitem', 'useitem') AND code = ?1
              ORDER BY quest_id",
         ) {
             Ok(stmt) => stmt,
@@ -701,6 +704,42 @@ impl Catalog {
             .ok()
             .filter(|text: &String| !text.is_empty())
             .map(game_breaks)
+    }
+}
+
+#[cfg(test)]
+mod item_relation_tests {
+    use super::*;
+
+    #[test]
+    fn worn_and_used_quest_items_have_reverse_links_without_invented_quantities() {
+        let catalog = Catalog::open().expect("catalog");
+        for (code, quests, reward_count) in [
+            (44, [829, 843, 857, 871], 4),
+            (143, [834, 848, 862, 876], 20),
+        ] {
+            let expected: Vec<_> = quests.iter().map(|id| format!("quest:{id}")).collect();
+            let uses = catalog.item_quest_uses(code, "zh-en");
+            assert_eq!(uses.iter().map(|hit| &hit.key).collect::<Vec<_>>(), expected.iter().collect::<Vec<_>>());
+            let relations = catalog.item_relations(code, "zh-en");
+            for key in &expected {
+                let matching: Vec<_> = relations.iter().filter(|hit| &hit.key == key).collect();
+                assert_eq!(matching.len(), 1, "{key}");
+                assert!(!matching[0].subtitle.contains("× 0"), "{key}");
+            }
+            let gains = catalog.item_quest_gains(code, "zh-en");
+            assert_eq!(gains.len(), reward_count);
+            assert!(gains.iter().all(|hit| !expected.contains(&hit.key)));
+            let previews = catalog.quest_item_previews(&quests, "zh-en");
+            for id in quests {
+                let required = &previews[&id].required;
+                assert_eq!(required.len(), 1);
+                assert_eq!(required[0].key, format!("item:{code}"));
+                assert!(required[0].quantity.is_empty());
+            }
+        }
+        // The source also contains a Book step with code 0, not a real item.
+        assert!(catalog.item_quest_uses(0, "zh-en").is_empty());
     }
 }
 

@@ -171,6 +171,24 @@ pub(in crate::db) fn credit_note(text: &str) -> String {
     if bit.contains("信用") || bit.to_lowercase().contains("credit") { bit } else { String::new() }
 }
 
+fn merge_note_materials(mut zh: Vec<(i64, i64)>, en: Vec<(i64, i64)>) -> Vec<(i64, i64)> {
+    if zh.is_empty() {
+        return en;
+    }
+    // Conflicting quantities mean the translations describe different requirements.
+    // Keep the preferred source intact instead of adding potentially unrelated items.
+    if zh.iter().any(|(code, qty)| en.iter().any(|(other, amount)| code == other && qty != amount)) {
+        return zh;
+    }
+    let mut seen: HashSet<i64> = zh.iter().map(|(code, _)| *code).collect();
+    for (code, qty) in en {
+        if seen.insert(code) {
+            zh.push((code, qty));
+        }
+    }
+    zh
+}
+
 pub(in crate::db) fn load_chains(conn: &Connection, texts: &HashMap<String, String>, items: &[ItemRow]) -> Result<ChainBook, String> {
     if !table_exists(conn, "job_steps") {
         return Ok(ChainBook { lines: HashMap::new(), combos: HashMap::new(), uses: HashMap::new() });
@@ -203,7 +221,7 @@ pub(in crate::db) fn load_chains(conn: &Connection, texts: &HashMap<String, Stri
         let zh_raw = online(texts, note, "zh").to_string();
         let en_found = names.find(&en_raw);
         let zh_found = names.find(&zh_raw);
-        let materials = if zh_found.items.is_empty() { en_found.items.clone() } else { zh_found.items.clone() };
+        let materials = merge_note_materials(zh_found.items, en_found.items);
         let en = if materials.is_empty() { en_raw } else { requirement_line(&en_raw) };
         let zh = if materials.is_empty() { zh_raw } else { requirement_line(&zh_raw) };
         grouped.entry(chain_id).or_insert_with(|| (kind, Vec::new())).1.push(ChainStep {
@@ -345,6 +363,19 @@ pub(in crate::db) fn fixed_credit(code: &str) -> i64 {
         "E74" | "E75" | "E76" | "E77" => 95,
         _ => 0,
     }
+}
+
+fn recorded_credit(text: &str) -> Option<i64> {
+    let text = text.to_lowercase();
+    for label in ["信用等級", "信用等级", "credit level", "credit lv"] {
+        let Some((_, value)) = text.split_once(label) else { continue };
+        let value = value.trim_start_matches(|ch: char| ch.is_whitespace() || matches!(ch, ':' | '：' | '.'));
+        let digits: String = value.chars().take_while(char::is_ascii_digit).collect();
+        if let Some(level) = digits.parse::<i64>().ok().filter(|level| *level > 0) {
+            return Some(level);
+        }
+    }
+    None
 }
 
 pub(in crate::db) fn fixed_beast(code: &str) -> Option<&'static [FixedPart]> {
@@ -988,11 +1019,17 @@ impl Index {
         hits
     }
 
+    pub(in crate::db) fn beast_credit(&self, code: &str) -> i64 {
+        self.heroes.iter().find(|hero| hero.code == code)
+            .and_then(|hero| recorded_credit(&hero.hire_zh).or_else(|| recorded_credit(&hero.hire_en)))
+            .unwrap_or_else(|| fixed_credit(code))
+    }
+
     pub(in crate::db) fn push_fixed_beast(&self, blocks: &mut Vec<Hit>, code: &str, lang: &str) {
         let Some(parts) = fixed_beast(code) else { return };
         let hero = self.heroes.iter().find(|hero| hero.code == code);
         let name = hero.map(|hero| hero_names(lang, hero).0).unwrap_or_else(|| code.to_string());
-        let credit = fixed_credit(code);
+        let credit = self.beast_credit(code);
         blocks.push(Hit {
             title: format!("{} · {name}", phrase("combine", lang)),
             subtitle: if credit > 0 { format!("{} {credit}", phrase("credit-level", lang)) } else { String::new() },
@@ -1039,6 +1076,86 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn beast_credit_uses_recorded_requirements_before_curated_defaults() {
+        assert_eq!(recorded_credit("Hire at level 50\\n(Credit Lv 100+)"), Some(100));
+        assert_eq!(recorded_credit("信用等級：100以上"), Some(100));
+        assert_eq!(recorded_credit("Credit level: 105"), Some(105));
+        assert_eq!(recorded_credit("Level 100; credit unavailable"), None);
+        assert_eq!(recorded_credit("Credit Lv unknown; requires 3 statues"), None);
+        let mut catalog = Catalog::open_for_mcp().expect("catalog");
+        for code in ["E74", "E75", "E76", "E77", "E85"] {
+            assert_eq!(catalog.index.beast_credit(code), 100, "{code}");
+            for lang in ["zh", "en", "ko"] {
+                let mut blocks = Vec::new();
+                catalog.index.push_fixed_beast(&mut blocks, code, lang);
+                assert!(blocks[0].subtitle.ends_with("100"), "{code}: {}", blocks[0].subtitle);
+                let route = catalog.character_calculator_routes(code, lang)
+                    .into_iter().find(|route| route.id == "beast").unwrap();
+                assert!(route.conditions.contains("100"), "{code}");
+                assert!(!route.conditions.contains("95"), "{code}");
+            }
+        }
+        let beast = catalog.index.heroes.iter_mut().find(|hero| hero.code == "E74").unwrap();
+        beast.hire_zh.clear();
+        beast.hire_en = "Hire from Trainer Hwan (Credit Lv 105+)".into();
+        assert_eq!(catalog.index.beast_credit("E74"), 105);
+        let beast = catalog.index.heroes.iter_mut().find(|hero| hero.code == "E74").unwrap();
+        beast.hire_en.clear();
+        assert_eq!(catalog.index.beast_credit("E74"), fixed_credit("E74"));
+    }
+
+    #[test]
+    fn bilingual_materials_fill_missing_codes_without_adding_shared_quantities() {
+        assert_eq!(
+            merge_note_materials(vec![(10, 50), (20, 1)], vec![(10, 50), (30, 20), (30, 20)]),
+            vec![(10, 50), (20, 1), (30, 20)],
+        );
+        assert_eq!(merge_note_materials(Vec::new(), vec![(30, 20)]), vec![(30, 20)]);
+        assert_eq!(merge_note_materials(vec![(20, 1)], Vec::new()), vec![(20, 1)]);
+    }
+
+    #[test]
+    fn conflicting_bilingual_quantities_preserve_chinese_without_supplementing() {
+        assert_eq!(
+            merge_note_materials(vec![(10, 50), (20, 1)], vec![(10, 20), (30, 50)]),
+            vec![(10, 50), (20, 1)],
+        );
+    }
+
+    #[test]
+    fn four_kings_have_complete_materials_without_bilingual_duplicates() {
+        let catalog = Catalog::open_for_mcp().expect("catalog");
+        for (code, expected) in [
+            ("T49", vec![(3506, 2), (4066, 1), (5751, 20), (5789, 50)]),
+            ("T50", vec![(3506, 2), (4067, 1), (5750, 20), (5788, 50)]),
+            ("T51", vec![(3506, 2), (4065, 1), (5748, 20), (5855, 50)]),
+            ("T52", vec![(3506, 2), (4064, 1), (5749, 20), (5902, 50)]),
+        ] {
+            let recipe = catalog.index.combos[code].iter().find(|recipe| recipe.result == code).unwrap();
+            let mut materials = recipe.materials.clone();
+            materials.sort_unstable();
+            assert_eq!(materials, expected, "{code}");
+        }
+        for (source, target) in [("T49", "V06"), ("T50", "V08"), ("T51", "V09"), ("T52", "V07")] {
+            let steps = &catalog.index.chains[target];
+            let step = steps.iter().find(|step| step.code == source).unwrap();
+            assert_eq!(step.materials.len(), 7, "{target}");
+            assert_eq!(step.materials.iter().map(|(code, _)| code).collect::<HashSet<_>>().len(), 7, "{target}");
+        }
+    }
+
+    #[test]
+    fn inconsistent_hundun_translation_does_not_add_a_second_orb() {
+        let catalog = Catalog::open_for_mcp().expect("catalog");
+        let step = catalog.index.chains["T62"].iter().find(|step| step.code == "D58").unwrap();
+        let mut materials = step.materials.clone();
+        materials.sort_unstable();
+        assert_eq!(materials, vec![
+            (4533, 50), (5798, 2), (5855, 50), (5858, 50), (5860, 3), (5915, 50), (5978, 50),
+        ]);
+    }
 
     #[test]
     fn regional_rank_directory_scopes_counts_portraits_and_record_keys() {

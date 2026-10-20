@@ -337,7 +337,15 @@ impl CharacterController {
 
 pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
     let (document, load_error) = match db::load_character_calculator() {
-        Ok(document) => (document, None),
+        Ok(Some(document)) => match catalog.supplement_character_calculator_materials(&document) {
+            Ok(updated) if updated != document => {
+                let error = db::save_character_calculator(&updated).err();
+                (Some(updated), error)
+            }
+            Ok(updated) => (Some(updated), None),
+            Err(error) => (Some(document), Some(error)),
+        },
+        Ok(None) => (None, None),
         Err(error) => (None, Some(error)),
     };
     let controller = Rc::new(CharacterController {

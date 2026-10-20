@@ -531,7 +531,8 @@ fn hero_sheet_shows_rank_nation_and_hire() {
     assert!(airavata[..related].iter().all(|hit| hit.key != "hero:T113"));
     let (_, tortoise, _) = catalog.open_key("hero:E77", "zh");
     assert!(tortoise.iter().any(|hit| hit.title.contains("不同幻獸石像") && hit.aside == "× 3"));
-    assert!(tortoise.iter().any(|hit| hit.chip == "label" && hit.subtitle.contains("95")));
+    assert!(tortoise.iter().any(|hit| hit.chip == "label" && hit.subtitle.contains("100")));
+    assert!(!tortoise.iter().any(|hit| hit.chip == "label" && hit.subtitle.contains("95")));
     for statue in [3817, 3828, 3839, 3850] {
         let row = tortoise.iter().find(|hit| hit.key == format!("item:{statue}")).expect("statue");
         assert!(row.icon.is_some(), "{statue}");

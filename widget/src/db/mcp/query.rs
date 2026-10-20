@@ -630,19 +630,70 @@ impl Catalog {
             routes.push(
                 json!({"type": "combination", "source": "curated_beast_requirements", "from": [],
                 "materials": materials, "alternatives": alternatives, "conditions": conditions,
-                "credit_level": hero::fixed_credit(code)}),
+                "credit_level": self.index.beast_credit(code)}),
             );
         }
         let hero = self.index.heroes.iter().find(|row| row.code == code);
+        if hero.is_some_and(|row| row.rank == 13) {
+            // Reuse the catalog route builder so MCP and the calculator agree
+            // about direct mount requirements. These are freshly built inputs,
+            // not saved user prices; only the fee can have a recorded amount.
+            if let Some(route) = self
+                .character_calculator_routes(code, lang)
+                .into_iter()
+                .find(|route| route.id == "acquisition")
+            {
+                let from: Vec<_> = route
+                    .inputs
+                    .iter()
+                    .filter_map(|input| {
+                        let code = input.key.strip_prefix("hero:")?;
+                        let mut value = self.query_hero_ref(code, lang);
+                        value["quantity"] = json!(input.per_unit);
+                        Some(value)
+                    })
+                    .collect();
+                let materials: Vec<_> = route
+                    .inputs
+                    .iter()
+                    .filter_map(|input| {
+                        let code = input.key.strip_prefix("item:")?.parse().ok()?;
+                        Some(self.query_material(code, input.per_unit, lang))
+                    })
+                    .collect();
+                let fee = route
+                    .inputs
+                    .iter()
+                    .find(|input| input.kind == "fee")
+                    .and_then(|input| {
+                        input
+                            .unit_price
+                            .and_then(|amount| amount.checked_mul(input.per_unit))
+                    });
+                routes.push(json!({
+                    "type": "acquisition", "source": "catalog_character_data",
+                    "from": from, "materials": materials, "fee": fee,
+                    "conditions": route.conditions
+                }));
+            }
+        }
         let hire = hero
             .map(|row| text::lead(lang, &row.hire_en, &row.hire_zh))
             .unwrap_or_default();
         // These supplemental rows already distinguish incoming spirit requirements
-        // from next-form navigation; do not flatten next-form materials into this recipe.
+        // from next-form navigation. Riding training is a separate prerequisite,
+        // not an ingredient consumed each time this mount is obtained.
+        let mut direct_section = true;
         let supplemental: Vec<_> = self
             .hero_data_links(code, lang)
             .into_iter()
             .take_while(|row| row.key != "companion:upgrades")
+            .filter(|row| {
+                if row.chip == "section" {
+                    direct_section = !row.key.starts_with("companion:riding:");
+                }
+                direct_section
+            })
             .collect();
         json!({"status": if routes.is_empty() && supplemental.is_empty() && hire.is_empty() { "not_recorded" } else { "recorded" },
             "routes": routes, "recruitment": hire,
@@ -731,6 +782,100 @@ mod tests {
         assert!(!routes
             .iter()
             .any(|route| route.to_string().contains("hero:V06")));
+    }
+
+    #[test]
+    fn beast_acquisition_uses_recorded_credit_instead_of_stale_fallback() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for code in ["E74", "E75", "E76", "E77", "E85"] {
+            let acquisition = catalog.query_hero_acquisition(code, "en");
+            let beast = acquisition["routes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|route| route["source"] == "curated_beast_requirements")
+                .unwrap();
+            assert_eq!(beast["credit_level"], 100, "{code}");
+            assert!(
+                acquisition["recruitment"].as_str().unwrap().contains("100"),
+                "{code}"
+            );
+        }
+    }
+
+    #[test]
+    fn mount_acquisition_keeps_recorded_fees_and_excludes_riding_training() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (code, source, fee, expected_materials) in [
+            (
+                "mount:2",
+                "hero:mount:1",
+                10_000_000,
+                vec![(8753, 1), (8754, 1), (8755, 1), (8756, 1), (8757, 1)],
+            ),
+            (
+                "mount:5",
+                "hero:mount:6",
+                500_000_000,
+                vec![(8868, 2), (8871, 2), (8872, 2), (8873, 2)],
+            ),
+            ("mount:10", "hero:mount:6", 500_000_000, vec![(11603, 20)]),
+        ] {
+            let acquisition = catalog.query_hero_acquisition(code, "en");
+            let route = acquisition["routes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|route| route["type"] == "acquisition")
+                .unwrap();
+            assert_eq!(route["fee"], fee, "{code}");
+            assert_eq!(route["from"][0]["key"], source, "{code}");
+            assert_eq!(route["from"][0]["quantity"], 1, "{code}");
+            let mut materials: Vec<_> = route["materials"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| {
+                    (
+                        row["item_code"].as_i64().unwrap(),
+                        row["quantity"].as_i64().unwrap(),
+                    )
+                })
+                .collect();
+            materials.sort_unstable();
+            assert_eq!(materials, expected_materials, "{code}");
+            let conditions = route["conditions"].as_str().unwrap();
+            assert!(
+                conditions.contains("Required riding level：2"),
+                "{conditions}"
+            );
+            assert!(
+                conditions.contains("Riding training fees and materials are separate."),
+                "{conditions}"
+            );
+            let supplemental = acquisition["supplemental"].as_array().unwrap();
+            assert!(
+                supplemental
+                    .iter()
+                    .any(|row| row["key"] == "companion:acquisition"),
+                "{code}"
+            );
+            for key in ["companion:riding:2", "item:3684", "item:8116", "item:4090"] {
+                assert!(
+                    !acquisition.to_string().contains(key),
+                    "{code} unexpectedly includes {key}"
+                );
+            }
+        }
+        let free_fee = catalog.query_hero_acquisition("mount:1", "en");
+        assert_eq!(free_fee["routes"][0]["fee"], 0);
+        assert!(!free_fee["routes"][0]["materials"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        let unrecorded = catalog.query_hero_acquisition("mount:12", "en");
+        assert!(unrecorded["routes"].as_array().unwrap().is_empty());
+        assert!(!unrecorded.to_string().contains("\"fee\":0"));
     }
 
     #[test]

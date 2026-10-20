@@ -405,6 +405,7 @@ impl Catalog {
                     row
                 }),
         );
+        other.extend(self.mcp_enchant_material_uses(code, lang)?);
         other.sort_by(|left, right| {
             left["key"].as_str().cmp(&right["key"].as_str()).then(
                 left["usage_kind"]
@@ -456,6 +457,41 @@ impl Catalog {
         Ok(
             json!({"results": result, "total": total, "offset": offset, "next_offset": if next < total { Some(next) } else { None }}),
         )
+    }
+
+    fn mcp_enchant_material_uses(&self, code: i64, lang: &str) -> Result<Vec<Value>, String> {
+        if !self.has_table("enchant_recipes") || !self.has_table("enchant_materials") {
+            return Ok(Vec::new());
+        }
+        let mut statement = self.conn.prepare(
+            "SELECT r.item_code, r.recipe_key, m.slot, m.qty
+             FROM enchant_materials m JOIN enchant_recipes r ON r.recipe_key=m.recipe_key
+             WHERE m.item_code=?1 ORDER BY r.item_code, m.slot",
+        ).map_err(|error| error.to_string())?;
+        let rows = statement.query_map([code], |row| Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+        ))).map_err(|error| error.to_string())?;
+        let mut grouped = BTreeMap::<i64, Value>::new();
+        for row in rows {
+            let (scroll, recipe_key, slot, quantity) = row.map_err(|error| error.to_string())?;
+            let usage = grouped.entry(scroll).or_insert_with(|| {
+                let mut usage = self.mcp_item_ref(scroll, lang);
+                usage["usage_kind"] = json!("enchant_material");
+                usage["source"] = json!("enchant_materials");
+                usage["recipe_key"] = json!(recipe_key);
+                usage["requirements"] = json!([]);
+                usage
+            });
+            // One usage per scroll, preserving every matching source slot.
+            // Several scrolls may share a material table without sharing a use.
+            usage["requirements"].as_array_mut().unwrap().push(
+                json!({"item_code": code, "slot": slot, "quantity": quantity}),
+            );
+        }
+        Ok(grouped.into_values().collect())
     }
 
     fn mcp_character_uses(&self, code: i64, lang: &str) -> Result<Vec<Value>, String> {
@@ -561,6 +597,114 @@ impl Catalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn enchant_material_uses_are_complete_and_unique_across_pages() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (code, expected_count, example_scrolls, quantity) in [
+            (2204, 39, [1127, 1137], 5),
+            (2287, 2, [1129, 1130], 10),
+        ] {
+            let key = format!("item:{code}");
+            let expected: BTreeSet<i64> = catalog.conn.prepare(
+                "SELECT DISTINCT r.item_code FROM enchant_materials m
+                 JOIN enchant_recipes r ON r.recipe_key=m.recipe_key WHERE m.item_code=?1",
+            ).unwrap().query_map([code], |row| row.get(0)).unwrap()
+                .collect::<Result<_, _>>().unwrap();
+            assert_eq!(expected.len(), expected_count);
+            let mut actual = BTreeSet::new();
+            let mut all_uses = BTreeSet::new();
+            let mut offset = 0;
+            loop {
+                let page = catalog.mcp_relations(&key, "uses", "zh", offset, 3).unwrap();
+                for row in page["results"].as_array().unwrap() {
+                    assert!(all_uses.insert((
+                        row["key"].as_str().unwrap().to_string(),
+                        row["usage_kind"].as_str().unwrap().to_string(),
+                    )), "repeated usage across pages: {row}");
+                    if row["usage_kind"] != "enchant_material" {
+                        continue;
+                    }
+                    let scroll = row["item_code"].as_i64().unwrap();
+                    assert!(actual.insert(scroll));
+                    assert!(catalog.mcp_identity(row["key"].as_str().unwrap(), "zh").is_some());
+                    assert_eq!(row["source"], "enchant_materials");
+                    assert!(row.get("recipe_id").is_none());
+                    for requirement in row["requirements"].as_array().unwrap() {
+                        assert_eq!(requirement["item_code"], code);
+                        if example_scrolls.contains(&scroll) {
+                            assert_eq!(requirement["quantity"], quantity);
+                        }
+                    }
+                }
+                let Some(next) = page["next_offset"].as_u64() else {
+                    assert_eq!(page["total"], all_uses.len());
+                    assert!(page["next_call"].is_null());
+                    break;
+                };
+                assert_eq!(page["next_call"]["arguments"]["offset"], next);
+                assert!(next as usize > offset);
+                offset = next as usize;
+            }
+            assert_eq!(actual, expected, "{key}");
+        }
+    }
+
+    #[test]
+    fn enchant_material_uses_keep_repeated_slots_and_shared_tables() {
+        let mut catalog = Catalog::open_for_mcp().unwrap();
+        catalog.conn = rusqlite::Connection::open_in_memory().unwrap();
+        assert!(catalog.mcp_enchant_material_uses(2204, "en").unwrap().is_empty());
+        catalog.conn.execute_batch(
+            "CREATE TABLE enchant_recipes (item_code INTEGER PRIMARY KEY, recipe_key TEXT);
+             CREATE TABLE enchant_materials (recipe_key TEXT, slot INTEGER, item_code INTEGER, qty INTEGER);
+             INSERT INTO enchant_recipes VALUES (1127, 'shared'), (1137, 'shared'), (1151, 'other');
+             INSERT INTO enchant_materials VALUES
+                 ('shared', 4, 2204, 2), ('shared', 1, 2206, 99),
+                 ('shared', 2, 2204, 5), ('other', 1, 2204, 9);",
+        ).unwrap();
+        let rows = catalog.mcp_enchant_material_uses(2204, "en").unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows.iter().map(|row| row["item_code"].as_i64().unwrap()).collect::<Vec<_>>(),
+            [1127, 1137, 1151]);
+        for row in &rows[..2] {
+            assert_eq!(row["recipe_key"], "shared");
+            assert_eq!(row["requirements"], json!([
+                {"item_code": 2204, "slot": 2, "quantity": 5},
+                {"item_code": 2204, "slot": 4, "quantity": 2},
+            ]));
+        }
+        assert_eq!(rows[2]["requirements"], json!([
+            {"item_code": 2204, "slot": 1, "quantity": 9},
+        ]));
+    }
+
+    #[test]
+    fn quest_use_pages_include_wearing_and_using_items() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (key, quests) in [
+            ("item:44", [829, 843, 857, 871]),
+            ("item:143", [834, 848, 862, 876]),
+        ] {
+            let expected: BTreeSet<_> = quests.iter().map(|id| format!("quest:{id}")).collect();
+            let mut actual = BTreeSet::new();
+            let mut offset = 0;
+            loop {
+                let page = catalog.mcp_relations(key, "uses", "zh", offset, 3).unwrap();
+                for row in page["results"].as_array().unwrap() {
+                    if row["usage_kind"] == "quest_requirement" {
+                        assert!(actual.insert(row["key"].as_str().unwrap().to_string()));
+                        assert!(row.get("quantity").is_none());
+                    }
+                }
+                let Some(next) = page["next_offset"].as_u64() else {
+                    break;
+                };
+                offset = next as usize;
+            }
+            assert_eq!(actual, expected, "{key}");
+        }
+    }
 
     #[test]
     fn all_shops_and_recipe_uses_are_reachable_without_gui_caps() {
