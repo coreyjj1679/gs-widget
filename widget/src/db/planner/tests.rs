@@ -20,6 +20,10 @@ fn loader_requires_complete_rows_positive_quantities_and_valid_metadata() {
     let loaded = PlannerCatalog::load(&conn).unwrap();
     assert_eq!(loaded.recipes.keys().copied().collect::<Vec<_>>(), vec![1]);
     assert_eq!(loaded.recipes[&1].success, None);
+    assert_eq!(loaded.result_code(1), Some(1));
+    for id in 2..=10 {
+        assert_eq!(loaded.result_code(id), None, "invalid recipe {id}");
+    }
 }
 
 #[test]

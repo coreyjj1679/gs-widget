@@ -1,0 +1,3760 @@
+{
+  "schema_version": 1,
+  "description": "Reviewed terminology with source evidence. Bundled at build time; an optional complete external glossary can be loaded at MCP startup. Never replaces user aliases.txt. Canonical names and nickname evidence are recorded separately.",
+  "acquisition_note": "Intent describes requested information; it does not establish that a complete recipe, upgrade path, or drop source is available.",
+  "entities": [
+    {
+      "id": "hero-dhritarashtra",
+      "aliases": [
+        "持國天王",
+        "Dhritarashtra",
+        "지국천왕",
+        "雀天"
+      ],
+      "keys": [
+        "hero:T49"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕",
+        "en": "Dhritarashtra",
+        "zh": "持國天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T49",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application.",
+          "spellings": [
+            "雀天"
+          ]
+        },
+        {
+          "source": "user",
+          "reference": "Current feature request",
+          "note": "User explicitly confirmed 雀天 = 持國天王 and 點合 asks about crafting/acquisition.",
+          "spellings": [
+            "雀天"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-dhritarashtra",
+      "aliases": [
+        "持國天王套裝",
+        "Dhritarashtra Set",
+        "지국천왕세트",
+        "雀天套",
+        "雀天套裝",
+        "雀天套装"
+      ],
+      "keys": [
+        "set:66"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕세트",
+        "en": "Dhritarashtra Set",
+        "zh": "持國天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=66",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "雀天套",
+            "雀天套裝",
+            "雀天套装"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-dhritarashtra-head",
+      "aliases": [
+        "持國天王之冠",
+        "Crown of Dhritarashtra",
+        "지국천왕의 관",
+        "지국천왕의관",
+        "雀天頭",
+        "雀天头"
+      ],
+      "keys": [
+        "item:6238"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕의 관",
+        "en": "Crown of Dhritarashtra",
+        "zh": "持國天王之冠"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6238",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=66, item_code=6238",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "지국천왕의관",
+            "雀天頭",
+            "雀天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-dhritarashtra-armor",
+      "aliases": [
+        "持國天王之禮服",
+        "Court suit of Dhritarashtra",
+        "지국천왕의 예복",
+        "지국천왕의예복",
+        "雀天甲"
+      ],
+      "keys": [
+        "item:6239"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕의 예복",
+        "en": "Court suit of Dhritarashtra",
+        "zh": "持國天王之禮服"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6239",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=66, item_code=6239",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "지국천왕의예복",
+            "雀天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-dhritarashtra-hands",
+      "aliases": [
+        "持國天王的手臂護具",
+        "Gauntlet of Dhritarashtra",
+        "지국천왕의 팔보호구",
+        "지국천왕의팔보호구",
+        "雀天手"
+      ],
+      "keys": [
+        "item:6240"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕의 팔보호구",
+        "en": "Gauntlet of Dhritarashtra",
+        "zh": "持國天王的手臂護具"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6240",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=66, item_code=6240",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "지국천왕의팔보호구",
+            "雀天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-dhritarashtra-belt",
+      "aliases": [
+        "持國天王的腰帶",
+        "Belt of Dhritarashtra",
+        "지국천왕의 요대",
+        "지국천왕의요대",
+        "雀天腰"
+      ],
+      "keys": [
+        "item:6241"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕의 요대",
+        "en": "Belt of Dhritarashtra",
+        "zh": "持國天王的腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6241",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=66, item_code=6241",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "지국천왕의요대",
+            "雀天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-dhritarashtra-shoes",
+      "aliases": [
+        "持國天王的鞋子",
+        "Boots of Dhritarashtra",
+        "지국천왕의 신발",
+        "지국천왕의신발",
+        "雀天鞋"
+      ],
+      "keys": [
+        "item:6242"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕의 신발",
+        "en": "Boots of Dhritarashtra",
+        "zh": "持國天王的鞋子"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6242",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=66, item_code=6242",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "지국천왕의신발",
+            "雀天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-dhritarashtra-ring",
+      "aliases": [
+        "持國天王的指環",
+        "Dhritarashtra Ring",
+        "지국천왕의 반지",
+        "지국천왕의반지",
+        "雀天戒"
+      ],
+      "keys": [
+        "item:6527"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "지국천왕의 반지",
+        "en": "Dhritarashtra Ring",
+        "zh": "持國天王的指環"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6527",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=66, item_code=6527",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "지국천왕의반지",
+            "雀天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-awakened-dhritarashtra",
+      "aliases": [
+        "覺醒持國天王",
+        "Awa Dhritara",
+        "각성 지국천왕",
+        "각성지국천왕",
+        "覺醒雀天",
+        "觉醒雀天",
+        "Awakened Dhritarashtra"
+      ],
+      "keys": [
+        "hero:V06"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕",
+        "en": "Awa Dhritara",
+        "zh": "覺醒持國天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V06",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "characters.code=V06; characters.code=T49",
+          "note": "Explicit catalog form modifier applied to an existing base nickname; this is a compositional spelling, not independently verified community slang. Base and awakened targets remain distinct."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕",
+            "覺醒雀天",
+            "觉醒雀天",
+            "Awakened Dhritarashtra"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-awakened-dhritarashtra",
+      "aliases": [
+        "覺醒持國天王套裝",
+        "Awa Dhritara Set",
+        "각성 지국천왕세트",
+        "각성지국천왕세트",
+        "覺醒雀天套",
+        "覺醒雀天套裝",
+        "覺醒雀天套装",
+        "觉醒雀天套",
+        "觉醒雀天套裝",
+        "觉醒雀天套装",
+        "Awakened Dhritarashtra Set"
+      ],
+      "keys": [
+        "set:122"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕세트",
+        "en": "Awa Dhritara Set",
+        "zh": "覺醒持國天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=122",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕세트",
+            "覺醒雀天套",
+            "覺醒雀天套裝",
+            "覺醒雀天套装",
+            "觉醒雀天套",
+            "觉醒雀天套裝",
+            "觉醒雀天套装",
+            "Awakened Dhritarashtra Set"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-dhritarashtra-head",
+      "aliases": [
+        "覺醒持國天王冠",
+        "Awa Dhritara Crown",
+        "각성 지국천왕의 관",
+        "각성지국천왕의관",
+        "覺醒雀天頭",
+        "觉醒雀天頭",
+        "覺醒雀天头",
+        "觉醒雀天头"
+      ],
+      "keys": [
+        "item:10697"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕의 관",
+        "en": "Awa Dhritara Crown",
+        "zh": "覺醒持國天王冠"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10697",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=122, item_code=10697",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕의관",
+            "覺醒雀天頭",
+            "觉醒雀天頭",
+            "覺醒雀天头",
+            "觉醒雀天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-dhritarashtra-armor",
+      "aliases": [
+        "覺醒持國天王禮服",
+        "Awa Dhritara Suit",
+        "각성 지국천왕의 예복",
+        "각성지국천왕의예복",
+        "覺醒雀天甲",
+        "觉醒雀天甲"
+      ],
+      "keys": [
+        "item:10698"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕의 예복",
+        "en": "Awa Dhritara Suit",
+        "zh": "覺醒持國天王禮服"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10698",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=122, item_code=10698",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕의예복",
+            "覺醒雀天甲",
+            "觉醒雀天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-dhritarashtra-hands",
+      "aliases": [
+        "覺醒持國天王手臂護具",
+        "Awa Dhritara Bracer",
+        "각성 지국천왕의 손목보호대",
+        "각성지국천왕의손목보호대",
+        "覺醒雀天手",
+        "觉醒雀天手"
+      ],
+      "keys": [
+        "item:10699"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕의 손목보호대",
+        "en": "Awa Dhritara Bracer",
+        "zh": "覺醒持國天王手臂護具"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10699",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=122, item_code=10699",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕의손목보호대",
+            "覺醒雀天手",
+            "觉醒雀天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-dhritarashtra-belt",
+      "aliases": [
+        "覺醒持國天王腰帶",
+        "Awa Dhritara Belt",
+        "각성 지국천왕의 요대",
+        "각성지국천왕의요대",
+        "覺醒雀天腰",
+        "觉醒雀天腰"
+      ],
+      "keys": [
+        "item:10700"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕의 요대",
+        "en": "Awa Dhritara Belt",
+        "zh": "覺醒持國天王腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10700",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=122, item_code=10700",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕의요대",
+            "覺醒雀天腰",
+            "觉醒雀天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-dhritarashtra-shoes",
+      "aliases": [
+        "覺醒持國天王鞋子",
+        "Awa Dhritara Shoes",
+        "각성 지국천왕의 신발",
+        "각성지국천왕의신발",
+        "覺醒雀天鞋",
+        "觉醒雀天鞋"
+      ],
+      "keys": [
+        "item:10701"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕의 신발",
+        "en": "Awa Dhritara Shoes",
+        "zh": "覺醒持國天王鞋子"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10701",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=122, item_code=10701",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕의신발",
+            "覺醒雀天鞋",
+            "觉醒雀天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-dhritarashtra-ring",
+      "aliases": [
+        "覺醒持國天王戒指",
+        "Awa Dhritara Ring",
+        "각성 지국천왕의 반지",
+        "각성지국천왕의반지",
+        "覺醒雀天戒",
+        "觉醒雀天戒"
+      ],
+      "keys": [
+        "item:10702"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 지국천왕의 반지",
+        "en": "Awa Dhritara Ring",
+        "zh": "覺醒持國天王戒指"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10702",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=122, item_code=10702",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성지국천왕의반지",
+            "覺醒雀天戒",
+            "觉醒雀天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-vaisravana",
+      "aliases": [
+        "多聞天王",
+        "Vaisravana",
+        "다문천왕",
+        "龜天",
+        "龟天"
+      ],
+      "keys": [
+        "hero:T50"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕",
+        "en": "Vaisravana",
+        "zh": "多聞天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T50",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application.",
+          "spellings": [
+            "龜天"
+          ]
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "龟天"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-vaisravana",
+      "aliases": [
+        "多聞天王套裝",
+        "Vaisravana Set",
+        "다문천왕세트",
+        "龜天套",
+        "龜天套裝",
+        "龜天套装",
+        "龟天套",
+        "龟天套裝",
+        "龟天套装"
+      ],
+      "keys": [
+        "set:59"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕세트",
+        "en": "Vaisravana Set",
+        "zh": "多聞天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=59",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "龜天套",
+            "龜天套裝",
+            "龜天套装",
+            "龟天套",
+            "龟天套裝",
+            "龟天套装"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-vaisravana-head",
+      "aliases": [
+        "多聞天王頭帶",
+        "Vaisravana Headband",
+        "다문천왕의 머리띠",
+        "다문천왕의머리띠",
+        "龜天頭",
+        "龟天頭",
+        "龜天头",
+        "龟天头"
+      ],
+      "keys": [
+        "item:6097"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕의 머리띠",
+        "en": "Vaisravana Headband",
+        "zh": "多聞天王頭帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6097",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=59, item_code=6097",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "다문천왕의머리띠",
+            "龜天頭",
+            "龟天頭",
+            "龜天头",
+            "龟天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-vaisravana-armor",
+      "aliases": [
+        "多聞天王禮服",
+        "Vaisravana Suit",
+        "다문천왕의 예복",
+        "다문천왕의예복",
+        "龜天甲",
+        "龟天甲"
+      ],
+      "keys": [
+        "item:6098"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕의 예복",
+        "en": "Vaisravana Suit",
+        "zh": "多聞天王禮服"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6098",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=59, item_code=6098",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "다문천왕의예복",
+            "龜天甲",
+            "龟天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-vaisravana-hands",
+      "aliases": [
+        "多聞天王護腕",
+        "Vaisravana Armguard",
+        "다문천왕의 손목보호대",
+        "다문천왕의손목보호대",
+        "龜天手",
+        "龟天手"
+      ],
+      "keys": [
+        "item:6099"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕의 손목보호대",
+        "en": "Vaisravana Armguard",
+        "zh": "多聞天王護腕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6099",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=59, item_code=6099",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "다문천왕의손목보호대",
+            "龜天手",
+            "龟天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-vaisravana-belt",
+      "aliases": [
+        "多聞天王腰帶",
+        "Vaisravana Belt",
+        "다문천왕의 요대",
+        "다문천왕의요대",
+        "龜天腰",
+        "龟天腰"
+      ],
+      "keys": [
+        "item:6100"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕의 요대",
+        "en": "Vaisravana Belt",
+        "zh": "多聞天王腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6100",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=59, item_code=6100",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "다문천왕의요대",
+            "龜天腰",
+            "龟天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-vaisravana-shoes",
+      "aliases": [
+        "多聞天王鞋子",
+        "Vaisravana Shoes",
+        "다문천왕의 신발",
+        "다문천왕의신발",
+        "龜天鞋",
+        "龟天鞋"
+      ],
+      "keys": [
+        "item:6101"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕의 신발",
+        "en": "Vaisravana Shoes",
+        "zh": "多聞天王鞋子"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6101",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=59, item_code=6101",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "다문천왕의신발",
+            "龜天鞋",
+            "龟天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-vaisravana-ring",
+      "aliases": [
+        "多聞天王的指環",
+        "Vaisravana Ring",
+        "다문천왕의 가락지",
+        "다문천왕의가락지",
+        "龜天戒",
+        "龟天戒"
+      ],
+      "keys": [
+        "item:6525"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "다문천왕의 가락지",
+        "en": "Vaisravana Ring",
+        "zh": "多聞天王的指環"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6525",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=59, item_code=6525",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "다문천왕의가락지",
+            "龜天戒",
+            "龟天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-awakened-vaisravana",
+      "aliases": [
+        "覺醒多聞天王",
+        "Awa Vais",
+        "각성 다문천왕",
+        "각성다문천왕",
+        "覺醒龜天",
+        "觉醒龟天",
+        "Awakened Vaisravana"
+      ],
+      "keys": [
+        "hero:V08"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕",
+        "en": "Awa Vais",
+        "zh": "覺醒多聞天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V08",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "characters.code=V08; characters.code=T50",
+          "note": "Explicit catalog form modifier applied to an existing base nickname; this is a compositional spelling, not independently verified community slang. Base and awakened targets remain distinct."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕",
+            "覺醒龜天",
+            "觉醒龟天",
+            "Awakened Vaisravana"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-awakened-vaisravana",
+      "aliases": [
+        "覺醒多聞天王套裝",
+        "Awa Vais Set",
+        "각성 다문천왕세트",
+        "각성다문천왕세트",
+        "覺醒龜天套",
+        "覺醒龜天套裝",
+        "覺醒龜天套装",
+        "觉醒龟天套",
+        "觉醒龟天套裝",
+        "觉醒龟天套装",
+        "Awakened Vaisravana Set"
+      ],
+      "keys": [
+        "set:124"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕세트",
+        "en": "Awa Vais Set",
+        "zh": "覺醒多聞天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=124",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕세트",
+            "覺醒龜天套",
+            "覺醒龜天套裝",
+            "覺醒龜天套装",
+            "觉醒龟天套",
+            "觉醒龟天套裝",
+            "觉醒龟天套装",
+            "Awakened Vaisravana Set"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-vaisravana-head",
+      "aliases": [
+        "覺醒多聞天王頭戴",
+        "Awa Vais Crown",
+        "각성 다문천왕의 관",
+        "각성다문천왕의관",
+        "覺醒龜天頭",
+        "觉醒龟天頭",
+        "覺醒龜天头",
+        "觉醒龟天头"
+      ],
+      "keys": [
+        "item:10709"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕의 관",
+        "en": "Awa Vais Crown",
+        "zh": "覺醒多聞天王頭戴"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10709",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=124, item_code=10709",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕의관",
+            "覺醒龜天頭",
+            "觉醒龟天頭",
+            "覺醒龜天头",
+            "觉醒龟天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-vaisravana-armor",
+      "aliases": [
+        "覺醒多聞天王禮服",
+        "Awa Vais Dress",
+        "각성 다문천왕의 예복",
+        "각성다문천왕의예복",
+        "覺醒龜天甲",
+        "觉醒龟天甲"
+      ],
+      "keys": [
+        "item:10710"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕의 예복",
+        "en": "Awa Vais Dress",
+        "zh": "覺醒多聞天王禮服"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10710",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=124, item_code=10710",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕의예복",
+            "覺醒龜天甲",
+            "觉醒龟天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-vaisravana-hands",
+      "aliases": [
+        "覺醒多聞天王手腕護套",
+        "Awa Vais Bracer",
+        "각성 다문천왕의 손목보호대",
+        "각성다문천왕의손목보호대",
+        "覺醒龜天手",
+        "觉醒龟天手"
+      ],
+      "keys": [
+        "item:10711"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕의 손목보호대",
+        "en": "Awa Vais Bracer",
+        "zh": "覺醒多聞天王手腕護套"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10711",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=124, item_code=10711",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕의손목보호대",
+            "覺醒龜天手",
+            "觉醒龟天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-vaisravana-belt",
+      "aliases": [
+        "覺醒多聞天王腰帶",
+        "Awa Vais Belt",
+        "각성 다문천왕의 요대",
+        "각성다문천왕의요대",
+        "覺醒龜天腰",
+        "觉醒龟天腰"
+      ],
+      "keys": [
+        "item:10712"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕의 요대",
+        "en": "Awa Vais Belt",
+        "zh": "覺醒多聞天王腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10712",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=124, item_code=10712",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕의요대",
+            "覺醒龜天腰",
+            "觉醒龟天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-vaisravana-shoes",
+      "aliases": [
+        "覺醒多聞天王鞋子",
+        "Awa Vais Shoes",
+        "각성 다문천왕의 신발",
+        "각성다문천왕의신발",
+        "覺醒龜天鞋",
+        "觉醒龟天鞋"
+      ],
+      "keys": [
+        "item:10713"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕의 신발",
+        "en": "Awa Vais Shoes",
+        "zh": "覺醒多聞天王鞋子"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10713",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=124, item_code=10713",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕의신발",
+            "覺醒龜天鞋",
+            "觉醒龟天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-vaisravana-ring",
+      "aliases": [
+        "覺醒多聞天王戒指",
+        "Awa Vais Ring",
+        "각성 다문천왕의 반지",
+        "각성다문천왕의반지",
+        "覺醒龜天戒",
+        "觉醒龟天戒"
+      ],
+      "keys": [
+        "item:10714"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 다문천왕의 반지",
+        "en": "Awa Vais Ring",
+        "zh": "覺醒多聞天王戒指"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10714",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=124, item_code=10714",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성다문천왕의반지",
+            "覺醒龜天戒",
+            "觉醒龟天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-virudhaka",
+      "aliases": [
+        "增長天王",
+        "Virudhaka",
+        "증장천왕",
+        "龍天",
+        "龙天"
+      ],
+      "keys": [
+        "hero:T51"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕",
+        "en": "Virudhaka",
+        "zh": "增長天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T51",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application.",
+          "spellings": [
+            "龍天"
+          ]
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "龙天"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-virudhaka",
+      "aliases": [
+        "增長天王套裝",
+        "Virudhaka Set",
+        "증장천왕세트",
+        "龍天套",
+        "龍天套裝",
+        "龍天套装",
+        "龙天套",
+        "龙天套裝",
+        "龙天套装"
+      ],
+      "keys": [
+        "set:60"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕세트",
+        "en": "Virudhaka Set",
+        "zh": "增長天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=60",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "龍天套",
+            "龍天套裝",
+            "龍天套装",
+            "龙天套",
+            "龙天套裝",
+            "龙天套装"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virudhaka-head",
+      "aliases": [
+        "增長天王的頭盔",
+        "Virudhaka Helmet",
+        "증장천왕의 투구",
+        "증장천왕의투구",
+        "龍天頭",
+        "龙天頭",
+        "龍天头",
+        "龙天头"
+      ],
+      "keys": [
+        "item:6108"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕의 투구",
+        "en": "Virudhaka Helmet",
+        "zh": "增長天王的頭盔"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6108",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=60, item_code=6108",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "증장천왕의투구",
+            "龍天頭",
+            "龙天頭",
+            "龍天头",
+            "龙天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virudhaka-armor",
+      "aliases": [
+        "增長天王的鎧甲",
+        "Virudhaka Suit",
+        "증장천왕의 갑옷",
+        "증장천왕의갑옷",
+        "龍天甲",
+        "龙天甲"
+      ],
+      "keys": [
+        "item:6109"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕의 갑옷",
+        "en": "Virudhaka Suit",
+        "zh": "增長天王的鎧甲"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6109",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=60, item_code=6109",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "증장천왕의갑옷",
+            "龍天甲",
+            "龙天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virudhaka-hands",
+      "aliases": [
+        "增長天王的手帶",
+        "Virudhaka Armguard",
+        "증장천왕의 손목보호구",
+        "증장천왕의손목보호구",
+        "龍天手",
+        "龙天手"
+      ],
+      "keys": [
+        "item:6110"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕의 손목보호구",
+        "en": "Virudhaka Armguard",
+        "zh": "增長天王的手帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6110",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=60, item_code=6110",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "증장천왕의손목보호구",
+            "龍天手",
+            "龙天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virudhaka-belt",
+      "aliases": [
+        "增長天王的腰帶",
+        "Virudhaka Belt",
+        "증장천왕의 허리띠",
+        "증장천왕의허리띠",
+        "龍天腰",
+        "龙天腰"
+      ],
+      "keys": [
+        "item:6111"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕의 허리띠",
+        "en": "Virudhaka Belt",
+        "zh": "增長天王的腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6111",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=60, item_code=6111",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "증장천왕의허리띠",
+            "龍天腰",
+            "龙天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virudhaka-shoes",
+      "aliases": [
+        "增長天王的戰鬥鞋",
+        "Virudhaka Boots",
+        "증장천왕의 전투화",
+        "증장천왕의전투화",
+        "龍天鞋",
+        "龙天鞋"
+      ],
+      "keys": [
+        "item:6112"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕의 전투화",
+        "en": "Virudhaka Boots",
+        "zh": "增長天王的戰鬥鞋"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6112",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=60, item_code=6112",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "증장천왕의전투화",
+            "龍天鞋",
+            "龙天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virudhaka-ring",
+      "aliases": [
+        "增長天王的指環",
+        "Virudhaka Ring",
+        "증장천왕의 반지",
+        "증장천왕의반지",
+        "龍天戒",
+        "龙天戒"
+      ],
+      "keys": [
+        "item:6526"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "증장천왕의 반지",
+        "en": "Virudhaka Ring",
+        "zh": "增長天王的指環"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6526",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=60, item_code=6526",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "증장천왕의반지",
+            "龍天戒",
+            "龙天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-awakened-virudhaka",
+      "aliases": [
+        "覺醒增長天王",
+        "Awa Virudha",
+        "각성 증장천왕",
+        "각성증장천왕",
+        "覺醒龍天",
+        "觉醒龙天",
+        "Awakened Virudhaka"
+      ],
+      "keys": [
+        "hero:V09"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕",
+        "en": "Awa Virudha",
+        "zh": "覺醒增長天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V09",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "characters.code=V09; characters.code=T51",
+          "note": "Explicit catalog form modifier applied to an existing base nickname; this is a compositional spelling, not independently verified community slang. Base and awakened targets remain distinct."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕",
+            "覺醒龍天",
+            "觉醒龙天",
+            "Awakened Virudhaka"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-awakened-virudhaka",
+      "aliases": [
+        "覺醒增長天王套裝",
+        "Awa Virudha Set",
+        "각성 증장천왕세트",
+        "각성증장천왕세트",
+        "覺醒龍天套",
+        "覺醒龍天套裝",
+        "覺醒龍天套装",
+        "觉醒龙天套",
+        "觉醒龙天套裝",
+        "觉醒龙天套装",
+        "Awakened Virudhaka Set"
+      ],
+      "keys": [
+        "set:125"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕세트",
+        "en": "Awa Virudha Set",
+        "zh": "覺醒增長天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=125",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕세트",
+            "覺醒龍天套",
+            "覺醒龍天套裝",
+            "覺醒龍天套装",
+            "觉醒龙天套",
+            "觉醒龙天套裝",
+            "觉醒龙天套装",
+            "Awakened Virudhaka Set"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virudhaka-head",
+      "aliases": [
+        "覺醒增長天王頭盔",
+        "Awa Virudha Crown",
+        "각성 증장천왕의 관",
+        "각성증장천왕의관",
+        "覺醒龍天頭",
+        "觉醒龙天頭",
+        "覺醒龍天头",
+        "觉醒龙天头"
+      ],
+      "keys": [
+        "item:10715"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕의 관",
+        "en": "Awa Virudha Crown",
+        "zh": "覺醒增長天王頭盔"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10715",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=125, item_code=10715",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕의관",
+            "覺醒龍天頭",
+            "觉醒龙天頭",
+            "覺醒龍天头",
+            "觉醒龙天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virudhaka-armor",
+      "aliases": [
+        "覺醒增長天王盔甲",
+        "Awa Virudha Armor",
+        "각성 증장천왕의 갑옷",
+        "각성증장천왕의갑옷",
+        "覺醒龍天甲",
+        "觉醒龙天甲"
+      ],
+      "keys": [
+        "item:10716"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕의 갑옷",
+        "en": "Awa Virudha Armor",
+        "zh": "覺醒增長天王盔甲"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10716",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=125, item_code=10716",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕의갑옷",
+            "覺醒龍天甲",
+            "觉醒龙天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virudhaka-hands",
+      "aliases": [
+        "覺醒增長天王手腕護具",
+        "Awa Virudha Bracer",
+        "각성 증장천왕의 손목보호대",
+        "각성증장천왕의손목보호대",
+        "覺醒龍天手",
+        "觉醒龙天手"
+      ],
+      "keys": [
+        "item:10717"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕의 손목보호대",
+        "en": "Awa Virudha Bracer",
+        "zh": "覺醒增長天王手腕護具"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10717",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=125, item_code=10717",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕의손목보호대",
+            "覺醒龍天手",
+            "觉醒龙天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virudhaka-belt",
+      "aliases": [
+        "覺醒增長天王腰帶",
+        "Awa Virudha Belt",
+        "각성 증장천왕의 요대",
+        "각성증장천왕의요대",
+        "覺醒龍天腰",
+        "觉醒龙天腰"
+      ],
+      "keys": [
+        "item:10718"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕의 요대",
+        "en": "Awa Virudha Belt",
+        "zh": "覺醒增長天王腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10718",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=125, item_code=10718",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕의요대",
+            "覺醒龍天腰",
+            "觉醒龙天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virudhaka-shoes",
+      "aliases": [
+        "覺醒增長天王戰鬥靴",
+        "Awa Virudha Boots",
+        "각성 증장천왕의 신발",
+        "각성증장천왕의신발",
+        "覺醒龍天鞋",
+        "觉醒龙天鞋"
+      ],
+      "keys": [
+        "item:10719"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕의 신발",
+        "en": "Awa Virudha Boots",
+        "zh": "覺醒增長天王戰鬥靴"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10719",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=125, item_code=10719",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕의신발",
+            "覺醒龍天鞋",
+            "觉醒龙天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virudhaka-ring",
+      "aliases": [
+        "覺醒增長天王戒指",
+        "Awa Virudha Ring",
+        "각성 증장천왕의 반지",
+        "각성증장천왕의반지",
+        "覺醒龍天戒",
+        "觉醒龙天戒"
+      ],
+      "keys": [
+        "item:10720"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 증장천왕의 반지",
+        "en": "Awa Virudha Ring",
+        "zh": "覺醒增長天王戒指"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10720",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=125, item_code=10720",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성증장천왕의반지",
+            "覺醒龍天戒",
+            "觉醒龙天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-virupaksa",
+      "aliases": [
+        "廣目天王",
+        "Virupaksa",
+        "광목천왕",
+        "虎天"
+      ],
+      "keys": [
+        "hero:T52"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕",
+        "en": "Virupaksa",
+        "zh": "廣目天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T52",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application.",
+          "spellings": [
+            "虎天"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-virupaksa",
+      "aliases": [
+        "廣目天王套裝",
+        "Virupaksa Set",
+        "광목천왕세트",
+        "虎天套",
+        "虎天套裝",
+        "虎天套装"
+      ],
+      "keys": [
+        "set:67"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕세트",
+        "en": "Virupaksa Set",
+        "zh": "廣目天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=67",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "虎天套",
+            "虎天套裝",
+            "虎天套装"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virupaksa-head",
+      "aliases": [
+        "廣目天王的面具",
+        "Mask of Virupaksa",
+        "광목천왕의 가면",
+        "광목천왕의가면",
+        "虎天頭",
+        "虎天头"
+      ],
+      "keys": [
+        "item:6243"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕의 가면",
+        "en": "Mask of Virupaksa",
+        "zh": "廣目天王的面具"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6243",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=67, item_code=6243",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "광목천왕의가면",
+            "虎天頭",
+            "虎天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virupaksa-armor",
+      "aliases": [
+        "廣目天王的鎧甲",
+        "Armor of Virupaksa",
+        "광목천왕의 갑옷",
+        "광목천왕의갑옷",
+        "虎天甲"
+      ],
+      "keys": [
+        "item:6244"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕의 갑옷",
+        "en": "Armor of Virupaksa",
+        "zh": "廣目天王的鎧甲"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6244",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=67, item_code=6244",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "광목천왕의갑옷",
+            "虎天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virupaksa-hands",
+      "aliases": [
+        "廣目天王的手臂護具",
+        "Gauntlet of Virupaksa",
+        "광목천왕의 팔보호구",
+        "광목천왕의팔보호구",
+        "虎天手"
+      ],
+      "keys": [
+        "item:6245"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕의 팔보호구",
+        "en": "Gauntlet of Virupaksa",
+        "zh": "廣目天王的手臂護具"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6245",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=67, item_code=6245",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "광목천왕의팔보호구",
+            "虎天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virupaksa-belt",
+      "aliases": [
+        "廣目天王的腰帶",
+        "Belt of Virupaksa",
+        "광목천왕의 요대",
+        "광목천왕의요대",
+        "虎天腰"
+      ],
+      "keys": [
+        "item:6246"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕의 요대",
+        "en": "Belt of Virupaksa",
+        "zh": "廣目天王的腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6246",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=67, item_code=6246",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "광목천왕의요대",
+            "虎天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virupaksa-shoes",
+      "aliases": [
+        "廣目天王的戰鬥鞋",
+        "Boots of Virupaksa",
+        "광목천왕의 전투화",
+        "광목천왕의전투화",
+        "虎天鞋"
+      ],
+      "keys": [
+        "item:6247"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕의 전투화",
+        "en": "Boots of Virupaksa",
+        "zh": "廣目天王的戰鬥鞋"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6247",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=67, item_code=6247",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "광목천왕의전투화",
+            "虎天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-virupaksa-ring",
+      "aliases": [
+        "廣目天王的指環",
+        "Virupaksa Ring",
+        "광목천왕지환",
+        "虎天戒"
+      ],
+      "keys": [
+        "item:6524"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "광목천왕지환",
+        "en": "Virupaksa Ring",
+        "zh": "廣目天王的指環"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=6524",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=67, item_code=6524",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "虎天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-awakened-virupaksa",
+      "aliases": [
+        "覺醒廣目天王",
+        "Awa Virupa",
+        "각성 광목천왕",
+        "각성광목천왕",
+        "覺醒虎天",
+        "觉醒虎天",
+        "Awakened Virupaksa"
+      ],
+      "keys": [
+        "hero:V07"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕",
+        "en": "Awa Virupa",
+        "zh": "覺醒廣目天王"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V07",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "characters.code=V07; characters.code=T52",
+          "note": "Explicit catalog form modifier applied to an existing base nickname; this is a compositional spelling, not independently verified community slang. Base and awakened targets remain distinct."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕",
+            "覺醒虎天",
+            "觉醒虎天",
+            "Awakened Virupaksa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "set-awakened-virupaksa",
+      "aliases": [
+        "覺醒廣目天王套裝",
+        "Awa Virupa Set",
+        "각성 광목천왕세트",
+        "각성광목천왕세트",
+        "覺醒虎天套",
+        "覺醒虎天套裝",
+        "覺醒虎天套装",
+        "觉醒虎天套",
+        "觉醒虎天套裝",
+        "觉醒虎天套装",
+        "Awakened Virupaksa Set"
+      ],
+      "keys": [
+        "set:123"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕세트",
+        "en": "Awa Virupa Set",
+        "zh": "覺醒廣目天王套裝"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:item_sets.code=123",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕세트",
+            "覺醒虎天套",
+            "覺醒虎天套裝",
+            "覺醒虎天套装",
+            "觉醒虎天套",
+            "觉醒虎天套裝",
+            "觉醒虎天套装",
+            "Awakened Virupaksa Set"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virupaksa-head",
+      "aliases": [
+        "覺醒廣目天王面具",
+        "Awa Virupa Crown",
+        "각성 광목천왕의 관",
+        "각성광목천왕의관",
+        "覺醒虎天頭",
+        "觉醒虎天頭",
+        "覺醒虎天头",
+        "觉醒虎天头"
+      ],
+      "keys": [
+        "item:10703"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕의 관",
+        "en": "Awa Virupa Crown",
+        "zh": "覺醒廣目天王面具"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10703",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=123, item_code=10703",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕의관",
+            "覺醒虎天頭",
+            "觉醒虎天頭",
+            "覺醒虎天头",
+            "觉醒虎天头"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virupaksa-armor",
+      "aliases": [
+        "覺醒廣目天王盔甲",
+        "Awa Virupa Armor",
+        "각성 광목천왕의 갑옷",
+        "각성광목천왕의갑옷",
+        "覺醒虎天甲",
+        "觉醒虎天甲"
+      ],
+      "keys": [
+        "item:10704"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕의 갑옷",
+        "en": "Awa Virupa Armor",
+        "zh": "覺醒廣目天王盔甲"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10704",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=123, item_code=10704",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕의갑옷",
+            "覺醒虎天甲",
+            "觉醒虎天甲"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virupaksa-hands",
+      "aliases": [
+        "覺醒廣目天王手臂護具",
+        "Awa Virupa Bracer",
+        "각성 광목천왕의 손목보호대",
+        "각성광목천왕의손목보호대",
+        "覺醒虎天手",
+        "觉醒虎天手"
+      ],
+      "keys": [
+        "item:10705"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕의 손목보호대",
+        "en": "Awa Virupa Bracer",
+        "zh": "覺醒廣目天王手臂護具"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10705",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=123, item_code=10705",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕의손목보호대",
+            "覺醒虎天手",
+            "觉醒虎天手"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virupaksa-belt",
+      "aliases": [
+        "覺醒廣目天王腰帶",
+        "Awa Virupa Belt",
+        "각성 광목천왕의 요대",
+        "각성광목천왕의요대",
+        "覺醒虎天腰",
+        "觉醒虎天腰"
+      ],
+      "keys": [
+        "item:10706"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕의 요대",
+        "en": "Awa Virupa Belt",
+        "zh": "覺醒廣目天王腰帶"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10706",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=123, item_code=10706",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕의요대",
+            "覺醒虎天腰",
+            "觉醒虎天腰"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virupaksa-shoes",
+      "aliases": [
+        "覺醒廣目天王戰鬥靴",
+        "Awa Virupa Boots",
+        "각성 광목천왕의 신발",
+        "각성광목천왕의신발",
+        "覺醒虎天鞋",
+        "觉醒虎天鞋"
+      ],
+      "keys": [
+        "item:10707"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕의 신발",
+        "en": "Awa Virupa Boots",
+        "zh": "覺醒廣目天王戰鬥靴"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10707",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=123, item_code=10707",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕의신발",
+            "覺醒虎天鞋",
+            "觉醒虎天鞋"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "item-awakened-virupaksa-ring",
+      "aliases": [
+        "覺醒廣目天王的指環",
+        "Awa Virupa Ring",
+        "각성 광목천왕의 반지",
+        "각성광목천왕의반지",
+        "覺醒虎天戒",
+        "觉醒虎天戒"
+      ],
+      "keys": [
+        "item:10708"
+      ],
+      "group": false,
+      "canonical_names": {
+        "ko": "각성 광목천왕의 반지",
+        "en": "Awa Virupa Ring",
+        "zh": "覺醒廣目天王的指環"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:items.code=10708",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "catalog",
+          "reference": "item_set_members.set_code=123, item_code=10708",
+          "note": "Maps to the base, non-enhanced equipment piece. Time-limited and enhanced variants are not merged into this key."
+        },
+        {
+          "source": "repository",
+          "reference": "widget/src/db/alias.rs:SET_NICKS and SLOT_NICKS",
+          "note": "Existing nickname-to-name and equipment-slot mappings maintained by this application."
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "각성광목천왕의반지",
+            "覺醒虎天戒",
+            "觉醒虎天戒"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-yamantaka",
+      "aliases": [
+        "大威德明王",
+        "Yamantaka",
+        "대위덕명왕",
+        "明冥"
+      ],
+      "subject_aliases": [
+        "明明"
+      ],
+      "keys": [
+        "hero:T88"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "大威德明王",
+        "en": "Yamantaka",
+        "ko": "대위덕명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T88",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog."
+        },
+        {
+          "source": "user",
+          "reference": "User-confirmed alias mapping, 2026-10-20",
+          "note": "User explicitly confirmed 明冥 and 明明 refer to 大威德明王. 明明 is also ordinary language, so it only matches a standalone name or a sentence-initial subject followed by an explicit question phrase.",
+          "spellings": [
+            "明冥",
+            "明明"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-awakened-yamantaka",
+      "aliases": [
+        "覺醒大威德明王",
+        "Awa Yamantaka",
+        "각성 대위덕명왕"
+      ],
+      "keys": [
+        "hero:V27"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "覺醒大威德明王",
+        "en": "Awa Yamantaka",
+        "ko": "각성 대위덕명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V27",
+          "note": "Canonical names and entity identity are taken directly from the bundled catalog. This is a separate form from hero:T88."
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t87",
+      "aliases": [
+        "金剛夜叉明王",
+        "Vajrayaksa",
+        "금강야차명왕",
+        "日明",
+        "日冥"
+      ],
+      "keys": [
+        "hero:T87"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "金剛夜叉明王",
+        "en": "Vajrayaksa",
+        "ko": "금강야차명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T87",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://forum.gamer.com.tw/Co.php?bsn=05079&sn=49783",
+          "note": "The community guide explicitly labels these as names for the base Vajrayaksa, not its awakened form. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "日明",
+            "日冥"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t86",
+      "aliases": [
+        "軍茶利明王",
+        "Kundali",
+        "군다리명왕",
+        "朝明",
+        "朝冥"
+      ],
+      "keys": [
+        "hero:T86"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "軍茶利明王",
+        "en": "Kundali",
+        "ko": "군다리명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T86",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://forum.gamer.com.tw/Co.php?bsn=05079&sn=49783",
+          "note": "The community guide explicitly labels these as names for the base Kundali; its Chinese spelling 軍荼利 corresponds to catalog 군다리명왕 / 軍茶利明王. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "朝明",
+            "朝冥"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t89",
+      "aliases": [
+        "降三世明王",
+        "Trailokyavijaya",
+        "항삼세명왕",
+        "台明",
+        "台冥"
+      ],
+      "keys": [
+        "hero:T89"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "降三世明王",
+        "en": "Trailokyavijaya",
+        "ko": "항삼세명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T89",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://forum.gamer.com.tw/Co.php?bsn=05079&sn=49783",
+          "note": "The community guide explicitly labels these as names for the base Trailokyavijaya, not its awakened form. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "台明",
+            "台冥"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t113",
+      "aliases": [
+        "不動明王",
+        "Acala",
+        "부동명왕",
+        "印明",
+        "印冥"
+      ],
+      "keys": [
+        "hero:T113"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "不動明王",
+        "en": "Acala",
+        "ko": "부동명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T113",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://forum.gamer.com.tw/Co.php?bsn=05079&sn=49783",
+          "note": "The community guide explicitly labels these as names for Acala. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "印明",
+            "印冥"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-u90",
+      "aliases": [
+        "道術師",
+        "Magician",
+        "도술사",
+        "MP女"
+      ],
+      "keys": [
+        "hero:U90"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "道術師",
+        "en": "Magician",
+        "ko": "도술사"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=U90",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://gersangblogs.blogspot.com/2013/03/blog-post_5.html",
+          "note": "The 2013 beginner guide explicitly calls 道術師 MP女. This names the base mercenary, not its promoted forms. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "MP女"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-u91",
+      "aliases": [
+        "舜飛燕",
+        "Feiyan",
+        "순비연",
+        "小燕"
+      ],
+      "keys": [
+        "hero:U91"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "舜飛燕",
+        "en": "Feiyan",
+        "ko": "순비연"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=U91",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://www.nakuz.com/thread-4541664-1-1.html",
+          "note": "The 2017 beginner guide explicitly gives 小燕 as a nickname for 舜飛燕. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "小燕"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t1",
+      "aliases": [
+        "宣武功臣",
+        "Seonmu",
+        "선무공신",
+        "權2"
+      ],
+      "keys": [
+        "hero:T1"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "宣武功臣",
+        "en": "Seonmu",
+        "ko": "선무공신"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T1",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://www.nakuz.com/thread-4541664-1-1.html",
+          "note": "The 2017 beginner guide explicitly gives 權2 as a nickname for 宣武功臣. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "權2"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-u102",
+      "aliases": [
+        "龜甲車",
+        "Tortoise",
+        "거북차",
+        "龜車"
+      ],
+      "keys": [
+        "hero:U102"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "龜甲車",
+        "en": "Tortoise",
+        "ko": "거북차"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=U102",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://www.nakuz.com/thread-4541664-1-1.html",
+          "note": "The 2017 beginner guide explicitly gives 龜車 as a nickname for 龜甲車. The base and 真龜甲車 are separate catalog entities. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "龜車"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t56",
+      "aliases": [
+        "覺醒憤怒羅漢",
+        "Awa Aohangji",
+        "각성 오행기",
+        "祖3"
+      ],
+      "keys": [
+        "hero:T56"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "覺醒憤怒羅漢",
+        "en": "Awa Aohangji",
+        "ko": "각성 오행기"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T56",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://www.nakuz.com/thread-4536763-1-1.html",
+          "note": "The author explicitly defines 祖3 as 覺醒憤怒羅漢 in the 2016 article; this does not refer to the base form. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "祖3"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t68",
+      "aliases": [
+        "覺醒雷公",
+        "Awa Peacemaker",
+        "각성 뇌공",
+        "雷3"
+      ],
+      "keys": [
+        "hero:T68"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "覺醒雷公",
+        "en": "Awa Peacemaker",
+        "ko": "각성 뇌공"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T68",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        },
+        {
+          "source": "community",
+          "reference": "https://forum.gamer.com.tw/Co.php?bPage=0&bsn=5079&sn=47195&subbsn=3",
+          "note": "The 2019 beginner discussion identifies 雷3 with the awakened stage of the 道士 line; catalog chain U57/U73/T8/T68 identifies 覺醒雷公 as the target. Reviewed 2026-10-20; this source is used for terminology only, not current combat stats or recipes.",
+          "spellings": [
+            "雷3"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-v28",
+      "aliases": [
+        "覺醒金剛夜叉明王",
+        "Awa Vajrayaksa",
+        "각성 금강야차명왕"
+      ],
+      "keys": [
+        "hero:V28"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "覺醒金剛夜叉明王",
+        "en": "Awa Vajrayaksa",
+        "ko": "각성 금강야차명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V28",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-v29",
+      "aliases": [
+        "覺醒軍茶利明王",
+        "Awa Kundali",
+        "각성 군다리명왕"
+      ],
+      "keys": [
+        "hero:V29"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "覺醒軍茶利明王",
+        "en": "Awa Kundali",
+        "ko": "각성 군다리명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V29",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-v26",
+      "aliases": [
+        "覺醒降三世明王",
+        "Awa Trailokyavijaya",
+        "각성 항삼세명왕"
+      ],
+      "keys": [
+        "hero:V26"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "覺醒降三世明王",
+        "en": "Awa Trailokyavijaya",
+        "ko": "각성 항삼세명왕"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V26",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-v01",
+      "aliases": [
+        "覺醒宣武功臣",
+        "Awa Seonmu",
+        "각성 선무공신"
+      ],
+      "keys": [
+        "hero:V01"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "覺醒宣武功臣",
+        "en": "Awa Seonmu",
+        "ko": "각성 선무공신"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=V01",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        }
+      ]
+    },
+    {
+      "id": "hero-catalog-t40",
+      "aliases": [
+        "真龜甲車",
+        "Adv Tortoise",
+        "개량된 거북차"
+      ],
+      "keys": [
+        "hero:T40"
+      ],
+      "group": false,
+      "canonical_names": {
+        "zh": "真龜甲車",
+        "en": "Adv Tortoise",
+        "ko": "개량된 거북차"
+      },
+      "evidence": [
+        {
+          "source": "catalog",
+          "reference": "data/gersang.db:characters.code=T40",
+          "note": "Canonical names and the precise character form come directly from the bundled catalog."
+        }
+      ]
+    },
+    {
+      "id": "small-elemental-stones",
+      "aliases": [
+        "SSA"
+      ],
+      "exact_aliases": [
+        "小型屬性石",
+        "小型属性石",
+        "Small Elemental Stones",
+        "작은속성석"
+      ],
+      "keys": [
+        "item:6213",
+        "item:6214",
+        "item:6215",
+        "item:6216",
+        "item:6943"
+      ],
+      "group": true,
+      "canonical_names": {
+        "zh": "小型屬性石（五種）",
+        "en": "Small elemental stones (five elements)",
+        "ko": "작은속성석 (5종)"
+      },
+      "evidence": [
+        {
+          "source": "repository",
+          "reference": "data/aliases.txt; widget/src/db/alias.rs:DEFAULT_ALIAS_LINE",
+          "note": "Existing application alias and exact item IDs. No unsupported expansion of the letters SSA is asserted.",
+          "spellings": [
+            "SSA"
+          ]
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "小型屬性石",
+            "小型属性石",
+            "Small Elemental Stones",
+            "작은속성석"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "specter-stones",
+      "aliases": [
+        "三角"
+      ],
+      "exact_aliases": [
+        "精靈石",
+        "精灵石",
+        "Specter Stones",
+        "정령석"
+      ],
+      "keys": [
+        "item:6402",
+        "item:6403",
+        "item:6404",
+        "item:6405",
+        "item:6947"
+      ],
+      "group": true,
+      "canonical_names": {
+        "zh": "精靈石（五種）",
+        "en": "Specter stones (five elements)",
+        "ko": "정령석 (5종)"
+      },
+      "evidence": [
+        {
+          "source": "repository",
+          "reference": "data/aliases.txt",
+          "note": "Existing local bundled alias 三角 explicitly targets these five IDs; this does not assert a universal community nickname.",
+          "spellings": [
+            "三角"
+          ]
+        },
+        {
+          "source": "derived-spelling",
+          "reference": "Canonical catalog names and the documented nickname/slot mapping for this entry",
+          "note": "These spellings are mechanical spacing, simplified-character, or explicit form/set/equipment compositions of evidenced names. Material-group labels describe the listed item family. They are maintained lookup conveniences, not independently verified community slang.",
+          "spellings": [
+            "精靈石",
+            "精灵石",
+            "Specter Stones",
+            "정령석"
+          ]
+        }
+      ]
+    }
+  ],
+  "intents": [
+    {
+      "id": "craft",
+      "intent": "acquisition",
+      "topic": "craft",
+      "aliases": [
+        "點合",
+        "点合",
+        "點樣合",
+        "点样合",
+        "怎樣合",
+        "怎样合",
+        "怎麼合",
+        "怎么合",
+        "如何合",
+        "合成",
+        "製作",
+        "制作",
+        "craft",
+        "crafting",
+        "combine",
+        "synthesis",
+        "합성",
+        "제작",
+        "조합"
+      ],
+      "exact_aliases": [
+        "合"
+      ],
+      "evidence": [
+        {
+          "source": "language",
+          "reference": "Explicit request vocabulary",
+          "note": "Describes the information requested, not an in-game mechanic or proof that a recipe/drop exists."
+        },
+        {
+          "source": "user",
+          "reference": "Current feature request",
+          "note": "User explicitly confirmed 雀天 = 持國天王 and 點合 asks about crafting/acquisition."
+        }
+      ]
+    },
+    {
+      "id": "upgrade",
+      "intent": "acquisition",
+      "topic": "upgrade",
+      "aliases": [
+        "如何覺醒",
+        "如何觉醒",
+        "怎樣覺醒",
+        "怎样觉醒",
+        "怎麼覺醒",
+        "怎么觉醒",
+        "點覺醒",
+        "点觉醒",
+        "點樣覺醒",
+        "点样觉醒",
+        "how to awaken",
+        "어떻게 각성",
+        "進階",
+        "进阶",
+        "升級",
+        "升级",
+        "轉職",
+        "转职",
+        "覺醒",
+        "觉醒",
+        "upgrade",
+        "promote",
+        "promotion",
+        "awaken",
+        "awakened",
+        "evolve",
+        "evolution",
+        "승급",
+        "전직",
+        "각성",
+        "진화"
+      ],
+      "evidence": [
+        {
+          "source": "language",
+          "reference": "Explicit request vocabulary",
+          "note": "Describes the information requested, not an in-game mechanic or proof that a recipe/drop exists."
+        }
+      ]
+    },
+    {
+      "id": "obtain",
+      "intent": "acquisition",
+      "topic": "obtain",
+      "aliases": [
+        "取得",
+        "獲得",
+        "获得",
+        "入手",
+        "點拎",
+        "点拎",
+        "how to get",
+        "how to obtain",
+        "obtain",
+        "acquire",
+        "획득",
+        "얻는 법",
+        "얻는법"
+      ],
+      "evidence": [
+        {
+          "source": "language",
+          "reference": "Explicit request vocabulary",
+          "note": "Describes the information requested, not an in-game mechanic or proof that a recipe/drop exists."
+        }
+      ]
+    },
+    {
+      "id": "drops",
+      "intent": "acquisition",
+      "topic": "drops",
+      "aliases": [
+        "掉落",
+        "掉寶",
+        "掉宝",
+        "邊度打",
+        "边度打",
+        "where to farm",
+        "where to drop",
+        "drops",
+        "drop",
+        "드랍",
+        "드롭",
+        "드랍처",
+        "드롭처"
+      ],
+      "evidence": [
+        {
+          "source": "language",
+          "reference": "Explicit request vocabulary",
+          "note": "Describes the information requested, not an in-game mechanic or proof that a recipe/drop exists."
+        }
+      ]
+    }
+  ]
+}

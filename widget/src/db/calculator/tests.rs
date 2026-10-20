@@ -262,6 +262,48 @@ fn doll_catalog_uses_only_the_unified_single_unit_recipe() {
 }
 
 #[test]
+fn catalog_indexes_validated_result_ids_in_catalog_order() {
+    let mut catalog = Catalog::open().expect("db");
+    catalog.conn = rusqlite::Connection::open_in_memory().unwrap();
+    catalog.conn.execute_batch("
+        CREATE TABLE items (code INTEGER PRIMARY KEY);
+        CREATE TABLE recipes (id INTEGER PRIMARY KEY, source TEXT, result_item INTEGER, result_qty INTEGER, fee INTEGER, learn_fee INTEGER, success_rate INTEGER);
+        CREATE TABLE recipe_materials (recipe_id INTEGER, slot INTEGER, item_code INTEGER, qty INTEGER, enhance INTEGER);
+        CREATE TABLE meta (key TEXT, value TEXT);
+        INSERT INTO meta VALUES ('catalog_version', 'test');
+        INSERT INTO items VALUES (10), (100);
+        INSERT INTO recipes VALUES
+            (1, 'alchemy', 10, 1, 0, NULL, NULL),
+            (2, 'alchemy', 10, 1, 0, NULL, NULL),
+            (3, 'alchemy', 10, 1, 0, NULL, NULL),
+            (4, 'reinforce', 10, 1, 0, NULL, NULL),
+            (5, 'alchemy', 999, 1, 0, NULL, NULL);
+        INSERT INTO recipe_materials VALUES
+            (1, 1, 100, 1, 0), (3, 1, 100, 1, 0),
+            (4, 1, 100, 1, 0), (5, 1, 100, 1, 0);
+    ").unwrap();
+    catalog.index.recipes = [3, 1, 2, 4, 5]
+        .into_iter()
+        .map(|id| crate::db::rows::RecipeRow {
+            id,
+            source: if id == 4 { "reinforce" } else { "alchemy" }.into(),
+            // Membership comes from the validated planner, not display metadata.
+            result_str: "999".into(),
+            ko: String::new(),
+            en: String::new(),
+            zh: String::new(),
+            names: String::new(),
+            level_min: None,
+            icon: None,
+        })
+        .collect();
+
+    let book = catalog.calculator_catalog().unwrap();
+    assert_eq!(book.by_item, BTreeMap::from([(10, vec![3, 1])]));
+    assert_eq!(book.catalog_version, "test");
+}
+
+#[test]
 fn item_dropdown_deduplicates_and_only_contains_complete_non_reinforcement_recipes() {
     let catalog = Catalog::open().expect("db");
     let book = catalog.calculator_catalog().unwrap();

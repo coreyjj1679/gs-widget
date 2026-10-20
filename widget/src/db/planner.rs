@@ -45,6 +45,10 @@ fn add(map: &mut BTreeMap<ItemKey, i64>, key: ItemKey, quantity: i64) -> Result<
 }
 
 impl PlannerCatalog {
+    pub(in crate::db) fn result_code(&self, recipe_id: i64) -> Option<i64> {
+        self.recipes.get(&recipe_id).map(|recipe| recipe.result)
+    }
+
     fn load(conn: &rusqlite::Connection) -> Result<Self, String> {
         let mut recipes = BTreeMap::new();
         let mut invalid = BTreeSet::new();

@@ -152,8 +152,8 @@ impl Catalog {
             // Reinforcement output levels are absent from the DB, so those
             // records cannot describe a precise craftable result.
             if recipe.source != "reinforce" {
-                if let Some(candidate) = self.planner_recipe(&planner, recipe.id, "zh-en") {
-                    by_item.entry(candidate.code).or_default().push(recipe.id);
+                if let Some(code) = planner.result_code(recipe.id) {
+                    by_item.entry(code).or_default().push(recipe.id);
                 }
             }
         }

@@ -102,7 +102,7 @@ struct UnresolvedReference {
 }
 
 #[derive(Default)]
-struct QuestGraph {
+pub(in crate::db) struct QuestGraph {
     nodes: BTreeMap<i64, QuestNode>,
     parents: BTreeMap<i64, BTreeSet<i64>>,
     children: BTreeMap<i64, BTreeSet<i64>>,
@@ -739,9 +739,16 @@ fn words<'a>(lang: &str, english: &'a str, chinese: &'a str) -> &'a str {
 }
 
 impl Catalog {
-    /// Load the graph once for all browse groups; never rebuild it per chain.
+    fn cached_quest_graph(&self) -> Result<&QuestGraph, &str> {
+        self.quest_graph
+            .get_or_init(|| QuestGraph::load(&self.conn))
+            .as_ref()
+            .map_err(String::as_str)
+    }
+
+    /// Reuse this read-only catalog's graph for all dependency queries.
     pub(in crate::db) fn quest_dependency_components(&self) -> Vec<QuestDependencyComponent> {
-        let Ok(graph) = QuestGraph::load(&self.conn) else {
+        let Ok(graph) = self.cached_quest_graph() else {
             return Vec::new();
         };
         let mut seen = HashSet::new();
@@ -781,7 +788,7 @@ impl Catalog {
     /// branches. Each row declares its own direct parents so list order cannot be
     /// mistaken for a single mandatory sequence through every branch.
     pub fn quest_dependency_rows(&self, id: i64, lang: &str) -> (Vec<Hit>, String) {
-        let Ok(graph) = QuestGraph::load(&self.conn) else {
+        let Ok(graph) = self.cached_quest_graph() else {
             return (
                 Vec::new(),
                 words(
@@ -792,7 +799,7 @@ impl Catalog {
                 .to_string(),
             );
         };
-        self.quest_dependency_rows_with_graph(&graph, id, lang)
+        self.quest_dependency_rows_with_graph(graph, id, lang)
     }
 
     fn quest_dependency_rows_with_graph(
@@ -910,7 +917,7 @@ impl Catalog {
     }
 
     pub fn quest_dependency_graph(&self, id: i64, lang: &str) -> QuestGraphLayout {
-        let Ok(graph) = QuestGraph::load(&self.conn) else {
+        let Ok(graph) = self.cached_quest_graph() else {
             return QuestGraphLayout {
                 note: words(
                     lang,
@@ -921,12 +928,12 @@ impl Catalog {
                 ..QuestGraphLayout::default()
             };
         };
-        let (hits, note) = self.quest_dependency_rows_with_graph(&graph, id, lang);
+        let (hits, note) = self.quest_dependency_rows_with_graph(graph, id, lang);
         graph.roadmap(id, lang, hits, note)
     }
 
     pub(in crate::db) fn quest_immediate_dependencies(&self, id: i64) -> (Vec<i64>, Vec<i64>) {
-        let Ok(graph) = QuestGraph::load(&self.conn) else {
+        let Ok(graph) = self.cached_quest_graph() else {
             return (Vec::new(), Vec::new());
         };
         let Some(parents) = graph.parents.get(&id) else {
@@ -967,6 +974,60 @@ mod tests {
             .unwrap();
         }
         conn
+    }
+
+    #[test]
+    fn graph_cache_is_per_catalog_and_reused_across_views_and_languages() {
+        let mut first = Catalog::open().expect("catalog");
+        first.conn = fixture(
+            &[
+                (90001, "main", "a", "", "b"),
+                (90002, "main", "b", "a", ""),
+            ],
+            &[],
+        );
+        let mut second = Catalog::open().expect("catalog");
+        second.conn = fixture(
+            &[
+                (90001, "main", "a", "b", ""),
+                (90002, "main", "b", "", "a"),
+            ],
+            &[],
+        );
+        assert!(first.quest_graph.get().is_none());
+        assert!(second.quest_graph.get().is_none());
+        assert_eq!(
+            first.quest_immediate_dependencies(90001),
+            (vec![], vec![90002])
+        );
+        assert!(second.quest_graph.get().is_none());
+
+        // Once loaded, every dependency view uses the same snapshot. The real
+        // catalog connection is read-only; removing fixture tables detects reloads.
+        first
+            .conn
+            .execute_batch("DROP TABLE quest_steps; DROP TABLE quests;")
+            .unwrap();
+        assert_eq!(
+            first.quest_immediate_dependencies(90001),
+            (vec![], vec![90002])
+        );
+        let components = first.quest_dependency_components();
+        assert_eq!(components.len(), 1);
+        assert_eq!(components[0].quest_ids, vec![90001, 90002]);
+        assert_eq!(components[0].edge_count, 1);
+        let (english, _) = first.quest_dependency_rows(90001, "en");
+        let (korean, _) = first.quest_dependency_rows(90001, "ko");
+        assert_eq!(english.len(), 2);
+        assert_eq!(english[0].aside, "Current quest");
+        assert_eq!(korean[0].aside, "현재 퀘스트");
+        let layout = first.quest_dependency_graph(90001, "zh");
+        assert_eq!(layout.nodes.len(), 2);
+        assert_eq!(layout.edges.len(), 1);
+        assert_eq!(
+            second.quest_immediate_dependencies(90001),
+            (vec![90002], vec![])
+        );
     }
 
     #[test]

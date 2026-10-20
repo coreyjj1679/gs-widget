@@ -33,6 +33,7 @@ mod rows;
 mod search;
 mod store;
 mod text;
+pub mod terminology;
 mod town;
 mod user_data;
 mod work;
@@ -78,6 +79,9 @@ pub struct Catalog {
     character_files: RefCell<Option<HashMap<String, PathBuf>>>,
     pictures: HashMap<String, (PathBuf, i32)>,
     index: Index,
+    quest_graph: std::cell::OnceCell<Result<quest_graph::QuestGraph, String>>,
+    mcp_names: std::cell::OnceCell<mcp::NameIndex>,
+    mcp_terminology: Option<terminology::Glossary>,
 }
 
 #[cfg(test)]
@@ -112,6 +116,9 @@ impl Catalog {
             character_files: RefCell::new(None),
             pictures,
             index,
+            quest_graph: std::cell::OnceCell::new(),
+            mcp_names: std::cell::OnceCell::new(),
+            mcp_terminology: None,
         })
     }
 
