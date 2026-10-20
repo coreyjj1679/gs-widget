@@ -2,6 +2,9 @@
 use super::*;
 use crate::{CharacterCalcChoice, CharacterCalcMaterial};
 
+#[path = "character_materials.rs"]
+mod material_sources;
+
 #[cfg(test)]
 #[path = "characters_tests.rs"]
 mod tests;
@@ -11,6 +14,11 @@ pub(super) struct CharacterController {
     cache: IconCache,
     document: RefCell<Option<db::CharacterCalcDocument>>,
     routes: RefCell<Vec<String>>,
+    groups: RefCell<Vec<String>>,
+    group: RefCell<String>,
+    query: RefCell<String>,
+    book: Result<db::CalcCatalog, String>,
+    library: RefCell<Result<db::CalcLibrary, String>>,
     errors: RefCell<InputErrors>,
     load_error: Option<String>,
 }
@@ -31,9 +39,10 @@ impl CharacterController {
     }
 
     fn search(&self, app: &App, query: &str) {
+        *self.query.borrow_mut() = query.to_string();
         let rows = self
             .catalog
-            .character_calculator_candidates(query, &app.get_lang())
+            .character_calculator_browse(query, &self.group.borrow(), &app.get_lang())
             .into_iter()
             .map(|candidate| {
                 let (icon, has_icon) = self.image(candidate.icon);
@@ -55,6 +64,26 @@ impl CharacterController {
         app.set_character_calculator_candidates(ModelRc::new(VecModel::from(rows)));
     }
 
+    fn refresh_groups(&self, app: &App) {
+        let groups = self.catalog.character_calculator_groups(&app.get_lang());
+        let selected = groups
+            .iter()
+            .position(|group| group.id == *self.group.borrow())
+            .unwrap_or(0);
+        *self.group.borrow_mut() = groups
+            .get(selected)
+            .map(|group| group.id.clone())
+            .unwrap_or_default();
+        *self.groups.borrow_mut() = groups.iter().map(|group| group.id.clone()).collect();
+        app.set_character_calculator_groups(ModelRc::new(VecModel::from(
+            groups
+                .into_iter()
+                .map(|group| format!("{} ({})", group.title, group.count).into())
+                .collect::<Vec<_>>(),
+        )));
+        app.set_character_calculator_group_index(selected as i32);
+    }
+
     fn publish_errors(&self, app: &App) {
         let errors = self.errors.borrow();
         let error = self
@@ -63,6 +92,7 @@ impl CharacterController {
             .or_else(|| errors.first())
             .unwrap_or_default();
         app.set_character_calculator_error(db::localized_error(&app.get_lang(), error).into());
+        app.set_character_calculator_input_valid(error.is_empty());
         let draft = errors.draft(&InputField::Quantity);
         app.set_character_calculator_quantity_draft(draft.unwrap_or_default().into());
         app.set_character_calculator_quantity_has_draft(draft.is_some());
@@ -131,7 +161,7 @@ impl CharacterController {
             .inputs
             .iter()
             .zip(&costs.inputs)
-            .map(|(input, cost)| {
+            .flat_map(|(input, cost)| {
                 let (icon, has_icon) =
                     self.image(self.catalog.character_calculator_icon(&input.key));
                 let subtitle = match input.kind.as_str() {
@@ -157,23 +187,59 @@ impl CharacterController {
                 };
                 let errors = self.errors.borrow();
                 let draft = errors.draft(&InputField::Price(input.key.clone()));
-                CharacterCalcMaterial {
+                let nested = cost.nested.as_deref();
+                let mut rows = vec![CharacterCalcMaterial {
                     key: input.key.clone().into(),
                     title: input.title.clone().into(),
                     subtitle: subtitle.into(),
                     quantity: number(cost.quantity).into(),
-                    price: cost.unit_price.map(number).unwrap_or_default().into(),
+                    price: if let Some(child) = nested {
+                        child
+                            .total
+                            .map(|total| per_unit(total, cost.quantity))
+                            .unwrap_or_else(|| text(&lang, "待填", "Unpriced", "미입력").into())
+                    } else {
+                        cost.unit_price.map(number).unwrap_or_default()
+                    }
+                    .into(),
                     draft: draft.unwrap_or_default().into(),
                     has_draft: draft.is_some(),
                     subtotal: cost
                         .line_total
                         .map(number)
-                        .unwrap_or_else(|| "—".into())
+                        .unwrap_or_else(|| {
+                            if nested.is_some() {
+                                format!("{} + ?", number(cost.known_total))
+                            } else {
+                                "—".into()
+                            }
+                        })
                         .into(),
                     missing_price: cost.line_total.is_none(),
+                    depth: 0,
+                    context: "".into(),
+                    detail: nested
+                        .map(|child| material_sources::detail(child, cost.quantity, &lang))
+                        .unwrap_or_default()
+                        .into(),
+                    nested: nested.is_some(),
+                    can_craft: input
+                        .key
+                        .strip_prefix("item:")
+                        .and_then(|code| code.parse().ok())
+                        .is_some_and(|code| self.can_craft(code, 0)),
+                    can_reuse: input
+                        .key
+                        .strip_prefix("item:")
+                        .and_then(|code| code.parse().ok())
+                        .is_some_and(|code| self.can_reuse(code, 0)),
                     icon,
                     has_icon,
+                }];
+                if let Some(child) = nested {
+                    rows.extend(self.nested_rows(&input.key, &input.title, child, &lang));
                 }
+                rows
             })
             .collect::<Vec<_>>();
         app.set_character_calculator_materials(update_rows(
@@ -213,7 +279,7 @@ impl CharacterController {
             } else {
                 format!(
                     "{} {} · {}",
-                    doc.inputs.len() - costs.priced,
+                    costs.leaf_count - costs.priced_leaves,
                     text(
                         &lang,
                         "項成本尚未填寫",
@@ -231,9 +297,9 @@ impl CharacterController {
             .into(),
         );
         app.set_character_calculator_notice(text(&lang,
-            "計算所選路線的直接成本；前置角色請填取得總成本，未自動展開其轉職鏈。等級、任務等條件不換算為金額。單價由用家輸入。",
-            "Direct costs for the selected route. Enter each prerequisite character’s full acquisition cost; earlier promotion chains are not expanded automatically. Level and quest requirements are not priced. Prices are your estimates.",
-            "선택한 경로의 직접 비용입니다. 선행 캐릭터의 전체 획득 비용을 입력하세요. 이전 전직 경로는 자동으로 계산하지 않으며, 레벨·퀘스트 조건은 금액으로 환산하지 않습니다.").into());
+            "道具材料可展開配方或重用收藏；子配方按所需數量計算整批成本，包含餘量與合成費，不計失敗重試及學習費。前置角色請填取得總成本；等級、任務等條件不換算為金額。",
+            "Item materials can use recipes or saved sheets. Sub-recipes charge whole batches, including surplus and crafting fees, excluding failed attempts and learning fees. Enter prerequisite characters’ full acquisition costs; level and quest requirements are not priced.",
+            "아이템 재료는 제작법이나 저장한 계산표를 사용할 수 있습니다. 하위 제작법은 잉여 생산량과 제작 수수료를 포함한 전체 횟수로 계산하며, 실패 및 학습 비용은 제외합니다. 선행 캐릭터의 전체 획득 비용을 입력하세요. 레벨·퀘스트 조건은 금액으로 환산하지 않습니다.").into());
         self.publish_errors(app);
     }
 
@@ -251,7 +317,10 @@ impl CharacterController {
     }
 
     pub(super) fn open_record(&self, app: &App, code: &str) -> bool {
-        let Some(route) = self.catalog.character_calculator_entry_route(code, &app.get_lang()) else {
+        let Some(route) = self
+            .catalog
+            .character_calculator_entry_route(code, &app.get_lang())
+        else {
             return false;
         };
         let current = self.document.borrow().as_ref().is_some_and(|document| {
@@ -284,6 +353,17 @@ impl CharacterController {
                                 old.inputs.iter().find(|prior| prior.key == input.key)
                             {
                                 input.unit_price = prior.unit_price;
+                            }
+                        }
+                    }
+                    if preserve_quantity && old.hero_code == next.hero_code {
+                        for (key, child) in &old.nested {
+                            if next
+                                .inputs
+                                .iter()
+                                .any(|input| input.key == *key && input.kind == "item")
+                            {
+                                next.set_item_nested(key, Some(child.clone()))?;
                             }
                         }
                     }
@@ -336,12 +416,7 @@ impl CharacterController {
                         })?;
                     }
                     InputField::Price(key) => {
-                        let row = doc
-                            .inputs
-                            .iter_mut()
-                            .find(|input| input.key == *key)
-                            .ok_or_else(|| "找不到成本項目 / Cost entry not found".to_string())?;
-                        row.unit_price = value;
+                        material_sources::set_price(&mut doc, key, value)?;
                     }
                 }
                 // Drop only this field's old invalid draft before rendering the
@@ -355,7 +430,11 @@ impl CharacterController {
     }
 }
 
-pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) -> Rc<CharacterController> {
+pub(super) fn install(
+    app: &App,
+    catalog: Rc<db::Catalog>,
+    cache: IconCache,
+) -> Rc<CharacterController> {
     let (document, load_error) = match db::load_character_calculator() {
         Ok(Some(document)) => match catalog.supplement_character_calculator_materials(&document) {
             Ok(updated) if updated != document => {
@@ -369,10 +448,15 @@ pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) -> 
         Err(error) => (None, Some(error)),
     };
     let controller = Rc::new(CharacterController {
+        book: catalog.calculator_catalog(),
         catalog,
         cache,
         document: RefCell::new(document),
         routes: RefCell::default(),
+        groups: RefCell::default(),
+        group: RefCell::default(),
+        query: RefCell::default(),
+        library: RefCell::new(db::load_calculator_library()),
         errors: RefCell::default(),
         load_error,
     });
@@ -380,8 +464,11 @@ pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) -> 
     let weak = app.as_weak();
     app.on_character_calculator_refresh(move || {
         if let Some(app) = weak.upgrade() {
+            *c.library.borrow_mut() = db::load_calculator_library();
+            c.refresh_groups(&app);
             c.render(&app);
-            c.search(&app, "");
+            let query = c.query.borrow().clone();
+            c.search(&app, &query);
         }
     });
     let c = Rc::clone(&controller);
@@ -393,12 +480,34 @@ pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) -> 
     });
     let c = Rc::clone(&controller);
     let weak = app.as_weak();
+    app.on_character_calculator_select_group(move |index| {
+        let Some(app) = weak.upgrade() else { return };
+        let group = usize::try_from(index)
+            .ok()
+            .and_then(|index| c.groups.borrow().get(index).cloned());
+        if let Some(group) = group {
+            *c.group.borrow_mut() = group;
+            app.set_character_calculator_group_index(index);
+            let query = c.query.borrow().clone();
+            c.search(&app, &query);
+        }
+    });
+    let c = Rc::clone(&controller);
+    let weak = app.as_weak();
     app.on_character_calculator_select_character(move |code| {
         let Some(app) = weak.upgrade() else { return };
+        let current = c
+            .document
+            .borrow()
+            .as_ref()
+            .is_some_and(|doc| doc.hero_code == code.as_str());
+        if current {
+            c.render(&app);
+            return;
+        }
         if let Some(route) = c
             .catalog
-            .character_calculator_routes(&code, &app.get_lang())
-            .first()
+            .character_calculator_entry_route(&code, &app.get_lang())
         {
             c.select(&app, &code, &route.id, false);
         }
@@ -430,6 +539,8 @@ pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) -> 
         weak.upgrade()
             .is_some_and(|app| c.edit(&app, InputField::Price(key.to_string()), &raw))
     });
+    material_sources::install_callbacks(app, &controller);
+    controller.refresh_groups(app);
     controller.render(app);
     controller.search(app, "");
     controller

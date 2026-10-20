@@ -85,7 +85,7 @@ impl CalcDocument {
         Ok(())
     }
 
-    fn calculate_for(
+    pub(in crate::db) fn calculate_for(
         &self,
         required: i64,
         depth: usize,

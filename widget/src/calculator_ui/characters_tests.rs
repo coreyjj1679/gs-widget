@@ -2,6 +2,9 @@ use super::*;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
 use slint::platform::{Platform, WindowAdapter};
 
+#[path = "characters_nested_tests.rs"]
+mod nested_checks;
+
 struct CalculatorTestPlatform {
     window: Rc<MinimalSoftwareWindow>,
 }
@@ -678,8 +681,9 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
     // material snapshot and change only its route ID to exercise that case.
     let revision_before_select = app.get_character_calculator_input_revision();
     app.invoke_character_calculator_select_character("T49".into());
-    assert!(app.get_character_calculator_input_revision() > revision_before_select);
-    assert!(!app.get_character_calculator_quantity_has_draft());
+    assert_eq!(app.get_character_calculator_input_revision(), revision_before_select);
+    assert!(app.get_character_calculator_quantity_has_draft());
+    assert_eq!(app.get_character_calculator_quantity_draft(), "not-a-number");
     assert!(app.invoke_character_calculator_quantity_changed("4".into()));
     let next_route = catalog
         .character_calculator_routes("T49", "zh-en")
@@ -761,5 +765,6 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
     if std::env::var_os("GS_WIDGET_CALCULATOR_ENTRY_REVIEW").is_some() {
         save_entry_review_images(&app, &window, &catalog, &item_key);
     }
+    nested_checks::check_character_groups_and_nested_materials(&app, &window, &catalog);
     app.hide().unwrap();
 }

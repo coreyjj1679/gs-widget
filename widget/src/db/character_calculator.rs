@@ -1,18 +1,20 @@
-//! Direct acquisition costs for characters. Prerequisite characters are priced
-//! as complete inputs; their older forms are never silently charged again.
+//! Acquisition costs for characters, with optional item recipe snapshots.
+//! Prerequisite characters remain complete inputs; older forms are never charged again.
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::hero::{fixed_beast, hero_names, hero_rank_order, hero_rank_pair, tidy};
+use super::calculator::{CalcBreakdown, CalcDocument, MAX_TOTAL_MATERIALS};
+use super::hero::{fixed_beast, hero_names, tidy};
 use super::text::lead;
 use super::user_data::{preferences_dir, write_preference_checked};
 use super::{ui_text, Catalog};
 
 const VERSION: u32 = 1;
-const MAX_INPUTS: usize = 512;
+const NESTED_VERSION: u32 = 2;
+const MAX_INPUTS: usize = MAX_TOTAL_MATERIALS;
 const MAX_JSON: usize = 256 * 1024;
 const INVALID: &str = "角色計算資料無效 / Invalid character calculation";
 const OVERFLOW: &str = "數量或成本過大 / Quantity or cost exceeds the supported range";
@@ -58,6 +60,9 @@ pub struct CharacterCalcDocument {
     pub conditions: String,
     pub quantity: i64,
     pub inputs: Vec<CharacterCalcInput>,
+    /// Only top-level item keys may hold recipes. Direct prices remain in inputs.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub nested: BTreeMap<String, CalcDocument>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +71,8 @@ pub struct CharacterCalcLine {
     pub quantity: i64,
     pub unit_price: Option<i64>,
     pub line_total: Option<i64>,
+    pub known_total: i64,
+    pub nested: Option<Box<CalcBreakdown>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,6 +84,8 @@ pub struct CharacterCalcBreakdown {
     pub known_total: i64,
     pub total: Option<i64>,
     pub priced: usize,
+    pub leaf_count: usize,
+    pub priced_leaves: usize,
     pub inputs: Vec<CharacterCalcLine>,
 }
 
@@ -96,7 +105,8 @@ fn safe_code(value: &str) -> bool {
 
 impl CharacterCalcDocument {
     pub fn calculate(&self) -> Result<CharacterCalcBreakdown, String> {
-        if self.version != VERSION
+        if !matches!(self.version, VERSION | NESTED_VERSION)
+            || (self.version == VERSION && !self.nested.is_empty())
             || self.quantity <= 0
             || !safe_code(&self.hero_code)
             || !safe_text(&self.language, 32, false)
@@ -106,6 +116,7 @@ impl CharacterCalcDocument {
             || !safe_text(&self.conditions, 32 * 1024, true)
             || self.inputs.is_empty()
             || self.inputs.len() > MAX_INPUTS
+            || self.nested.len() > self.inputs.len()
         {
             return Err(INVALID.into());
         }
@@ -116,8 +127,13 @@ impl CharacterCalcDocument {
             known_total: 0,
             total: None,
             priced: 0,
+            leaf_count: 0,
+            priced_leaves: 0,
             inputs: Vec::with_capacity(self.inputs.len()),
         };
+        // Top-level rows count once; item calculate_for adds all child rows.
+        let mut material_count = self.inputs.len();
+        let mut ancestors = BTreeSet::new();
         for input in &self.inputs {
             let valid_key = input.key.split_once(':').is_some_and(|(kind, code)| {
                 kind == input.kind
@@ -136,31 +152,79 @@ impl CharacterCalcDocument {
                 return Err(INVALID.into());
             }
             let quantity = input.per_unit.checked_mul(self.quantity).ok_or(OVERFLOW)?;
-            let line_total = input
-                .unit_price
-                .map(|price| quantity.checked_mul(price).ok_or(OVERFLOW))
-                .transpose()?;
-            if let Some(total) = line_total {
-                result.priced += 1;
-                result.known_total = result.known_total.checked_add(total).ok_or(OVERFLOW)?;
-                if input.kind == "fee" {
-                    result.fee = result.fee.checked_add(total).ok_or(OVERFLOW)?;
+            let (line_total, known_total, unit_price, nested) =
+                if let Some(child) = self.nested.get(&input.key) {
+                    if input.kind != "item"
+                        || input.key.strip_prefix("item:").and_then(|code| code.parse().ok())
+                            != Some(child.item_code)
+                    {
+                        return Err(INVALID.into());
+                    }
+                    let cost =
+                        child.calculate_for(quantity, 0, &mut ancestors, &mut material_count)?;
+                    result.leaf_count += cost.leaf_count;
+                    result.priced_leaves += cost.priced_leaves;
+                    (cost.total, cost.known_total, None, Some(Box::new(cost)))
                 } else {
-                    result.material_total =
-                        result.material_total.checked_add(total).ok_or(OVERFLOW)?;
-                }
+                    let total = input
+                        .unit_price
+                        .map(|price| quantity.checked_mul(price).ok_or(OVERFLOW))
+                        .transpose()?;
+                    result.leaf_count += 1;
+                    result.priced_leaves += usize::from(total.is_some());
+                    (total, total.unwrap_or(0), input.unit_price, None)
+                };
+            result.priced += usize::from(line_total.is_some());
+            result.known_total = result.known_total.checked_add(known_total).ok_or(OVERFLOW)?;
+            if input.kind == "fee" {
+                result.fee = result.fee.checked_add(known_total).ok_or(OVERFLOW)?;
+            } else {
+                result.material_total =
+                    result.material_total.checked_add(known_total).ok_or(OVERFLOW)?;
             }
             result.inputs.push(CharacterCalcLine {
                 key: input.key.clone(),
                 quantity,
-                unit_price: input.unit_price,
+                unit_price,
                 line_total,
+                known_total,
+                nested,
             });
         }
-        if result.priced == self.inputs.len() {
+        if self.nested.keys().any(|key| !keys.contains(key)) {
+            return Err(INVALID.into());
+        }
+        if result.priced_leaves == result.leaf_count {
             result.total = Some(result.known_total);
         }
         Ok(result)
+    }
+
+    /// Change an item's source atomically while keeping its direct-price estimate.
+    /// A recipe snapshot is independent of any library entry it originated from.
+    pub fn set_item_nested(
+        &mut self,
+        key: &str,
+        nested: Option<CalcDocument>,
+    ) -> Result<(), String> {
+        self.calculate()?;
+        let row = self
+            .inputs
+            .iter()
+            .find(|input| input.key == key && input.kind == "item")
+            .ok_or(INVALID)?;
+        let required = row.per_unit.checked_mul(self.quantity).ok_or(OVERFLOW)?;
+        let mut next = self.clone();
+        if let Some(mut child) = nested {
+            child.quantity = required;
+            next.nested.insert(key.into(), child);
+            next.version = NESTED_VERSION;
+        } else {
+            next.nested.remove(key);
+        }
+        next.calculate()?;
+        *self = next;
+        Ok(())
     }
 }
 
@@ -245,43 +309,6 @@ impl Catalog {
                 };
                 input(key, kind, title, qty)
             })
-            .collect()
-    }
-
-    pub fn character_calculator_candidates(
-        &self,
-        query: &str,
-        lang: &str,
-    ) -> Vec<CharacterCalcCandidate> {
-        let query = query.trim();
-        let folded = query.to_lowercase();
-        self.index.prepare_aliases(&folded);
-        let mut heroes: Vec<_> = self
-            .index
-            .heroes
-            .iter()
-            .filter(|hero| {
-                query.is_empty() || self.index.name_hit(query, &folded, &hero.code, &hero.names)
-            })
-            .collect();
-        heroes.sort_by_key(|hero| (hero_rank_order(hero.rank), hero.code.as_str()));
-        heroes
-            .into_iter()
-            .filter_map(|hero| {
-                let route_count = self.character_calculator_routes(&hero.code, lang).len();
-                if route_count == 0 {
-                    return None;
-                }
-                let (en, zh) = hero_rank_pair(hero.rank);
-                Some(CharacterCalcCandidate {
-                    code: hero.code.clone(),
-                    title: hero_names(lang, hero).0,
-                    subtitle: format!("{} · {}", ui_text(lang, zh, en), hero.code),
-                    route_count,
-                    icon: hero.icon.clone(),
-                })
-            })
-            .take(60)
             .collect()
     }
 
@@ -600,6 +627,7 @@ impl Catalog {
             conditions: route.conditions,
             quantity: 1,
             inputs: route.inputs,
+            nested: BTreeMap::new(),
         };
         doc.calculate()?;
         Ok(doc)
@@ -685,6 +713,9 @@ impl Catalog {
                 }
             }
         }
+        for child in translated.nested.values_mut() {
+            *child = self.localized_calculator_document(child, lang);
+        }
         translated
     }
 }
@@ -744,6 +775,10 @@ pub fn save_character_calculator(document: &CharacterCalcDocument) -> Result<(),
 }
 
 #[cfg(test)]
+#[path = "character_calculator/nested_tests.rs"]
+mod nested_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -762,6 +797,7 @@ mod tests {
                 input("item:140".into(), "item", "材料".into(), 3),
                 input("fee:acquisition".into(), "fee", "費用".into(), 1),
             ],
+            nested: BTreeMap::new(),
         }
     }
 
@@ -842,7 +878,7 @@ mod tests {
         invalid.inputs[0].key = "item:E85".into();
         assert!(invalid.calculate().is_err());
         let mut invalid = doc.clone();
-        invalid.version = 2;
+        invalid.version = 3;
         assert!(invalid.calculate().is_err());
         let mut invalid = doc;
         invalid.inputs.clear();
@@ -1026,7 +1062,7 @@ mod tests {
     #[test]
     fn search_localization_and_save_preserve_independent_estimates() {
         let catalog = Catalog::open_for_mcp().unwrap();
-        let candidates = catalog.character_calculator_candidates("持國天王", "zh");
+        let candidates = catalog.character_calculator_browse("持國天王", "", "zh");
         assert!(candidates.iter().any(|row| row.code == "T49"));
         let mut document = catalog
             .character_calculator_document("T49", "combination:0", "zh")

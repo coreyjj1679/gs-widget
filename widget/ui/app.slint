@@ -4814,7 +4814,11 @@ export component App inherits Window {
     callback calculate-record(string);
     property <int> record-calculator-focus-request: 0;
     in-out property <[CharacterCalcChoice]> character-calculator-candidates;
+    in-out property <[string]> character-calculator-groups;
+    in-out property <int> character-calculator-group-index;
     in-out property <[CharacterCalcMaterial]> character-calculator-materials;
+    in-out property <[CalcNestedOption]> character-calculator-nested-options;
+    in-out property <bool> character-calculator-input-valid: true;
     in-out property <[string]> character-calculator-routes;
     in-out property <int> character-calculator-route-index;
     in-out property <string> character-calculator-selected-name;
@@ -4835,10 +4839,13 @@ export component App inherits Window {
     in-out property <int> character-calculator-input-revision;
     callback character-calculator-refresh();
     callback character-calculator-search(string);
+    callback character-calculator-select-group(int);
     callback character-calculator-select-character(string);
     callback character-calculator-select-route(int);
     callback character-calculator-quantity-changed(string) -> bool;
     callback character-calculator-price-changed(string, string) -> bool;
+    callback character-calculator-request-nested-options(string, bool);
+    callback character-calculator-set-source(string, string);
     in-out property <[CalcChoice]> calculator-candidates;
     in-out property <[CalcMaterial]> calculator-materials;
     in-out property <[CalcNestedOption]> calculator-nested-options;
@@ -7597,7 +7604,11 @@ export component App inherits Window {
                     width: parent.width - root.page-pad * 2;
                     height: max(parent.height - 82px, 0px);
                     candidates: root.character-calculator-candidates;
+                    groups: root.character-calculator-groups;
+                    group-index <=> root.character-calculator-group-index;
                     materials: root.character-calculator-materials;
+                    nested-options: root.character-calculator-nested-options;
+                    input-valid: root.character-calculator-input-valid;
                     routes: root.character-calculator-routes;
                     route-index <=> root.character-calculator-route-index;
                     selected-name: root.character-calculator-selected-name;
@@ -7617,10 +7628,13 @@ export component App inherits Window {
                     complete: root.character-calculator-complete;
                     input-revision: root.character-calculator-input-revision;
                     search-query(q) => { root.character-calculator-search(q); }
+                    select-group(index) => { root.character-calculator-select-group(index); }
                     select-character(code) => { root.character-calculator-select-character(code); }
                     select-route(index) => { root.character-calculator-select-route(index); }
                     quantity-changed(q) => { return root.character-calculator-quantity-changed(q); }
                     price-changed(key, q) => { return root.character-calculator-price-changed(key, q); }
+                    request-nested-options(key, reuse) => { root.character-calculator-request-nested-options(key, reuse); }
+                    set-source(key, source) => { root.character-calculator-set-source(key, source); }
                 }
                 if root.category == "" && !root.settings-open && !root.calculator-open && !root.full-mode: home := Rectangle {
                     width: parent.width;

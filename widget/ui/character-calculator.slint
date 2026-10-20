@@ -1,7 +1,7 @@
 import { UiLanguage } from "language.slint";
 import { ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
 import { DesktopTheme, DesktopIcon } from "desktop.slint";
-import { CalcNumber } from "calculator.slint";
+import { CalcNumber, CalcNestedOption, CalcMaterialActions } from "calculator.slint";
 
 export struct CharacterCalcChoice {
     id: string,
@@ -21,6 +21,12 @@ export struct CharacterCalcMaterial {
     has-draft: bool,
     subtotal: string,
     missing-price: bool,
+    depth: int,
+    context: string,
+    detail: string,
+    nested: bool,
+    can-craft: bool,
+    can-reuse: bool,
     icon: image,
     has-icon: bool,
 }
@@ -74,11 +80,14 @@ component CharacterPicker inherits Rectangle {
     accessible-action-default => { root.show-options(); }
     accessible-action-expand => { root.show-options(); }
 
-    function show-options() {
+    public function reset-options() {
         root.query = "";
         root.option-index = 0;
         root.request("");
         root.scroll-y = 0px;
+    }
+    function show-options() {
+        root.reset-options();
         popup.show();
     }
     // Close from the picker, whose lifetime survives destruction of the popup.
@@ -99,7 +108,7 @@ component CharacterPicker inherits Rectangle {
     Text {
         x: root.selected-name == "" ? 12px : 47px;
         width: parent.width - self.x - 36px; height: 100%;
-        text: root.selected-name == "" ? CharacterCalcLanguage.tr("Search for a character or mercenary…", "搜尋可合成的角色或傭兵…", "합성할 캐릭터 또는 용병 검색…") : root.selected-name;
+        text: root.selected-name == "" ? CharacterCalcLanguage.tr("Choose a character or mercenary…", "選擇可合成的角色或傭兵…", "합성할 캐릭터 또는 용병 선택…") : root.selected-name;
         color: root.selected-name == "" ? DesktopTheme.secondary : DesktopTheme.text;
         font-size: 14px; overflow: elide; vertical-alignment: center;
     }
@@ -135,8 +144,8 @@ component CharacterPicker inherits Rectangle {
             query-input := LineEdit {
                 x: 8px; y: 8px; width: parent.width - 16px; height: 34px;
                 text <=> root.query;
-                placeholder-text: CharacterCalcLanguage.tr("Type a character name…", "輸入角色或傭兵名稱…", "캐릭터 또는 용병 이름 입력…");
-                accessible-label: CharacterCalcLanguage.tr("Search craftable characters and mercenaries", "搜尋可合成的角色與傭兵", "합성 가능한 캐릭터 및 용병 검색");
+                placeholder-text: CharacterCalcLanguage.tr("Search within this category…", "在此分類搜尋…", "이 분류에서 검색…");
+                accessible-label: CharacterCalcLanguage.tr("Search characters in the selected category", "搜尋此分類的角色與傭兵", "선택한 분류의 캐릭터 및 용병 검색");
                 edited => {
                     root.option-index = 0;
                     choices.content-y = 0px;
@@ -145,23 +154,25 @@ component CharacterPicker inherits Rectangle {
                 accepted => { root.choose-current(); }
                 key-pressed(event) => {
                     if (event.text == Key.Escape) { root.close-options(); return accept; }
-                    if (event.text == Key.DownArrow || event.text == Key.UpArrow) {
-                        root.option-index = max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
+                    if (event.text == Key.DownArrow || event.text == Key.UpArrow || (root.query == "" && (event.text == Key.Home || event.text == Key.End))) {
+                        root.option-index = event.text == Key.Home ? 0 : event.text == Key.End ? root.options.length - 1 : max(0, min(root.options.length - 1, root.option-index + (event.text == Key.DownArrow ? 1 : -1)));
                         if (root.option-index * 52px < -choices.content-y) {
                             choices.content-y = -root.option-index * 52px;
-                        } else if ((root.option-index + 1) * 52px > -choices.content-y + choices.height) {
-                            choices.content-y = choices.height - (root.option-index + 1) * 52px;
+                        } else if ((root.option-index + 1) * 52px > -choices.content-y + choices.visible-height) {
+                            choices.content-y = choices.visible-height - (root.option-index + 1) * 52px;
                         }
                         return accept;
                     }
                     return reject;
                 }
             }
-            choices := Flickable {
+            choices := ScrollView {
                 x: 4px; y: 50px; width: parent.width - 8px; height: parent.height - 58px;
-                content-width: self.width;
+                content-width: self.visible-width;
                 content-y <=> root.scroll-y;
-                content-height: max(root.options.length * 52px, self.height);
+                content-height: max(root.options.length * 52px, self.visible-height);
+                horizontal-scrollbar-policy: always-off;
+                vertical-scrollbar-policy: as-needed;
                 for option[i] in root.options: Rectangle {
                     x: 0px; y: i * 52px; width: parent.width; height: 52px;
                     border-radius: 4px;
@@ -191,7 +202,7 @@ component CharacterPicker inherits Rectangle {
                 }
                 if root.options.length == 0: Text {
                     x: 12px; width: parent.width - 24px; height: 52px;
-                    text: CharacterCalcLanguage.tr("No matching characters. Try another name.", "找不到可合成角色，請換個名稱搜尋。", "검색 결과가 없습니다. 다른 이름을 입력해 주세요.");
+                    text: CharacterCalcLanguage.tr("No matching characters. Try another name or category.", "找不到可合成角色，請換個名稱或分類。", "검색 결과가 없습니다. 다른 이름이나 분류를 선택해 주세요.");
                     font-size: 13px; color: DesktopTheme.secondary;
                     vertical-alignment: center; wrap: word-wrap;
                 }
@@ -202,6 +213,8 @@ component CharacterPicker inherits Rectangle {
 
 export component CharacterCalculatorPane inherits Rectangle {
     in property <[CharacterCalcChoice]> candidates;
+    in property <[string]> groups;
+    in-out property <int> group-index;
     in property <string> selected-name;
     in property <image> selected-icon;
     in property <bool> selected-has-icon;
@@ -211,6 +224,8 @@ export component CharacterCalculatorPane inherits Rectangle {
     in property <string> quantity-draft;
     in property <bool> quantity-has-draft;
     in property <[CharacterCalcMaterial]> materials;
+    in property <[CalcNestedOption]> nested-options;
+    in property <bool> input-valid: true;
     in property <string> conditions;
     in property <string> material-total;
     in property <string> fee;
@@ -222,10 +237,13 @@ export component CharacterCalculatorPane inherits Rectangle {
     in property <bool> complete;
     in property <int> input-revision;
     callback search-query(string);
+    callback select-group(int);
     callback select-character(string);
     callback select-route(int);
     callback quantity-changed(string) -> bool;
     callback price-changed(string, string) -> bool;
+    callback request-nested-options(string, bool);
+    callback set-source(string, string);
     property <length> cost-width: root.width < 820px ? 114px : 150px;
     property <length> quantity-width: root.width < 820px ? 54px : 76px;
     property <length> editor-scroll-y: 0px;
@@ -243,19 +261,36 @@ export component CharacterCalculatorPane inherits Rectangle {
                 wrap: word-wrap;
             }
             Text {
-                text: CharacterCalcLanguage.tr("Choose a character and enter material prices for its crafting route.", "選擇角色或傭兵，依合成路線填入材料單價。", "캐릭터 또는 용병을 선택하고 합성 경로에 필요한 재료 단가를 입력하세요.");
+                text: CharacterCalcLanguage.tr("Browse by category, then enter prices or expand material recipes.", "依分類選擇角色或傭兵，填入單價或展開材料配方。", "분류에서 캐릭터나 용병을 선택한 뒤 단가를 입력하거나 재료 제작법을 펼치세요.");
                 font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
             }
         }
         HorizontalLayout {
             spacing: 18px;
             VerticalLayout {
+                width: 170px; spacing: 7px;
+                Text {
+                    text: CharacterCalcLanguage.tr("Category", "分類", "분류");
+                    color: DesktopTheme.secondary; font-size: 12px;
+                }
+                ComboBox {
+                    height: 42px; min-width: 0px;
+                    model: root.groups;
+                    current-index <=> root.group-index;
+                    accessible-label: CharacterCalcLanguage.tr("Character or mercenary category", "角色／傭兵分類", "캐릭터 / 용병 분류");
+                    selected(value) => {
+                        root.select-group(self.current-index);
+                        character-picker.reset-options();
+                    }
+                }
+            }
+            VerticalLayout {
                 horizontal-stretch: 1; min-width: 0px; spacing: 7px;
                 Text {
                     text: CharacterCalcLanguage.tr("Character / mercenary", "合成角色／傭兵", "합성할 캐릭터 / 용병");
                     color: DesktopTheme.secondary; font-size: 12px;
                 }
-                CharacterPicker {
+                character-picker := CharacterPicker {
                     selected-name: root.selected-name;
                     selected-icon: root.selected-icon;
                     selected-has-icon: root.selected-has-icon;
@@ -370,22 +405,60 @@ export component CharacterCalculatorPane inherits Rectangle {
                         Rectangle { height: 1px; background: DesktopTheme.border; }
                         for material in root.materials: Rectangle {
                             height: max(60px, material-row.preferred-height + 20px);
+                            background: material.nested ? DesktopTheme.surface-alt : transparent;
+                            // The description follows the material tree; costs stay aligned.
+                            if material.depth > 0: Rectangle {
+                                x: min(material.depth, 8) * 16px - 8px;
+                                y: 0px; width: 1px; height: parent.height;
+                                background: DesktopTheme.border;
+                            }
+                            if material.depth > 0: Rectangle {
+                                x: min(material.depth, 8) * 16px - 8px;
+                                y: 26px; width: 8px; height: 1px;
+                                background: DesktopTheme.border;
+                            }
                             material-row := HorizontalLayout {
                                 x: 0px; y: 10px; width: parent.width;
                                 height: self.preferred-height; spacing: 12px;
-                                HorizontalLayout {
-                                    horizontal-stretch: 1; min-width: 0px; spacing: 10px;
-                                    CharacterCalcArt { icon: material.icon; has-icon: material.has-icon; }
-                                    VerticalLayout {
-                                        horizontal-stretch: 1; min-width: 0px; spacing: 4px;
-                                        Text {
-                                            text: material.title; font-size: 14px;
-                                            color: DesktopTheme.text; wrap: word-wrap;
+                                VerticalLayout {
+                                    horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                                    padding-left: min(material.depth, 8) * 16px;
+                                    HorizontalLayout {
+                                        min-width: 0px; spacing: 10px;
+                                        CharacterCalcArt { icon: material.icon; has-icon: material.has-icon; }
+                                        VerticalLayout {
+                                            horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                                            Text {
+                                                text: material.title; font-size: 14px;
+                                                font-weight: material.nested ? 600 : 400;
+                                                color: DesktopTheme.text; wrap: word-wrap;
+                                            }
+                                            if material.subtitle != "": Text {
+                                                text: material.subtitle; font-size: 12px;
+                                                color: DesktopTheme.secondary; wrap: word-wrap;
+                                            }
                                         }
-                                        if material.subtitle != "": Text {
-                                            text: material.subtitle; font-size: 12px;
-                                            color: DesktopTheme.secondary; wrap: word-wrap;
-                                        }
+                                    }
+                                    if material.context != "": Text {
+                                        text: material.context;
+                                        font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                                    }
+                                    if material.detail != "": Text {
+                                        text: material.detail;
+                                        font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                                    }
+                                    if material.can-craft || material.can-reuse || material.nested: CalcMaterialActions {
+                                        english: UiLanguage.primary == "en";
+                                        enabled: root.input-valid;
+                                        nested: material.nested;
+                                        can-expand: material.can-craft;
+                                        can-reuse: material.can-reuse;
+                                        material-name: material.title;
+                                        options: root.nested-options;
+                                        popup-width: root.width - 32px;
+                                        request(reuse) => { root.request-nested-options(material.key, reuse); }
+                                        choose(id) => { root.set-source(material.key, id); }
+                                        clear => { root.set-source(material.key, "manual"); }
                                     }
                                 }
                                 Text {
@@ -393,7 +466,7 @@ export component CharacterCalculatorPane inherits Rectangle {
                                     font-size: 14px; color: DesktopTheme.text;
                                     vertical-alignment: top; horizontal-alignment: right; wrap: word-wrap;
                                 }
-                                CalcNumber {
+                                if !material.nested: CalcNumber {
                                     width: root.cost-width;
                                     value: material.price;
                                     reset-token: root.input-revision;
@@ -402,6 +475,21 @@ export component CharacterCalculatorPane inherits Rectangle {
                                     label: material.title + CharacterCalcLanguage.tr(" unit price", "單價", " 단가");
                                     placeholder-text: CharacterCalcLanguage.tr("Not entered", "未輸入", "미입력");
                                     commit(value) => { return root.price-changed(material.key, value); }
+                                }
+                                if material.nested: VerticalLayout {
+                                    width: root.cost-width; spacing: 4px; alignment: start;
+                                    Text {
+                                        text: material.price;
+                                        font-size: 14px;
+                                        color: material.missing-price ? DesktopTheme.muted : DesktopTheme.text;
+                                        horizontal-alignment: right; wrap: word-wrap;
+                                        accessible-description: CharacterCalcLanguage.tr("Calculated from sub-materials", "依子材料計算", "하위 재료로 계산");
+                                    }
+                                    Text {
+                                        text: CharacterCalcLanguage.tr("Calculated", "依子材料計算", "자동 계산");
+                                        font-size: 12px; color: DesktopTheme.secondary;
+                                        horizontal-alignment: right; wrap: word-wrap;
+                                    }
                                 }
                                 Text {
                                     width: root.cost-width; text: material.subtotal;
@@ -438,7 +526,7 @@ export component CharacterCalculatorPane inherits Rectangle {
                     wrap: word-wrap;
                 }
                 Text {
-                    text: CharacterCalcLanguage.tr("Enter a price per material or character.\nLeave unknown prices blank; enter 0 for no cost.", "請填每件材料或每位角色的取得成本。\n未知可留空，無需成本請填 0。", "재료 또는 캐릭터 1개당 획득 비용을 입력하세요.\n모르는 가격은 비워 두고, 비용이 없으면 0을 입력하세요.");
+                    text: CharacterCalcLanguage.tr("Enter purchase prices or expand item recipes.\nLeave unknown prices blank; enter 0 for no cost.", "可填取得單價，或展開道具的材料配方。\n未知可留空，無需成本請填 0。", "구매 단가를 입력하거나 아이템 제작법을 펼치세요.\n모르는 가격은 비워 두고, 비용이 없으면 0을 입력하세요.");
                     font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
                 }
             }

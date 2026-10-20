@@ -9,6 +9,7 @@ mod alias;
 mod copy_name;
 mod character_data;
 mod character_calculator;
+mod character_calculator_browse;
 mod enchant;
 mod hero;
 mod item;
