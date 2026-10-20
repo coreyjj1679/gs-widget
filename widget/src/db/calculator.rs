@@ -111,6 +111,37 @@ fn valid_text(value: &str, limit: usize, allow_empty: bool) -> bool {
 }
 
 impl Catalog {
+    /// Only offer the detail-page shortcut when a supported calculation can
+    /// actually be opened. Recruitment estimates are not synthesis recipes.
+    pub fn can_calculate_record(&self, key: &str) -> bool {
+        if let Some(code) = key.strip_prefix("item:") {
+            return code
+                .parse()
+                .ok()
+                .and_then(|code| self.calculator_entry_recipe(code, "zh"))
+                .is_some();
+        }
+        key.strip_prefix("hero:")
+            .and_then(|code| self.character_calculator_entry_route(code, "zh"))
+            .is_some()
+    }
+
+    /// Select the first loadable recipe in the calculator's existing order.
+    /// The read-only recipe index is shared across detail-page visits.
+    pub fn calculator_entry_recipe(&self, code: i64, lang: &str) -> Option<i64> {
+        if code <= 0 || self.index.find_item(code).is_none() {
+            return None;
+        }
+        let book = self
+            .calculator_entries
+            .get_or_init(|| self.calculator_catalog())
+            .as_ref()
+            .ok()?;
+        book.by_item.get(&code)?.iter().copied().find(|recipe_id| {
+            self.calculator_document(book, *recipe_id, lang).is_ok()
+        })
+    }
+
     pub fn calculator_item_title(&self, code: i64, fallback: &str, lang: &str) -> String {
         if self.index.find_item(code).is_some() { self.item_name(code, lang) } else { fallback.to_string() }
     }
@@ -505,3 +536,78 @@ pub fn calculator_export_dir() -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod entry_tests {
+    use super::*;
+
+    #[test]
+    fn detail_shortcuts_accept_loadable_items_and_reject_unsupported_records() {
+        let catalog = Catalog::open_for_mcp().expect("bundled database");
+        let book = catalog.calculator_catalog().unwrap();
+        // This material has several supported sources; the shortcut uses the
+        // same order as the calculator and keeps the other choices available.
+        let recipes = catalog.calculator_recipes(&book, 1082, "zh");
+        assert!(recipes.len() > 1);
+        assert!(catalog.can_calculate_record("item:1082"));
+        assert_eq!(
+            catalog.calculator_entry_recipe(1082, "zh"),
+            Some(recipes[0].recipe_id)
+        );
+        for language in ["zh-en", "en-zh", "ko"] {
+            let recipe = catalog.calculator_entry_recipe(1082, language).unwrap();
+            catalog.calculator_document(&book, recipe, language).unwrap();
+        }
+        for key in [
+            "item:1",       // No crafting recipe.
+            "item:5543",    // Reinforcement has no precise output level.
+            "item:0",
+            "item:-1",
+            "item:nope",
+            "item:999999999",
+            "hero:",
+            "hero:not-a-character",
+            "recipe:698",
+            "set:1",
+            "1082",
+            "",
+        ] {
+            assert!(!catalog.can_calculate_record(key), "accepted {key}");
+        }
+    }
+
+    #[test]
+    fn detail_shortcut_skips_recipes_that_cannot_form_a_valid_document() {
+        let mut catalog = Catalog::open_for_mcp().expect("bundled database");
+        catalog.conn = rusqlite::Connection::open_in_memory().unwrap();
+        catalog.conn.execute_batch("
+            CREATE TABLE items (code INTEGER PRIMARY KEY);
+            CREATE TABLE recipes (id INTEGER PRIMARY KEY, source TEXT, result_item INTEGER, result_qty INTEGER, fee INTEGER, learn_fee INTEGER, success_rate INTEGER);
+            CREATE TABLE recipe_materials (recipe_id INTEGER, slot INTEGER, item_code INTEGER, qty INTEGER, enhance INTEGER);
+            CREATE TABLE meta (key TEXT, value TEXT);
+            INSERT INTO meta VALUES ('catalog_version', 'test');
+            INSERT INTO items VALUES (10), (100);
+            INSERT INTO recipes VALUES
+                (1, char(10), 10, 1, 0, NULL, NULL),
+                (2, 'alchemy', 10, 1, 0, NULL, NULL);
+            INSERT INTO recipe_materials VALUES
+                (1, 1, 100, 1, 0), (2, 1, 100, 1, 0);
+        ").unwrap();
+        catalog.index.recipes = [1, 2]
+            .into_iter()
+            .map(|id| crate::db::rows::RecipeRow {
+                id,
+                source: if id == 1 { "\n" } else { "alchemy" }.into(),
+                result_str: "10".into(),
+                ko: String::new(),
+                en: String::new(),
+                zh: String::new(),
+                names: String::new(),
+                level_min: None,
+                icon: None,
+            })
+            .collect();
+        assert_eq!(catalog.calculator_entry_recipe(10, "zh"), Some(2));
+        assert!(catalog.can_calculate_record("item:10"));
+    }
+}

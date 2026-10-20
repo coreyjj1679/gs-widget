@@ -30,6 +30,7 @@ pub(super) fn translated(en: &str) -> Option<&'static str> {
         ": stop using sub-material costs" => ": 하위 재료 비용 대신 단가 입력",
         "My saved sheets" => "저장한 계산표",
         "Crafting cost" => "제작 비용",
+        "Calculate crafting cost" => "제작 비용 계산",
         "Characters / Mercenaries" => "캐릭터 / 용병",
         "Combination" => "합성",
         "Combination / promotion fee" => "합성 / 전직 수수료",

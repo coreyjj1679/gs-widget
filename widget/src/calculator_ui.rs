@@ -478,8 +478,14 @@ impl Controller {
         app.set_calculator_info(info.into());
         true
     }
-    fn select(&self, app: &App, recipe_id: i64, preserve_quantity: bool) {
-        let Ok(book) = &self.book else { return };
+    fn select(&self, app: &App, recipe_id: i64, preserve_quantity: bool) -> bool {
+        let book = match &self.book {
+            Ok(book) => book,
+            Err(error) => {
+                app.set_calculator_error(db::localized_error(&app.get_lang(), error).into());
+                return false;
+            }
+        };
         let mut next = match self
             .catalog
             .calculator_document(book, recipe_id, &app.get_lang())
@@ -487,7 +493,7 @@ impl Controller {
             Ok(doc) => doc,
             Err(error) => {
                 app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
-                return;
+                return false;
             }
         };
         if let Some(old) = self.document.borrow().as_ref() {
@@ -497,13 +503,17 @@ impl Controller {
             let keep_nested = preserve_quantity && old.item_code == next.item_code;
             if let Err(error) = nested::preserve_sources(&mut next, old, keep_nested) {
                 app.set_calculator_error(db::localized_error(&app.get_lang(), &error).into());
-                return;
+                return false;
             }
         }
-        if self.commit(app, next, "") && !preserve_quantity {
+        if !self.commit(app, next, "") {
+            return false;
+        }
+        if !preserve_quantity {
             self.active_entry.set(None);
             self.render_library(app);
         }
+        true
     }
     fn card(&self, app: &App) -> Result<calculator_export::CardData, String> {
         let current = self.document.borrow();
@@ -715,7 +725,7 @@ fn card_document(
 }
 
 pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
-    characters::install(app, Rc::clone(&catalog), Rc::clone(&cache));
+    let characters = characters::install(app, Rc::clone(&catalog), Rc::clone(&cache));
     let (document, load_error) = match db::load_calculator() {
         Ok(doc) => (doc, None),
         Err(error) => (None, Some(error)),
@@ -755,6 +765,44 @@ pub(crate) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
     });
     library::install_callbacks(app, &controller);
     nested::install_callbacks(app, &controller);
+    let weak = app.as_weak();
+    let c = Rc::clone(&controller);
+    app.on_calculate_record(move |key| {
+        let Some(app) = weak.upgrade() else { return };
+        if !c.catalog.can_calculate_record(&key) {
+            crate::feedback::error_for(&app, "calculator-navigation",
+                "此項目沒有可計算的合成配方。",
+                "No calculable crafting recipe is available for this record.",
+                "이 항목에는 계산 가능한 제작법이 없습니다.");
+            return;
+        }
+        let (opened, tab, error) = if let Some(code) = key.strip_prefix("item:").and_then(|code| code.parse().ok()) {
+            let Some(recipe) = c.catalog.calculator_entry_recipe(code, &app.get_lang()) else { return };
+            let current = c.document.borrow().as_ref().is_some_and(|document| document.item_code == code);
+            let opened = if current && c.load_error.is_none() {
+                c.render(&app);
+                true
+            } else {
+                c.select(&app, recipe, false)
+            };
+            (opened, 0, app.get_calculator_error())
+        } else if let Some(code) = key.strip_prefix("hero:") {
+            (characters.open_record(&app, code), 1, app.get_character_calculator_error())
+        } else {
+            return;
+        };
+        if opened {
+            if app.get_feedback_source() == "calculator-navigation" {
+                app.set_feedback_message("".into());
+                app.set_feedback_error(false);
+            }
+            app.invoke_show_record_calculator(tab);
+        } else {
+            // Keep the record visible when a draft cannot be saved. Navigating
+            // anyway would show the previously selected, unrelated calculation.
+            crate::feedback::error_for(&app, "calculator-navigation", &error, &error, &error);
+        }
+    });
     let weak = app.as_weak();
     let c = Rc::clone(&controller);
     app.on_calculator_refresh(move || {

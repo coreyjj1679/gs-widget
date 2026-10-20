@@ -6,7 +6,7 @@ use crate::{CharacterCalcChoice, CharacterCalcMaterial};
 #[path = "characters_tests.rs"]
 mod tests;
 
-struct CharacterController {
+pub(super) struct CharacterController {
     catalog: Rc<db::Catalog>,
     cache: IconCache,
     document: RefCell<Option<db::CharacterCalcDocument>>,
@@ -250,7 +250,23 @@ impl CharacterController {
         Ok(())
     }
 
-    fn select(&self, app: &App, code: &str, route: &str, preserve_quantity: bool) {
+    pub(super) fn open_record(&self, app: &App, code: &str) -> bool {
+        let Some(route) = self.catalog.character_calculator_entry_route(code, &app.get_lang()) else {
+            return false;
+        };
+        let current = self.document.borrow().as_ref().is_some_and(|document| {
+            document.hero_code == code && document.route_id != "recruitment"
+        });
+        if current && self.load_error.is_none() {
+            // Returning from the detail page must retain accepted prices and
+            // any incomplete input, just like switching calculator tabs.
+            self.render(app);
+            return true;
+        }
+        self.select(app, code, &route.id, false)
+    }
+
+    fn select(&self, app: &App, code: &str, route: &str, preserve_quantity: bool) -> bool {
         let result = self
             .catalog
             .character_calculator_document(code, route, &app.get_lang())
@@ -282,10 +298,14 @@ impl CharacterController {
                     app.get_character_calculator_input_revision()
                         .wrapping_add(1),
                 );
+                true
             }
-            Err(error) => app.set_character_calculator_error(
-                db::localized_error(&app.get_lang(), &error).into(),
-            ),
+            Err(error) => {
+                app.set_character_calculator_error(
+                    db::localized_error(&app.get_lang(), &error).into(),
+                );
+                false
+            }
         }
     }
 
@@ -335,7 +355,7 @@ impl CharacterController {
     }
 }
 
-pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
+pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) -> Rc<CharacterController> {
     let (document, load_error) = match db::load_character_calculator() {
         Ok(Some(document)) => match catalog.supplement_character_calculator_materials(&document) {
             Ok(updated) if updated != document => {
@@ -412,4 +432,5 @@ pub(super) fn install(app: &App, catalog: Rc<db::Catalog>, cache: IconCache) {
     });
     controller.render(app);
     controller.search(app, "");
+    controller
 }

@@ -84,6 +84,447 @@ fn save_review_images(app: &App, window: &MinimalSoftwareWindow) {
     }
 }
 
+fn entry_session(cache: IconCache) -> crate::Session {
+    let (jobs, _receiver) = std::sync::mpsc::channel();
+    crate::Session {
+        cache,
+        jobs,
+        generation: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        link_generation: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+    }
+}
+
+fn show_record_detail(
+    app: &App,
+    catalog: &db::Catalog,
+    session: &crate::Session,
+    key: &str,
+    full: bool,
+    preview: bool,
+) {
+    app.set_full_mode(full);
+    app.set_collapsed(false);
+    app.set_calculator_open(false);
+    app.set_settings_open(false);
+    app.set_mcp_open(false);
+    let (category, code) = key.split_once(':').unwrap_or(("item", key));
+    app.set_category(category.into());
+    app.set_place("".into());
+    app.set_area("".into());
+    app.set_place_name("".into());
+    app.set_area_name("".into());
+    app.set_nation_name("".into());
+    app.set_query("".into());
+    app.set_list_offset(0.0);
+    app.set_viewing(if preview { "" } else { key }.into());
+    app.set_detail_key(if preview { key } else { "" }.into());
+    app.set_detail_index(if preview { 0 } else { -1 });
+    app.set_viewing_monster(false);
+    if preview {
+        app.set_catalog_sections(ModelRc::default());
+        let records = catalog.search(category, code, &app.get_lang(), "", "");
+        app.set_hits(ModelRc::new(VecModel::from(crate::list::plain_hits(
+            records,
+        ))));
+    }
+    crate::sheet::show_key(app, catalog, session, key, false);
+}
+
+struct SavedEntryFile {
+    path: std::path::PathBuf,
+    original: Vec<u8>,
+}
+
+impl SavedEntryFile {
+    fn corrupt(name: &str) -> Self {
+        // calculator_export_dir uses the same isolated thread-local preference
+        // directory as both calculators; installed user state is never touched.
+        let path = db::calculator_export_dir().parent().unwrap().join(name);
+        let original = std::fs::read(&path).unwrap();
+        std::fs::write(&path, b"not valid JSON").unwrap();
+        Self { path, original }
+    }
+}
+
+impl Drop for SavedEntryFile {
+    fn drop(&mut self) {
+        std::fs::write(&self.path, &self.original).unwrap();
+    }
+}
+
+fn check_record_calculator_entries(app: &App, catalog: &Rc<db::Catalog>) -> String {
+    let cache = Rc::new(RefCell::new(HashMap::new()));
+    let session = entry_session(cache.clone());
+    // Earlier assertions reinstall just the character controller. Reinstall the
+    // complete integration so every callback shares the same retained drafts.
+    super::super::install(app, catalog.clone(), cache);
+    set_language(app, "zh-en");
+
+    let item_id = app.get_calculator_candidates().row_data(0).unwrap().id;
+    app.invoke_calculator_select_item(item_id.clone());
+    assert!(app.invoke_calculator_quantity_changed("9".into()));
+    let item_row_key = app.get_calculator_materials().row_data(0).unwrap().key;
+    assert!(app.invoke_calculator_price_changed(item_row_key.clone(), "700".into()));
+    assert!(!app.invoke_calculator_quantity_changed("item-entry-draft".into()));
+    assert!(!app.invoke_calculator_price_changed(item_row_key.clone(), "7x".into()));
+    let item_before = db::load_calculator().unwrap().unwrap();
+    let item_revision = app.get_calculator_input_revision();
+    let item_key = format!("item:{item_id}");
+
+    app.invoke_character_calculator_select_character("T49".into());
+    assert!(app.invoke_character_calculator_quantity_changed("7".into()));
+    fill_character_prices(app);
+    let hero_row_key = character_rows(app)[0].key.clone();
+    assert!(!app.invoke_character_calculator_quantity_changed("hero-entry-draft".into()));
+    assert!(!app.invoke_character_calculator_price_changed(hero_row_key.clone(), "9x".into()));
+    let hero_before = db::load_character_calculator().unwrap().unwrap();
+    let hero_revision = app.get_character_calculator_input_revision();
+
+    let full_mode_requests = Rc::new(std::cell::Cell::new(0));
+    let requests = full_mode_requests.clone();
+    app.on_mode_changed(move |full| {
+        assert!(full);
+        requests.set(requests.get() + 1);
+    });
+
+    // Opening the same target from a compact detail only changes navigation.
+    // Its accepted values and even invalid, partially typed fields survive.
+    app.set_calculator_library_open(true);
+    show_record_detail(app, catalog, &session, &item_key, false, false);
+    assert!(app.get_sheet_can_calculate());
+    app.invoke_calculate_record(item_key.clone().into());
+    assert!(app.get_full_mode());
+    assert!(app.get_calculator_open());
+    assert!(!app.get_calculator_library_open());
+    assert_eq!(app.get_calculator_tab(), 0);
+    assert_eq!(full_mode_requests.get(), 1);
+    assert_eq!(db::load_calculator().unwrap().unwrap(), item_before);
+    assert_eq!(app.get_calculator_input_revision(), item_revision);
+    assert_eq!(app.get_calculator_quantity(), "9");
+    assert_eq!(app.get_calculator_quantity_draft(), "item-entry-draft");
+    assert!(app.get_calculator_quantity_has_draft());
+    let item_row = app
+        .get_calculator_materials()
+        .iter()
+        .find(|row| row.key == item_row_key)
+        .unwrap();
+    assert!(item_row.has_draft);
+    assert_eq!(item_row.draft, "7x");
+
+    show_record_detail(app, catalog, &session, "hero:T49", true, true);
+    assert!(app.get_sheet_can_calculate());
+    app.invoke_calculate_record("hero:T49".into());
+    assert!(app.get_calculator_open());
+    assert_eq!(app.get_calculator_tab(), 1);
+    assert_eq!(full_mode_requests.get(), 1);
+    assert_eq!(
+        db::load_character_calculator().unwrap().unwrap(),
+        hero_before
+    );
+    assert_eq!(app.get_character_calculator_input_revision(), hero_revision);
+    assert_eq!(app.get_character_calculator_quantity(), "7");
+    assert_eq!(
+        app.get_character_calculator_quantity_draft(),
+        "hero-entry-draft"
+    );
+    assert!(app.get_character_calculator_quantity_has_draft());
+    let hero_row = character_rows(app)
+        .into_iter()
+        .find(|row| row.key == hero_row_key)
+        .unwrap();
+    assert!(hero_row.has_draft);
+    assert_eq!(hero_row.draft, "9x");
+
+    // Basic recruitment is available in the calculator's general search, but
+    // does not pretend to have a synthesis recipe on its detail page.
+    let recruit = catalog.character_calculator_routes("U00", "zh-en");
+    assert_eq!(recruit.len(), 1);
+    assert_eq!(recruit[0].id, "recruitment");
+    for key in [
+        "hero:U00",
+        "hero:missing",
+        "item:1",
+        "item:bad",
+        "recipe:1",
+        "",
+    ] {
+        show_record_detail(app, catalog, &session, key, false, false);
+        assert!(
+            !app.get_sheet_can_calculate(),
+            "unexpected calculator entry for {key}"
+        );
+        let viewing = app.get_viewing();
+        app.invoke_calculate_record(key.into());
+        assert!(
+            !app.get_calculator_open(),
+            "invalid entry navigated for {key}"
+        );
+        assert!(!app.get_full_mode());
+        assert_eq!(app.get_viewing(), viewing);
+        assert_eq!(app.get_calculator_tab(), 1);
+        assert_eq!(db::load_calculator().unwrap().unwrap(), item_before);
+        assert_eq!(
+            db::load_character_calculator().unwrap().unwrap(),
+            hero_before
+        );
+    }
+    assert_eq!(full_mode_requests.get(), 1);
+
+    // A different target uses the normal selection rules: starts at one output,
+    // clears the prior invalid drafts, and retains compatible material prices.
+    show_record_detail(app, catalog, &session, "hero:T51", false, false);
+    assert!(app.get_sheet_can_calculate());
+    app.invoke_calculate_record("hero:T51".into());
+    let next_hero = db::load_character_calculator().unwrap().unwrap();
+    assert_eq!(next_hero.hero_code, "T51");
+    assert_eq!(next_hero.quantity, 1);
+    assert!(app.get_full_mode());
+    assert!(app.get_calculator_open());
+    assert_eq!(app.get_calculator_tab(), 1);
+    assert_eq!(full_mode_requests.get(), 2);
+    assert!(!app.get_character_calculator_quantity_has_draft());
+    assert!(character_rows(app).iter().all(|row| !row.has_draft));
+    assert!(app.get_character_calculator_input_revision() > hero_revision);
+    for row in &next_hero.inputs {
+        if row.kind == "item" {
+            if let Some(prior) = hero_before.inputs.iter().find(|prior| prior.key == row.key) {
+                assert_eq!(row.unit_price, prior.unit_price);
+            }
+        }
+    }
+    assert_eq!(db::load_calculator().unwrap().unwrap(), item_before);
+
+    let other_item = app
+        .get_calculator_candidates()
+        .iter()
+        .find(|candidate| candidate.id != item_id)
+        .unwrap()
+        .id;
+    let other_key = format!("item:{other_item}");
+    show_record_detail(app, catalog, &session, &other_key, true, true);
+    assert!(app.get_sheet_can_calculate());
+    app.invoke_calculate_record(other_key.into());
+    let next_item = db::load_calculator().unwrap().unwrap();
+    assert_eq!(next_item.item_code.to_string(), other_item.as_str());
+    assert_eq!(next_item.quantity, 1);
+    assert_eq!(app.get_calculator_tab(), 0);
+    assert!(app.get_calculator_open());
+    assert!(!app.get_calculator_quantity_has_draft());
+    assert!(app
+        .get_calculator_materials()
+        .iter()
+        .all(|row| !row.has_draft));
+    assert!(app.get_calculator_input_revision() > item_revision);
+    assert_eq!(db::load_character_calculator().unwrap().unwrap(), next_hero);
+    assert_eq!(full_mode_requests.get(), 2);
+
+    // A failed save must not open the calculator displaying the previous target
+    // as if it were the requested one. Restore each fixture even on assertion
+    // failure, and confirm a subsequent valid action can still succeed.
+    for (key, file) in [
+        (item_key.as_str(), "calculator.json"),
+        ("hero:T49", "character-calculator.json"),
+    ] {
+        show_record_detail(app, catalog, &session, key, false, false);
+        assert!(app.get_sheet_can_calculate());
+        let previous_item_name = app.get_calculator_selected_name();
+        let previous_hero_name = app.get_character_calculator_selected_name();
+        let saved_file = SavedEntryFile::corrupt(file);
+        app.invoke_calculate_record(key.into());
+        assert!(!app.get_full_mode());
+        assert!(!app.get_calculator_open());
+        assert_eq!(app.get_viewing(), key);
+        assert_eq!(app.get_calculator_selected_name(), previous_item_name);
+        assert_eq!(
+            app.get_character_calculator_selected_name(),
+            previous_hero_name
+        );
+        assert_eq!(full_mode_requests.get(), 2);
+        drop(saved_file);
+    }
+    assert_eq!(db::load_calculator().unwrap().unwrap(), next_item);
+    assert_eq!(db::load_character_calculator().unwrap().unwrap(), next_hero);
+    app.invoke_calculate_record("hero:T49".into());
+    assert!(app.get_calculator_open());
+    assert_eq!(app.get_calculator_tab(), 1);
+    assert_eq!(
+        db::load_character_calculator().unwrap().unwrap().hero_code,
+        "T49"
+    );
+    item_key
+}
+
+fn check_record_calculator_keyboard(
+    app: &App,
+    window: &MinimalSoftwareWindow,
+    catalog: &db::Catalog,
+    item_key: &str,
+) {
+    use slint::platform::{Key, WindowEvent};
+    let session = entry_session(Rc::new(RefCell::new(HashMap::new())));
+    let press = |text: slint::SharedString| {
+        app.window()
+            .dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+        app.window()
+            .dispatch_event(WindowEvent::KeyReleased { text });
+    };
+
+    // Exercise actual focus and key delivery, rather than invoking the button's
+    // callback. The platform emits either Backtab or Shift + Tab; both must
+    // reach the action without changing the existing plain-Tab navigation.
+    for (key, full, preview, shifted_tab, space, tab) in [
+        (item_key, true, false, false, false, 0),
+        (item_key, false, false, true, true, 0),
+        (item_key, true, true, false, false, 0),
+        ("hero:T51", true, false, true, true, 1),
+        ("hero:T51", false, false, false, false, 1),
+        ("hero:T51", true, true, true, true, 1),
+    ] {
+        // Normal calculator navigation focuses the root keyboard scope. Keep
+        // that focus while setting up the detail view, as real open-hit does.
+        app.invoke_show_record_calculator(0);
+        show_record_detail(app, catalog, &session, key, full, preview);
+        assert!(app.get_sheet_can_calculate());
+        let (width, height) = if full { (960, 640) } else { (420, 700) };
+        draw(app, window, width, height);
+        if shifted_tab {
+            app.window().dispatch_event(WindowEvent::KeyPressed {
+                text: Key::Shift.into(),
+            });
+            press(Key::Tab.into());
+            app.window().dispatch_event(WindowEvent::KeyReleased {
+                text: Key::Shift.into(),
+            });
+        } else {
+            press(Key::Backtab.into());
+        }
+        assert!(!app.get_calculator_open());
+        slint::platform::update_timers_and_animations();
+        press(if space {
+            " ".into()
+        } else {
+            Key::Return.into()
+        });
+        assert!(
+            app.get_calculator_open(),
+            "keyboard action did not open {key}, full={full}, preview={preview}"
+        );
+        assert!(app.get_full_mode());
+        assert_eq!(app.get_calculator_tab(), tab);
+        if tab == 0 {
+            assert_eq!(
+                db::load_calculator()
+                    .unwrap()
+                    .unwrap()
+                    .item_code
+                    .to_string(),
+                key.strip_prefix("item:").unwrap()
+            );
+        } else {
+            assert_eq!(
+                db::load_character_calculator().unwrap().unwrap().hero_code,
+                "T51"
+            );
+        }
+    }
+}
+
+fn save_entry_review_images(
+    app: &App,
+    window: &MinimalSoftwareWindow,
+    catalog: &db::Catalog,
+    item_key: &str,
+) {
+    let directory = std::path::Path::new("/tmp/gs-widget-calculator-entry-review");
+    std::fs::create_dir_all(directory).unwrap();
+    let session = entry_session(Rc::new(RefCell::new(HashMap::new())));
+    let save = |name: &str, width: u32, height: u32| {
+        let pixels = draw(app, window, width, height);
+        image::save_buffer_with_format(
+            directory.join(format!("{name}.jpg")),
+            pixels.as_bytes(),
+            width,
+            height,
+            image::ColorType::Rgb8,
+            image::ImageFormat::Jpeg,
+        )
+        .unwrap();
+    };
+    for (name, key, language, full, preview, width, height) in [
+        (
+            "item-full-zh-1280x800",
+            item_key,
+            "zh-en",
+            true,
+            false,
+            1280,
+            800,
+        ),
+        (
+            "hero-full-en-960x640",
+            "hero:T51",
+            "en-zh",
+            true,
+            false,
+            960,
+            640,
+        ),
+        (
+            "item-compact-en-420x700",
+            item_key,
+            "en-zh",
+            false,
+            false,
+            420,
+            700,
+        ),
+        (
+            "hero-compact-zh-420x700",
+            "hero:T51",
+            "zh-en",
+            false,
+            false,
+            420,
+            700,
+        ),
+        (
+            "item-preview-en-960x640",
+            item_key,
+            "en-zh",
+            true,
+            true,
+            960,
+            640,
+        ),
+        (
+            "hero-preview-zh-1280x800",
+            "hero:T51",
+            "zh-en",
+            true,
+            true,
+            1280,
+            800,
+        ),
+    ] {
+        set_language(app, language);
+        show_record_detail(app, catalog, &session, key, full, preview);
+        assert!(app.get_sheet_can_calculate());
+        save(name, width, height);
+    }
+    for (name, key, language, tab) in [
+        ("item-calculator-en-960x640", item_key, "en-zh", 0),
+        ("hero-calculator-zh-960x640", "hero:T51", "zh-en", 1),
+    ] {
+        set_language(app, language);
+        show_record_detail(app, catalog, &session, key, false, false);
+        app.invoke_calculate_record(key.into());
+        assert!(app.get_calculator_open());
+        assert!(app.get_full_mode());
+        assert_eq!(app.get_calculator_tab(), tab);
+        save(name, 960, 640);
+    }
+}
+
 #[test]
 fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_languages() {
     // This test uses the real bundled catalog and the existing thread-local
@@ -300,7 +741,10 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
     }
     assert!(app.invoke_character_calculator_price_changed("item:5748".into(), "100".into()));
     assert!(app.get_character_calculator_complete());
-    assert_eq!(amount(&app.get_character_calculator_total()), old_total + 6_000);
+    assert_eq!(
+        amount(&app.get_character_calculator_total()),
+        old_total + 6_000
+    );
     assert_eq!(db::load_calculator().unwrap().unwrap(), item_document);
 
     // Render real controls in the narrow supported window even in normal test
@@ -311,6 +755,11 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
     draw(&app, &window, 960, 640);
     if std::env::var_os("GS_WIDGET_CHARACTER_CALCULATOR_REVIEW").is_some() {
         save_review_images(&app, &window);
+    }
+    let item_key = check_record_calculator_entries(&app, &catalog);
+    check_record_calculator_keyboard(&app, &window, &catalog, &item_key);
+    if std::env::var_os("GS_WIDGET_CALCULATOR_ENTRY_REVIEW").is_some() {
+        save_entry_review_images(&app, &window, &catalog, &item_key);
     }
     app.hide().unwrap();
 }

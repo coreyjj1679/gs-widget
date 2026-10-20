@@ -3900,6 +3900,8 @@ component HeroDetailPane inherits Rectangle {
     in property <bool> has-battle;
     in property <bool> animate;
     in property <bool> preview: false;
+    in property <bool> can-calculate: false;
+    in property <int> calculator-focus-request;
     in property <[Fact]> stats;
     in property <[Fact]> effects;
     in property <bool> spirit;
@@ -3913,6 +3915,7 @@ component HeroDetailPane inherits Rectangle {
     callback section(string);
     callback selected(int);
     callback open-full();
+    callback calculate();
     callback animate-changed(bool);
     callback scroll-span-changed(length);
     background: DesktopTheme.detail;
@@ -3936,6 +3939,19 @@ component HeroDetailPane inherits Rectangle {
                 Text { width: parent.width; text: root.code; color: DesktopTheme.muted; font-size: 11px; wrap: word-wrap; }
             }
             if root.preview: QuestTab { label: UiLanguage.tr("Open full details", "展開詳細頁"); active: false; clicked => { root.open-full(); } }
+            if root.can-calculate: HorizontalLayout {
+                alignment: start;
+                Button {
+                    width: min(224px, parent.width); height: 32px; horizontal-stretch: 0;
+                    text: UiLanguage.tr("Calculate crafting cost", "計算合成成本");
+                    property <int> focus-request: root.calculator-focus-request;
+                    changed focus-request => {
+                        root.reveal(parent.y, parent.height);
+                        self.focus();
+                    }
+                    clicked => { root.calculate(); }
+                }
+            }
             if root.effects.length > 0: VerticalLayout {
                 spacing: 8px;
                 Text { text: UiLanguage.tr("Skill effects", "技能效果"); color: DesktopTheme.text; font-size: 15px; font-weight: 600; }
@@ -4795,6 +4811,8 @@ export component App inherits Window {
     in-out property <bool> calculator-export-busy;
     in-out property <bool> calculator-open: false;
     in-out property <int> calculator-tab: 0;
+    callback calculate-record(string);
+    property <int> record-calculator-focus-request: 0;
     in-out property <[CharacterCalcChoice]> character-calculator-candidates;
     in-out property <[CharacterCalcMaterial]> character-calculator-materials;
     in-out property <[string]> character-calculator-routes;
@@ -4965,6 +4983,7 @@ export component App inherits Window {
     in-out property <string> sheet-alt;
     in-out property <string> sheet-code;
     in-out property <string> sheet-note;
+    in-out property <bool> sheet-can-calculate: false;
     in-out property <image> item-icon;
     in-out property <bool> show-icon;
     in-out property <image> battle-icon;
@@ -5472,6 +5491,19 @@ export component App inherits Window {
         root.drops-open = false;
         root.related-open = false;
         root.went-home();
+        keys.focus();
+    }
+
+    public function show-record-calculator(tab: int) {
+        root.go-home();
+        root.calculator-library-open = false;
+        if (!root.full-mode) {
+            root.full-mode = true;
+            root.mode-changed(true);
+        }
+        root.calculator-tab = tab;
+        root.calculator-open = true;
+        root.calculator-refresh();
         keys.focus();
     }
 
@@ -6370,6 +6402,14 @@ export component App inherits Window {
             if (root.viewing == "" && root.category != "") {
                 root.search-open = true;
             }
+            return accept;
+        }
+        // Keep Tab's catalog shortcuts; reverse Tab reaches the record's action.
+        if (keys.has-focus && root.sheet-can-calculate && (event.text == Key.Backtab || (event.text == Key.Tab && event.modifiers.shift))
+            && ((root.record-sheet && root.viewing-item && root.viewing.starts-with("item:"))
+                || (root.viewing-hero && root.viewing.starts-with("hero:"))
+                || (root.full-board && (root.detail-key.starts-with("item:") || root.detail-key.starts-with("hero:"))))) {
+            root.record-calculator-focus-request += 1;
             return accept;
         }
         if ((event.text == Key.Tab || event.text == Key.Backtab) && root.category == "quest" && root.place == "main" && root.viewing == "") {
@@ -8652,13 +8692,22 @@ export component App inherits Window {
                                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
                                 property <bool> can-open: root.record-key(root.detail-key) && !root.viewing-hero;
+                                property <bool> can-calculate: root.sheet-can-calculate && root.detail-key.starts-with("item:") && !root.viewing-hero;
                                 if self.can-open: Button {
                                     x: 12px; y: parent.heading-height + 8px; width: parent.width - 24px; height: 30px;
                                     text: UiLanguage.tr("Open details", "展開詳細資料");
                                     clicked => { root.open-hit(root.detail-key); keys.focus(); }
                                 }
+                                if self.can-calculate: Button {
+                                    x: 12px; y: parent.heading-height + (parent.can-open ? 46px : 8px);
+                                    width: parent.width - 24px; height: 32px;
+                                    text: UiLanguage.tr("Calculate crafting cost", "計算合成成本");
+                                    property <int> focus-request: root.record-calculator-focus-request;
+                                    changed focus-request => { self.focus(); }
+                                    clicked => { root.calculate-record(root.detail-key); }
+                                }
                                 if root.detail-key != "" && !root.viewing-hero: RecordDetail {
-                                    y: parent.heading-height + (parent.can-open ? 50px : 8px);
+                                    y: parent.heading-height + (parent.can-open ? 50px : 8px) + (parent.can-calculate ? 40px : 0px);
                                     width: parent.width; height: parent.height - self.y - 8px;
                                     facts: root.facts; links: root.links; note: root.sheet-note; body: root.detail;
                                     source-note: root.source-note;
@@ -8670,6 +8719,8 @@ export component App inherits Window {
                                 if root.detail-key != "" && root.viewing-hero: HeroDetailPane {
                                     width: 100%; height: 100%; preview: true;
                                     record-key: root.detail-key; english: UiLanguage.primary == "en";
+                                    can-calculate: root.sheet-can-calculate && root.detail-key.starts-with("hero:");
+                                    calculator-focus-request: root.record-calculator-focus-request;
                                     title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note;
                                     portrait: root.item-icon; has-portrait: root.show-icon; battle: root.battle-icon; has-battle: root.show-battle;
                                     animate: root.animate-battle; stats: root.hero-stats; effects: root.hero-effects; spirit: root.hero-spirit; facts: root.facts; links: root.links;
@@ -8679,6 +8730,7 @@ export component App inherits Window {
                                     section(key) => { root.source-changed(key); }
                                     open-key(key) => { root.open-hit(key); }
                                     open-full => { root.open-hit(root.detail-key); }
+                                    calculate => { root.calculate-record(root.detail-key); }
                                     animate-changed(on) => { root.choose-animate(on); }
                                 }
                             }
@@ -9016,6 +9068,8 @@ export component App inherits Window {
                     if root.viewing-hero && root.viewing != "": HeroDetailPane {
                         x: root.page-pad; y: 48px; width: root.pane-w - 2 * root.page-pad; height: parent.height - 56px;
                         record-key: root.viewing; english: UiLanguage.primary == "en";
+                        can-calculate: root.sheet-can-calculate && root.viewing.starts-with("hero:");
+                        calculator-focus-request: root.record-calculator-focus-request;
                         title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note;
                         portrait: root.item-icon; has-portrait: root.show-icon; battle: root.battle-icon; has-battle: root.show-battle;
                         animate: root.animate-battle; stats: root.hero-stats; effects: root.hero-effects; spirit: root.hero-spirit; facts: root.facts; links: root.links;
@@ -9024,6 +9078,7 @@ export component App inherits Window {
                         selected(index) => { root.cursor = index; }
                         section(key) => { root.source-changed(key); }
                         open-key(key) => { root.open-hit(key); }
+                        calculate => { root.calculate-record(root.viewing); }
                         animate-changed(on) => { root.choose-animate(on); }
                     }
                     if root.viewing-monster && !root.full-mode && root.show-element: Image {
@@ -9229,6 +9284,17 @@ export component App inherits Window {
                             Text {
                                 text: root.sheet-code; font-size: 12px; color: DesktopTheme.secondary;
                                 horizontal-alignment: root.full-item-sheet ? left : center;
+                            }
+                            if root.sheet-can-calculate && root.viewing-item && root.viewing.starts-with("item:"): HorizontalLayout {
+                                alignment: root.full-item-sheet ? start : center;
+                                padding-top: 8px;
+                                Button {
+                                    width: min(224px, parent.width); height: 32px; horizontal-stretch: 0;
+                                    text: UiLanguage.tr("Calculate crafting cost", "計算合成成本");
+                                    property <int> focus-request: root.record-calculator-focus-request;
+                                    changed focus-request => { self.focus(); }
+                                    clicked => { root.calculate-record(root.viewing); }
+                                }
                             }
                         }
                     }

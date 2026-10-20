@@ -206,6 +206,7 @@ impl Catalog {
             character_files: std::cell::RefCell::new(None),
             pictures,
             index,
+            calculator_entries: std::cell::OnceCell::new(),
             quest_graph: std::cell::OnceCell::new(),
             mcp_names: std::cell::OnceCell::new(),
             mcp_terminology,

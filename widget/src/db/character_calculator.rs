@@ -540,6 +540,30 @@ impl Catalog {
         Some(route)
     }
 
+    /// A synthesis shortcut must lead to a real incoming route, rather than
+    /// the fallback where the user estimates the character's entire price.
+    pub fn character_calculator_entry_route(
+        &self,
+        code: &str,
+        lang: &str,
+    ) -> Option<CharacterCalcRoute> {
+        self.character_calculator_routes(code, lang)
+            .into_iter()
+            .find(|route| {
+                let synthesis = route.id.starts_with("combination:")
+                    || route.id.starts_with("upgrade:")
+                    || route.id.starts_with("evolution:")
+                    || matches!(route.id.as_str(), "beast" | "acquisition");
+                synthesis
+                    && route.inputs.iter().any(|row| {
+                        matches!(row.kind.as_str(), "hero" | "item" | "choice")
+                    })
+                    && self
+                        .character_calc_document_for_route(code, route.clone(), lang)
+                        .is_ok()
+            })
+    }
+
     pub fn character_calculator_document(
         &self,
         code: &str,
@@ -557,6 +581,15 @@ impl Catalog {
                     "Character acquisition route not found.",
                 )
             })?;
+        self.character_calc_document_for_route(code, route, lang)
+    }
+
+    fn character_calc_document_for_route(
+        &self,
+        code: &str,
+        route: CharacterCalcRoute,
+        lang: &str,
+    ) -> Result<CharacterCalcDocument, String> {
         let doc = CharacterCalcDocument {
             version: VERSION,
             language: super::normalize_lang(lang),
@@ -729,6 +762,40 @@ mod tests {
                 input("item:140".into(), "item", "材料".into(), 3),
                 input("fee:acquisition".into(), "fee", "費用".into(), 1),
             ],
+        }
+    }
+
+    #[test]
+    fn detail_shortcuts_offer_synthesis_but_not_plain_recruitment() {
+        let catalog = Catalog::open_for_mcp().expect("bundled database");
+        for (code, expected_route) in [
+            ("T51", "combination:0"),
+            ("V09", "upgrade:T51"),
+            ("E74", "beast"),
+            ("mount:2", "acquisition"),
+            ("F19", "evolution:F16"),
+        ] {
+            for language in ["zh-en", "en-zh", "ko"] {
+                let route = catalog
+                    .character_calculator_entry_route(code, language)
+                    .unwrap_or_else(|| panic!("{code} has no synthesis shortcut"));
+                assert_eq!(route.id, expected_route);
+                catalog
+                    .character_calculator_document(code, &route.id, language)
+                    .unwrap();
+            }
+            assert!(catalog.can_calculate_record(&format!("hero:{code}")));
+        }
+        assert_eq!(
+            catalog.character_calculator_routes("U00", "zh")[0].id,
+            "recruitment"
+        );
+        for code in ["U00", "mount:12", "unknown", ""] {
+            assert!(
+                catalog.character_calculator_entry_route(code, "zh").is_none(),
+                "unexpected synthesis shortcut for {code}"
+            );
+            assert!(!catalog.can_calculate_record(&format!("hero:{code}")));
         }
     }
 
