@@ -2,6 +2,65 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "1.2.0",
+      "date": "2026-10-21",
+      "sections": [
+        {
+          "kind": "added",
+          "en": [
+            "Choose a primary language and an optional secondary language from Chinese, English and Korean. Korean catalog names, search and name copying are supported, with fallback when a translation is unavailable.",
+            "Browse 135 enchantment scrolls by color and event category, plus a directory of 1,317 client equipment records. Search by scroll, equipment or material.",
+            "Use separate item and character / mercenary cost calculators. Browse craftable characters by category without entering a search, choose a crafting or progression route, and enter material prices, prerequisite-character acquisition costs and fees. Unknown costs remain distinct from zero.",
+            "Expand item recipes inside character calculations, including nested materials such as Force Beads (Flame) and Five color powder. Reuse saved item cost sheets or return to manual prices, with quantities, whole batches, surplus and crafting fees recalculated at each level."
+          ],
+          "zh-TW": [
+            "新增主語言與可選的次語言設定，可自由選擇中文、英文或韓文。支援韓文圖鑑名稱、搜尋及名稱複製；缺少翻譯時會使用可用語言。",
+            "新增鬼道圖鑑，可按顏色及活動分類瀏覽 135 個秘訣，另設 1,317 筆客戶端裝備記錄目錄，並可搜尋秘訣、裝備與材料。",
+            "計算功能分為道具及角色／傭兵兩個分頁。可依分類直接選擇可合成角色，再選擇合成或進階路線，填入材料單價、前置角色取得成本及費用；未知成本與零成本分開顯示。",
+            "角色計算可逐層展開道具材料配方，例如精氣之珠（火）及五色粉末，並可重用已收藏的道具成本表或切回手填單價；各層需求量、製作批次、餘量及合成費會同步重算。"
+          ]
+        },
+        {
+          "kind": "improved",
+          "en": [
+            "Open the matching cost calculator directly from craftable item and character details or previews. Reopening the same target preserves entered quantities, prices, nested recipes and unfinished input.",
+            "Enchantment details show materials, applicable equipment, abilities, equipment requirements and success rates. Full-mode lists preview abilities, success rates, equipment and materials, with links to related records. Relevant NPC details include fortune-telling and grade-specific enchantment fees; penalties and missing ability data remain explicit.",
+            "Expand MCP queries with supported game nicknames, short questions, town and facility searches, filters, focused details, paginated relationships and comparisons. Ambiguous matches return choices, and repeated lookups use cached indexes.",
+            "Resolve an item and calculate direct materials and costs for a requested quantity in one MCP query. Multiple recipes require a choice, and missing prices remain unknown.",
+            "Export item cost sheets as JPGs in the background while continuing to edit. Completion or failure notices remain available after leaving the calculator, including when images were saved but could not be opened."
+          ],
+          "zh-TW": [
+            "可從能合成的道具或角色詳情及預覽，直接開啟對應的成本計算器。再次開啟同一目標時保留數量、價格、子配方及尚未完成的輸入。",
+            "鬼道詳情顯示材料、適用裝備、能力、裝備需求與成功率；完整模式列表亦可預覽能力、成功率、裝備及材料，並開啟相關記錄。相關 NPC 詳情列出點卦費及各級附魔費，負面能力與缺失資料會明確標示。",
+            "擴充 MCP 查詢，支援已收錄的遊戲俗稱、簡短問法、城鎮與設施搜尋、條件篩選、指定詳情、關聯分頁及多項比較；同名或多個候選會列出選項，重複查詢亦改用快取索引。",
+            "MCP 可在一次查詢中辨識道具並計算指定數量的直接材料與成本；多個配方會要求選擇，未填價格仍標示為未知。",
+            "道具成本表改為背景匯出 JPG，匯出期間可繼續編輯；離開計算器後仍會顯示完成或失敗通知，並分清圖片已儲存但無法開啟的情況。"
+          ]
+        },
+        {
+          "kind": "fixed",
+          "en": [
+            "Fix missing synthesis materials for some characters, including Virudhaka (T51). Compatible saved estimates receive the missing materials while retaining entered prices and quantities.",
+            "Correct inconsistent beast credit-level requirements. MCP mount acquisition details now include recorded prerequisite mounts, materials and fees, with riding training kept separate from acquisition costs.",
+            "Restore MCP enchantment-material usage links and quest links for worn or used items, preserving recorded requirements and quantities. Exact item-alias searches no longer include unrelated matches.",
+            "Validate alias names and item IDs before saving, identify the failing row and retain edits. Failed saves leave active aliases unchanged and do not overwrite unreadable existing files.",
+            "Show a retry action when settings cannot be saved, retaining the latest changes while the app remains open. Failed favourite saves keep the previous state instead of appearing successful.",
+            "Validate monster HP, hit-resistance and magic-resistance filter ranges. Invalid numbers or a minimum above the maximum now show an error instead of being treated as unrestricted.",
+            "Show copy success only after details, cost-sheet codes or folder codes reach the clipboard. Failures prompt a retry and leave cost sheets unchanged."
+          ],
+          "zh-TW": [
+            "修正部分角色合成材料遺漏，包括增長天王（T51）；相容的既有計算草稿會補回缺少的材料，並保留已填價格與數量。",
+            "修正部分神獸信用等級條件不一致。MCP 坐騎取得資料補上已記錄的前置坐騎、材料及費用，並將騎術訓練需求與取得成本分開。",
+            "補回 MCP 附魔材料用途，以及任務穿戴／使用道具的關聯查詢，保留已記錄的條件與數量；精確道具別名搜尋亦不再混入無關結果。",
+            "儲存別名前檢查名稱及道具編號，指出有問題的列並保留修改；儲存失敗時不套用別名，也不覆蓋無法讀取的既有檔案。",
+            "設定儲存失敗時提供「重試儲存」，程式開啟期間會保留最新修改供重試；收藏儲存失敗時維持原本狀態，避免顯示成已成功收藏。",
+            "驗證怪物體力、打擊抗性及魔法抗性的篩選範圍；錯誤數字或最低值高於最高值時顯示原因，避免被當成不限範圍。",
+            "複製詳情、成本表分享碼或資料夾分享碼時，只有剪貼簿寫入成功才顯示成功訊息；失敗會提示重試並保留成本表。"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.1.1",
       "date": "2026-10-20",
       "sections": [
