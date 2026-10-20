@@ -1,9 +1,16 @@
+import json
+import sqlite3
 import sys
+import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import import_enchant as importer
 from import_enchant import parse_enchant, parse_npcs
+from test_enchant_data import ENCHANT_TEXT, EFFECT_TEXT, ENCHANT_FIELDS, EFFECT_FIELDS
 
 
 RECIPE = """
@@ -28,6 +35,9 @@ ITEMS = {
     1129: "[고구려의] 주술 비법",
     2206: "적색 정기의 돌",
     2287: "흑철괴",
+    1000: "fixture base",
+    1001: "fixture result",
+    8165: "주술해제 비법서",
 }
 STRINGS = {6889, 6892}
 
@@ -71,6 +81,191 @@ class EnchantNpcTests(unittest.TestCase):
         self.assertEqual(bonuses[0][0], "1Cls_EnchantChosun")
         self.assertEqual(bonuses[0][1], 98)
         self.assertNotIn(5200, npcs[0])
+
+
+class EnchantImportTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.target = self.root / "widget.db"
+        self.client = self.root / "client"
+        self.client.mkdir()
+        (self.client / "gersang.gcs").write_bytes(b"mock archive; decoded tables supplied by fixture")
+        with closing(sqlite3.connect(self.target)) as conn, conn:
+            conn.execute("CREATE TABLE items (code INTEGER PRIMARY KEY, name_ko TEXT NOT NULL)")
+            conn.executemany("INSERT INTO items VALUES (?, ?)", ITEMS.items())
+            conn.execute("CREATE TABLE npcs (code INTEGER PRIMARY KEY, name_ko TEXT NOT NULL)")
+            conn.execute("INSERT INTO npcs VALUES (37, '[전체:주술연마] 조선 아무개 산신령')")
+            conn.execute("CREATE TABLE strings (object TEXT, id TEXT, lang TEXT, text TEXT)")
+            conn.executemany("INSERT INTO strings VALUES ('OnlineText.dat', ?, 'zh', 'fixture')",
+                             [(f"{code:08d}",) for code in STRINGS])
+            conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            conn.execute("INSERT INTO meta VALUES ('catalog_version', 'fixture-version')")
+            conn.execute("CREATE TABLE recipes (id INTEGER PRIMARY KEY, source TEXT, result_item INTEGER)")
+            conn.execute("INSERT INTO recipes VALUES (1, 'reinforce', 1129)")
+            conn.execute("CREATE TABLE recipe_materials (recipe_id INTEGER, item_code INTEGER, qty INTEGER)")
+            conn.execute("INSERT INTO recipe_materials VALUES (1, 2287, 7)")
+
+    def import_fixture(self, recipe=RECIPE, materials=MATERIALS, targets=TARGETS,
+                       equipment=ENCHANT_TEXT, effects=EFFECT_TEXT):
+        with mock.patch.object(importer, "client_texts",
+                               return_value=[recipe, materials, targets, NPC, BONUS, equipment, effects]):
+            return importer.import_enchant(self.client, self.target)
+
+    def rows(self, table):
+        with closing(sqlite3.connect(self.target)) as conn:
+            return conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2").fetchall()
+
+    def snapshot(self):
+        with closing(sqlite3.connect(self.target)) as conn:
+            return tuple(conn.iterdump())
+
+    def test_imports_all_tables_preserves_catalog_and_reruns_without_changes(self):
+        before = {table: self.rows(table) for table in (
+            "items", "npcs", "strings", "recipes", "recipe_materials",
+        )}
+        result = self.import_fixture()
+        self.assertEqual(result["counts"], {
+            "scrolls": 1, "materials": 2, "material_tables": 1,
+            "target_types": 2, "scroll_targets": 2, "npcs": 1, "npc_bonuses": 1,
+            "equipment": 1, "effect_profiles": 1, "used_effect_profiles": 1,
+            "linked_equipment": 1, "zero_scroll_equipment": 0, "missing_scroll_equipment": 0,
+            "linked_scrolls": 1, "scrolls_without_equipment": 0,
+            "unavailable_results": 0, "unavailable_bases": 0,
+        })
+        self.assertEqual(self.rows("enchant_recipes"), [(1129, 15, 150, "4Cls_4")])
+        self.assertEqual(self.rows("enchant_materials"), [("4Cls_4", 1, 2206, 20), ("4Cls_4", 2, 2287, 10)])
+        self.assertEqual(self.rows("enchant_target_types"), [("TAEHWANG_ARMOR", 6889, 0), ("TAEHWANG_HELMET", 6892, 0)])
+        self.assertEqual(self.rows("enchant_recipe_targets"), [(1129, 1, "TAEHWANG_ARMOR"), (1129, 2, "TAEHWANG_HELMET")])
+        self.assertEqual(self.rows("enchant_npcs")[0][3], 2500000)
+        self.assertEqual(self.rows("enchant_npc_bonus")[0][1], 98)
+        for table, rows in before.items():
+            self.assertEqual(self.rows(table), rows, table)
+        metadata = dict(self.rows("meta"))
+        self.assertEqual(metadata["catalog_version"], "fixture-version")
+        self.assertEqual(json.loads(metadata["enchant_source"]), result)
+        self.assertEqual(result["archive_sha256"], importer.file_sha256(self.client / "gersang.gcs"))
+        self.assertEqual(len(result["tables"]), 7)
+        with closing(sqlite3.connect(self.target)) as conn:
+            self.assertEqual(conn.execute(
+                "SELECT scroll_item, base_item, result_item, effect_strength, effect_dexterity, "
+                "effect_bonus_experience_raw FROM v_enchant_equipment"
+            ).fetchall(), [(1129, 1000, 1001, 20, -5, "0.05")])
+            self.assertEqual(conn.execute(
+                "SELECT e.result_item, m.material_item, m.qty FROM v_enchant_equipment e "
+                "JOIN v_enchant_materials m ON m.scroll_item=e.scroll_item ORDER BY m.slot"
+            ).fetchall(), [(1001, 2206, 20), (1001, 2287, 10)])
+        initial_bytes, initial_rows = self.target.read_bytes(), self.snapshot()
+        self.assertEqual(self.import_fixture(), result)
+        self.assertEqual(self.snapshot(), initial_rows)
+        self.assertEqual(self.target.read_bytes(), initial_bytes)
+
+    def test_refresh_removes_stale_materials_and_targets_and_updates_values(self):
+        first = self.import_fixture()
+        changed = self.import_fixture(
+            recipe=RECIPE.replace("15\tLevel150", "20\tLevel150").replace(", TAEHWANG_HELMET", ""),
+            materials=MATERIALS.replace("적색 정기의 돌\t2206\t20", "적색 정기의 돌\t2206\t25")
+                               .replace("흑철괴\t2287\t10", "0\t0\t0"),
+            targets=TARGETS.replace("TAEHWANG_HELMET\t태황투구\t6892\n", ""),
+        )
+        self.assertNotEqual(first["sha256"], changed["sha256"])
+        self.assertEqual(self.rows("enchant_recipes"), [(1129, 20, 150, "4Cls_4")])
+        self.assertEqual(self.rows("enchant_materials"), [("4Cls_4", 1, 2206, 25)])
+        self.assertEqual(self.rows("enchant_recipe_targets"), [(1129, 1, "TAEHWANG_ARMOR")])
+        self.assertEqual(self.rows("enchant_target_types"), [("TAEHWANG_ARMOR", 6889, 0)])
+
+    def test_refresh_removes_stale_equipment_and_effect_profiles(self):
+        equipment, effect = list(ENCHANT_FIELDS), list(EFFECT_FIELDS)
+        equipment[0], equipment[36], effect[0] = "1002", "second_effect", "second_effect"
+        self.import_fixture(equipment=ENCHANT_TEXT + "\t".join(equipment) + "\n",
+                            effects=EFFECT_TEXT + "\t".join(effect) + "\n")
+        self.assertEqual(len(self.rows("enchant_equipment")), 2)
+        self.assertEqual(len(self.rows("enchant_effects")), 2)
+        self.import_fixture()
+        self.assertEqual([row[0] for row in self.rows("enchant_equipment")], [1001])
+        self.assertEqual([row[0] for row in self.rows("enchant_effects")], ["fixture_effect"])
+
+    def test_first_import_rolls_back_schema_and_rows_after_late_write_failure(self):
+        with closing(sqlite3.connect(self.target)) as conn, conn:
+            conn.execute("CREATE TRIGGER reject_enchant_meta BEFORE INSERT ON meta "
+                         "WHEN NEW.key = 'enchant_source' BEGIN SELECT RAISE(ABORT, 'fixture metadata failure'); END")
+        before, before_bytes = self.snapshot(), self.target.read_bytes()
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "fixture metadata failure"):
+            self.import_fixture()
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.target.read_bytes(), before_bytes)
+
+    def test_refresh_rolls_back_deleted_and_updated_rows_after_late_failure(self):
+        self.import_fixture()
+        with closing(sqlite3.connect(self.target)) as conn, conn:
+            conn.execute("CREATE TRIGGER reject_enchant_meta BEFORE UPDATE ON meta "
+                         "WHEN NEW.key = 'enchant_source' BEGIN SELECT RAISE(ABORT, 'fixture refresh failure'); END")
+        before, before_bytes = self.snapshot(), self.target.read_bytes()
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "fixture refresh failure"):
+            self.import_fixture(materials=MATERIALS.replace("흑철괴\t2287\t10", "0\t0\t0"))
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.target.read_bytes(), before_bytes)
+
+    def test_incompatible_existing_schema_does_not_create_or_replace_tables(self):
+        with closing(sqlite3.connect(self.target)) as conn, conn:
+            conn.execute("CREATE TABLE enchant_npcs (npc_code TEXT PRIMARY KEY)")
+            conn.execute("INSERT INTO enchant_npcs VALUES ('preserve-me')")
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, "Incompatible existing enchant_npcs columns"):
+            self.import_fixture()
+        self.assertEqual(self.snapshot(), before)
+
+    def test_matching_columns_with_wrong_type_are_rejected_before_deletion(self):
+        with closing(sqlite3.connect(self.target)) as conn, conn:
+            conn.execute("CREATE TABLE enchant_recipes (item_code INTEGER PRIMARY KEY, "
+                         "success_rate TEXT NOT NULL, level INTEGER NOT NULL, recipe_key TEXT NOT NULL)")
+            conn.execute("INSERT INTO enchant_recipes VALUES (999, 'preserve-me', 1, 'fixture')")
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, "schema at success_rate"):
+            self.import_fixture()
+        self.assertEqual(self.snapshot(), before)
+
+    def test_invalid_source_leaves_existing_enchant_data_untouched(self):
+        self.import_fixture()
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, "missing material tables"):
+            self.import_fixture(recipe=RECIPE.replace("4Cls_4", "missing"))
+        self.assertEqual(self.snapshot(), before)
+
+    def test_missing_target_is_not_created(self):
+        missing = self.root / "absent.db"
+        with self.assertRaisesRegex(ValueError, "Target catalog does not exist"):
+            importer.import_enchant(self.client, missing)
+        self.assertFalse(missing.exists())
+
+
+class EnchantParserLocationTests(unittest.TestCase):
+    def test_finds_sibling_parser_from_nested_widget_checkout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "gs-parser" / "gersang"
+            package.mkdir(parents=True)
+            for name in ("archive.py", "extra.py"):
+                (package / name).touch()
+            with mock.patch.object(importer, "ROOT", root / "gs-widget" / "gs-widget"):
+                self.assertEqual(importer.parser_package_root(), package.parent.resolve())
+
+    def test_explicit_parser_location_is_used_and_invalid_location_explains_flag(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "custom-parser" / "gersang"
+            package.mkdir(parents=True)
+            for name in ("archive.py", "extra.py"):
+                (package / name).touch()
+            self.assertEqual(importer.parser_package_root(package.parent), package.parent.resolve())
+            with self.assertRaisesRegex(ValueError, "Pass --parser-root"):
+                importer.parser_package_root(root / "missing")
+
+    def test_missing_client_archive_explains_client_flag(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(ValueError, "Pass --client"):
+                importer.client_texts(Path(temporary))
 
 
 if __name__ == "__main__":

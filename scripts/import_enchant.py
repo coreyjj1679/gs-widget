@@ -7,6 +7,8 @@ applies them. Those rows live in the client archive:
 - Online/Item/RecipeItem.txt — one scroll, its success rate, level and targets
 - Online/Item/TableRecipe.txt — materials for each recipe key
 - Online/Item/TargetItemType.txt — gear vocabulary and its description text id
+- Online/Item/EnchantItem.txt — explicit scroll, base, result and effect links
+- Online/Item/TableAdvBasicParm.txt — additive effects and inheritance flags
 - Online/Map/EnchantNPC.txt — fortune fee, enchant fees by grade, success weight
 - Online/Map/EnchantNPCBonus.txt — fortune-telling weights for each NPC
 
@@ -23,12 +25,117 @@ import json
 import re
 import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
+
+import enchant_data
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TARGET = ROOT / "data" / "gersang.db"
 DEFAULT_CLIENT = ROOT / "data" / "gcs"
 LEVEL = re.compile(r"Level([0-9]+)\Z")
+
+# These tables belong to this importer. Keep explicit columns for writes and
+# validate an existing schema before replacing any rows.
+TABLE_COLUMNS = {
+    "enchant_recipes": ("item_code", "success_rate", "level", "recipe_key"),
+    "enchant_materials": ("recipe_key", "slot", "item_code", "qty"),
+    "enchant_target_types": ("token", "label_gts", "item_code"),
+    "enchant_recipe_targets": ("item_code", "slot", "token"),
+    "enchant_npcs": ("npc_code", "grade", "fortune_fee", "success_rate", "param_code",
+                     "fee_1", "fee_2", "fee_3", "fee_4", "fee_5", "fee_6", "fee_7"),
+    "enchant_npc_bonus": ("param_code", "share_rate", "per_level", "per_credit",
+                          "weight_z", "weight_o", "weight_i", "weight_y", "weight_l",
+                          "weight_t", "weight_c", "weight_u", "weight_belt", "weight_ring",
+                          "weight_shoes", "weight_armor", "weight_glove", "weight_helmet",
+                          "weight_element", "weight_food", "weight_weapon"),
+}
+TABLE_KEYS = {
+    "enchant_recipes": ("item_code",),
+    "enchant_materials": ("recipe_key", "slot"),
+    "enchant_target_types": ("token",),
+    "enchant_recipe_targets": ("item_code", "slot"),
+    "enchant_npcs": ("npc_code",),
+    "enchant_npc_bonus": ("param_code",),
+}
+TEXT_COLUMNS = {"recipe_key", "token", "param_code"}
+
+
+def create_tables(target):
+    for table, columns in TABLE_COLUMNS.items():
+        keys = TABLE_KEYS[table]
+        fields = []
+        for column in columns:
+            kind = "TEXT" if column in TEXT_COLUMNS else "INTEGER"
+            constraint = "PRIMARY KEY" if keys == (column,) else "NOT NULL"
+            fields.append(f"{column} {kind} {constraint}")
+        if len(keys) > 1:
+            fields.append(f"PRIMARY KEY ({', '.join(keys)})")
+        # executescript would commit BEGIN IMMEDIATE before executing the DDL.
+        target.execute(f"CREATE TABLE IF NOT EXISTS {table} ({', '.join(fields)})")
+        found = {row[1]: row for row in target.execute(f"PRAGMA table_info({table})")}
+        if set(found) != set(columns):
+            raise ValueError(f"Incompatible existing {table} columns")
+        for column in columns:
+            row = found[column]
+            kind = "TEXT" if column in TEXT_COLUMNS else "INTEGER"
+            primary_key = keys.index(column) + 1 if column in keys else 0
+            requires_not_null = keys != (column,)
+            if row[2].upper() != kind or row[5] != primary_key or (requires_not_null and not row[3]):
+                raise ValueError(f"Incompatible existing {table} schema at {column}")
+    target.execute("CREATE INDEX IF NOT EXISTS idx_enchant_materials_item ON enchant_materials(item_code)")
+    target.execute("CREATE INDEX IF NOT EXISTS idx_enchant_materials_key ON enchant_materials(recipe_key)")
+
+
+def replace_rows(target, table, rows):
+    columns = TABLE_COLUMNS.get(table) or enchant_data.TABLE_COLUMNS[table]
+    # Avoid rewriting pages on an identical refresh; compare complete owned
+    # rows rather than trusting metadata left by an earlier run.
+    existing = target.execute(f"SELECT {', '.join(columns)} FROM {table}").fetchall()
+    if len(existing) == len(rows) and set(existing) == set(rows):
+        return
+    target.execute(f"DELETE FROM {table}")
+    target.executemany(
+        f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",
+        rows,
+    )
+
+
+def create_views(target):
+    """Expose explicit equipment links and their effects without multiplying materials."""
+    effects = ", ".join(
+        f"f.{column} AS effect_{column}"
+        for column in enchant_data.EFFECT_SOURCE_COLUMNS if column != "effect_key"
+    )
+    definitions = {
+        "v_enchant_equipment": (
+            "SELECT e.*, r.success_rate AS scroll_success_rate, "
+            "r.level AS scroll_required_level, r.recipe_key, " + effects +
+            " FROM enchant_equipment e "
+            "LEFT JOIN enchant_recipes r ON r.item_code = e.scroll_item "
+            "JOIN enchant_effects f ON f.effect_key = e.effect_key"
+        ),
+        "v_enchant_materials": (
+            "SELECT r.item_code AS scroll_item, r.recipe_key, m.slot, "
+            "m.item_code AS material_item, m.qty "
+            "FROM enchant_recipes r JOIN enchant_materials m ON m.recipe_key = r.recipe_key"
+        ),
+    }
+    for name, query in definitions.items():
+        sql = f"CREATE VIEW {name} AS {query}"
+        previous = target.execute("SELECT sql FROM sqlite_master WHERE type='view' AND name=?", (name,)).fetchone()
+        if previous and previous[0] == sql:
+            continue
+        target.execute(f"DROP VIEW IF EXISTS {name}")
+        target.execute(sql)
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def connect(path, readonly=False):
@@ -99,13 +206,35 @@ def find_text(texts, *needles):
     return found[0]
 
 
-def client_texts(client):
-    if str(ROOT) not in sys.path:
-        sys.path.insert(0, str(ROOT))
-    from gersang.archive import read_archive
-    from gersang.extra import _decode
+def parser_package_root(parser_root=None):
+    candidates = [Path(parser_root)] if parser_root is not None else [
+        ROOT, ROOT.parent / "gs-parser", ROOT.parent.parent / "gs-parser",
+    ]
+    for candidate in candidates:
+        if all((candidate / "gersang" / name).is_file() for name in ("archive.py", "extra.py")):
+            return candidate.resolve()
+    searched = ", ".join(str(path) for path in candidates)
+    raise ValueError(
+        "Cannot find the gs-parser package (gersang/archive.py and gersang/extra.py). "
+        f"Pass --parser-root /path/to/gs-parser. Searched: {searched}"
+    )
 
+
+def client_texts(client, *, parser_root=None):
     path = Path(client) / "gersang.gcs"
+    if not path.is_file():
+        raise ValueError(f"Client archive does not exist: {path}. Pass --client /path/to/client/static")
+    if sys.version_info < (3, 10):
+        raise ValueError("Reading client archives with gs-parser requires Python 3.10 or newer")
+    package_root = parser_package_root(parser_root)
+    sys.path.insert(0, str(package_root))
+    try:
+        from gersang.archive import read_archive
+        from gersang.extra import _decode
+    except ImportError as error:
+        raise ValueError(f"Cannot load gs-parser from {package_root}: {error}") from error
+    finally:
+        sys.path.remove(str(package_root))
     texts = []
     for member in read_archive(str(path)):
         text = _decode(member.data)
@@ -245,15 +374,19 @@ def parse_npcs(npc_text, bonus_text, names):
     return npcs, bonuses
 
 
-def import_enchant(client, target_path=DEFAULT_TARGET):
+def import_enchant(client, target_path=DEFAULT_TARGET, *, parser_root=None):
     client, target_path = Path(client), Path(target_path)
-    texts = client_texts(client)
+    if not target_path.is_file():
+        raise ValueError(f"Target catalog does not exist: {target_path}")
+    texts = client_texts(client, parser_root=parser_root)
     recipe_text = find_text(texts, "재료 아이템 테이블 인덱스", "연마되는 아이템 종류")
     material_text = find_text(texts, "재료1 코드", "재료10 수량")
     target_text = find_text(texts, "아이템 종류 어휘", "설명 텍스트 인덱스")
+    equipment_text = find_text(texts, "비법 아이템 코드", "기본 성능 향상 테이블")
+    effect_text = find_text(texts, "테이블 인덱스", "주술 연마 성공확률 주인공")
     npc_text = find_text(texts, "점괘 비용", "주술연마 비용(1등급)")
     bonus_text = find_text(texts, "Parm Code", "TarotPrb. Share Rate")
-    with connect(target_path, readonly=True) as source:
+    with closing(connect(target_path, readonly=True)) as source:
         items = dict(source.execute("SELECT code, name_ko FROM items"))
         names = dict(source.execute("SELECT code, name_ko FROM npcs"))
         strings = {int(row[0]) for row in source.execute(
@@ -261,14 +394,33 @@ def import_enchant(client, target_path=DEFAULT_TARGET):
         )}
     recipes, materials, types, targets = parse_enchant(recipe_text, material_text, target_text, items, strings)
     npcs, bonuses = parse_npcs(npc_text, bonus_text, names)
+    equipment = enchant_data.parse_enchant_data(equipment_text, effect_text, items, {row[0] for row in recipes})
     digest = hashlib.sha256()
-    for text in (recipe_text, material_text, target_text, npc_text, bonus_text):
+    source_tables = {
+        "RecipeItem": recipe_text, "TableRecipe": material_text, "TargetItemType": target_text,
+        "EnchantNPC": npc_text, "EnchantNPCBonus": bonus_text,
+        "EnchantItem": equipment_text, "TableAdvBasicParm": effect_text,
+    }
+    for text in source_tables.values():
         digest.update(text.encode("utf-8"))
     result = {
+        "schema_version": 2,
         "source": "gersang.gcs",
+        "archive_sha256": file_sha256(client / "gersang.gcs"),
         "sha256": digest.hexdigest(),
+        "tables": {name: {"decoded_text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}
+                   for name, text in source_tables.items()},
         "scroll_success_unit": "percent",
         "npc_success_unit": "client integer weight",
+        "notes": {
+            "links": "EnchantItem explicit base, scroll, result and effect codes; no name matching",
+            "zero_scroll": "Source has no scroll code; preserved without an inferred link",
+            "missing_items": "All source equipment retained; availability flags refer to this catalog",
+            "effects": "Source additive values; requirement fields and inheritance flags kept separately",
+            "decimals": "Original numeric text; enchant modifiers are not converted to percentages",
+            "revert_scroll": "Restoration scroll item, not a restoration result",
+            "jackpot": "Separate source result; no jackpot probability inferred",
+        },
         "counts": {
             "scrolls": len(recipes),
             "materials": len(materials),
@@ -277,98 +429,26 @@ def import_enchant(client, target_path=DEFAULT_TARGET):
             "scroll_targets": len(targets),
             "npcs": len(npcs),
             "npc_bonuses": len(bonuses),
+            **equipment["counts"],
         },
     }
-    with connect(target_path) as target:
+    with closing(connect(target_path)) as target:
         target.execute("BEGIN IMMEDIATE")
         try:
-            target.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS enchant_recipes (
-                    item_code INTEGER PRIMARY KEY,
-                    success_rate INTEGER NOT NULL,
-                    level INTEGER NOT NULL,
-                    recipe_key TEXT NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS enchant_materials (
-                    recipe_key TEXT NOT NULL,
-                    slot INTEGER NOT NULL,
-                    item_code INTEGER NOT NULL,
-                    qty INTEGER NOT NULL,
-                    PRIMARY KEY (recipe_key, slot)
-                );
-                CREATE TABLE IF NOT EXISTS enchant_target_types (
-                    token TEXT PRIMARY KEY,
-                    label_gts INTEGER NOT NULL,
-                    item_code INTEGER NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS enchant_recipe_targets (
-                    item_code INTEGER NOT NULL,
-                    slot INTEGER NOT NULL,
-                    token TEXT NOT NULL,
-                    PRIMARY KEY (item_code, slot)
-                );
-                CREATE INDEX IF NOT EXISTS idx_enchant_materials_item ON enchant_materials(item_code);
-                CREATE INDEX IF NOT EXISTS idx_enchant_materials_key ON enchant_materials(recipe_key);
-                CREATE TABLE IF NOT EXISTS enchant_npcs (
-                    npc_code INTEGER PRIMARY KEY,
-                    grade INTEGER NOT NULL,
-                    fortune_fee INTEGER NOT NULL,
-                    success_rate INTEGER NOT NULL,
-                    param_code TEXT NOT NULL,
-                    fee_1 INTEGER NOT NULL,
-                    fee_2 INTEGER NOT NULL,
-                    fee_3 INTEGER NOT NULL,
-                    fee_4 INTEGER NOT NULL,
-                    fee_5 INTEGER NOT NULL,
-                    fee_6 INTEGER NOT NULL,
-                    fee_7 INTEGER NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS enchant_npc_bonus (
-                    param_code TEXT PRIMARY KEY,
-                    share_rate INTEGER NOT NULL,
-                    per_level INTEGER NOT NULL,
-                    per_credit INTEGER NOT NULL,
-                    weight_z INTEGER NOT NULL,
-                    weight_o INTEGER NOT NULL,
-                    weight_i INTEGER NOT NULL,
-                    weight_y INTEGER NOT NULL,
-                    weight_l INTEGER NOT NULL,
-                    weight_t INTEGER NOT NULL,
-                    weight_c INTEGER NOT NULL,
-                    weight_u INTEGER NOT NULL,
-                    weight_belt INTEGER NOT NULL,
-                    weight_ring INTEGER NOT NULL,
-                    weight_shoes INTEGER NOT NULL,
-                    weight_armor INTEGER NOT NULL,
-                    weight_glove INTEGER NOT NULL,
-                    weight_helmet INTEGER NOT NULL,
-                    weight_element INTEGER NOT NULL,
-                    weight_food INTEGER NOT NULL,
-                    weight_weapon INTEGER NOT NULL
-                );
-                """
-            )
-            for table in (
-                "enchant_recipe_targets", "enchant_materials", "enchant_recipes", "enchant_target_types",
-                "enchant_npcs", "enchant_npc_bonus",
+            create_tables(target)
+            enchant_data.create_tables(target)
+            for table, rows in (
+                ("enchant_recipe_targets", targets), ("enchant_materials", materials),
+                ("enchant_recipes", recipes), ("enchant_target_types", types),
+                ("enchant_npcs", npcs), ("enchant_npc_bonus", bonuses),
+                ("enchant_effects", equipment["enchant_effects"]),
+                ("enchant_equipment", equipment["enchant_equipment"]),
             ):
-                target.execute(f"DELETE FROM {table}")
-            target.executemany("INSERT INTO enchant_recipes VALUES (?, ?, ?, ?)", recipes)
-            target.executemany("INSERT INTO enchant_materials VALUES (?, ?, ?, ?)", materials)
-            target.executemany("INSERT INTO enchant_target_types VALUES (?, ?, ?)", types)
-            target.executemany("INSERT INTO enchant_recipe_targets VALUES (?, ?, ?)", targets)
-            target.executemany(
-                "INSERT INTO enchant_npcs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                npcs,
-            )
-            target.executemany(
-                "INSERT INTO enchant_npc_bonus VALUES (" + ", ".join("?" for _ in range(21)) + ")",
-                bonuses,
-            )
+                replace_rows(target, table, rows)
+            create_views(target)
             target.execute(
                 "INSERT INTO meta(key, value) VALUES ('enchant_source', ?) "
-                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE value IS NOT excluded.value",
                 (json.dumps(result, sort_keys=True),),
             )
             if target.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
@@ -384,16 +464,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--client", type=Path, default=DEFAULT_CLIENT)
     parser.add_argument("--target", type=Path, default=DEFAULT_TARGET)
+    parser.add_argument("--parser-root", type=Path,
+                        help="gs-parser checkout containing gersang/; defaults to a sibling gs-parser checkout")
     args = parser.parse_args()
     try:
-        result = import_enchant(args.client, args.target)
+        result = import_enchant(args.client, args.target, parser_root=args.parser_root)
     except (OSError, sqlite3.Error, ValueError) as error:
         parser.exit(1, f"Import failed: {error}\n")
     counts = result["counts"]
     print(
         f"Enchant scrolls {counts['scrolls']}, materials {counts['materials']}, "
         f"tables {counts['material_tables']}, targets {counts['scroll_targets']}, "
-        f"NPCs {counts['npcs']}"
+        f"NPCs {counts['npcs']}, equipment {counts['equipment']}, effects {counts['effect_profiles']}; "
+        f"linked equipment {counts['linked_equipment']}, source zero-scroll {counts['zero_scroll_equipment']}, "
+        f"missing scroll references {counts['missing_scroll_equipment']}"
     )
 
 

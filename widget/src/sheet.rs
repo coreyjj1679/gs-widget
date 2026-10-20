@@ -95,6 +95,13 @@ pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) {
             subtitle: String::new().into(),
             detail: SharedString::default(),
             monster_drops: Default::default(),
+            enchant_equipment: Default::default(),
+            enchant_materials: Default::default(),
+            enchant_scroll: false,
+            enchant_level: Default::default(),
+            enchant_rate: -1,
+            enchant_bonuses: Default::default(),
+            enchant_bonuses_recorded: false,
             spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),
@@ -181,6 +188,13 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
             subtitle: header.subtitle,
             detail: SharedString::default(),
             monster_drops: Default::default(),
+            enchant_equipment: Default::default(),
+            enchant_materials: Default::default(),
+            enchant_scroll: false,
+            enchant_level: Default::default(),
+            enchant_rate: -1,
+            enchant_bonuses: Default::default(),
+            enchant_bonuses_recorded: false,
             spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),
@@ -340,8 +354,11 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
             apply_sheet(&app, name, alt, id, lines);
         }
     } else if let Some(code) = key.strip_prefix("item:") {
-        if let Some((name, alt, id, lines, note)) = catalog.item_sheet(code.parse().unwrap_or(0), &lang) {
-            apply_sheet(&app, name, alt, id, lines);
+        let code = code.parse().unwrap_or(0);
+        if let Some((name, alt, id, lines, note)) = catalog.item_sheet(code, &lang) {
+            let success_rate = catalog.enchant_scroll_info(&[code]).get(&code)
+                .map(|info| (catalog.enchant_success_label(&lang), info.rate));
+            apply_sheet_with_success_rate(&app, name, alt, id, lines, success_rate);
             app.set_sheet_note(note.into());
             app.set_viewing_item(true);
         }
@@ -375,6 +392,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                         icon,
                         has_icon,
                         section: section.into(),
+                        ..Fact::default()
                     }
                 })
                 .collect();
@@ -459,6 +477,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                     icon,
                     has_icon,
                     section: String::new().into(),
+                    ..Fact::default()
                 });
             }
             app.set_facts(ModelRc::new(VecModel::from(facts)));
@@ -476,6 +495,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                     icon: Image::default(),
                     has_icon: false,
                     section: String::new().into(),
+                    ..Fact::default()
                 })
                 .collect();
             app.set_reward_facts(ModelRc::new(VecModel::from(rewards)));
@@ -483,6 +503,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                 .map(|(label, value, key)| Fact {
                     label: label.into(), value: value.into(), key: key.into(),
                     icon: Image::default(), has_icon: false, section: Default::default(),
+                    ..Fact::default()
                 }).collect();
             app.set_quest_classification(ModelRc::new(VecModel::from(classification)));
             let (dependencies, note) = catalog.quest_dependency_rows(quest_id, &lang);
@@ -545,18 +566,36 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
 }
 
 pub(crate) fn apply_sheet(app: &App, name: String, alt: String, id: String, lines: Vec<(String, String)>) {
+    apply_sheet_with_success_rate(app, name, alt, id, lines, None);
+}
+
+fn apply_sheet_with_success_rate(
+    app: &App,
+    name: String,
+    alt: String,
+    id: String,
+    lines: Vec<(String, String)>,
+    success_rate: Option<(String, i64)>,
+) {
     app.set_sheet_title(name.into());
     app.set_sheet_alt(alt.into());
     app.set_sheet_code(id.into());
     let facts: Vec<Fact> = lines
         .into_iter()
-        .map(|(label, value)| Fact {
-            label: label.into(),
-            value: value.into(),
-            key: String::new().into(),
-            icon: Image::default(),
-            has_icon: false,
-            section: String::new().into(),
+        .map(|(label, value)| {
+            let rate = success_rate.as_ref()
+                .filter(|(success_label, _)| success_label == &label)
+                .and_then(|(_, rate)| i32::try_from(*rate).ok());
+            Fact {
+                label: label.into(),
+                value: value.into(),
+                key: String::new().into(),
+                icon: Image::default(),
+                has_icon: false,
+                section: String::new().into(),
+                success_rate: rate.unwrap_or_default(),
+                has_success_rate: rate.is_some(),
+            }
         })
         .collect();
     app.set_facts(ModelRc::new(VecModel::from(facts)));
@@ -611,6 +650,13 @@ pub(crate) fn link_rows(
             subtitle: SharedString::from(subtitle),
             detail: SharedString::default(),
             monster_drops: Default::default(),
+            enchant_equipment: Default::default(),
+            enchant_materials: Default::default(),
+            enchant_scroll: false,
+            enchant_level: Default::default(),
+            enchant_rate: -1,
+            enchant_bonuses: Default::default(),
+            enchant_bonuses_recorded: false,
             spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),

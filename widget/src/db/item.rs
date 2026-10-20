@@ -787,8 +787,15 @@ impl Catalog {
             },
         );
         let Ok((ko, en, zh, price, weight, description, image, frame)) = row else {
+            if let Some((name, alt, _, lines, note)) = self.enchant_source_sheet(code, lang) {
+                let mut text = if alt.is_empty() { name } else { format!("{name}\n{alt}") };
+                for (label, value) in lines { text.push_str(&format!("\n{label}  {value}")); }
+                if !note.is_empty() { text.push_str(&format!("\n{note}")); }
+                return (text, self.item_relations(code, lang), self.enchant_source_icon(code));
+            }
             return (phrase("missing-item", lang), Vec::new(), None);
         };
+        let (en, zh, ko) = self.complete_enchant_names(code, en, zh, ko);
         let name = stack3(lang, &en, &zh, &ko);
         let lines = self.item_lines(code, lang, price, weight);
         let note = self.item_note(self.item_desc_gts(code), &description, lang);
@@ -800,25 +807,29 @@ impl Catalog {
             text.push_str(&format!("\n{note}"));
         }
         let links = self.item_relations(code, lang);
-        let icon = self.icon_path(&image, frame);
+        let icon = self.icon_path(&image, frame).or_else(|| self.item_icon(code));
         (text, links, icon)
     }
 
-    /// Alternate names for item browsing come from the loaded index, not one SQL query per row.
+    /// Use indexed names, filling sparse enchant records from explicit source links.
     pub fn item_alternate_name(&self, key: &str, lang: &str) -> String {
         let Some((kind, id)) = key.split_once(':') else { return String::new() };
         if matches!(kind, "icat" | "isub") {
             let (en, zh) = if kind == "icat" { item_category_pair(id) } else { weapon_family_pair(id) };
             return trail3(lang, en, zh, &chrome_text("ko", zh, en));
         }
+        if kind == "item" {
+            let Ok(code) = id.parse() else { return String::new() };
+            let (en, zh, ko) = self.item_names3(code);
+            return trail3(lang, &en, &zh, &ko);
+        }
         let names = match kind {
-            "item" => id.parse().ok().and_then(|code| self.index.find_item(code))
-                .map(|item| (item.en.as_str(), item.zh.as_str(), item.ko.as_str())),
             "set" => id.parse::<i64>().ok().and_then(|code| self.index.sets.iter().find(|set| set.code == code))
                 .map(|set| (set.en.as_str(), set.zh.as_str(), set.ko.as_str())),
             _ => None,
         };
-        names.map(|(en, zh, ko)| trail3(lang, en, zh, ko)).unwrap_or_default()
+        if let Some((en, zh, ko)) = names { return trail3(lang, en, zh, ko); }
+        String::new()
     }
 
     pub fn item_sheet(&self, code: i64, lang: &str) -> Option<(String, String, String, Vec<(String, String)>, String)> {
@@ -844,8 +855,9 @@ impl Catalog {
             },
         );
         let Ok((ko, en, zh, price, weight, description, desc_gts)) = row else {
-            return None;
+            return self.enchant_source_sheet(code, lang);
         };
+        let (en, zh, ko) = self.complete_enchant_names(code, en, zh, ko);
         Some((
             lead3(lang, &en, &zh, &ko),
             trail3(lang, &en, &zh, &ko),
@@ -895,6 +907,7 @@ impl Catalog {
             lines.push((phrase("item-sort", lang), shown));
         }
         lines.extend(self.enchant_lines(code, lang));
+        lines.extend(self.enchant_bonus_lines(code, lang));
         lines.extend(self.gear_lines(code, lang));
         lines.extend(self.affix_lines(code, lang));
         lines.extend(self.set_lines(code, lang));
@@ -1597,7 +1610,7 @@ impl Catalog {
             .unwrap_or_default()
     }
 
-    fn enchant_material_hits(&self, code: i64, lang: &str) -> Vec<Hit> {
+    pub(super) fn enchant_material_hits(&self, code: i64, lang: &str) -> Vec<Hit> {
         if !self.has_table("enchant_recipes") {
             return Vec::new();
         }
@@ -1614,7 +1627,7 @@ impl Catalog {
             .collect()
     }
 
-    fn enchant_scroll_hits(&self, code: i64, lang: &str) -> Vec<Hit> {
+    pub(super) fn enchant_scroll_hits(&self, code: i64, lang: &str) -> Vec<Hit> {
         if !self.has_table("enchant_materials") {
             return Vec::new();
         }
@@ -1636,7 +1649,7 @@ impl Catalog {
             .unwrap_or_default()
     }
 
-    fn enchant_hit(&self, code: i64, subtitle: String, lang: &str) -> Hit {
+    pub(super) fn enchant_hit(&self, code: i64, subtitle: String, lang: &str) -> Hit {
         Hit {
             title: self.item_name(code, lang),
             subtitle,
@@ -1653,8 +1666,7 @@ impl Catalog {
         let mut hits = Vec::new();
         self.push_section(&mut hits, lang, "sold-in", self.item_sellers(code, lang));
         self.push_section(&mut hits, lang, "dropped-by", self.item_droppers(code, lang));
-        push_rows(&mut hits, lang, "enchant-need", self.enchant_material_hits(code, lang));
-        push_rows(&mut hits, lang, "enchant-for", self.enchant_scroll_hits(code, lang));
+        hits.extend(self.enchant_equipment_relations(code, lang));
         self.push_section(&mut hits, lang, "craft-how", self.recipes_for(code, lang));
         self.push_section(&mut hits, lang, "make", self.production_for(code, lang));
         let mut uses = self.item_quest_uses(code, lang);
@@ -1685,10 +1697,21 @@ impl Catalog {
 
     pub(in crate::db) fn item_names3(&self, code: i64) -> (String, String, String) {
         if let Some(item) = self.index.find_item(code) {
-            return (item.en.clone(), item.zh.clone(), item.ko.clone());
+            return self.complete_enchant_names(code, item.en.clone(), item.zh.clone(), item.ko.clone());
         }
         let (en, zh) = self.item_pair(code);
-        let ko = self.conn.query_row("SELECT name_ko FROM items WHERE code = ?1", [code], |row| row.get(0)).unwrap_or_default();
+        let ko: String = self.conn.query_row("SELECT name_ko FROM items WHERE code = ?1", [code], |row| row.get(0)).unwrap_or_default();
+        self.complete_enchant_names(code, en, zh, ko)
+    }
+
+    fn complete_enchant_names(&self, code: i64, mut en: String, mut zh: String, mut ko: String) -> (String, String, String) {
+        if en.trim().is_empty() || zh.trim().is_empty() || ko.trim().is_empty() {
+            if let Some((source_en, source_zh, source_ko)) = self.enchant_source_names(code) {
+                if en.trim().is_empty() { en = source_en; }
+                if zh.trim().is_empty() { zh = source_zh; }
+                if ko.trim().is_empty() { ko = source_ko; }
+            }
+        }
         (en, zh, ko)
     }
 
@@ -1709,8 +1732,12 @@ impl Catalog {
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
         );
         let Ok((ko, en, zh)) = found else {
+            if let Some((en, zh, ko)) = self.enchant_source_names(code) {
+                return lead3(lang, &en, &zh, &ko);
+            }
             return code.to_string();
         };
+        let (en, zh, ko) = self.complete_enchant_names(code, en, zh, ko);
         let shown = if primary_lang(lang) == "ko" { lead3(lang, &en, &zh, &ko) } else { lead(lang, &en, &zh) };
         if !shown.is_empty() {
             return shown;
@@ -1769,7 +1796,7 @@ impl Catalog {
     }
 
     pub(in crate::db) fn item_icon(&self, code: i64) -> Option<(PathBuf, i32)> {
-        self.index.item_icons.get(&code).cloned()
+        self.index.item_icons.get(&code).cloned().or_else(|| self.enchant_source_icon(code))
     }
 
     pub fn linked_icon(&self, key: &str) -> Option<(PathBuf, i32)> {
@@ -1787,7 +1814,10 @@ impl Catalog {
             return None;
         }
         let folder = self.client_root.join("Assets").join("Textures").join("Items");
-        let wanted = Path::new(image).file_name()?.to_string_lossy().to_lowercase();
+        let filename = Path::new(image).file_name()?;
+        let direct = folder.join(filename);
+        if direct.is_file() { return Some((direct, frame as i32)); }
+        let wanted = filename.to_string_lossy().to_lowercase();
         let entry = std::fs::read_dir(&folder).ok()?.filter_map(Result::ok).find(|entry| {
             entry.file_name().to_string_lossy().to_lowercase() == wanted
         })?;
@@ -1795,7 +1825,7 @@ impl Catalog {
     }
 }
 
-fn push_rows(hits: &mut Vec<Hit>, lang: &str, key: &str, mut rows: Vec<Hit>) {
+pub(super) fn push_rows(hits: &mut Vec<Hit>, lang: &str, key: &str, mut rows: Vec<Hit>) {
     if rows.is_empty() {
         return;
     }

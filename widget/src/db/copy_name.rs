@@ -6,11 +6,11 @@ impl Catalog {
     /// `alternate` follows the secondary language displayed beside the primary name.
     pub fn copyable_name(&self, key: &str, lang: &str, alternate: bool) -> Option<String> {
         let (kind, code) = key.split_once(':')?;
+        if kind == "item" {
+            let (en, zh, ko) = self.item_names3(code.parse().ok()?);
+            return copy_language(lang, &en, &zh, &ko, alternate);
+        }
         let (en, zh, ko) = match kind {
-            "item" => {
-                let item = self.index.items.iter().find(|item| item.code_str == code)?;
-                (&item.en, &item.zh, &item.ko)
-            }
             "quest" => {
                 let id = code.parse::<i64>().ok()?;
                 let quest = self.index.quests.iter().find(|quest| quest.id == id)?;

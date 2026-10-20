@@ -149,6 +149,15 @@ export struct MonsterDrop {
     has-icon: bool,
 }
 
+export struct EnchantEquipment {
+    key: string,
+    title: string,
+    alternate-name: string,
+    quantity: string,
+    icon: image,
+    has-icon: bool,
+}
+
 export struct Hit {
     title: string,
     alternate-name: string,
@@ -174,6 +183,13 @@ export struct Hit {
     drop10: image,
     drop-total: int,
     monster-drops: [MonsterDrop],
+    enchant-equipment: [EnchantEquipment],
+    enchant-materials: [EnchantEquipment],
+    enchant-scroll: bool,
+    enchant-level: string,
+    enchant-rate: int,
+    enchant-bonuses: string,
+    enchant-bonuses-recorded: bool,
     spawn-places: string,
     battle: image,
     has-battle: bool,
@@ -252,6 +268,8 @@ export struct Fact {
     icon: image,
     has-icon: bool,
     section: string,
+    success-rate: int,
+    has-success-rate: bool,
 }
 
 export struct AliasRow {
@@ -3523,6 +3541,97 @@ component SectionPick inherits Rectangle {
     }
 }
 
+global EnchantRate {
+    public pure function ink(rate: int) -> color {
+        return rate <= 20 ? #f28b82 : rate < 50 ? #e6c46a : #83d5a1;
+    }
+}
+
+global CatalogLayout {
+    public pure function equipment-columns(width: length) -> int {
+        return max(1, floor((width - 20px + 4px) / 36px));
+    }
+    public pure function equipment-height(width: length, count: int) -> length {
+        return count > 0 ? 24px + ceil(count / CatalogLayout.equipment-columns(width)) * 36px + 8px : 26px;
+    }
+    public pure function material-columns(width: length) -> int {
+        return max(1, floor((width - 20px + 4px) / 56px));
+    }
+    public pure function material-height(width: length, count: int) -> length {
+        return count > 0 ? 24px + ceil(count / CatalogLayout.material-columns(width)) * 54px + 8px : 26px;
+    }
+}
+
+component EnchantBonusPreview inherits Rectangle {
+    in property <string> summary;
+    in property <bool> recorded;
+    height: max(18px, summary-text.preferred-height) + 12px;
+    Text {
+        x: 0px; y: 0px; width: 52px; height: 18px;
+        text: UiLanguage.tr("Bonuses", "附加能力");
+        font-size: 11px; color: DesktopTheme.secondary;
+        vertical-alignment: center;
+    }
+    summary-text := Text {
+        x: 60px; y: 0px; width: max(parent.width - self.x, 0px);
+        height: max(18px, self.preferred-height);
+        text: root.summary; wrap: word-wrap;
+        font-size: 12px;
+        color: root.recorded ? DesktopTheme.text : DesktopTheme.secondary;
+    }
+}
+
+component EnchantItemIcon inherits Rectangle {
+    in property <EnchantEquipment> item;
+    in property <string> purpose: UiLanguage.tr("Applicable equipment", "適用裝備");
+    callback open(string);
+    callback focused();
+    width: item.quantity == "" ? 32px : 52px;
+    height: item.quantity == "" ? 32px : 50px;
+    border-radius: 4px;
+    background: tap.has-hover ? DesktopTheme.hover-strong : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    accessible-role: button;
+    accessible-label: item.title;
+    accessible-description: purpose + (item.quantity != "" ? " · " + item.quantity : "") + (item.alternate-name != "" ? " · " + item.alternate-name : "");
+    accessible-action-default => { root.open(root.item.key); }
+    forward-focus: focus;
+    if root.item.has-icon: Image {
+        x: (parent.width - self.width) / 2; y: 2px; width: 28px; height: 28px;
+        source: root.item.icon; image-fit: contain;
+    }
+    if !root.item.has-icon: DesktopIcon {
+        x: (parent.width - self.width) / 2; y: 7px; width: 18px; height: 18px;
+        path: "M4 6 L12 2 L20 6 L20 18 L12 22 L4 18 Z M4 6 L12 10 L20 6 M12 10 L12 22";
+        ink: DesktopTheme.secondary;
+    }
+    if root.item.quantity != "": Text {
+        x: 0px; y: 32px; width: 100%; height: 16px;
+        text: root.item.quantity;
+        font-size: 11px; color: DesktopTheme.secondary;
+        horizontal-alignment: center; overflow: elide;
+    }
+    focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-gained => { root.focused(); }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.open(root.item.key); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        width: 100%; height: 100%; mouse-cursor: pointer;
+        clicked => { focus.focus(); root.open(root.item.key); }
+    }
+    Tooltip {
+        RecordTooltip {
+            text: root.item.title + (root.item.alternate-name != "" ? "\n" + root.item.alternate-name : "")
+                + (root.item.quantity != "" ? "\n" + root.purpose + " " + root.item.quantity : "");
+        }
+    }
+}
+
 component CatalogRow inherits Rectangle {
     in property <Hit> hit;
     in property <bool> selected: false;
@@ -3540,6 +3649,8 @@ component CatalogRow inherits Rectangle {
     }
     changed focus-requested => { if (root.focus-requested) { focus.focus(); } }
     callback clicked();
+    callback open-equipment(string);
+    callback preview-focused(length, length);
     callback reveal(length, length);
     property <bool> companion: hit.chip == "mount" || hit.chip.starts-with("spirit:");
     property <bool> show-aside: !companion && hit.aside != "" && self.width > 360px;
@@ -3548,11 +3659,18 @@ component CatalogRow inherits Rectangle {
     property <length> aside-width: show-aside ? min(aside-label.preferred-width, min(180px, content-width * 0.35)) : 0px;
     property <length> name-width: max(content-width - (show-aside ? aside-width + 10px : 0px), 0px);
     property <length> group-height: group-start ? 32px : 0px;
-    property <length> body-height: companion ? max(78px, companion-meta.preferred-height + 52px) : 58px;
+    property <length> heading-height: hit.enchant-scroll ? (hit.alternate-name != "" ? 76px : 58px)
+        : companion ? max(78px, companion-meta.preferred-height + 52px) : 58px;
+    property <length> bonus-height: hit.enchant-scroll ? bonus-preview.height : 0px;
+    property <length> equipment-height: hit.enchant-scroll ? CatalogLayout.equipment-height(self.width, hit.enchant-equipment.length) : 0px;
+    property <length> material-height: hit.enchant-scroll ? CatalogLayout.material-height(self.width, hit.enchant-materials.length) : 0px;
+    property <length> body-height: heading-height + bonus-height + equipment-height + material-height;
     property <string> group-title: hit.chip == "spirit:1" ? (UiLanguage.tr("Fire", "火屬")) : hit.chip == "spirit:2" ? (UiLanguage.tr("Water", "水屬")) : hit.chip == "spirit:3" ? (UiLanguage.tr("Wind", "風屬")) : hit.chip == "spirit:4" ? (UiLanguage.tr("Thunder", "雷屬")) : hit.chip == "spirit:5" ? (UiLanguage.tr("Earth", "地屬")) : hit.chip == "spirit:0" ? (UiLanguage.tr("Non-elemental", "無屬性")) : (UiLanguage.tr("Element not recorded", "屬性未記錄"));
     accessible-role: button;
     accessible-label: hit.title;
-    accessible-description: RecordText.description(root.hit) + "\nCtrl+I: " + UiLanguage.tr("Full names and source", "完整名稱與來源");
+    accessible-description: RecordText.description(root.hit)
+        + (root.hit.enchant-scroll ? "\n" + UiLanguage.tr("Bonuses", "附加能力") + ": " + root.hit.enchant-bonuses : "")
+        + "\nCtrl+I: " + UiLanguage.tr("Full names and source", "完整名稱與來源");
     accessible-action-default => { root.clicked(); }
     changed selected => { if (self.selected) { root.reveal(root.y, root.height); } }
     height: group-height + body-height;
@@ -3562,9 +3680,10 @@ component CatalogRow inherits Rectangle {
         text: root.group-title; font-size: 12px; font-weight: 600; color: DesktopTheme.secondary;
     }
     Rectangle {
-        y: root.group-height; width: 100%; height: root.body-height; border-radius: 6px;
+        x: 1px; y: root.group-height + 1px;
+        width: max(parent.width - 2px, 0px); height: root.body-height - 2px; border-radius: 6px;
         border-width: 1px;
-        border-color: focus.has-focus || root.keyboard-focused ? DesktopTheme.accent : transparent;
+        border-color: root.selected || focus.has-focus || root.keyboard-focused ? DesktopTheme.accent : transparent;
         background: root.selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
     }
     focus := FocusScope {
@@ -3582,7 +3701,7 @@ component CatalogRow inherits Rectangle {
     area := TouchArea {
         y: root.group-height;
         width: 100%;
-        height: root.body-height;
+        height: root.heading-height;
         clicked => { focus.focus(); root.clicked(); }
         mouse-cursor: pointer;
         if root.hit.has-icon: Image {
@@ -3604,11 +3723,27 @@ component CatalogRow inherits Rectangle {
                 color: DesktopTheme.text;
                 overflow: elide;
             }
-            if RecordText.secondary(root.hit) != "": Text {
+            if !root.hit.enchant-scroll && RecordText.secondary(root.hit) != "": Text {
                 text: RecordText.secondary(root.hit);
                 font-size: 12px;
                 color: DesktopTheme.secondary;
                 overflow: elide;
+            }
+            if root.hit.enchant-scroll && root.hit.alternate-name != "": Text {
+                text: root.hit.alternate-name;
+                font-size: 12px; color: DesktopTheme.secondary; overflow: elide;
+            }
+            if root.hit.enchant-scroll: HorizontalLayout {
+                spacing: 8px; alignment: start;
+                Text {
+                    text: UiLanguage.tr("Min. level", "最低等級") + " " + root.hit.enchant-level;
+                    font-size: 12px; color: DesktopTheme.secondary; overflow: elide;
+                }
+                Text {
+                    text: UiLanguage.tr("Success", "成功率") + " " + root.hit.enchant-rate + "%";
+                    font-size: 12px; font-weight: 500;
+                    color: EnchantRate.ink(root.hit.enchant-rate);
+                }
             }
             companion-meta := Text {
                 visible: root.companion;
@@ -3630,15 +3765,62 @@ component CatalogRow inherits Rectangle {
             vertical-alignment: center;
             overflow: elide;
         }
+        Tooltip {
+            RecordTooltip { text: RecordText.full(root.hit); }
+        }
     }
-    Rectangle {
+    bonus-preview := EnchantBonusPreview {
+        visible: root.hit.enchant-scroll;
+        x: 10px; y: root.group-height + root.heading-height;
+        width: max(parent.width - 20px, 0px);
+        summary: root.hit.enchant-bonuses;
+        recorded: root.hit.enchant-bonuses-recorded;
+    }
+    if root.hit.enchant-scroll: Rectangle {
+        x: 10px; y: root.group-height + root.heading-height + root.bonus-height;
+        width: max(parent.width - 20px, 0px); height: root.equipment-height;
+        Text {
+            x: 0px; y: 0px;
+            width: 100%; height: 18px;
+            text: root.hit.enchant-equipment.length > 0
+                ? UiLanguage.tr("Applicable equipment", "適用裝備") + " · " + root.hit.enchant-equipment.length
+                : UiLanguage.tr("Applicable equipment not recorded", "適用裝備未記錄");
+            font-size: 11px; color: DesktopTheme.secondary; overflow: elide;
+        }
+        for item[i] in root.hit.enchant-equipment: EnchantItemIcon {
+            x: mod(i, CatalogLayout.equipment-columns(root.width)) * 36px;
+            y: 24px + floor(i / CatalogLayout.equipment-columns(root.width)) * 36px;
+            item: item;
+            open(key) => { root.open-equipment(key); }
+            focused => { root.preview-focused(root.group-height + root.heading-height + root.bonus-height + self.y, self.height); }
+        }
+    }
+    if root.hit.enchant-scroll: Rectangle {
+        x: 10px; y: root.group-height + root.heading-height + root.bonus-height + root.equipment-height;
+        width: max(parent.width - 20px, 0px); height: root.material-height;
+        Text {
+            x: 0px; y: 0px;
+            width: 100%; height: 18px;
+            text: root.hit.enchant-materials.length > 0
+                ? UiLanguage.tr("Materials", "材料") + " · " + root.hit.enchant-materials.length
+                : UiLanguage.tr("Materials not recorded", "材料未記錄");
+            font-size: 11px; color: DesktopTheme.secondary; overflow: elide;
+        }
+        for item[i] in root.hit.enchant-materials: EnchantItemIcon {
+            x: mod(i, CatalogLayout.material-columns(root.width)) * 56px;
+            y: 24px + floor(i / CatalogLayout.material-columns(root.width)) * 54px;
+            item: item;
+            purpose: UiLanguage.tr("Materials", "材料");
+            open(key) => { root.open-equipment(key); }
+            focused => { root.preview-focused(root.group-height + root.heading-height + root.bonus-height + root.equipment-height + self.y, self.height); }
+        }
+    }
+    if !root.selected && !focus.has-focus && !root.keyboard-focused && !area.has-hover: Rectangle {
+        x: 10px;
         y: parent.height - 1px;
-        width: 100%;
+        width: max(parent.width - 20px, 0px);
         height: 1px;
         background: DesktopTheme.border;
-    }
-    Tooltip {
-        RecordTooltip { text: RecordText.full(root.hit); }
     }
 }
 
@@ -4010,6 +4192,7 @@ component DockChip inherits Rectangle {
 component FactLine inherits Rectangle {
     in property <string> label;
     in property <string> value;
+    in property <int> success-rate: -1;
     in property <string> key: "";
     in property <image> icon;
     in property <bool> has-icon: false;
@@ -4055,7 +4238,8 @@ component FactLine inherits Rectangle {
             width: max(parent.width - root.label-width - (root.has-icon ? 64px : 28px), 24px);
             text: root.value;
             font-size: 13px;
-            color: root.key == "" ? DesktopTheme.text : DesktopTheme.soft;
+            color: root.success-rate >= 0 ? EnchantRate.ink(root.success-rate)
+                : root.key == "" ? DesktopTheme.text : DesktopTheme.soft;
             horizontal-alignment: root.has-icon || root.align-value-left ? left : right;
             wrap: root.wrap-value ? word-wrap : no-wrap;
             overflow: elide;
@@ -4216,6 +4400,7 @@ component RecordDetail inherits Rectangle {
                     wrap-value: true;
                     line-height: fact.has-icon ? 40px : 30px;
                     value: fact.value;
+                    success-rate: fact.has-success-rate ? fact.success-rate : -1;
                     key: fact.key;
                     icon: fact.icon;
                     has-icon: fact.has-icon;
@@ -4371,6 +4556,7 @@ component FullMonsterSheet inherits Flickable {
             width: parent.width / 2 - 8px;
             label: fact.label;
             value: fact.value;
+            success-rate: fact.has-success-rate ? fact.success-rate : -1;
             key: fact.key;
             last: true;
             open => { root.open-fact(fact.key); }
@@ -4916,6 +5102,7 @@ export component App inherits Window {
     in-out property <string> hero-group: "rank";
     in-out property <image> hero-logo;
     in-out property <bool> hero-logo-ready: false;
+    in-out property <image> enchant-logo;
 
     title: UiLanguage.tr("Gersang", "巨商");
     no-frame: true;
@@ -4948,6 +5135,25 @@ export component App inherits Window {
         root.ship = "";
         if (id == "quest") { root.quest-summary = true; root.quest-category = "qcat:all"; root.quest-grouping = ""; root.quest-group-query = ""; }
         root.query-changed(id, "");
+    }
+
+    function open-enchant() {
+        if (root.settings-open) { root.close-settings(); }
+        root.collapsed = false;
+        root.open-category("enchant");
+        keys.focus();
+    }
+
+    function choose-enchant-page(mode: string) {
+        if (root.ship == mode && root.place == "" && root.query == "") { return; }
+        root.ship = mode;
+        root.place = ""; root.place-name = "";
+        root.area = ""; root.area-name = "";
+        root.query = ""; root.search-open = false;
+        root.expanded = ""; root.catalog-category = "";
+        root.detail-key = ""; root.detail-index = -1;
+        root.cursor = 0; root.list-offset = 0px;
+        root.query-changed("enchant", "");
     }
 
     function choose-quest-mode(summary: bool) {
@@ -5415,6 +5621,15 @@ export component App inherits Window {
             root.show-icon = false;
             root.show-element = false;
             root.query-changed("item", "");
+        } else if (root.category == "enchant" && root.place != "") {
+            root.search-open = false;
+            root.place = "";
+            root.place-name = "";
+            root.query = "";
+            root.detail = "";
+            root.show-icon = false;
+            root.show-element = false;
+            root.query-changed("enchant", "");
         } else if (root.category == "recipe" && root.place != "") {
             root.search-open = false;
             root.place = "";
@@ -5522,6 +5737,9 @@ export component App inherits Window {
             return;
         }
         if (root.full-board) {
+            // Enchant rows wrap their equipment icons. CatalogRow's init and
+            // selection handlers reveal their actual slot instead of a fixed stride.
+            if (root.category == "enchant" && root.catalog-result-list) { return; }
             let stride = root.catalog-result-list ? 60px : 50px;
             let row-height = stride - 2px;
             let row = index * stride;
@@ -6444,7 +6662,7 @@ export component App inherits Window {
     // Full mode uses the sidebar for top-level destinations; Back keeps history or a parent.
     property <bool> page-back-visible: !root.full-mode || root.viewing != ""
         || ((root.category == "quest" || root.category == "atlas" || root.category == "works"
-            || root.category == "hero" || root.category == "item" || root.category == "recipe"
+            || root.category == "hero" || root.category == "item" || root.category == "recipe" || root.category == "enchant"
             || root.category == "monster") && (root.place != "" || root.area != ""))
         || (root.category == "monster" && root.nation != "")
         || (root.quest-browser && (root.quest-map-open || !root.quest-summary || root.quest-grouping != ""))
@@ -6631,8 +6849,8 @@ export component App inherits Window {
     property <bool> filter-active: filter-element >= 0 || filter-ela-min != "" || filter-ela-max != "" || filter-drop != "" || filter-drop-key != "" || filter-hit-min != "" || filter-hit-max != "" || filter-magic-min != "" || filter-magic-max != "" || monster-sort-key != 0;
     property <length> board-monsters-h: ceil(board-monsters.length / monster-board-columns) * monster-row + detail-h;
     property <length> list-row: full-mode && monster-cards ? root.monster-row : monster-gallery && monster-cards ? 220px : 52px;
-    property <length> search-y: category == "patch" ? 128px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 86px : 50px;
-    property <length> list-y: full-mode ? search-y + 16px + (monster-results-filter ? filter-h + 16px : 0px) : search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
+    property <length> search-y: category == "patch" ? 128px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 86px : 50px;
+    property <length> list-y: full-mode ? search-y + 16px + (monster-results-filter ? filter-h + 16px : 0px) : search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
     property <length> foot: 26px;
     property <length> list-view: max(root.height - list-y - 68px, 80px);
     in-out property <bool> form-open: false;
@@ -6953,6 +7171,14 @@ export component App inherits Window {
                                         root.go-home(); root.calculator-open = true; root.calculator-refresh();
                                     }
                                 }
+                            }
+                            DesktopNavRow {
+                                width: root.nav-w - 24px;
+                                label: UiLanguage.tr("Enchantments", "鬼道");
+                                logo: root.enchant-logo;
+                                show-logo: true;
+                                selected: root.category == "enchant" && !root.settings-open && !root.calculator-open && !root.mcp-open;
+                                clicked => { root.open-enchant(); }
                             }
                             nav-drag := Rectangle {
                                 height: root.dock-shown.length * 44px;
@@ -7295,6 +7521,15 @@ export component App inherits Window {
                         active: true;
                         clicked => { home.stop-arrange(); }
                     }
+                    if !root.arranging: DesktopNavRow {
+                        x: parent.width - self.width - 12px;
+                        y: 2px;
+                        width: UiLanguage.primary == "en" ? 160px : 100px;
+                        label: UiLanguage.tr("Enchantments", "鬼道");
+                        logo: root.enchant-logo;
+                        show-logo: true;
+                        clicked => { root.open-enchant(); }
+                    }
                     home-grid := Flickable {
                         y: 44px;
                         width: 100%;
@@ -7485,7 +7720,7 @@ export component App inherits Window {
                         y: root.full-mode ? 13px : 16px;
                         width: (root.full-mode && root.category == "monster" ? max(root.pane-w - (root.viewing == "" ? 434px : 146px), 40px) : root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (UiLanguage.primary == "en" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px)) + (root.full-mode && !root.page-back-visible ? 66px - root.page-pad : 0px);
                         overflow: elide;
-                        text: root.favourites-only && root.category == "monster" ? (UiLanguage.tr("Favourites", "收藏")) : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.categories[3].name;
+                        text: root.favourites-only && root.category == "monster" ? (UiLanguage.tr("Favourites", "收藏")) : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.category == "enchant" ? UiLanguage.tr("Enchantments", "鬼道") : root.categories[3].name;
                         font-size: root.full-mode ? 21px : 16px;
                         font-weight: 600;
                         color: DesktopTheme.text;
@@ -7581,6 +7816,40 @@ export component App inherits Window {
                             clicked => {
                                 root.nation = root.nation == "old" ? "" : "old";
                                 root.query-changed(root.category, root.query);
+                            }
+                        }
+                    }
+                    if root.category == "enchant" && root.viewing == "": Rectangle {
+                        x: root.page-pad;
+                        y: 48px;
+                        width: max(root.pane-w - 2 * root.page-pad, 40px);
+                        height: 32px;
+                        border-radius: 8px;
+                        clip: true;
+                        background: DesktopTheme.inset;
+                        border-width: 1px;
+                        border-color: DesktopTheme.border;
+                        HorizontalLayout {
+                            spacing: 1px;
+                            enchant-grade-tab := PatchTab {
+                                label: UiLanguage.tr("Scroll categories", "秘訣分類");
+                                active: root.ship != "all";
+                                arrow-navigation: true;
+                                clicked => { root.choose-enchant-page(""); }
+                                navigate(step) => {
+                                    if (step == -2) { root.choose-enchant-page(""); }
+                                    else { root.choose-enchant-page("all"); enchant-all-tab.focus(); }
+                                }
+                            }
+                            enchant-all-tab := PatchTab {
+                                label: UiLanguage.tr("All records", "全部資料");
+                                active: root.ship == "all";
+                                arrow-navigation: true;
+                                clicked => { root.choose-enchant-page("all"); }
+                                navigate(step) => {
+                                    if (step == 2) { root.choose-enchant-page("all"); }
+                                    else { root.choose-enchant-page(""); enchant-grade-tab.focus(); }
+                                }
                             }
                         }
                     }
@@ -7768,7 +8037,7 @@ export component App inherits Window {
                         x: root.full-mode ? root.pane-w - (root.category == "monster" ? 348px : 304px) : root.page-pad;
                         y: root.full-mode ? 10px : root.search-y;
                         width: (root.full-mode ? 280px : max(root.pane-w - 2 * root.page-pad, 40px)) - (root.query != "" ? 64px : 0px);
-                        placeholder-text: root.full-mode && root.category == "quest" ? (UiLanguage.tr("Quest, required item or reward…", "搜尋任務、任務品或獎勵…")) : root.full-mode ? (UiLanguage.tr("Search this category…", "搜尋此分類…")) : (UiLanguage.tr("Search", "搜尋"));
+                        placeholder-text: root.category == "enchant" ? UiLanguage.tr("Scroll, equipment or material…", "搜尋秘訣、裝備或材料…") : root.full-mode && root.category == "quest" ? (UiLanguage.tr("Quest, required item or reward…", "搜尋任務、任務品或獎勵…")) : root.full-mode ? (UiLanguage.tr("Search this category…", "搜尋此分類…")) : (UiLanguage.tr("Search", "搜尋"));
                         text <=> root.query;
                         property <bool> focus-requested: root.search-open;
                         changed focus-requested => { if (self.focus-requested) { self.focus(); } }
@@ -8203,17 +8472,26 @@ export component App inherits Window {
                                     content-y <=> root.list-offset;
                                     record-col := VerticalLayout {
                                         width: parent.width; spacing: 2px;
-                                        // Retain only lightweight geometry for offscreen rows. Companion
-                                        // metadata wraps while every other catalog row retains its 58px height.
+                                        // Match visible row geometry while keeping offscreen content light.
                                         for rec[i] in root.catalog-results: record-slot := Rectangle {
                                             property <bool> companion: rec.chip == "mount" || rec.chip.starts-with("spirit:");
                                             property <bool> group-start: rec.chip.starts-with("spirit:") && (i == 0 || root.catalog-results[i - 1].chip != rec.chip);
-                                            height: (self.group-start ? 32px : 0px) + (self.companion ? max(78px, metadata-measure.preferred-height + 52px) : 58px);
+                                            height: (self.group-start ? 32px : 0px)
+                                                + (rec.enchant-scroll ? (rec.alternate-name != "" ? 76px : 58px)
+                                                    : self.companion ? max(78px, metadata-measure.preferred-height + 52px) : 58px)
+                                                + (rec.enchant-scroll ? bonus-measure.height + CatalogLayout.equipment-height(self.width, rec.enchant-equipment.length)
+                                                    + CatalogLayout.material-height(self.width, rec.enchant-materials.length) : 0px);
                                             metadata-measure := Text {
                                                 visible: false;
                                                 width: max(parent.width - (rec.has-icon ? 52px : 10px) - 12px, 0px);
                                                 text: record-slot.companion ? rec.aside : "";
                                                 wrap: word-wrap; font-size: 12px;
+                                            }
+                                            bonus-measure := EnchantBonusPreview {
+                                                visible: false;
+                                                width: max(parent.width - 20px, 0px);
+                                                summary: rec.enchant-bonuses;
+                                                recorded: rec.enchant-bonuses-recorded;
                                             }
                                             if root.catalog-keyboard-index == i || root.detail-key == rec.key || (root.catalog-result-list && root.cursor == i) || (record-slot.y + record-slot.height >= -records.content-y - 120px && record-slot.y <= -records.content-y + records.height + 120px): CatalogRow {
                                                 x: 0px; y: 0px; width: parent.width;
@@ -8223,7 +8501,7 @@ export component App inherits Window {
                                                 keyboard-focused: keys.has-focus && root.catalog-result-list && root.cursor == i;
                                                 reveal(top, size) => {
                                                     if (root.catalog-keyboard-index == i || (root.catalog-result-list && root.cursor == i)) {
-                                                        if (record-slot.y < -records.content-y) { root.list-offset = -record-slot.y; }
+                                                        if (size > records.height || record-slot.y < -records.content-y) { root.list-offset = -record-slot.y; }
                                                         else if (record-slot.y + size > -records.content-y + records.height) { root.list-offset = min(0px, records.height - record-slot.y - size); }
                                                     }
                                                 }
@@ -8232,7 +8510,7 @@ export component App inherits Window {
                                                         RecordInfo.text = "";
                                                         root.catalog-keyboard-index = i;
                                                         if (root.catalog-result-list) { root.cursor = i; }
-                                                        if (record-slot.y < -records.content-y) { root.list-offset = -record-slot.y; }
+                                                        if (record-slot.height > records.height || record-slot.y < -records.content-y) { root.list-offset = -record-slot.y; }
                                                         else if (record-slot.y + record-slot.height > -records.content-y + records.height) { root.list-offset = min(0px, records.height - record-slot.y - record-slot.height); }
                                                     } else if (root.catalog-keyboard-index == i) { root.catalog-keyboard-index = -1; }
                                                 }
@@ -8243,6 +8521,13 @@ export component App inherits Window {
                                                 clicked => {
                                                     if (root.catalog-result-list) { root.cursor = i; }
                                                     root.open-catalog-record(rec.key, i);
+                                                }
+                                                open-equipment(key) => { root.open-hit(key); keys.focus(); }
+                                                preview-focused(top, size) => {
+                                                    if (record-slot.y + top < -records.content-y) { root.list-offset = -record-slot.y - top; }
+                                                    else if (record-slot.y + top + size > -records.content-y + records.height) {
+                                                        root.list-offset = min(0px, records.height - record-slot.y - top - size);
+                                                    }
                                                 }
                                             }
                                         }
@@ -8261,7 +8546,7 @@ export component App inherits Window {
                                 if !root.viewing-hero: Rectangle { y: parent.heading-height; width: parent.width; height: 1px; background: DesktopTheme.border; }
                                 if root.detail-key == "": Text {
                                     x: 24px; y: 76px; width: parent.width - 48px;
-                                    text: UiLanguage.tr("Select a record to see its attributes and related items here.", "選擇一筆資料，在這裡查看能力、材料與相關內容。");
+                                    text: root.category == "enchant" ? UiLanguage.tr("Select a scroll or enchanted item to see its equipment, materials and added abilities.", "選擇秘訣或鬼道成品，查看適用裝備、材料與附加能力。") : UiLanguage.tr("Select a record to see its attributes and related items here.", "選擇一筆資料，在這裡查看能力、材料與相關內容。");
                                     font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                                 }
                                 property <bool> can-open: root.record-key(root.detail-key) && !root.viewing-hero;
@@ -8795,6 +9080,7 @@ export component App inherits Window {
                                 width: sheet.width;
                                 label: fact.label;
                                 value: fact.value;
+                                success-rate: fact.has-success-rate ? fact.success-rate : -1;
                                 key: fact.key;
                                 last: i + 1 == root.facts.length;
                                 open => { root.open-hit(fact.key); }
@@ -8934,6 +9220,7 @@ export component App inherits Window {
                                         line-height: fact.has-icon ? 40px : 32px;
                                         label: fact.label;
                                         value: fact.value;
+                                        success-rate: fact.has-success-rate ? fact.success-rate : -1;
                                         key: fact.key;
                                         icon: fact.icon;
                                         has-icon: fact.has-icon;
@@ -9058,6 +9345,7 @@ export component App inherits Window {
                                     label-width: 80px;
                                     label: fact.label;
                                     value: fact.value;
+                                    success-rate: fact.has-success-rate ? fact.success-rate : -1;
                                     key: fact.key;
                                     icon: fact.icon;
                                     has-icon: fact.has-icon;
@@ -9114,6 +9402,7 @@ export component App inherits Window {
                                 width: reward-box.width;
                                 label: fact.label;
                                 value: fact.value;
+                                success-rate: fact.has-success-rate ? fact.success-rate : -1;
                                 last: i + 1 == root.reward-facts.length;
                             }
                         }

@@ -7,6 +7,7 @@ use super::*;
 
 mod browse;
 mod character_assets;
+mod enchant_navigation;
 mod items_bilingual;
 mod languages;
 mod performance;

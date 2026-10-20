@@ -8,6 +8,7 @@ use rusqlite::{Connection, OpenFlags};
 mod alias;
 mod copy_name;
 mod character_data;
+mod enchant;
 mod hero;
 mod item;
 mod load;
@@ -217,6 +218,9 @@ impl Catalog {
     }
 
     pub fn section_records(&self, key: &str, lang: &str) -> Vec<Hit> {
+        if let Some(section) = key.strip_prefix("ecat:") {
+            return self.enchant_records(section, "", lang);
+        }
         if let Some(source) = key.strip_prefix("craft:") {
             return self.index.recipe_hits("", "", lang, source, usize::MAX);
         }
@@ -282,6 +286,10 @@ impl Catalog {
                 }
             }
             "monster-all" => self.index.monster_hits(query, &folded, lang, &[], None),
+            "enchant" if place.is_empty() && query.is_empty() => {
+                if ship == "all" { self.enchant_sections(lang) } else { self.enchant_color_sections(lang) }
+            }
+            "enchant" => self.enchant_records(place, query, lang),
             "item" if place.is_empty() && query.is_empty() => self.index.item_category_hits(lang),
             "item" if place == "set" => self.index.set_hits(query, &folded, lang, area),
             "item" if area.is_empty() && query.is_empty() && self.index.item_has_subtypes(place) => self.index.item_subtype_hits(place, lang),

@@ -429,6 +429,12 @@ fn main() {
             app.set_hero_logo_ready(true);
         }
     }
+    // Use the client's Black Tortoise enchant scroll artwork for the navigation.
+    if let Some((path, frame)) = catalog.linked_icon("item:1168") {
+        if let Ok(icon) = agf::frame_rgba(&path, frame) {
+            app.set_enchant_logo(image_from_icon(icon));
+        }
+    }
 
     let current = Rc::new(RefCell::new(String::new()));
     let history: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
@@ -1166,6 +1172,13 @@ fn main() {
         if app.get_category() == "quest" && !place.is_empty() {
             app.set_place_name(db::source_label(&place, &lang).into());
         }
+        if app.get_category() == "enchant" && !place.is_empty() {
+            let key = format!("ecat:{place}");
+            let title = lang_catalog.enchant_sections(&lang).into_iter()
+                .chain(lang_catalog.enchant_color_sections(&lang))
+                .find(|row| row.key == key).map(|row| row.title).unwrap_or_default();
+            app.set_place_name(title.into());
+        }
         if let Some(id) = place.strip_prefix("span:") {
             app.set_place_name(lang_catalog.span_name(&nation, id, &lang).into());
         } else if place.parse::<i64>().is_ok() {
@@ -1520,6 +1533,18 @@ fn main() {
             app.set_place(format!("span:{id}").into());
             app.set_place_name(open_catalog.span_name(&nation, id, &lang).into());
             open_scope(&app, &open_catalog, &open_session, &open_favs.borrow(), &open_current, &open_history, "monster");
+            return;
+        }
+        if let Some(section) = key.strip_prefix("ecat:") {
+            let title = open_catalog.enchant_sections(&app.get_lang()).into_iter()
+                .chain(open_catalog.enchant_color_sections(&app.get_lang()))
+                .find(|row| row.key == key).map(|row| row.title).unwrap_or_default();
+            app.set_category("enchant".into());
+            app.set_place(section.into());
+            app.set_place_name(title.into());
+            app.set_area("".into());
+            app.set_area_name("".into());
+            open_scope(&app, &open_catalog, &open_session, &open_favs.borrow(), &open_current, &open_history, "enchant");
             return;
         }
         if let Some(kind) = key.strip_prefix("icat:") {

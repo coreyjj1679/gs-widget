@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 
 use super::agf;
-use super::list::picture_key;
-use super::{App, Hit, ICON_CACHE, IconJob, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
+use super::list::{picture_key, EnchantPreviewKind};
+use super::{App, EnchantEquipment, Hit, ICON_CACHE, IconJob, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
 
 struct IconTarget {
     generation: u64,
@@ -167,6 +167,18 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
         paint_quest_map_items(&app.get_quest_map_nodes(), item_key, icon, has_icon);
         return;
     }
+    for kind in [EnchantPreviewKind::Equipment, EnchantPreviewKind::Material] {
+        if let Some((key, target)) = row_key.rsplit_once(kind.marker()) {
+            if let Some((slot, item_key)) = target.split_once(':') {
+                if let Ok(slot) = slot.parse::<usize>() {
+                    if !paint_enchant_preview(&app.get_hits(), kind, key, slot, item_key, icon.clone(), has_icon) {
+                        paint_enchant_preview(&app.get_board_monsters(), kind, key, slot, item_key, icon, has_icon);
+                    }
+                }
+            }
+            return;
+        }
+    }
     if let Some((key, target)) = row_key.rsplit_once("#monster-drop:") {
         if let Some((slot, item_key)) = target.split_once(':') {
             if let Ok(slot) = slot.parse::<usize>() {
@@ -301,6 +313,32 @@ fn paint_monster_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, item_key:
     true
 }
 
+fn paint_enchant_preview(hits: &ModelRc<Hit>, kind: EnchantPreviewKind, row_key: &str, slot: usize, item_key: &str, icon: Image, has_icon: bool) -> bool {
+    let Some(model) = hits.as_any().downcast_ref::<VecModel<Hit>>() else { return false };
+    let Some((index, mut row)) = indexed_row(hits, row_key) else { return false };
+    if !row.enchant_scroll {
+        return false;
+    }
+    let mut items: Vec<EnchantEquipment> = match kind {
+        EnchantPreviewKind::Equipment => row.enchant_equipment.iter().collect(),
+        EnchantPreviewKind::Material => row.enchant_materials.iter().collect(),
+    };
+    let Some(item) = items.get_mut(slot) else { return false };
+    // A section change can reuse a row key, so validate both slot and item identity.
+    if item.key.as_str() != item_key {
+        return false;
+    }
+    item.icon = icon;
+    item.has_icon = has_icon;
+    let items = ModelRc::new(VecModel::from(items));
+    match kind {
+        EnchantPreviewKind::Equipment => row.enchant_equipment = items,
+        EnchantPreviewKind::Material => row.enchant_materials = items,
+    }
+    model.set_row_data(index, row);
+    true
+}
+
 fn paint_drop(hits: &ModelRc<Hit>, row_key: &str, slot: usize, icon: Image, has_icon: bool) -> bool {
     if !has_icon || slot > 9 {
         return false;
@@ -343,8 +381,8 @@ pub(crate) fn image_from_icon(icon: agf::Icon) -> Image {
 
 #[cfg(test)]
 mod tests {
-    use super::{discard_stale_targets, indexed_row, note_lines, paint_catalog_models, paint_model, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items, IconTarget};
-    use crate::{Hit, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
+    use super::{discard_stale_targets, indexed_row, note_lines, paint_catalog_models, paint_enchant_preview, paint_model, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items, EnchantPreviewKind, IconTarget};
+    use crate::{EnchantEquipment, Hit, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
     use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
     #[test]
@@ -453,6 +491,103 @@ mod tests {
             assert_eq!(current.has_icon, previous.has_icon);
             assert_eq!(current.icon.size(), previous.icon.size());
         }
+    }
+
+    #[test]
+    fn enchant_equipment_loading_preserves_missing_slots_and_checks_item_identity() {
+        let equipment = ModelRc::new(VecModel::from(vec![
+            EnchantEquipment { key: "item:10".into(), title: "Missing icon".into(), ..Default::default() },
+            EnchantEquipment {
+                key: "item:20".into(), title: "Equipment".into(), alternate_name: "裝備".into(),
+                ..Default::default()
+            },
+        ]));
+        let hits = ModelRc::new(VecModel::from(vec![Hit {
+            key: "item:1175".into(), enchant_equipment: equipment.clone(), enchant_scroll: true,
+            ..Default::default()
+        }]));
+        let before = hits.row_data(0).unwrap();
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(!paint_enchant_preview(&hits, EnchantPreviewKind::Equipment, "item:1175", 0, "item:20", image.clone(), true));
+        assert!(!paint_enchant_preview(&hits, EnchantPreviewKind::Equipment, "item:1176", 1, "item:20", image.clone(), true));
+        assert!(!paint_enchant_preview(&hits, EnchantPreviewKind::Equipment, "item:1175", 2, "item:20", image.clone(), true));
+        assert_eq!(before.enchant_equipment, hits.row_data(0).unwrap().enchant_equipment);
+        assert!(paint_enchant_preview(&hits, EnchantPreviewKind::Equipment, "item:1175", 1, "item:20", image, true));
+        let after = hits.row_data(0).unwrap();
+        assert_ne!(before.enchant_equipment, after.enchant_equipment);
+        assert!(!equipment.row_data(1).unwrap().has_icon);
+        assert_eq!(after.enchant_equipment.row_count(), 2);
+        let missing = after.enchant_equipment.row_data(0).unwrap();
+        assert_eq!(missing.key.as_str(), "item:10");
+        assert!(!missing.has_icon);
+        let loaded = after.enchant_equipment.row_data(1).unwrap();
+        assert_eq!(loaded.key.as_str(), "item:20");
+        assert_eq!(loaded.title.as_str(), "Equipment");
+        assert_eq!(loaded.alternate_name.as_str(), "裝備");
+        assert!(loaded.has_icon);
+        assert_eq!(loaded.icon.size().width, 1);
+        assert_eq!(after.monster_drops.row_count(), 0);
+
+        assert!(paint_enchant_preview(&hits, EnchantPreviewKind::Equipment, "item:1175", 1, "item:20", Image::default(), false));
+        let failed = hits.row_data(0).unwrap().enchant_equipment.row_data(1).unwrap();
+        assert_eq!(failed.key.as_str(), "item:20");
+        assert!(!failed.has_icon);
+        let model = hits.as_any().downcast_ref::<VecModel<Hit>>().unwrap();
+        let mut compact_row = model.row_data(0).unwrap();
+        compact_row.enchant_scroll = false;
+        model.set_row_data(0, compact_row);
+        assert!(!paint_enchant_preview(&hits, EnchantPreviewKind::Equipment, "item:1175", 1, "item:20", Image::default(), false));
+    }
+
+    #[test]
+    fn enchant_material_icons_do_not_paint_equipment_or_change_quantities() {
+        let equipment = ModelRc::new(VecModel::from(vec![EnchantEquipment {
+            key: "item:20".into(), title: "Equipment".into(), ..Default::default()
+        }]));
+        let materials = ModelRc::new(VecModel::from(vec![
+            EnchantEquipment {
+                key: "item:20".into(), title: "Material".into(), quantity: "× 30".into(),
+                alternate_name: "材料".into(), ..Default::default()
+            },
+            EnchantEquipment {
+                key: "item:21".into(), title: "Missing image".into(), quantity: "× 2".into(),
+                ..Default::default()
+            },
+        ]));
+        let hits = ModelRc::new(VecModel::from(vec![Hit {
+            key: "item:1175".into(), enchant_equipment: equipment.clone(),
+            enchant_materials: materials.clone(), enchant_scroll: true, ..Default::default()
+        }]));
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(2, 2));
+        assert!(!paint_enchant_preview(&hits, EnchantPreviewKind::Material, "item:1175", 1, "item:20", image.clone(), true));
+        assert!(!paint_enchant_preview(&hits, EnchantPreviewKind::Material, "item:1176", 0, "item:20", image.clone(), true));
+        assert!(!paint_enchant_preview(&hits, EnchantPreviewKind::Material, "item:1175", 2, "item:20", image.clone(), true));
+        assert!(paint_enchant_preview(&hits, EnchantPreviewKind::Material, "item:1175", 0, "item:20", image, true));
+        let after = hits.row_data(0).unwrap();
+        assert_eq!(equipment, after.enchant_equipment);
+        assert!(!after.enchant_equipment.row_data(0).unwrap().has_icon);
+        assert_ne!(materials, after.enchant_materials);
+        let material = after.enchant_materials.row_data(0).unwrap();
+        assert_eq!(material.key.as_str(), "item:20");
+        assert_eq!(material.quantity.as_str(), "× 30");
+        assert_eq!(material.alternate_name.as_str(), "材料");
+        assert!(material.has_icon);
+        assert_eq!(material.icon.size().width, 2);
+        let missing = after.enchant_materials.row_data(1).unwrap();
+        assert_eq!(missing.key.as_str(), "item:21");
+        assert_eq!(missing.quantity.as_str(), "× 2");
+        assert!(!missing.has_icon);
+
+        let equipment_image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(1, 1));
+        assert!(paint_enchant_preview(&hits, EnchantPreviewKind::Equipment, "item:1175", 0, "item:20", equipment_image, true));
+        let after_equipment = hits.row_data(0).unwrap();
+        assert_eq!(after.enchant_materials, after_equipment.enchant_materials);
+        assert_eq!(after_equipment.enchant_equipment.row_data(0).unwrap().icon.size().width, 1);
+        assert!(paint_enchant_preview(&hits, EnchantPreviewKind::Material, "item:1175", 0, "item:20", Image::default(), false));
+        let failed = hits.row_data(0).unwrap().enchant_materials.row_data(0).unwrap();
+        assert_eq!(failed.quantity.as_str(), "× 30");
+        assert!(!failed.has_icon);
+        assert!(hits.row_data(0).unwrap().enchant_equipment.row_data(0).unwrap().has_icon);
     }
 
     fn quest_chips(items: &[(&str, &str)]) -> ModelRc<QuestItemChip> {

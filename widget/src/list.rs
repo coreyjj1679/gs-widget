@@ -1,11 +1,12 @@
-use std::collections::HashSet;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 
 use slint::{Image, Model, ModelRc, SharedString, VecModel};
 
 use super::db;
 use super::icons::cached_icon;
-use super::{App, Hit, IconJob, MonsterDrop, QuestBrowseGroup, QuestItemRow, Session};
+use super::{App, EnchantEquipment, Hit, IconJob, MonsterDrop, QuestBrowseGroup, QuestItemRow, Session};
 
 pub(crate) fn publish_quest_groups(app: &App, catalog: &db::Catalog, grouping: &str, query: &str) {
     let needle = query.trim().to_lowercase();
@@ -23,6 +24,7 @@ fn section_key(key: &str) -> bool {
         || key.starts_with("land:")
         || key.starts_with("land-rank:")
         || key.starts_with("icat:")
+        || key.starts_with("ecat:")
         || key.starts_with("qsrc:")
         || key.starts_with("yard:")
         || key.starts_with("realm:")
@@ -582,6 +584,64 @@ mod tests {
     }
 
     #[test]
+    fn enchant_previews_keep_slots_quantities_and_reuse_cached_icons() {
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+        use slint::{Image, Model, Rgba8Pixel, SharedPixelBuffer};
+
+        let catalog = super::db::Catalog::open().expect("db");
+        let cache = RefCell::new(HashMap::new());
+        let path = std::path::PathBuf::from("/tmp/enchant-equipment-test.agf");
+        let mut first = catalog.search("item", "1103", "zh-en", "", "").into_iter()
+            .find(|row| row.key == "item:1103").expect("base equipment");
+        first.icon = None;
+        let mut second = first.clone();
+        second.icon = Some((path.clone(), 7));
+        first.subtitle = "× 10".into();
+        second.subtitle = "× 2".into();
+        let equipment = vec![first, second];
+        let mut jobs = Vec::new();
+        let cold = super::enchant_preview_rows(&cache, &catalog, "item:1175", &equipment, super::EnchantPreviewKind::Equipment, "zh-en", 3, &mut jobs);
+        assert_eq!(cold.row_count(), 2);
+        assert!(cold.iter().all(|item| !item.has_icon));
+        assert!(cold.iter().all(|item| item.quantity.is_empty()));
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].row_key, "item:1175#enchant-equipment:1:item:1103");
+        assert_eq!(jobs[0].gen, 3);
+        assert!(!jobs[0].links);
+        assert_eq!(jobs[0].path, path);
+        assert_eq!(jobs[0].frame, 7);
+        assert_eq!(cold.row_data(1).unwrap().alternate_name.as_str(), catalog.item_alternate_name("item:1103", "zh-en"));
+        let material = super::enchant_preview_rows(&cache, &catalog, "item:1175", &equipment, super::EnchantPreviewKind::Material, "zh-en", 3, &mut jobs);
+        assert_eq!(jobs.len(), 2);
+        assert_eq!(jobs[1].row_key, "item:1175#enchant-material:1:item:1103");
+        assert!(material.iter().all(|item| !item.has_icon));
+        assert_eq!(material.row_data(0).unwrap().quantity.as_str(), "× 10");
+        assert_eq!(material.row_data(1).unwrap().quantity.as_str(), "× 2");
+
+        let image = Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::new(2, 2));
+        cache.borrow_mut().insert(jobs[0].cache_key.clone(), image);
+        jobs.clear();
+        let warm = super::enchant_preview_rows(&cache, &catalog, "item:1175", &equipment, super::EnchantPreviewKind::Equipment, "zh-en", 4, &mut jobs);
+        let warm_material = super::enchant_preview_rows(&cache, &catalog, "item:1175", &equipment, super::EnchantPreviewKind::Material, "zh-en", 4, &mut jobs);
+        assert!(jobs.is_empty());
+        assert!(!warm.row_data(0).unwrap().has_icon);
+        assert!(warm.row_data(1).unwrap().has_icon);
+        assert_eq!(warm.row_data(1).unwrap().icon.size().width, 2);
+        assert!(!warm_material.row_data(0).unwrap().has_icon);
+        assert!(warm_material.row_data(1).unwrap().has_icon);
+        assert_eq!(warm_material.row_data(0).unwrap().quantity.as_str(), "× 10");
+        assert_eq!(warm_material.row_data(1).unwrap().quantity.as_str(), "× 2");
+        for slot in 0..2 {
+            let before = cold.row_data(slot).unwrap();
+            let after = warm.row_data(slot).unwrap();
+            assert_eq!(before.key, after.key);
+            assert_eq!(before.title, after.title);
+            assert_eq!(before.alternate_name, after.alternate_name);
+        }
+    }
+
+    #[test]
     fn monster_row_metadata_keeps_the_location_without_repeating_its_name() {
         let catalog = super::db::Catalog::open().expect("db");
         for lang in ["zh-en", "en-zh"] {
@@ -797,8 +857,62 @@ pub(crate) fn item_row_names(catalog: &db::Catalog, key: &str, subtitle: &str, l
     (alternate, metadata)
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EnchantPreviewKind {
+    Equipment,
+    Material,
+}
+
+impl EnchantPreviewKind {
+    pub(crate) fn marker(self) -> &'static str {
+        match self {
+            Self::Equipment => "#enchant-equipment:",
+            Self::Material => "#enchant-material:",
+        }
+    }
+}
+
+fn enchant_preview_rows(
+    cache: &RefCell<HashMap<String, Image>>,
+    catalog: &db::Catalog,
+    row_key: &str,
+    records: &[db::Hit],
+    kind: EnchantPreviewKind,
+    lang: &str,
+    gen: u64,
+    jobs: &mut Vec<IconJob>,
+) -> ModelRc<EnchantEquipment> {
+    let items = records.iter().enumerate().map(|(slot, item)| {
+        let image = item.icon.as_ref().and_then(|(path, frame)| {
+            let cache_key = format!("{}#{frame}", path.display());
+            let image = cache.borrow().get(&cache_key).cloned();
+            if image.is_none() {
+                jobs.push(IconJob {
+                    gen,
+                    links: false,
+                    cache_key,
+                    row_key: format!("{row_key}{}{slot}:{}", kind.marker(), item.key),
+                    path: path.clone(),
+                    frame: *frame,
+                });
+            }
+            image
+        });
+        EnchantEquipment {
+            key: item.key.clone().into(),
+            title: item.title.clone().into(),
+            alternate_name: catalog.item_alternate_name(&item.key, lang).into(),
+            quantity: if kind == EnchantPreviewKind::Material { item.subtitle.clone().into() } else { SharedString::default() },
+            has_icon: image.is_some(),
+            icon: image.unwrap_or_default(),
+        }
+    }).collect::<Vec<_>>();
+    ModelRc::new(VecModel::from(items))
+}
+
 fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, hits: Vec<db::Hit>, favourites: &HashSet<String>, board: bool) {
     let _timer = super::perf::Span::new("list.rows", hits.len());
+    let lang = app.get_lang().to_string();
     let cards_timer = super::perf::Span::new("list.monster_cards", hits.len());
     let codes: Vec<String> = hits
         .iter()
@@ -810,6 +924,19 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
         std::collections::HashMap::new()
     };
     drop(cards_timer);
+    let (enchant_equipment, enchant_materials, enchant_info, enchant_abilities) = if app.get_full_mode() && app.get_category() == "enchant" {
+        let codes = hits.iter().filter_map(|hit| {
+            hit.key.strip_prefix("item:").and_then(|code| code.parse::<i64>().ok())
+        }).collect::<Vec<_>>();
+        (
+            catalog.enchant_applicable_equipment(&codes, &lang),
+            catalog.enchant_preview_materials(&codes, &lang),
+            catalog.enchant_scroll_info(&codes),
+            catalog.enchant_preview_abilities(&codes, &lang),
+        )
+    } else {
+        (HashMap::new(), HashMap::new(), HashMap::new(), HashMap::new())
+    };
     // A section opens beside the directory that is still loading its icons.
     // Keep both models in the same generation; only replacing the main list
     // invalidates their pending jobs. Jobs for old section rows are keyed and
@@ -823,7 +950,6 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
     let flow_chips: Vec<String> = hits.iter().map(|hit| hit.chip.clone()).collect();
     let mut rows = Vec::with_capacity(hits.len());
     let mut jobs = Vec::new();
-    let lang = app.get_lang().to_string();
     for hit in hits {
         let mut icon = Image::default();
         let mut has_icon = false;
@@ -924,12 +1050,35 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
         let alternate_name = brief.map(|card| card.alternate_name.clone())
             .unwrap_or_else(|| catalog.item_alternate_name(&hit.key, &lang));
         let subtitle = name_metadata(&alternate_name, &hit.subtitle);
+        let code = hit.key.strip_prefix("item:").and_then(|code| code.parse::<i64>().ok());
+        let equipment = code.and_then(|code| enchant_equipment.get(&code));
+        let materials = code.and_then(|code| enchant_materials.get(&code));
+        let info = code.and_then(|code| enchant_info.get(&code));
+        let abilities = code.and_then(|code| enchant_abilities.get(&code));
+        let enchant_scroll = info.is_some();
+        let enchant_level = info.map(|info| info.level.to_string()).unwrap_or_default().into();
+        let enchant_rate = info.and_then(|info| i32::try_from(info.rate).ok()).unwrap_or_default();
+        let enchant_bonuses = abilities.map(|abilities| abilities.summary.clone()).unwrap_or_default().into();
+        let enchant_bonuses_recorded = abilities.is_some_and(|abilities| abilities.recorded);
+        let enchant_equipment = equipment.map(|equipment| {
+            enchant_preview_rows(&session.cache, catalog, &hit.key, equipment, EnchantPreviewKind::Equipment, &lang, gen, &mut jobs)
+        }).unwrap_or_default();
+        let enchant_materials = materials.map(|materials| {
+            enchant_preview_rows(&session.cache, catalog, &hit.key, materials, EnchantPreviewKind::Material, &lang, gen, &mut jobs)
+        }).unwrap_or_default();
         rows.push(Hit {
             title: SharedString::from(hit.title),
             alternate_name: SharedString::from(alternate_name),
             subtitle: SharedString::from(subtitle),
             detail: SharedString::from(brief.map(|card| card.summary.as_str()).unwrap_or("")),
             monster_drops,
+            enchant_equipment,
+            enchant_materials,
+            enchant_scroll,
+            enchant_level,
+            enchant_rate,
+            enchant_bonuses,
+            enchant_bonuses_recorded,
             spawn_places: SharedString::from(brief.map(|card| card.spawn_places.as_str()).unwrap_or("")),
             stat_kind: SharedString::from(brief.map(|card| card.kind.as_str()).unwrap_or("")),
             stat_element: SharedString::from(brief.map(|card| card.element.as_str()).unwrap_or("")),
@@ -1063,6 +1212,13 @@ pub(crate) fn plain_hits(hits: Vec<db::Hit>) -> Vec<Hit> {
             subtitle: SharedString::from(hit.subtitle),
             detail: SharedString::default(),
             monster_drops: Default::default(),
+            enchant_equipment: Default::default(),
+            enchant_materials: Default::default(),
+            enchant_scroll: false,
+            enchant_level: Default::default(),
+            enchant_rate: 0,
+            enchant_bonuses: Default::default(),
+            enchant_bonuses_recorded: false,
             spawn_places: Default::default(),
             stat_kind: SharedString::default(),
             stat_element: SharedString::default(),

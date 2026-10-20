@@ -639,6 +639,11 @@ fn translated(en: &str) -> Option<&'static str> {
         "Enchant materials" => "주술 재료",
         "Enchant scrolls" => "주술 비법",
         "Enchant" => "주술",
+        "Base equipment" => "기본 장비",
+        "Enchanted results" => "주술 장비",
+        "Applicable equipment" => "적용 장비",
+        "Jackpot results" => "대성공 결과",
+        "Restoration scroll" => "복원 비법",
         _ => return None,
     })
 }
