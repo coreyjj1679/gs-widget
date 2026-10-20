@@ -631,6 +631,14 @@ fn translated(en: &str) -> Option<&'static str> {
         "No translated name to copy." => "복사할 번역 이름이 없습니다.",
         "Copied to clipboard" => "클립보드에 복사했습니다",
         "Couldn't copy. Select the text and copy it manually." => "복사하지 못했습니다. 텍스트를 선택하여 직접 복사하세요.",
+        "Applies to" => "연마 대상",
+        "Fortune fee" => "점괘 비용",
+        "Enchant fee" => "주술 연마 비용",
+        "Success weight" => "성공 가중치",
+        "Good fortune share" => "길괘 배분",
+        "Enchant materials" => "주술 재료",
+        "Enchant scrolls" => "주술 비법",
+        "Enchant" => "주술",
         _ => return None,
     })
 }

@@ -894,6 +894,7 @@ impl Catalog {
             }
             lines.push((phrase("item-sort", lang), shown));
         }
+        lines.extend(self.enchant_lines(code, lang));
         lines.extend(self.gear_lines(code, lang));
         lines.extend(self.affix_lines(code, lang));
         lines.extend(self.set_lines(code, lang));
@@ -1526,10 +1527,134 @@ impl Catalog {
         hits
     }
 
+    pub(in crate::db) fn enchant_lines(&self, code: i64, lang: &str) -> Vec<(String, String)> {
+        if !self.has_table("enchant_recipes") {
+            return Vec::new();
+        }
+        let Ok((rate, level, key)) = self.conn.query_row(
+            "SELECT success_rate, level, recipe_key FROM enchant_recipes WHERE item_code = ?1",
+            [code],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)),
+        ) else {
+            return Vec::new();
+        };
+        let mut lines = vec![
+            (phrase("success", lang), format!("{}%", commas(rate))),
+            (phrase("min-level", lang), commas(level)),
+        ];
+        let gear = self.enchant_gear(code, lang);
+        if !gear.is_empty() {
+            let separator = if primary_lang(lang) == "zh" { "、" } else { ", " };
+            lines.push((phrase("enchant-gear", lang), gear.join(separator)));
+        }
+        for (item, qty) in self.enchant_materials(&key) {
+            lines.push((phrase("materials", lang), format!("{} × {}", self.item_name(item, lang), commas(qty))));
+        }
+        lines
+    }
+
+    fn enchant_gear(&self, code: i64, lang: &str) -> Vec<String> {
+        let Ok(mut stmt) = self.conn.prepare(
+            "SELECT ty.label_gts, ty.item_code
+             FROM enchant_recipe_targets t
+             JOIN enchant_target_types ty ON ty.token = t.token
+             WHERE t.item_code = ?1
+             ORDER BY t.slot",
+        ) else {
+            return Vec::new();
+        };
+        stmt.query_map([code], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+            .map(|rows| {
+                rows.filter_map(Result::ok)
+                    .map(|(text_id, item)| {
+                        if text_id > 0 {
+                            let en = self.online_line(text_id, "en");
+                            let zh = self.online_line(text_id, "zh");
+                            let shown = lead(lang, &en, &zh);
+                            if !shown.is_empty() {
+                                return shown;
+                            }
+                        }
+                        if item > 0 {
+                            return self.item_name(item, lang);
+                        }
+                        String::new()
+                    })
+                    .filter(|name| !name.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn enchant_materials(&self, key: &str) -> Vec<(i64, i64)> {
+        let Ok(mut stmt) = self.conn.prepare(
+            "SELECT item_code, qty FROM enchant_materials WHERE recipe_key = ?1 ORDER BY slot",
+        ) else {
+            return Vec::new();
+        };
+        stmt.query_map([key], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map(|rows| rows.filter_map(Result::ok).collect())
+            .unwrap_or_default()
+    }
+
+    fn enchant_material_hits(&self, code: i64, lang: &str) -> Vec<Hit> {
+        if !self.has_table("enchant_recipes") {
+            return Vec::new();
+        }
+        let Ok(key) = self.conn.query_row(
+            "SELECT recipe_key FROM enchant_recipes WHERE item_code = ?1",
+            [code],
+            |row| row.get::<_, String>(0),
+        ) else {
+            return Vec::new();
+        };
+        self.enchant_materials(&key)
+            .into_iter()
+            .map(|(item, qty)| self.enchant_hit(item, format!("× {}", commas(qty)), lang))
+            .collect()
+    }
+
+    fn enchant_scroll_hits(&self, code: i64, lang: &str) -> Vec<Hit> {
+        if !self.has_table("enchant_materials") {
+            return Vec::new();
+        }
+        let Ok(mut stmt) = self.conn.prepare(
+            "SELECT r.item_code, m.qty
+             FROM enchant_materials m
+             JOIN enchant_recipes r ON r.recipe_key = m.recipe_key
+             WHERE m.item_code = ?1
+             ORDER BY r.level, r.item_code",
+        ) else {
+            return Vec::new();
+        };
+        stmt.query_map([code], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+            .map(|rows| {
+                rows.filter_map(Result::ok)
+                    .map(|(item, qty)| self.enchant_hit(item, format!("× {}", commas(qty)), lang))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn enchant_hit(&self, code: i64, subtitle: String, lang: &str) -> Hit {
+        Hit {
+            title: self.item_name(code, lang),
+            subtitle,
+            key: format!("item:{code}"),
+            icon: self.item_icon(code),
+            solo: false,
+            badge: None,
+            aside: String::new(),
+            chip: String::new(),
+        }
+    }
+
     pub(in crate::db) fn item_relations(&self, code: i64, lang: &str) -> Vec<Hit> {
         let mut hits = Vec::new();
         self.push_section(&mut hits, lang, "sold-in", self.item_sellers(code, lang));
         self.push_section(&mut hits, lang, "dropped-by", self.item_droppers(code, lang));
+        push_rows(&mut hits, lang, "enchant-need", self.enchant_material_hits(code, lang));
+        push_rows(&mut hits, lang, "enchant-for", self.enchant_scroll_hits(code, lang));
         self.push_section(&mut hits, lang, "craft-how", self.recipes_for(code, lang));
         self.push_section(&mut hits, lang, "make", self.production_for(code, lang));
         let mut uses = self.item_quest_uses(code, lang);
@@ -1668,6 +1793,28 @@ impl Catalog {
         })?;
         Some((entry.path(), frame as i32))
     }
+}
+
+fn push_rows(hits: &mut Vec<Hit>, lang: &str, key: &str, mut rows: Vec<Hit>) {
+    if rows.is_empty() {
+        return;
+    }
+    hits.push(Hit {
+        title: phrase(key, lang),
+        subtitle: rows.len().to_string(),
+        key: format!("section:{key}"),
+        icon: None,
+        solo: false,
+        badge: None,
+        aside: String::new(),
+        chip: "section".into(),
+    });
+    for row in &mut rows {
+        if row.chip.is_empty() {
+            row.chip = key.to_string();
+        }
+    }
+    hits.extend(rows);
 }
 
 #[cfg(test)]

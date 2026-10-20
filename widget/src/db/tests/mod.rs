@@ -838,6 +838,47 @@ fn shipped_pictures_open_without_the_game_client() {
     assert!(client.join("Assets").join("Textures").join("Items").is_dir());
 }
 
+#[test]
+fn joseon_enchant_npc_shows_fees_and_fortune_share() {
+    let catalog = Catalog::open().expect("db");
+    let (_, _, _, facts, _) = catalog.npc_sheet(37, "zh-en").expect("joseon shaman");
+    assert!(facts.iter().any(|(label, value)| label == "點卦費" && value == "10,000"));
+    assert!(facts.iter().any(|(label, value)| label == "附魔費" && value == "1級  10,000"));
+    assert!(facts.iter().any(|(label, value)| label == "附魔費" && value == "4級  300,000"));
+    assert!(facts.iter().any(|(label, value)| label == "成功權重" && value == "2,500,000"));
+    assert!(facts.iter().any(|(label, value)| label == "吉卦分配" && value == "98"));
+    let (_, _, _, china, _) = catalog.npc_sheet(39, "zh-en").expect("china shaman");
+    assert!(china.iter().any(|(label, value)| label == "成功權重" && value == "2,200,000"));
+    assert!(china.iter().any(|(label, value)| label == "吉卦分配" && value == "96"));
+}
+
+#[test]
+fn goguryeo_enchant_lists_game_materials_and_taehwang_gear() {
+    let catalog = Catalog::open().expect("db");
+    let (_, _, _, lines, _) = catalog.item_sheet(1129, "zh-en").expect("goguryeo scroll");
+    assert!(lines.iter().any(|(label, value)| label == "成功率" && value == "15%"));
+    assert!(lines.iter().any(|(label, value)| label == "最低等級" && value == "150"));
+    let gear = lines.iter().find(|(label, _)| label == "可附魔").expect("targets").1.as_str();
+    assert!(gear.contains("太皇盔甲"));
+    assert!(gear.contains("太皇頭盔"));
+    assert!(gear.contains("、"));
+    let materials: Vec<_> = lines.iter().filter(|(label, _)| label == "材料").map(|(_, value)| value.as_str()).collect();
+    assert_eq!(materials.len(), 5);
+    assert!(materials.contains(&"赤色精氣石 × 20"));
+    assert!(materials.contains(&"黑鐵塊 × 10"));
+    assert!(materials.contains(&"勇者的證明 × 20"));
+    let (_, relations, _) = catalog.open_key("item:1129", "zh-en");
+    assert!(relations.iter().any(|hit| hit.key == "section:enchant-need" && hit.title == "鬼道材料"));
+    assert!(relations.iter().any(|hit| hit.key == "item:2287" && hit.chip == "enchant-need" && hit.subtitle == "× 10"));
+    assert!(relations.iter().any(|hit| hit.key == "item:2206" && hit.chip == "enchant-need" && hit.subtitle == "× 20"));
+    let (_, iron, _) = catalog.open_key("item:2287", "zh-en");
+    assert!(iron.iter().any(|hit| hit.key == "item:1129" && hit.chip == "enchant-for"));
+    let (_, _, _, english, _) = catalog.item_sheet(1129, "en-zh").expect("english sheet");
+    assert!(english.iter().any(|(label, value)| label == "Applies to" && value.contains("Taehwang Armor")));
+    assert_eq!(relation_label("enchant-for", "ko-en"), "주술");
+    assert_eq!(phrase("enchant-gear", "ko-en"), "연마 대상");
+}
+
 fn quest_code_id(catalog: &Catalog, source: &str, code: &str) -> i64 {
     catalog
         .conn

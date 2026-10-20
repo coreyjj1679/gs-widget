@@ -7,6 +7,7 @@ use super::{Catalog, Hit};
 use super::names::{fuzzy_rows, haystack, plain_name};
 use super::rows::{Index, NpcRow};
 use super::store::{online, table_exists};
+use super::language::primary_lang;
 use super::text::{caption, chrome_text, commas, lead, lead3, phrase, trail3};
 
 pub(in crate::db) fn npc_sheet_parts(npc: &NpcRow, lang: &str) -> (String, String, String, Vec<(String, String)>, String) {
@@ -144,14 +145,62 @@ pub(in crate::db) fn npc_portrait(client_root: &Path, index: i64) -> Option<(Pat
 impl Catalog {
     pub fn npc_sheet(&self, code: i64, lang: &str) -> Option<(String, String, String, Vec<(String, String)>, String)> {
         let npc = self.index.npcs.iter().find(|npc| npc.code == code)?;
-        Some(npc_sheet_parts(npc, lang))
+        let (title, alt, map, mut facts, note) = npc_sheet_parts(npc, lang);
+        facts.extend(self.enchant_npc_lines(code, lang));
+        Some((title, alt, map, facts, note))
+    }
+
+    fn enchant_npc_lines(&self, code: i64, lang: &str) -> Vec<(String, String)> {
+        if !self.has_table("enchant_npcs") {
+            return Vec::new();
+        }
+        let Ok((fortune, success, fees, share)) = self.conn.query_row(
+            "SELECT n.fortune_fee, n.success_rate, n.fee_1, n.fee_2, n.fee_3, n.fee_4, n.fee_5, n.fee_6, n.fee_7,
+                    IFNULL(b.share_rate, -1)
+             FROM enchant_npcs n
+             LEFT JOIN enchant_npc_bonus b ON b.param_code = n.param_code
+             WHERE n.npc_code = ?1",
+            [code],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    [
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, i64>(5)?,
+                        row.get::<_, i64>(6)?,
+                        row.get::<_, i64>(7)?,
+                        row.get::<_, i64>(8)?,
+                    ],
+                    row.get::<_, i64>(9)?,
+                ))
+            },
+        ) else {
+            return Vec::new();
+        };
+        let mut lines = vec![(phrase("fortune-fee", lang), commas(fortune))];
+        for (grade, fee) in fees.into_iter().enumerate() {
+            let rank = match primary_lang(lang) {
+                "en" => format!("Grade {}", grade + 1),
+                "ko" => format!("{}등급", grade + 1),
+                _ => format!("{}級", grade + 1),
+            };
+            lines.push((phrase("enchant-fee", lang), format!("{rank}  {}", commas(fee))));
+        }
+        lines.push((phrase("enchant-weight", lang), commas(success)));
+        if share >= 0 {
+            lines.push((phrase("fortune-share", lang), commas(share)));
+        }
+        lines
     }
 
     pub(in crate::db) fn open_npc(&self, code: i64, lang: &str) -> (String, Vec<Hit>, Option<(PathBuf, i32)>) {
         let Some(npc) = self.index.npcs.iter().find(|npc| npc.code == code) else {
             return (phrase("missing-npc", lang), Vec::new(), None);
         };
-        let (name, alt, map, facts, note) = npc_sheet_parts(npc, lang);
+        let (name, alt, map, facts, note) = self.npc_sheet(code, lang).unwrap_or_else(|| npc_sheet_parts(npc, lang));
         let mut text = name.clone();
         if !alt.is_empty() {
             text.push_str(&format!("\n{alt}"));
