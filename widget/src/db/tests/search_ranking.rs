@@ -29,3 +29,22 @@ fn category_search_puts_codes_aliases_and_whole_names_before_partial_matches() {
     assert_eq!(aliased[..2], ["item:6213", "item:6943"]);
     assert!(aliased.len() > 2, "ordinary name matches stay listed after the alias targets");
 }
+
+#[test]
+fn quick_search_resolves_reviewed_nicknames_and_keeps_category_counts() {
+    let catalog = Catalog::open().expect("db");
+    for (query, key) in [("雀天", "hero:T49"), ("雀天套", "set:66")] {
+        let groups = catalog.quick_search(query, "zh-en");
+        assert_eq!(groups[0].kind, "nickname", "{query}");
+        assert_eq!(groups[0].hits[0].key, key, "{query}");
+        assert_eq!(groups[0].hits[0].aside, format!("「{query}」"));
+    }
+    let stones = catalog.quick_search("石", "zh-en");
+    let items = stones.iter().find(|group| group.kind == "item").expect("item group");
+    assert_eq!(items.total, item_keys(&catalog, "石").len());
+    assert_eq!(items.hits.iter().map(|hit| &hit.key).collect::<Vec<_>>(), item_keys(&catalog, "石").iter().take(QUICK_ROWS).collect::<Vec<_>>());
+    let keys: Vec<&String> = stones.iter().flat_map(|group| &group.hits).map(|hit| &hit.key).collect();
+    assert_eq!(keys.len(), keys.iter().collect::<HashSet<_>>().len(), "a record is listed once");
+    assert!(stones.iter().any(|group| group.kind == "monster"));
+    assert!(catalog.quick_search("  ", "zh-en").is_empty());
+}

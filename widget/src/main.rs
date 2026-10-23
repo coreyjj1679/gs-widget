@@ -12,6 +12,7 @@ mod list;
 mod mcp;
 mod mcp_ui;
 mod perf;
+mod quick_search_ui;
 mod calculator_ui;
 mod calculator_export;
 mod sheet;
@@ -364,7 +365,10 @@ fn main() {
     let _update_ui = update_ui::install(&app);
     app.on_open_source(window::open_source_repository);
     #[cfg(target_os = "macos")]
-    app.set_ui_font("PingFang TC".into());
+    {
+        app.set_ui_font("PingFang TC".into());
+        app.set_quick_shortcut("⌘K".into());
+    }
     app.global::<UiLanguage>().on_translate(|language, en, zh| db::ui_text(&language, &zh, &en).into());
     let language = db::load_lang();
     app.set_lang(language.clone().into());
@@ -459,6 +463,7 @@ fn main() {
     );
 
     calculator_ui::install(&app, Rc::clone(&catalog), Rc::clone(&icons));
+    quick_search_ui::install(&app, Rc::clone(&catalog), session.clone());
     let favourites = Rc::new(RefCell::new(db::load_favourites()));
     let alias_rows = Rc::new(RefCell::new(db::alias_rows()));
     let alias_suggest: Rc<RefCell<Vec<Hit>>> = Rc::new(RefCell::new(Vec::new()));

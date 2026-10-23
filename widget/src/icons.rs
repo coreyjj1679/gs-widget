@@ -204,6 +204,10 @@ pub(crate) fn paint_hit(app: &App, row_key: &str, icon: Image, has_icon: bool, l
         return;
     }
     let hits = if links { app.get_links() } else { app.get_hits() };
+    if links {
+        // Quick search rows can share keys with the record open behind them.
+        paint_model(&app.get_quick_results(), row_key, icon.clone(), has_icon);
+    }
     let painted = if links {
         paint_model(&hits, row_key, icon.clone(), has_icon)
     } else {

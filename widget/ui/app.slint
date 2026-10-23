@@ -4791,6 +4791,115 @@ export component StartupError inherits Window {
     }
 }
 
+// Looks like a search field; it opens the quick search for every category.
+component QuickSearchEntry inherits Rectangle {
+    in property <string> label;
+    in property <string> shortcut;
+    in property <bool> compact: false;
+    callback clicked();
+    height: root.compact ? 28px : 40px;
+    border-radius: root.compact ? 7px : 8px;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    background: tap.has-hover ? DesktopTheme.hover : DesktopTheme.control;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-description: root.shortcut;
+    accessible-action-default => { root.clicked(); }
+    DesktopIcon {
+        x: root.compact ? 8px : 12px; y: (parent.height - self.height) / 2;
+        width: root.compact ? 14px : 18px; height: self.width;
+        path: "M 16 10.5 A 5.5 5.5 0 1 1 5 10.5 A 5.5 5.5 0 1 1 16 10.5 Z M 14.5 14.5 L 20 20";
+    }
+    Text {
+        x: root.compact ? 28px : 40px; width: parent.width - self.x - shortcut-text.width - 16px; height: 100%;
+        text: root.label; overflow: elide; vertical-alignment: center;
+        font-size: root.compact ? 12px : 13px; color: DesktopTheme.secondary;
+    }
+    shortcut-text := Text {
+        x: parent.width - self.width - (root.compact ? 8px : 12px); height: 100%;
+        text: root.shortcut; vertical-alignment: center;
+        font-size: 11px; color: DesktopTheme.muted;
+    }
+    tap := TouchArea { mouse-cursor: pointer; clicked => { focus.focus(); root.clicked(); } }
+    focus := FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+}
+
+// One query across categories; rows that are headings are not selectable.
+component QuickSearchPanel inherits Rectangle {
+    in property <[Hit]> results;
+    in property <[int]> selectable;
+    in-out property <int> pick: 0;
+    in-out property <string> query;
+    in property <string> no-image-label;
+    callback edited(string);
+    callback choose(string);
+    callback close();
+    property <length> row-h: 44px;
+    property <int> picked-row: root.selectable.length > 0 ? root.selectable[min(root.pick, root.selectable.length - 1)] : -1;
+    background: DesktopTheme.surface-alt;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: DesktopTheme.border;
+    forward-focus: input;
+    function step(delta: int) {
+        if (root.selectable.length == 0) { return; }
+        root.pick = max(0, min(root.selectable.length - 1, root.pick + delta));
+        let top = root.selectable[root.pick] * root.row-h;
+        if (top < -list.content-y) { list.content-y = -top; }
+        else if (top + root.row-h > -list.content-y + list.height) { list.content-y = list.height - top - root.row-h; }
+    }
+    // Clicks on the panel itself must not reach the backdrop, which closes it.
+    TouchArea { }
+    input := LineEdit {
+        x: 16px; y: 16px; width: parent.width - 32px; height: 36px;
+        text <=> root.query;
+        placeholder-text: UiLanguage.tr("Name, nickname or #ID…", "名稱、俗稱或 #編號…");
+        accessible-label: UiLanguage.tr("Search everything", "搜尋全部");
+        edited => { root.pick = 0; list.content-y = 0px; root.edited(self.text); }
+        accepted => { if (root.picked-row >= 0) { root.choose(root.results[root.picked-row].key); } }
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.close(); return accept; }
+            if (event.text == Key.DownArrow) { root.step(1); return accept; }
+            if (event.text == Key.UpArrow) { root.step(-1); return accept; }
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "k" || event.text == "K")) { root.close(); return accept; }
+            return reject;
+        }
+    }
+    init => { input.focus(); }
+    if root.results.length == 0: Text {
+        x: 24px; y: 72px; width: parent.width - 48px;
+        text: root.query == ""
+            ? UiLanguage.tr("Search items, monsters, characters, quests, NPCs and sets at once. Community nicknames such as 雀天 also work.", "一次搜尋道具、怪物、角色、任務、人物與套裝；也可以輸入「雀天」等玩家俗稱。")
+            : UiLanguage.tr("No matches. Try another name, nickname or #ID.", "沒有符合的資料，試試其他名稱、俗稱或 #編號。");
+        wrap: word-wrap; font-size: 13px; color: DesktopTheme.secondary;
+    }
+    list := Flickable {
+        x: 8px; y: 64px; width: parent.width - 16px; height: max(parent.height - 64px - 34px, 1px);
+        content-width: self.width;
+        content-height: max(root.results.length * root.row-h, 1px);
+        for row[i] in root.results: HitRow {
+            y: i * root.row-h; width: parent.width; height: root.row-h - 4px;
+            hit: row;
+            selected: i == root.picked-row;
+            no-image-label: root.no-image-label;
+            clicked => { if (row.chip != "label" && row.key != "") { root.choose(row.key); } }
+        }
+    }
+    Text {
+        x: 16px; y: parent.height - 30px; width: parent.width - 32px; height: 22px;
+        text: UiLanguage.tr("↑↓ Choose · Enter Open · Esc Close", "↑↓ 選擇 · Enter 開啟 · Esc 關閉");
+        font-size: 11px; color: DesktopTheme.muted; vertical-alignment: center; overflow: elide;
+    }
+}
+
 component SearchEmpty inherits Rectangle {
     in property <bool> english;
     callback clear();
@@ -5018,6 +5127,14 @@ export component App inherits Window {
     in-out property <int> pending-cursor: -1;
     in-out property <int> drop-reveal-index: -1;
     in-out property <int> drop-reveal-request: 0;
+    // Full-mode quick search across categories and reviewed nicknames.
+    in-out property <bool> quick-search-open: false;
+    in-out property <string> quick-query: "";
+    in-out property <[Hit]> quick-results;
+    in-out property <[int]> quick-selectable;
+    in-out property <int> quick-pick: 0;
+    in-out property <string> quick-shortcut: "Ctrl+K";
+    callback quick-search(string);
     in-out property <image> item-icon;
     in-out property <bool> show-icon;
     in-out property <image> battle-icon;
@@ -5232,6 +5349,41 @@ export component App inherits Window {
         root.collapsed = false;
         root.open-category("enchant");
         keys.focus();
+    }
+
+    function open-quick-search() {
+        if (!root.full-mode || root.collapsed) { return; }
+        RecordInfo.text = "";
+        root.quick-search-open = true;
+        root.quick-search(root.quick-query);
+    }
+
+    function close-quick-search() {
+        root.quick-search-open = false;
+        keys.focus();
+    }
+
+    // A record opens in the current category so Back returns there; pages without
+    // a category open the record's own category first.
+    function open-quick-result(key: string) {
+        let text = root.quick-query;
+        root.close-quick-search();
+        if (root.settings-open) { root.close-settings(); }
+        if (key.starts-with("quick-all:")) {
+            let category = key == "quick-all:item" ? "item" : key == "quick-all:monster" ? "monster"
+                : key == "quick-all:hero" ? "hero" : key == "quick-all:quest" ? "quest" : key == "quick-all:npc" ? "npc" : "";
+            if (category == "") { return; }
+            root.open-category(category);
+            root.query = text;
+            root.query-changed(category, root.query);
+            return;
+        }
+        if (root.category == "" || root.calculator-open || root.mcp-open) {
+            root.open-category(key.starts-with("monster:") ? "monster" : key.starts-with("hero:") ? "hero"
+                : key.starts-with("quest:") ? "quest" : key.starts-with("npc:") ? "npc" : "item");
+        }
+        if (root.category == "quest" && root.viewing == "" && root.quest-summary) { root.choose-quest-mode(false); }
+        root.open-hit(key);
     }
 
     function choose-enchant-page(mode: string) {
@@ -6343,6 +6495,15 @@ export component App inherits Window {
     }
 
     function handle-key(event: KeyEvent) -> EventResult {
+        if (root.full-mode && !root.collapsed && (event.modifiers.control || event.modifiers.meta) && (event.text == "k" || event.text == "K")) {
+            if (root.quick-search-open) { root.close-quick-search(); } else { root.open-quick-search(); }
+            return accept;
+        }
+        if (root.quick-search-open) {
+            if (event.text == Key.Escape) { root.close-quick-search(); return accept; }
+            // Keys left over from the search field must not act on the page behind it.
+            return reject;
+        }
         if (RecordInfo.text != "" && event.text == Key.Escape) {
             RecordInfo.text = "";
             return accept;
@@ -7081,7 +7242,7 @@ export component App inherits Window {
     changed full-mode => {
         root.hotkey-scope-changed(!root.full-mode);
         if (root.full-mode && root.settings-tab == 3) { root.select-settings(0); }
-        if (!root.full-mode) { root.calculator-open = false; root.mcp-open = false; }
+        if (!root.full-mode) { root.calculator-open = false; root.mcp-open = false; root.quick-search-open = false; }
     }
 
     changed collapsed => {
@@ -7497,6 +7658,15 @@ export component App inherits Window {
                         }
                     }
                 }
+                if root.full-mode: QuickSearchEntry {
+                    compact: true;
+                    width: UiLanguage.primary == "en" ? 196px : 168px;
+                    x: parent.width - (UiLanguage.primary == "en" ? 108px : 88px) - 88px - self.width - 12px;
+                    y: 7px;
+                    label: UiLanguage.tr("Search everything", "搜尋全部");
+                    shortcut: root.quick-shortcut;
+                    clicked => { root.open-quick-search(); }
+                }
                 WindowModeSwitch {
                     x: parent.width - self.width - 88px;
                     y: 7px;
@@ -7810,7 +7980,7 @@ export component App inherits Window {
                     width: 100%;
                     height: parent.height;
                     content-width: self.width;
-                    content-height: max(self.height, 550px);
+                    content-height: max(self.height, 594px);
                     Text {
                         x: 28px; y: 26px;
                         text: UiLanguage.tr("Explore the compendium", "探索巨商圖鑑");
@@ -7821,8 +7991,14 @@ export component App inherits Window {
                         text: UiLanguage.tr("Monsters, equipment and the paths that connect them.", "從怪物、裝備到任務，找到下一步需要的資料。");
                         font-size: 13px; color: DesktopTheme.secondary; overflow: elide;
                     }
+                    QuickSearchEntry {
+                        x: 28px; y: 100px; width: parent.width - 56px;
+                        label: UiLanguage.tr("Search everything by name, nickname or #ID", "以名稱、俗稱或 #編號搜尋全部");
+                        shortcut: root.quick-shortcut;
+                        clicked => { root.open-quick-search(); }
+                    }
                     Rectangle {
-                        x: 28px; y: 116px;
+                        x: 28px; y: 160px;
                         width: (parent.width - 72px) * 0.56;
                         height: 402px;
                         DesktopEntry {
@@ -7856,9 +8032,9 @@ export component App inherits Window {
                     }
                     Rectangle {
                         x: 44px + (parent.width - 72px) * 0.56;
-                        y: 116px;
+                        y: 160px;
                         width: (parent.width - 72px) * 0.44;
-                        height: max(parent.height - 144px, 380px);
+                        height: max(parent.height - 188px, 380px);
                         background: DesktopTheme.surface;
                         border-radius: 12px;
                         Text {
@@ -8253,6 +8429,9 @@ export component App inherits Window {
                             if (event.modifiers.control && event.text == "-") {
                                 root.shrink-window();
                                 return accept;
+                            }
+                            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "k" || event.text == "K")) {
+                                return root.handle-key(event);
                             }
                             if (event.modifiers.control && (event.text == "f" || event.text == "F")) {
                                 root.close-search();
@@ -10699,6 +10878,25 @@ export component App inherits Window {
                     wrap: word-wrap;
                     accessible-label: RecordInfo.text;
                 }
+            }
+        }
+        if root.full-mode && !root.collapsed && root.quick-search-open: Rectangle {
+            width: 100%; height: 100%;
+            border-radius: 12px;
+            background: DesktopTheme.canvas.with-alpha(0.72);
+            TouchArea { clicked => { root.close-quick-search(); } }
+            QuickSearchPanel {
+                x: (parent.width - self.width) / 2; y: 56px;
+                width: min(680px, parent.width - 96px);
+                height: min(parent.height - 104px, 600px);
+                results: root.quick-results;
+                selectable: root.quick-selectable;
+                pick <=> root.quick-pick;
+                query <=> root.quick-query;
+                no-image-label: root.no-image-label;
+                edited(text) => { root.quick-search(text); }
+                choose(key) => { root.open-quick-result(key); }
+                close => { root.close-quick-search(); }
             }
         }
     }

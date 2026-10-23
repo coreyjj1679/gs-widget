@@ -554,6 +554,15 @@ pub(super) fn translated(en: &str) -> Option<&'static str> {
         "H" => "장",
         "NPCs" => "NPC",
         "Compare by drop rate (" => "드롭률로 비교 (",
+        "Search everything" => "전체 검색",
+        "Search everything by name, nickname or #ID" => "이름, 속칭 또는 #번호로 전체 검색",
+        "Name, nickname or #ID…" => "이름, 속칭 또는 #번호…",
+        "Search items, monsters, characters, quests, NPCs and sets at once. Community nicknames such as 雀天 also work." => "아이템, 몬스터, 캐릭터, 퀘스트, NPC, 세트를 한 번에 검색합니다. 雀天 같은 속칭도 사용할 수 있습니다.",
+        "No matches. Try another name, nickname or #ID." => "일치하는 항목이 없습니다. 다른 이름, 속칭 또는 #번호를 입력해 보세요.",
+        "↑↓ Choose · Enter Open · Esc Close" => "↑↓ 선택 · Enter 열기 · Esc 닫기",
+        "Nicknames" => "속칭",
+        "Show all " => "전체 ",
+        " results" => "개 결과 보기",
         _ => return None,
     })
 }
