@@ -199,6 +199,7 @@ impl Catalog {
         } else {
             self.index.scope_monsters(key, query, lang)
         };
+        let hits = if query.is_empty() { hits } else { self.index.rank_search_hits(hits, query, &folded) };
         self.narrow_monsters(hits, element, ela_min, ela_max, drop)
     }
 
@@ -206,21 +207,20 @@ impl Catalog {
         let query = query.trim();
         let folded = query.to_lowercase();
         self.index.prepare_aliases(&folded);
-        if let Some(area) = place.strip_prefix("span:") {
-            return self.index.scope_monsters(&format!("jump:{nation}|span:{area}"), query, lang);
-        }
-        if !place.is_empty() {
-            return place.parse::<i64>().ok()
+        let hits = if let Some(area) = place.strip_prefix("span:") {
+            self.index.scope_monsters(&format!("jump:{nation}|span:{area}"), query, lang)
+        } else if !place.is_empty() {
+            place.parse::<i64>().ok()
                 .map(|gts| self.index.monster_hits(query, &folded, lang, &[gts], None))
-                .unwrap_or_default();
-        }
-        if !area.is_empty() {
-            return self.index.scope_monsters(&format!("jump:{nation}|area:{area}"), query, lang);
-        }
-        if !nation.is_empty() {
-            return self.index.scope_monsters(&format!("nation:{nation}"), query, lang);
-        }
-        self.index.monster_hits(query, &folded, lang, &[], None)
+                .unwrap_or_default()
+        } else if !area.is_empty() {
+            self.index.scope_monsters(&format!("jump:{nation}|area:{area}"), query, lang)
+        } else if !nation.is_empty() {
+            self.index.scope_monsters(&format!("nation:{nation}"), query, lang)
+        } else {
+            self.index.monster_hits(query, &folded, lang, &[], None)
+        };
+        if query.is_empty() { hits } else { self.index.rank_search_hits(hits, query, &folded) }
     }
 
     pub fn section_records(&self, key: &str, lang: &str) -> Vec<Hit> {
@@ -275,18 +275,21 @@ impl Catalog {
         let query = query.trim();
         let folded = query.to_lowercase();
         self.index.prepare_aliases(&folded);
-        match category {
+        // Lists are virtualized, so every matching record is listed and the shown
+        // count is the real count. Typo suggestions are limited by the ranking.
+        let all = usize::MAX;
+        let hits = match category {
             "monster" if place.is_empty() && area.is_empty() && nation.is_empty() && query.is_empty() => self.index.nation_hits(lang),
-            "monster" if place.is_empty() && area.is_empty() && nation.is_empty() => self.index.monster_hits(query, &folded, lang, &[], Some(80)),
+            "monster" if place.is_empty() && area.is_empty() && nation.is_empty() => self.index.monster_hits(query, &folded, lang, &[], Some(all)),
             "monster" if place.is_empty() && area.is_empty() => self.index.place_hits(nation, &folded, lang),
             "monster" if place.is_empty() => self.index.floor_hits(nation, area, &folded, lang),
             "monster" => {
                 if let Some(area_key) = place.strip_prefix("span:") {
                     let gts = self.index.group_gts(nation, area_key);
-                    self.index.monster_hits(query, &folded, lang, &gts, Some(80))
+                    self.index.monster_hits(query, &folded, lang, &gts, Some(all))
                 } else {
                     match place.parse::<i64>() {
-                        Ok(gts) => self.index.monster_hits(query, &folded, lang, &[gts], Some(80)),
+                        Ok(gts) => self.index.monster_hits(query, &folded, lang, &[gts], Some(all)),
                         Err(_) => Vec::new(),
                     }
                 }
@@ -299,21 +302,29 @@ impl Catalog {
             "item" if place.is_empty() && query.is_empty() => self.index.item_category_hits(lang),
             "item" if place == "set" => self.index.set_hits(query, &folded, lang, area),
             "item" if area.is_empty() && query.is_empty() && self.index.item_has_subtypes(place) => self.index.item_subtype_hits(place, lang),
-            "item" => self.index.item_hits(query, &folded, lang, place, area, if query.is_empty() { 80 } else { 40 }),
+            "item" => self.index.item_hits(query, &folded, lang, place, area, all),
             "recipe" if place.is_empty() && query.is_empty() => self.index.source_hits(lang),
-            "recipe" => self.index.recipe_hits(query, &folded, lang, place, if query.is_empty() { 80 } else { 40 }),
+            "recipe" => self.index.recipe_hits(query, &folded, lang, place, all),
             "quest" if place.is_empty() && query.is_empty() => self.index.quest_source_hits(lang),
-            "quest" => self.index.quest_hits(query, &folded, lang, place, area, if query.is_empty() { 80 } else { 40 }),
-            "npc" => self.index.npc_hits(query, &folded, lang, if query.is_empty() { 80 } else { 40 }),
+            "quest" => self.index.quest_hits(query, &folded, lang, place, area, all),
+            "npc" => self.index.npc_hits(query, &folded, lang, all),
             "hero" if ship == "land" && place.is_empty() && area.is_empty() && query.is_empty() => self.index.hero_land_hits(lang),
             "hero" if ship == "land" && area.is_empty() && query.is_empty() => self.index.hero_tier_hits(place, lang),
-            "hero" if ship == "land" => self.index.hero_hits(query, &folded, lang, area, place, if query.is_empty() { 80 } else { 40 }),
+            "hero" if ship == "land" => self.index.hero_hits(query, &folded, lang, area, place, all),
             "hero" if place.is_empty() && query.is_empty() => self.index.hero_rank_hits(lang),
-            "hero" => self.index.hero_hits(query, &folded, lang, place, "", if query.is_empty() { 80 } else { 40 }),
+            "hero" => self.index.hero_hits(query, &folded, lang, place, "", all),
             "works" => self.index.work_hits(query, &folded, lang, place, area),
             "atlas" => self.index.atlas_hits(query, &folded, lang, place, area),
             "patch" => self.search_patches(query, &format!("%{query}%"), lang, place, nation, ship),
             _ => Vec::new(),
+        };
+        // A set-piece query lists its pieces in slot order instead.
+        let ranked = matches!(category, "monster" | "item" | "recipe" | "quest" | "npc" | "hero")
+            && !(category == "item" && alias::set_query(query).is_some());
+        if query.is_empty() || !ranked {
+            hits
+        } else {
+            self.index.rank_search_hits(hits, query, &folded)
         }
     }
 

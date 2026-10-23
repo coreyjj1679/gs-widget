@@ -7,8 +7,13 @@ use super::item::{item_category_order, item_category_pair, pref_rank, set_kind_l
 use super::Hit;
 use super::names::{fuzzy_rows, haystack, name_match, plain_piece, text_hit};
 use super::quest::{main_type_name, quest_source_rank};
-use super::rows::{Index, ItemRow, MonsterRow, PlaceRow, QuestRow, RecipeRow, SetRow};
+use super::rows::{HeroRow, Index, ItemRow, MonsterRow, NpcRow, PlaceRow, QuestRow, RecipeRow, SetRow};
 use super::text::{caption, commas, label, lead, nation_pair, phrase, source_names, trail};
+
+/// Records ranked at or below this are direct matches; the rest are typo suggestions.
+const DIRECT_MATCH: u8 = 3;
+/// Typo suggestions only fill a short result list; direct matches are never dropped.
+const TYPO_SUGGESTIONS: usize = 40;
 
 pub(in crate::db) struct ListedPlace {
     pub(in crate::db) count: i64,
@@ -193,6 +198,71 @@ pub(in crate::db) fn split_attached_floor(name: &str) -> Option<(String, String)
 }
 
 impl Index {
+    /// 0 code or alias target, 1 whole name, 2 name prefix, 3 other direct match, 4 typo.
+    fn search_rank(&self, code: &str, names: &str, query: &str, folded: &str) -> u8 {
+        if code.eq_ignore_ascii_case(query) || (self.active_alias.get() && self.active_codes.borrow().contains(code)) {
+            0
+        } else if names.split('\n').any(|line| line == folded) {
+            1
+        } else if names.split('\n').any(|line| line.starts_with(folded)) {
+            2
+        } else if !folded.is_empty() && names.contains(folded) {
+            DIRECT_MATCH
+        } else {
+            DIRECT_MATCH + 1
+        }
+    }
+
+    /// Order category search results by closeness, keeping index order within each
+    /// rank. Every direct match stays listed; rows that are not records keep their place.
+    pub(in crate::db) fn rank_search_hits(&self, hits: Vec<Hit>, query: &str, folded: &str) -> Vec<Hit> {
+        let listed = |kind: &str| hits.iter().any(|hit| hit.key.split_once(':').is_some_and(|(key, _)| key == kind));
+        let monsters: HashMap<&str, &MonsterRow> = if listed("monster") {
+            self.monsters.iter().map(|row| (row.code.as_str(), row)).collect()
+        } else { HashMap::new() };
+        let quests: HashMap<i64, &QuestRow> = if listed("quest") {
+            self.quests.iter().map(|row| (row.id, row)).collect()
+        } else { HashMap::new() };
+        let recipes: HashMap<i64, &RecipeRow> = if listed("recipe") {
+            self.recipes.iter().map(|row| (row.id, row)).collect()
+        } else { HashMap::new() };
+        let heroes: HashMap<&str, &HeroRow> = if listed("hero") {
+            self.heroes.iter().map(|row| (row.code.as_str(), row)).collect()
+        } else { HashMap::new() };
+        let npcs: HashMap<i64, &NpcRow> = if listed("npc") {
+            self.npcs.iter().map(|row| (row.code, row)).collect()
+        } else { HashMap::new() };
+        let sets: HashMap<i64, &SetRow> = if listed("set") {
+            self.sets.iter().map(|row| (row.code, row)).collect()
+        } else { HashMap::new() };
+        let rank = |key: &str| {
+            let Some((kind, id)) = key.split_once(':') else { return DIRECT_MATCH };
+            let number = id.parse::<i64>().ok();
+            let record = match kind {
+                "item" => number.and_then(|code| self.find_item(code)).map(|row| (row.code_str.clone(), row.names.as_str())),
+                "monster" => monsters.get(id).map(|row| (row.code.clone(), row.names.as_str())),
+                "quest" => number.and_then(|id| quests.get(&id)).map(|row| (row.code.clone(), row.names.as_str())),
+                "recipe" => number.and_then(|id| recipes.get(&id)).map(|row| (row.result_str.clone(), row.names.as_str())),
+                "hero" => heroes.get(id).map(|row| (row.code.clone(), row.names.as_str())),
+                "npc" => number.and_then(|code| npcs.get(&code)).map(|row| (row.code.to_string(), row.names.as_str())),
+                "set" => number.and_then(|code| sets.get(&code)).map(|row| (row.code.to_string(), row.names.as_str())),
+                _ => None,
+            };
+            record.map_or(DIRECT_MATCH, |(code, names)| self.search_rank(&code, names, query, folded))
+        };
+        let mut ranked: Vec<(u8, usize, Hit)> = hits.into_iter().enumerate()
+            .map(|(index, hit)| (rank(&hit.key), index, hit))
+            .collect();
+        ranked.sort_by_key(|(rank, index, _)| (*rank, *index));
+        let direct = ranked.iter().filter(|(rank, _, _)| *rank <= DIRECT_MATCH).count();
+        let typo_room = TYPO_SUGGESTIONS.saturating_sub(direct);
+        ranked.into_iter()
+            .enumerate()
+            .filter(|(position, (rank, _, _))| *rank <= DIRECT_MATCH || *position < direct + typo_room)
+            .map(|(_, (_, _, hit))| hit)
+            .collect()
+    }
+
     pub(in crate::db) fn prepare_aliases(&self, folded: &str) {
         let codes = alias_codes(&self.aliases.borrow(), folded);
         self.active_alias.set(!codes.is_empty());
@@ -591,9 +661,6 @@ impl Index {
                 .then(left.en.cmp(&right.en))
                 .then(left.code.cmp(&right.code))
         });
-        if !query.is_empty() && rows.len() > 40 {
-            rows.truncate(40);
-        }
         rows.into_iter()
             .map(|set| {
                 let title = set_title_lang(lang, &set.ko, &set.en, &set.zh);

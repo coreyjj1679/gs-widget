@@ -586,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn set_search_pages_beyond_the_gui_cap_and_keeps_exact_priority() {
+    fn set_search_pages_in_gui_order_and_keeps_exact_priority() {
         let mut catalog = Catalog::open_for_mcp().unwrap();
         catalog.index.sets = (0..45)
             .map(|index| {
@@ -603,10 +603,11 @@ mod tests {
                 }
             })
             .collect();
-        let gui = catalog
+        let mut gui = catalog
             .index
             .set_hits("Pagination fixture", "pagination fixture", "en", "");
-        assert_eq!(gui.len(), 40);
+        assert_eq!(gui.len(), 45);
+        gui.truncate(40);
         let first = catalog
             .mcp_search_filtered(
                 "set",

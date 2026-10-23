@@ -496,9 +496,6 @@ impl Index {
                     continue;
                 }
                 hits.push(hit);
-                if hits.len() == 80 {
-                    return hits;
-                }
             }
         }
         hits

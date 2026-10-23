@@ -12,6 +12,7 @@ mod item_sources;
 mod items_bilingual;
 mod languages;
 mod performance;
+mod search_ranking;
 
 #[test]
 fn display_modes_keep_chinese_and_english() {
@@ -81,16 +82,16 @@ fn search_pages_follow_the_index() {
         hit.key.starts_with("region:") || hit.key.starts_with("area:") || hit.key.starts_with("span:")
     }));
 
-    assert_eq!(
-        keys(&catalog.search("item", "龍", "zh", "", "")),
-        item_keys(&catalog, "龍")
-    );
+    // Results are ranked by closeness; every match from the index is listed.
+    let dragons = item_keys(&catalog, "龍");
+    assert!(dragons.len() > 40);
+    assert_eq!(sorted_by_code(keys(&catalog.search("item", "龍", "zh", "", ""))), dragons);
     assert_eq!(
         keys(&catalog.search("item", "zzzz", "en", "", "")),
         item_keys(&catalog, "zzzz")
     );
     assert_eq!(
-        keys(&catalog.search("recipe", "a", "ko", "", "")),
+        sorted_by_code(keys(&catalog.search("recipe", "a", "ko", "", ""))),
         recipe_keys(&catalog, "a")
     );
     let crafts = catalog.search("recipe", "", "zh", "", "");
@@ -99,11 +100,13 @@ fn search_pages_follow_the_index() {
     let alchemy = catalog.search("recipe", "", "zh", "alchemy", "");
     assert!(!alchemy.is_empty());
     assert!(alchemy.iter().all(|hit| hit.key.starts_with("recipe:")));
-    assert_eq!(
-        keys(&catalog.search("monster", "a", "en", "", "")),
-        monster_keys(&catalog, "a", "")
-    );
-    let quests = catalog.search("quest", "龍", "zh", "", "");
+    let mut monsters = keys(&catalog.search("monster", "a", "en", "", ""));
+    monsters.sort();
+    assert_eq!(monsters, monster_keys(&catalog, "a", ""));
+    // Quest text search matches more than titles; compare the first matches by id.
+    let mut quests = catalog.search("quest", "龍", "zh", "", "");
+    quests.sort_by_key(|hit| hit.key.strip_prefix("quest:").and_then(|id| id.parse::<i64>().ok()));
+    quests.truncate(40);
     let quest_ids = quest_ids(&catalog, "龍");
     assert_eq!(keys(&quests), quest_ids.iter().map(|id| format!("quest:{id}")).collect::<Vec<_>>());
     for (hit, id) in quests.iter().zip(quest_ids) {
@@ -122,6 +125,11 @@ fn keys(hits: &[Hit]) -> Vec<String> {
     hits.iter().map(|hit| hit.key.clone()).collect()
 }
 
+fn sorted_by_code(mut keys: Vec<String>) -> Vec<String> {
+    keys.sort_by_key(|key| key.split_once(':').and_then(|(_, code)| code.parse::<i64>().ok()));
+    keys
+}
+
 fn item_keys(catalog: &Catalog, query: &str) -> Vec<String> {
     let like = format!("%{query}%");
     let mut stmt = catalog
@@ -138,8 +146,7 @@ fn item_keys(catalog: &Catalog, query: &str) -> Vec<String> {
                 OR i.name_ko LIKE ?2
                 OR se.text LIKE ?2
                 OR sz.text LIKE ?2
-             ORDER BY i.code
-             LIMIT 40",
+             ORDER BY i.code",
         )
         .unwrap();
     stmt.query_map(rusqlite::params![query, like], |row| row.get::<_, i64>(0))
@@ -166,8 +173,7 @@ fn recipe_keys(catalog: &Catalog, query: &str) -> Vec<String> {
                 OR i.name_ko LIKE ?2
                 OR se.text LIKE ?2
                 OR sz.text LIKE ?2
-             ORDER BY r.id
-             LIMIT 40",
+             ORDER BY r.id",
         )
         .unwrap();
     stmt.query_map(rusqlite::params![query, like], |row| row.get::<_, i64>(0))
@@ -193,8 +199,7 @@ fn monster_keys(catalog: &Catalog, query: &str, place: &str) -> Vec<String> {
                 OR name_ko LIKE ?2
                 OR IFNULL(name_en, '') LIKE ?2
                 OR IFNULL(name_zh, '') LIKE ?2)
-             ORDER BY code
-             LIMIT 80",
+             ORDER BY code",
         )
         .unwrap();
     stmt.query_map(rusqlite::params![query, like, place], |row| row.get::<_, String>(0))
@@ -319,7 +324,8 @@ fn favourites_search_is_not_cut_off_at_eighty() {
     let all = catalog.search("monster-all", "", "zh", "", "");
     assert!(all.len() > 80, "favourite scan stopped at {}", all.len());
     assert!(all.iter().any(|hit| hit.key == "monster:E190"));
-    assert_eq!(catalog.search("monster", "a", "zh", "", "").len(), 80);
+    // Category search lists every direct match rather than the first 80.
+    assert!(catalog.search("monster", "a", "zh", "", "").len() > 80);
 }
 
 #[test]
