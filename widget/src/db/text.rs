@@ -66,7 +66,36 @@ pub(in crate::db) fn patch_number(version: &str) -> i64 {
         .unwrap_or(0)
 }
 
+pub(in crate::db) fn patch_version(version: &str) -> (u64, String) {
+    let version = version.trim().trim_start_matches(['V', 'v']);
+    let (major, revision) = if let Some(parts) = version.split_once('.') {
+        parts
+    } else if version.is_ascii() && !version.is_empty() {
+        version.split_at(1)
+    } else {
+        return (0, String::new());
+    };
+    if major.is_empty() || !major.bytes().all(|digit| digit.is_ascii_digit())
+        || !revision.bytes().all(|digit| digit.is_ascii_digit())
+    {
+        return (0, String::new());
+    }
+    // Historical revisions extend the build's digits: 2.9823 < 2.98234 < 2.9824.
+    // Compare those digits lexically, preserving leading zeroes, within a major.
+    (major.parse().unwrap_or(0), revision.trim_end_matches('0').to_string())
+}
+
 pub(in crate::db) fn dotted_version(version: &str) -> String {
+    // Already dotted versions may have a multi-digit major; keep that boundary.
+    let version = version.trim();
+    if let Some((major, revision)) = version.trim_start_matches(['V', 'v']).split_once('.') {
+        if !major.is_empty() && !revision.is_empty()
+            && major.bytes().all(|digit| digit.is_ascii_digit())
+            && revision.bytes().all(|digit| digit.is_ascii_digit())
+        {
+            return format!("V{major}.{revision}");
+        }
+    }
     let number = patch_number(version);
     let text = number.to_string();
     if text.len() >= 5 {
@@ -79,7 +108,7 @@ pub(in crate::db) fn dotted_version(version: &str) -> String {
 }
 
 pub(in crate::db) fn ship_label(version: &str, lang: &str) -> String {
-    let key = if patch_number(version) <= client_build() {
+    let key = if patch_version(version) <= client_build() {
         "shipped"
     } else {
         "unshipped"

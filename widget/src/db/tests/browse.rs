@@ -14,6 +14,118 @@ fn patch_notes_open_the_selected_notice() {
 }
 
 #[test]
+fn patch_notes_put_pending_first_and_preserve_date_order() {
+    let catalog = Catalog::open().expect("db");
+    let current = client_build();
+    let mut stmt = catalog.conn.prepare("SELECT version, server, posted_on FROM patches").unwrap();
+    let dates: HashMap<String, String> = stmt.query_map([], |row| {
+        let version: String = row.get(0)?;
+        let server: String = row.get(1)?;
+        Ok((format!("patch:{version}:{server}"), row.get(2)?))
+    }).unwrap().collect::<Result<_, _>>().unwrap();
+
+    for order in ["", "old"] {
+        let notes = catalog.search_scoped("patch", "", "zh-en", "", order, "", "");
+        let pending = |hit: &Hit| patch_version(hit_version(&hit.key)) > current;
+        assert!(notes.iter().any(|hit| !pending(hit)), "bundled notes include implemented patches");
+        assert!(notes.iter().any(pending), "bundled notes include pending patches");
+        for hit in &notes {
+            assert_eq!(hit.chip, if pending(hit) { "no" } else { "yes" });
+        }
+        for pair in notes.windows(2) {
+            let (left, right) = (&pair[0], &pair[1]);
+            assert!(pending(left) || !pending(right), "pending patch {} follows implemented {} ({order})", right.key, left.key);
+            if pending(left) != pending(right) {
+                continue;
+            }
+            let (left_date, right_date) = (&dates[&left.key], &dates[&right.key]);
+            assert!(!left_date.is_empty() || right_date.is_empty(), "undated notices stay last within their status");
+            if !left_date.is_empty() && !right_date.is_empty() {
+                assert!(if order == "old" { left_date <= right_date } else { left_date >= right_date },
+                    "date order changed within a status: {} ({left_date}), {} ({right_date}), sort={order}", left.key, right.key);
+            }
+            if left_date == right_date {
+                assert!(patch_version(hit_version(&left.key)) >= patch_version(hit_version(&right.key)),
+                    "same-date notices retain descending version order");
+            }
+        }
+    }
+}
+
+#[test]
+fn patch_status_filters_preserve_search_server_and_date_sort() {
+    let catalog = Catalog::open().expect("db");
+    let current = client_build();
+    for (server, query) in [("", ""), ("live", "V34"), ("test", "2026"), ("all", "V34")] {
+        for order in ["", "old"] {
+            let notes = catalog.search_scoped("patch", query, "en-zh", server, order, "", "");
+            assert!(!notes.is_empty(), "fixture includes {server}/{query} notices");
+            if !server.is_empty() {
+                assert!(notes.iter().all(|hit| hit.key.ends_with(&format!(":{server}"))));
+            }
+            if query == "V34" {
+                assert!(notes.iter().all(|hit| hit_version(&hit.key).starts_with("V34")));
+            }
+            for (ship, pending) in [("yes", false), ("no", true)] {
+                let expected: Vec<_> = notes.iter()
+                    .filter(|hit| (patch_version(hit_version(&hit.key)) > current) == pending)
+                    .map(|hit| hit.key.clone()).collect();
+                assert!(!expected.is_empty(), "fixture includes {ship}/{server}/{query} notices");
+                let filtered = catalog.search_scoped("patch", query, "en-zh", server, order, ship, "");
+                assert_eq!(keys(&filtered), expected, "status filter changed search order: {ship}/{server}/{query}/{order}");
+                assert!(filtered.iter().all(|hit| hit.chip == ship));
+            }
+        }
+    }
+    assert!(catalog.search_scoped("patch", "zzzz-no-such-patch", "en-zh", "live", "", "no", "").is_empty());
+}
+
+#[test]
+fn patch_versions_compare_major_and_fractional_revision() {
+    assert_eq!(patch_version("V34611"), patch_version("V3.4611"));
+    assert_eq!(patch_version("V34220"), patch_version("V3.4220"));
+    assert_eq!(patch_version("V3.4220"), patch_version("V3.42200"));
+    assert_eq!(patch_version("V30000"), patch_version("V3.00000"));
+    assert_eq!(patch_version("V1007"), (1, "007".into()));
+    assert_eq!(patch_version("V10.0000"), (10, String::new()));
+    let ordered = [
+        "V29823", "V298234", "V298235", "V298236", "V29824", "V29827",
+        "V29900", "V30000", "V30001", "V30010", "V30100", "V342199",
+        "V34220", "V342201", "V34611", "V10.0000",
+    ];
+    for pair in ordered.windows(2) {
+        assert!(patch_version(pair[0]) < patch_version(pair[1]), "{} must precede {}", pair[0], pair[1]);
+    }
+    assert_eq!(dotted_version("V34611"), "V3.4611");
+    assert_eq!(dotted_version("V3.4611"), "V3.4611");
+    assert_eq!(dotted_version("V298234"), "V2.98234");
+    assert_eq!(dotted_version("V1007"), "V1007");
+    assert_eq!(dotted_version("V10.0000"), "V10.0000");
+    assert_eq!(patch_version(&dotted_version("V10.0000")), patch_version("V10.0000"));
+}
+
+#[test]
+fn extended_2020_patch_revisions_are_implemented_in_lists_filters_and_details() {
+    let catalog = Catalog::open().expect("db");
+    let old_keys = ["patch:V298234:all", "patch:V298234:live", "patch:V298235:all", "patch:V298236:all"];
+    let all = catalog.search("patch", "", "zh-en", "", "");
+    let implemented = catalog.search_scoped("patch", "V29823", "zh-en", "", "", "yes", "");
+    let pending = catalog.search_scoped("patch", "", "zh-en", "", "", "no", "");
+    for key in old_keys {
+        let notice = all.iter().find(|hit| hit.key == key).expect("bundled 2020 notice");
+        assert_eq!(notice.chip, "yes", "historical version {key} is already implemented");
+        assert_eq!(notice.aside, "已實裝");
+        assert!(implemented.iter().any(|hit| hit.key == key), "implemented filter omitted {key}");
+        assert!(!pending.iter().any(|hit| hit.key == key), "pending filter included historical {key}");
+        let (detail, _, _) = catalog.open_key(key, "zh-en");
+        assert!(detail.lines().next().unwrap_or("").ends_with("已實裝"), "incorrect detail status for {key}: {detail}");
+    }
+    let latest = all.iter().find(|hit| hit.key == "patch:V34611:test").expect("bundled future notice");
+    assert_eq!(latest.chip, "no", "newer versions must remain pending");
+    assert_eq!(latest.aside, "未實裝");
+}
+
+#[test]
 fn unknown_page_says_it_is_missing() {
     let catalog = Catalog::open().expect("db");
     let (text, links, icon) = catalog.open_key("nope:1", "zh-en");

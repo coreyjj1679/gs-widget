@@ -1827,7 +1827,8 @@ component HitRow inherits Rectangle {
     border-width: 1px;
     border-color: focus.has-focus || root.keyboard-focused ? DesktopTheme.accent : root.selected ? DesktopTheme.border : transparent;
     property <bool> heading: hit.chip == "label";
-    background: selected ? DesktopTheme.selected : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? DesktopTheme.hover : DesktopTheme.surface-alt) : (area.has-hover ? DesktopTheme.hover : transparent);
+    property <bool> unshipped: hit.chip == "no";
+    background: root.unshipped ? (selected || area.has-hover ? DesktopTheme.unshipped-active : DesktopTheme.unshipped) : selected ? DesktopTheme.selected : (root.hit.chip == "section" || root.heading) ? (area.has-hover && !root.heading ? DesktopTheme.hover : DesktopTheme.surface-alt) : (area.has-hover ? DesktopTheme.hover : transparent);
     property <bool> marked: hit.can-favourite || hit.favourite;
     property <length> tail: (marked ? 62px : 0px) + (!marked && hit.has-badge ? 26px : 0px);
     property <bool> show-chip: hit.chip == "yes" || hit.chip == "no";
@@ -1884,7 +1885,7 @@ component HitRow inherits Rectangle {
                     font-weight: root.heading ? 600 : 400;
                     horizontal-alignment: left;
                     vertical-alignment: center;
-                    color: root.hit.chip == "section" || root.heading ? DesktopTheme.accent : root.hit.solo ? #e24b4b : root.title-color;
+                    color: root.hit.chip == "section" || root.heading ? DesktopTheme.accent : root.hit.solo ? #e24b4b : root.unshipped ? DesktopTheme.secondary : root.title-color;
                 }
                 if RecordText.secondary(root.hit) != "": Text {
                     horizontal-stretch: 1;
@@ -1894,7 +1895,7 @@ component HitRow inherits Rectangle {
                     font-size: root.compact ? 11px : 12px;
                     horizontal-alignment: left;
                     vertical-alignment: center;
-                    color: root.hit.solo ? #e24b4b : DesktopTheme.secondary;
+                    color: root.hit.solo ? #e24b4b : root.unshipped ? DesktopTheme.muted : DesktopTheme.secondary;
                 }
             }
         }
@@ -1905,14 +1906,14 @@ component HitRow inherits Rectangle {
         width: root.chip-w;
         height: 22px;
         border-radius: 11px;
-        background: root.hit.chip == "yes" ? #1d6b43 : #8a4034;
+        background: root.hit.chip == "yes" ? #1d6b43 : DesktopTheme.raised;
         Text {
             width: 100%;
             height: 100%;
             text: root.hit.aside;
             font-size: 11px;
             font-weight: 700;
-            color: root.hit.chip == "yes" ? #e8f7ee : #fdece8;
+            color: root.hit.chip == "yes" ? #e8f7ee : DesktopTheme.secondary;
             horizontal-alignment: center;
             vertical-alignment: center;
         }
@@ -3655,7 +3656,8 @@ component CatalogRow inherits Rectangle {
     callback preview-focused(length, length);
     callback reveal(length, length);
     property <bool> companion: hit.chip == "mount" || hit.chip.starts-with("spirit:");
-    property <bool> show-aside: !companion && hit.aside != "" && self.width > 360px;
+    property <bool> unshipped: hit.chip == "no";
+    property <bool> show-aside: !companion && hit.aside != "" && (self.width > 360px || hit.chip == "yes" || root.unshipped);
     property <length> name-x: hit.has-icon ? 52px : 10px;
     property <length> content-width: max(self.width - name-x - 12px, 0px);
     property <length> aside-width: show-aside ? min(aside-label.preferred-width, min(180px, content-width * 0.35)) : 0px;
@@ -3686,7 +3688,7 @@ component CatalogRow inherits Rectangle {
         width: max(parent.width - 2px, 0px); height: root.body-height - 2px; border-radius: 6px;
         border-width: 1px;
         border-color: root.selected || focus.has-focus || root.keyboard-focused ? DesktopTheme.accent : transparent;
-        background: root.selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
+        background: root.unshipped ? (root.selected || area.has-hover ? DesktopTheme.unshipped-active : DesktopTheme.unshipped) : root.selected ? DesktopTheme.selected : area.has-hover ? DesktopTheme.hover : transparent;
     }
     focus := FocusScope {
         x: 0px; y: 0px; width: 100%; height: 100%;
@@ -3722,13 +3724,13 @@ component CatalogRow inherits Rectangle {
                 text: root.hit.title;
                 font-size: 13px;
                 font-weight: 500;
-                color: DesktopTheme.text;
+                color: root.unshipped ? DesktopTheme.secondary : DesktopTheme.text;
                 overflow: elide;
             }
             if !root.hit.enchant-scroll && RecordText.secondary(root.hit) != "": Text {
                 text: RecordText.secondary(root.hit);
                 font-size: 12px;
-                color: DesktopTheme.secondary;
+                color: root.unshipped ? DesktopTheme.muted : DesktopTheme.secondary;
                 overflow: elide;
             }
             if root.hit.enchant-scroll && root.hit.alternate-name != "": Text {
@@ -3762,7 +3764,7 @@ component CatalogRow inherits Rectangle {
             width: root.aside-width; height: 100%;
             text: root.hit.aside;
             font-size: 12px;
-            color: DesktopTheme.accent;
+            color: root.unshipped ? DesktopTheme.secondary : DesktopTheme.accent;
             horizontal-alignment: right;
             vertical-alignment: center;
             overflow: elide;

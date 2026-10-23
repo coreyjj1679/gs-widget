@@ -9,6 +9,8 @@ colors:
   soft: "#c9d2df"
   border: "#303945"
   selected: "#33312c"
+  unshipped: "#25282d"
+  unshipped-active: "#30343b"
   hover: "#29313c"
   surface: "#1d232c"
   surface-alt: "#1a2028"
@@ -101,6 +103,8 @@ Full mode、compact widget 與收合分類列共用原 full mode 的深灰色票
 **Primary：** `accent` 用於重點文字、選取圖示與鍵盤焦點；實色重點按鈕使用 `on-accent` 文字。`selected` 與 `selection-low` 提供低亮度的暖色選取背景。
 
 **Neutral：** `sidebar`、`canvas`、`surface-alt`、`surface`、`detail` 區分導覽、工作區、分類、列表與詳細資料。`text` 是主要內容，`secondary` 是說明，`muted` 是捷徑與次要資訊，`soft` 是較柔和的重點文字。`border` 用於分隔；`hover`、`control`、`hover-strong`、`raised` 表達互動狀態。
+
+更新內容列表先顯示未實裝，再顯示已實裝；預設各組按日期由新到舊（DESC），仍可切換最早在前。實裝狀態以對應客戶端版本為基準，先比較主版本，再比較修訂數字（例如 2.9823 < 2.98234 < 2.9824），不可把版本號直接當整數。完整模式與小窗的未實裝列使用中性灰 `unshipped` 底色，hover／選取使用 `unshipped-active`，名稱及狀態使用 `secondary`、補充文字使用 `muted`。保留「未實裝」文字（窄欄亦顯示）、可點選行為及 bronze 焦點框；不降低整列透明度。小窗的未實裝標籤使用灰底，已實裝標籤保留原綠色。
 
 **跨模式共用：** YAML 色票由 `DesktopTheme` 提供給所有模式，不隨 `full-mode` 或 `collapsed` 切換。Full mode 與 compact widget 使用相同的不透明 `chrome`／`canvas` 底色，整體透明度仍由使用者的 `window-opacity` 設定控制。收合分類列與圖示底板保留半透明，但使用相同深灰色系；圖示周圍仍為透明。各模式的 hover、選取、邊框與說明文字都使用共用語意色票；體力、抗性、元素及狀態色保留原本意義。
 

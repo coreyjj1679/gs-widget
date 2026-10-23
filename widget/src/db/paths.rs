@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 
-use super::text::{dotted_version, patch_number};
+use super::text::{dotted_version, patch_version};
 
 pub fn client_label() -> String {
     let text = std::fs::read_to_string(client_version_file()).unwrap_or_else(|_| "V3.4220".into());
@@ -13,8 +13,8 @@ pub fn client_label() -> String {
     }
 }
 
-pub(in crate::db) fn client_build() -> i64 {
-    patch_number(&client_label())
+pub(in crate::db) fn client_build() -> (u64, String) {
+    patch_version(&client_label())
 }
 
 pub(in crate::db) fn client_version_file() -> PathBuf {

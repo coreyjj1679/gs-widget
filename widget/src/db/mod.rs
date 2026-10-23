@@ -60,7 +60,7 @@ use paths::{characters_dir, client_build, find_db, locate_client};
 use rows::Index;
 use search::all_floor_names;
 use text::{
-    caption, dotted_version, hit_version, notes_placeholder, patch_number, phrase, pick_place, server_name,
+    caption, dotted_version, hit_version, notes_placeholder, patch_version, phrase, pick_place, server_name,
     ship_label, show,
 };
 
@@ -347,13 +347,13 @@ impl Catalog {
              ORDER BY CASE WHEN posted_on = '' THEN 1 ELSE 0 END,
                       CASE WHEN ?3 = 'old' THEN posted_on END ASC,
                       CASE WHEN ?3 = 'old' THEN NULL ELSE posted_on END DESC,
-                      CAST(substr(version, 2) AS INTEGER) DESC",
+                      substr(version, 2) DESC",
         ) {
             Ok(stmt) => stmt,
             Err(_) => return notes_placeholder(lang),
         };
         let current = client_build();
-        let hits: Vec<Hit> = stmt
+        let mut hits: Vec<Hit> = stmt
             .query_map(rusqlite::params![query, like, sort, server], |row| {
                 let version: String = row.get(0)?;
                 let server: String = row.get(1)?;
@@ -362,7 +362,7 @@ impl Catalog {
                 let en: String = row.get(4)?;
                 let zh: String = row.get(5)?;
                 let server_label = server_name(&server, lang);
-                let shipped = patch_number(&version) <= current;
+                let shipped = patch_version(&version) <= current;
                 let shown = dotted_version(&version);
                 let meta = if posted.is_empty() {
                     format!("{shown}  {server_label}")
@@ -386,10 +386,12 @@ impl Catalog {
         if hits.is_empty() && query.is_empty() && server.is_empty() && ship.is_empty() {
             return notes_placeholder(lang);
         }
+        // Keep the requested date order within each availability group.
+        hits.sort_by_key(|hit| hit.chip != "no");
         hits.into_iter()
             .filter(|hit| match ship {
-                "yes" => patch_number(hit_version(&hit.key)) <= current,
-                "no" => patch_number(hit_version(&hit.key)) > current,
+                "yes" => patch_version(hit_version(&hit.key)) <= current,
+                "no" => patch_version(hit_version(&hit.key)) > current,
                 _ => true,
             })
             .collect()
