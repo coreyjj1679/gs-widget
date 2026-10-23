@@ -4485,6 +4485,8 @@ component FullMonsterSheet inherits Flickable {
     in property <[Hit]> related;
     in property <int> cursor: 0;
     in property <string> no-image-label;
+    in property <int> reveal-index: -1;
+    in property <int> reveal-request: 0;
     callback open-fact(string);
     callback open-drop(int);
     callback open-related(int);
@@ -4499,6 +4501,17 @@ component FullMonsterSheet inherits Flickable {
     property <length> text-x: 16px + (show-icon ? 156px : 0px) + (show-battle ? 132px : 0px);
     content-width: self.width;
     content-height: max(lists-top + block-h + 8px, 1px);
+    function reveal-drop() {
+        if (root.reveal-index < 0 || root.reveal-index >= root.drops.length) { return; }
+        let top = root.lists-top + 24px + root.reveal-index * 36px;
+        if (top + 36px > root.height - root.content-y) {
+            root.content-y = max(root.height - top - 36px - 12px, min(0px, root.height - root.content-height));
+        } else if (top < -root.content-y) {
+            root.content-y = min(0px, 12px - top);
+        }
+    }
+    changed reveal-request => { root.reveal-drop(); }
+    init => { root.reveal-drop(); }
     Rectangle {
         y: 0px;
         width: parent.width;
@@ -4993,6 +5006,15 @@ export component App inherits Window {
     in-out property <string> sheet-code;
     in-out property <string> sheet-note;
     in-out property <bool> sheet-can-calculate: false;
+    // Monsters that drop the open item; full mode compares them by drop rate.
+    in-out property <int> item-drop-total: 0;
+    // The item record a drop-rate comparison returns to.
+    in-out property <string> drop-return-key: "";
+    in-out property <string> drop-return-category: "";
+    // Opening a monster from an item selects and reveals that item's drop row.
+    in-out property <int> pending-cursor: -1;
+    in-out property <int> drop-reveal-index: -1;
+    in-out property <int> drop-reveal-request: 0;
     in-out property <image> item-icon;
     in-out property <bool> show-icon;
     in-out property <image> battle-icon;
@@ -5185,6 +5207,7 @@ export component App inherits Window {
         root.mcp-open = false;
         root.calculator-open = false;
         root.quest-map-open = false;
+        root.drop-return-key = "";
         root.category = id;
         root.nation = "";
         root.nation-name = "";
@@ -5463,6 +5486,7 @@ export component App inherits Window {
     function go-home() {
         root.mcp-open = false;
         root.calculator-open = false;
+        root.drop-return-key = "";
         if (root.collapsed) {
             root.collapsed = false;
         }
@@ -5574,6 +5598,14 @@ export component App inherits Window {
         }
         if (root.monster-board && root.legacy-mode && !root.menu-open) {
             root.menu-open = true;
+            return;
+        }
+        if (root.viewing == "" && root.category == "monster" && root.drop-return-key != "") {
+            let key = root.drop-return-key;
+            let category = root.drop-return-category;
+            root.drop-return-key = "";
+            if (category != "" && category != root.category) { root.open-category(category); }
+            root.open-hit(key);
             return;
         }
         if (root.viewing != "") {
@@ -6629,7 +6661,8 @@ export component App inherits Window {
                 root.saved-cursor = root.cursor;
             }
             root.in-detail = true;
-            root.cursor = 0;
+            root.cursor = max(root.pending-cursor, 0);
+            root.pending-cursor = -1;
             keys.focus();
         } else {
             root.in-detail = false;
@@ -6751,7 +6784,8 @@ export component App inherits Window {
             || root.category == "monster") && (root.place != "" || root.area != ""))
         || (root.category == "monster" && root.nation != "")
         || (root.quest-browser && (root.quest-map-open || !root.quest-summary || root.quest-grouping != ""))
-        || (root.monster-board && root.legacy-mode && !root.menu-open);
+        || (root.monster-board && root.legacy-mode && !root.menu-open)
+        || (root.category == "monster" && root.viewing == "" && root.drop-return-key != "");
 
     property <bool> set-browser: category == "item" && place == "set" && viewing == "";
     property <bool> monster-cards: category == "monster" && viewing == "" && (place != "" || favourites-only || (hits.length > 0 && hits[0].key.starts-with("monster:")));
@@ -6849,6 +6883,7 @@ export component App inherits Window {
         if (!root.monster-filter-visible) { root.filter-drop-open = false; root.filter-sort-open = false; }
     }
     function clear-monster-filters() {
+        root.drop-return-key = "";
         root.filter-element = -1;
         root.filter-hit-min = ""; root.filter-hit-max = "";
         root.filter-magic-min = ""; root.filter-magic-max = "";
@@ -6863,6 +6898,7 @@ export component App inherits Window {
         root.apply-filter(true);
     }
     function edit-monster-drop(text: string) {
+        root.drop-return-key = "";
         if (root.monster-sort-key == 8) { root.monster-sort-key = 0; }
         root.filter-drop = text;
         root.filter-drop-key = "";
@@ -6870,6 +6906,7 @@ export component App inherits Window {
         root.apply-filter(false);
     }
     function select-monster-drop(key: string, title: string) {
+        if (key != root.filter-drop-key) { root.drop-return-key = ""; }
         root.filter-drop-key = key;
         root.filter-drop = title;
         root.monster-sort-key = 8;
@@ -6878,6 +6915,7 @@ export component App inherits Window {
         root.apply-filter(true);
     }
     function clear-monster-drop() {
+        root.drop-return-key = "";
         if (root.monster-sort-key == 8) { root.monster-sort-key = 0; }
         root.filter-drop = "";
         root.filter-drop-key = "";
@@ -8709,6 +8747,7 @@ export component App inherits Window {
                                 }
                                 property <bool> can-open: root.record-key(root.detail-key) && !root.viewing-hero;
                                 property <bool> can-calculate: root.sheet-can-calculate && root.detail-key.starts-with("item:") && !root.viewing-hero;
+                                property <bool> can-compare: root.item-drop-total > 0 && root.detail-key.starts-with("item:") && !root.viewing-hero;
                                 if self.can-open: Button {
                                     x: 12px; y: parent.heading-height + 8px; width: parent.width - 24px; height: 30px;
                                     text: UiLanguage.tr("Open details", "展開詳細資料");
@@ -8722,8 +8761,14 @@ export component App inherits Window {
                                     changed focus-request => { self.focus(); }
                                     clicked => { root.calculate-record(root.detail-key); }
                                 }
+                                if self.can-compare: Button {
+                                    x: 12px; y: parent.heading-height + (parent.can-open ? 46px : 8px) + (parent.can-calculate ? 40px : 0px);
+                                    width: parent.width - 24px; height: 32px;
+                                    text: UiLanguage.tr("Compare by drop rate (", "依掉落率比較 ") + root.item-drop-total + UiLanguage.tr(")", " 隻怪物");
+                                    clicked => { root.find-drop-monsters(root.detail-key, root.sheet-title != "" ? root.sheet-title : root.detail-title); keys.focus(); }
+                                }
                                 if root.detail-key != "" && !root.viewing-hero: RecordDetail {
-                                    y: parent.heading-height + (parent.can-open ? 50px : 8px) + (parent.can-calculate ? 40px : 0px);
+                                    y: parent.heading-height + (parent.can-open ? 50px : 8px) + (parent.can-calculate ? 40px : 0px) + (parent.can-compare ? 40px : 0px);
                                     width: parent.width; height: parent.height - self.y - 8px;
                                     facts: root.facts; links: root.links; note: root.sheet-note; body: root.detail;
                                     source-note: root.source-note;
@@ -9028,6 +9073,8 @@ export component App inherits Window {
                         drops: root.links;
                         related: root.related;
                         cursor: root.cursor;
+                        reveal-index: root.drop-reveal-index;
+                        reveal-request: root.drop-reveal-request;
                         no-image-label: root.no-image-label;
                         open-fact(key) => {
                             if (key != "") {
@@ -9301,15 +9348,21 @@ export component App inherits Window {
                                 text: root.sheet-code; font-size: 12px; color: DesktopTheme.secondary;
                                 horizontal-alignment: root.full-item-sheet ? left : center;
                             }
-                            if root.sheet-can-calculate && root.viewing-item && root.viewing.starts-with("item:"): HorizontalLayout {
+                            if (root.sheet-can-calculate || (root.full-mode && root.item-drop-total > 0)) && root.viewing-item && root.viewing.starts-with("item:"): HorizontalLayout {
                                 alignment: root.full-item-sheet ? start : center;
                                 padding-top: 8px;
-                                Button {
+                                spacing: 8px;
+                                if root.sheet-can-calculate: Button {
                                     width: min(224px, parent.width); height: 32px; horizontal-stretch: 0;
                                     text: UiLanguage.tr("Calculate crafting cost", "計算合成成本");
                                     property <int> focus-request: root.record-calculator-focus-request;
                                     changed focus-request => { self.focus(); }
                                     clicked => { root.calculate-record(root.viewing); }
+                                }
+                                if root.full-mode && root.item-drop-total > 0: Button {
+                                    width: min(264px, parent.width); height: 32px; horizontal-stretch: 0;
+                                    text: UiLanguage.tr("Compare by drop rate (", "依掉落率比較 ") + root.item-drop-total + UiLanguage.tr(")", " 隻怪物");
+                                    clicked => { root.find-drop-monsters(root.viewing, root.sheet-title); keys.focus(); }
                                 }
                             }
                         }

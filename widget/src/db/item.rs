@@ -5,6 +5,7 @@ use rusqlite::Connection;
 
 use super::{Catalog, Hit};
 use super::language::primary_lang;
+use super::monster::{drop_rate_column, drop_rate_text};
 use super::names::haystack;
 use super::prefs::{load_set_extra, set_extra_name};
 use super::recipe::PREF;
@@ -1461,11 +1462,13 @@ impl Catalog {
     }
 
     pub(in crate::db) fn item_droppers(&self, code: i64, lang: &str) -> Vec<Hit> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT m.code, m.name_ko, IFNULL(se.text, ''), IFNULL(sz.text, ''), MIN(d.slot),
-                        IFNULL(pe.text, ''), IFNULL(pz.text, '')
+        let rate_column = drop_rate_column(&self.conn);
+        // Rank by the highest recorded slot rate, as the monster drop filter does;
+        // adding separate slots would invent a combined probability.
+        let sql = format!(
+            "SELECT m.code, m.name_ko, IFNULL(se.text, ''), IFNULL(sz.text, ''), MIN(d.slot),
+                        IFNULL(pe.text, ''), IFNULL(pz.text, ''),
+                        MAX(CASE WHEN {rate_column} BETWEEN 0 AND 100000 THEN {rate_column} END)
                  FROM monster_drops d
                  JOIN monsters m ON m.code = d.monster_code
                  LEFT JOIN strings se ON se.object = 'OnlineText.dat' AND se.lang = 'en'
@@ -1481,10 +1484,10 @@ impl Catalog {
                  LEFT JOIN strings pz ON pz.object = 'OnlineText.dat' AND pz.lang = 'zh'
                     AND pz.id = printf('%08d', ml.location_gts)
                  WHERE d.item_code = ?1
-                 GROUP BY m.code",
-            )
-            .expect("item droppers");
-        let mut rows: Vec<Hit> = stmt
+                 GROUP BY m.code"
+        );
+        let mut stmt = self.conn.prepare(&sql).expect("item droppers");
+        let mut rows: Vec<(Option<i64>, Hit)> = stmt
             .query_map([code], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
@@ -1494,31 +1497,37 @@ impl Catalog {
                     row.get::<_, i64>(4)?,
                     row.get::<_, String>(5)?,
                     row.get::<_, String>(6)?,
+                    row.get::<_, Option<i64>>(7)?,
                 ))
             })
             .expect("dropper rows")
             .filter_map(Result::ok)
-            .map(|(id, ko, en, zh, slot, place_en, place_zh)| {
+            .map(|(id, ko, en, zh, slot, place_en, place_zh, rate)| {
                 let solo = slot >= 9;
                 let place = lead(lang, &place_en, &place_zh);
                 let mut meta = if place.is_empty() { id.clone() } else { format!("{place}  {id}") };
                 if solo {
                     meta.push_str(&format!("  {}", phrase("solo-drop", lang)));
                 }
-                Hit {
+                (rate, Hit {
                     title: lead3(lang, &en, &zh, &ko),
                     subtitle: caption(&trail3(lang, &en, &zh, &ko), meta),
                     key: format!("monster:{id}"),
                     icon: self.sprite(&id),
                     solo,
-                    aside: String::new(),
-                badge: None,
+                    aside: drop_rate_text(rate, lang),
+                    badge: None,
                     chip: String::new(),
-                }
+                })
             })
             .collect();
-        rows.sort_by(|a, b| a.title.cmp(&b.title));
-        rows
+        // Unknown rates are not zero; keep them after every recorded rate.
+        rows.sort_by(|(a_rate, a), (b_rate, b)| {
+            b_rate.is_some().cmp(&a_rate.is_some())
+                .then(b_rate.cmp(a_rate))
+                .then(a.title.cmp(&b.title))
+        });
+        rows.into_iter().map(|(_, hit)| hit).collect()
     }
 
     pub(in crate::db) fn item_sellers(&self, code: i64, lang: &str) -> Vec<Hit> {

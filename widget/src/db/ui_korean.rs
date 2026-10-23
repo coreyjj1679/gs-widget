@@ -553,6 +553,7 @@ pub(super) fn translated(en: &str) -> Option<&'static str> {
         "Full names and source" => "전체 이름과 출처",
         "H" => "장",
         "NPCs" => "NPC",
+        "Compare by drop rate (" => "드롭률로 비교 (",
         _ => return None,
     })
 }

@@ -34,7 +34,7 @@ slint::include_modules!();
 use alias_ui::{alias_code_list, alias_suggestions, validated_alias_text, refresh_alias_icons, show_alias_rows};
 use icons::{image_from_icon, show_battle_frame, spawn_icon_worker};
 use list::{monster_query, publish, reflow_board, row_index, show_board_monsters, show_home_saved, sync_view_star};
-use sheet::{focus_section, open_scope, show_key};
+use sheet::{focus_section, open_scope, reveal_source_drop, show_key};
 use window::{
     default_icon_size, default_main_size, enters_full, fit_on_screen, focus_window, full_window_size,
     leaves_full, place_fitted, place_window, remember_window, work_area_at,
@@ -1411,6 +1411,16 @@ fn main() {
         if !app.get_full_mode() || !key.strip_prefix("item:").and_then(|code| code.parse::<i64>().ok()).is_some_and(|code| code > 0) {
             return;
         }
+        // Back from the comparison reopens the item page or preview it started from.
+        let viewing = app.get_viewing().to_string();
+        let origin = if viewing.starts_with("item:") {
+            Some(viewing)
+        } else if viewing.is_empty() && app.get_category() != "monster" && app.get_detail_key().starts_with("item:") {
+            Some(app.get_detail_key().to_string())
+        } else {
+            None
+        };
+        let origin_category = app.get_category().to_string();
         app.set_category("monster".into());
         app.set_nation("".into());
         app.set_nation_name("".into());
@@ -1438,6 +1448,13 @@ fn main() {
         app.set_cursor(0);
         // Reuse category navigation so an open item page and its detail history are cleared too.
         app.invoke_query_changed("monster".into(), "".into());
+        match origin {
+            Some(origin) => {
+                app.set_drop_return_key(origin.into());
+                app.set_drop_return_category(origin_category.into());
+            }
+            None => app.set_drop_return_key("".into()),
+        }
     });
     let filter_app = app.as_weak();
     let filter_catalog = Rc::clone(&open_catalog);
@@ -1700,6 +1717,15 @@ fn main() {
             return;
         }
         let previous = open_current.borrow().clone();
+        // The item page or preview a monster is opened from; its drop row is revealed.
+        let source_item = if app.get_viewing().starts_with("item:") {
+            app.get_viewing().to_string()
+        } else if app.get_viewing().is_empty() && app.get_detail_key().starts_with("item:") {
+            app.get_detail_key().to_string()
+        } else {
+            String::new()
+        };
+        let opens_new_record = app.get_viewing().as_str() != owned;
         if app.get_viewing().is_empty() || previous.is_empty() {
             open_history.borrow_mut().clear();
         } else if previous != owned {
@@ -1712,6 +1738,9 @@ fn main() {
         *open_current.borrow_mut() = owned.clone();
         app.set_viewing(owned.clone().into());
         show_key(&app, &open_catalog, &open_session, &owned, false);
+        if opens_new_record && app.get_full_mode() && kind == "monster" && !source_item.is_empty() {
+            reveal_source_drop(&app, &source_item);
+        }
         sync_view_star(&app, &open_favs.borrow());
     });
 

@@ -42,7 +42,8 @@ pub(crate) fn open_scope(
     publish(app, catalog, session, favourites, category, "");
 }
 
-pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) {
+/// Show one source group at a time and return the keys of the listed rows.
+pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) -> HashSet<SharedString> {
     let mut groups: Vec<(String, String, Vec<Hit>)> = Vec::new();
     let mut current: Option<(String, String, Vec<Hit>)> = None;
     for row in rows {
@@ -141,6 +142,9 @@ pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) {
             source_note = note.clone();
         }
     }
+    let drop_total = groups.iter().find(|(id, _, _)| id == "dropped-by").map(|(_, _, items)| items.len()).unwrap_or(0);
+    app.set_item_drop_total(i32::try_from(drop_total).unwrap_or(i32::MAX));
+    let listed = shown.iter().map(|row| row.key.clone()).collect();
     app.set_item_source(pick.into());
     app.set_source_note(source_note.clone().into());
     app.set_source_note_lines(note_lines(&source_note));
@@ -150,6 +154,7 @@ pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) {
         app.set_cursor(0);
     }
     app.set_drop_offset(0.0);
+    listed
 }
 
 pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool) {
@@ -255,9 +260,24 @@ pub(crate) fn focus_section(app: &App, key: &str) {
     }
 }
 
+/// Select and scroll to the drop row of the item a monster page was opened from.
+pub(crate) fn reveal_source_drop(app: &App, item_key: &str) {
+    let links = app.get_links();
+    let Some(index) = (0..links.row_count())
+        .find(|&row| links.row_data(row).is_some_and(|hit| hit.key.as_str() == item_key))
+    else {
+        return;
+    };
+    let index = i32::try_from(index).unwrap_or(i32::MAX);
+    app.set_pending_cursor(index);
+    app.set_drop_reveal_index(index);
+    app.set_drop_reveal_request(app.get_drop_reveal_request().wrapping_add(1));
+}
+
 pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key: &str, keep_sheet: bool) {
     super::perf::begin_update();
     let _timer = super::perf::Span::new("detail.open", 1);
+    app.set_drop_reveal_index(-1);
     if !keep_sheet {
         app.set_item_tab("".into());
         app.set_item_source("".into());
@@ -276,10 +296,12 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
         .unwrap_or_default();
     let (rows, mut jobs) = link_rows(cache, links, gen, catalog, &app.get_lang());
     let (related_rows, related_jobs) = link_rows(cache, related_hits, gen, catalog, &app.get_lang());
-    jobs.extend(related_jobs);
     app.set_related(ModelRc::new(VecModel::from(related_rows)));
+    app.set_item_drop_total(0);
     if key.starts_with("item:") || key.starts_with("set:") {
-        publish_item_sources(app, &rows, keep_sheet);
+        let listed = publish_item_sources(app, &rows, keep_sheet);
+        // Collapsed groups can hold hundreds of rows; decode only listed icons.
+        jobs.retain(|job| listed.contains(job.row_key.as_str()));
     } else if key.starts_with("hero:") {
         publish_hero_sections(app, rows, keep_sheet);
     } else {
@@ -289,6 +311,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
         app.set_source_note_lines(0);
         app.set_links(ModelRc::new(VecModel::from(rows)));
     }
+    jobs.extend(related_jobs);
     for job in jobs {
         let _ = session.jobs.send(job);
     }

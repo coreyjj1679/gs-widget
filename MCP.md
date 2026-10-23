@@ -55,7 +55,7 @@ Version 1.1.0 and later include a local stdio MCP server in the existing executa
 
 ### 完整關聯、分段內容與篩選
 
-新增 `get_relations` 後共有九個工具。用 `key`、`relation`、`offset`、`limit` 查完整關聯，每頁最多 50 筆；`total` 是該關係的記錄數，`next_call` 可直接用於下一頁，末頁為 `null`。`get_entity.related` 仍是最多 50 筆的摘要，但 `related_total`、`related_truncated` 會反映真正的記錄數；`relations` 提供各關係的完整查詢入口，不再沿用 GUI 每節 24 筆限制。
+新增 `get_relations` 後共有九個工具。用 `key`、`relation`、`offset`、`limit` 查完整關聯，每頁最多 50 筆；`total` 是該關係的記錄數，`next_call` 可直接用於下一頁，末頁為 `null`。`get_entity.related` 仍是最多 50 筆的摘要，但 `related_total`、`related_truncated` 會反映真正的記錄數；`relations` 提供各關係的完整查詢入口。
 
 - 道具：`shops`、`production`、`quest_rewards`、`uses`、`recipes`、`drops`、`sets`、`characters`。`uses` 是「這件材料用在哪裡」，不是「如何製作它」；配方／生產／任務／角色用途保留各自條件。
 - 怪物：`drops`、`quests`；套裝：`members`；NPC：`quests`。

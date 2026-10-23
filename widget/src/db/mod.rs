@@ -547,11 +547,11 @@ impl Catalog {
             badge: None,
             chip: "section".into(),
         });
-        for row in rows.iter_mut().take(24) {
+        for row in &mut rows {
             if row.chip.is_empty() {
                 row.chip = key.to_string();
             }
         }
-        hits.extend(rows.into_iter().take(24));
+        hits.extend(rows);
     }
 }

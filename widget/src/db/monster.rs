@@ -163,7 +163,7 @@ pub(in crate::db) fn drop_rate_column(conn: &Connection) -> &'static str {
     }
 }
 
-fn drop_rate_text(rate: Option<i64>, lang: &str) -> String {
+pub(in crate::db) fn drop_rate_text(rate: Option<i64>, lang: &str) -> String {
     let Some(rate) = rate.filter(|value| (0..=100_000).contains(value)) else {
         return chrome_text(lang, "未記錄", "Not recorded");
     };

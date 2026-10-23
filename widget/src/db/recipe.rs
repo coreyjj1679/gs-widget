@@ -100,7 +100,6 @@ impl Catalog {
         .map(|rows| rows.filter_map(Result::ok).collect::<Vec<_>>())
         .unwrap_or_default()
         .into_iter()
-        .take(24)
         .map(|(id, source, result, qty)| Hit {
             title: self.item_name(result, lang),
             subtitle: caption(&label(&source, lang), format!("× {}", commas(qty))),
