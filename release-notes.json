@@ -2,6 +2,51 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "1.2.1",
+      "date": "2026-10-24",
+      "sections": [
+        {
+          "kind": "added",
+          "en": [
+            "Try the beta Bonus calculator, including all 15 recorded Legends. Edit levels in compact promotion trees and choose Indian source units from four portraits, with separate level drafts. The beta notice and calculation evidence follow your Chinese, English or Korean primary language; a Geota link is available for cross-checking.",
+            "Compare stage-by-stage rounded bonuses with the modeled no-rebirth maximum, respecting each material's level limits. Set eligible white robes to 300, or find a perfect configuration with the lowest total leveling experience for the selected route. This theoretical plan assumes white-robe training is complete, excluding retraining and earlier formation history behind statues. Cross-check results with another calculator before use.",
+            "Search items, monsters, characters, quests, NPCs and sets together from Search everything or Ctrl+K (Cmd+K on macOS). Reviewed game nicknames resolve to matching records, with the closest results first, real category counts and links to all matches."
+          ],
+          "zh-TW": [
+            "新增 Beta 紅利計算器，涵蓋已收錄的 15 位傳說將帥。可直接在緊湊升級樹調整等級，印度兵前身以一排四個頭像選取，並保留各來源的等級草稿。Beta 提示及計算依據跟隨中文、英文或韓文主語言，另提供 Geota 連結供交叉核對。",
+            "依各素材等級限制及逐階捨去小數的結果，比較模型的無重生紅利上限。可將適用素材設為白衣 300，或尋找所選路線達到完美紅利的最低總練等經驗配置。此理論規劃視白衣訓練為已完成，不計白衣重練及石像來源更早的合成歷程；使用前建議與其他計算器交叉核對。",
+            "可從「搜尋全部」或 Ctrl+K（macOS 為 Cmd+K）同時搜尋道具、怪物、角色、任務、NPC 及套裝。已核對的遊戲俗稱會對應至相關記錄，最接近的結果優先顯示，並提供實際分類數量及查看全部結果的入口。"
+          ]
+        },
+        {
+          "kind": "improved",
+          "en": [
+            "View every recorded item source with accurate group counts. Monster drop sources show the highest recorded rate first, with unknown rates last; open a drop-rate comparison from the item and return without losing your place.",
+            "Open quest and related-record details from the quest roadmap preview, including the quest giver and recorded location, objective items and reward items.",
+            "On Windows, an available update now opens a launch prompt showing the installed and new versions. Choose Download update or Later, keep browsing during downloads, and restart only when you choose to apply the update."
+          ],
+          "zh-TW": [
+            "道具來源列出全部已記錄結果及正確分類數量。怪物掉落來源依已記錄的最高掉落率排序，未知機率排在最後；可從道具開啟掉落率比較，再返回原本位置。",
+            "可從任務路線圖預覽開啟任務及相關記錄詳情，包括委託 NPC、已記錄位置、目標道具及獎勵道具。",
+            "Windows 版啟動時若有新版，會顯示目前及可用版本，讓你選擇「下載更新」或「稍後」。下載期間可繼續瀏覽，只有選擇套用更新時才會重新啟動。"
+          ]
+        },
+        {
+          "kind": "fixed",
+          "en": [
+            "Remove truncated category search results and browsing lists. Exact codes, aliases and names rank ahead of partial matches, and monster tools and the drop picker now respond to the first click.",
+            "Restore 51 crafting workshop recipes with their required books, materials, batch yields, fees, production days and recorded friendship requirements. Manufacturing books link to their recipes, and recipes link back to their products.",
+            "Correct game patch availability comparisons, including extended version numbers, and highlight patches newer than the bundled client at the top of the list."
+          ],
+          "zh-TW": [
+            "修正分類搜尋結果及瀏覽清單被截斷的問題，精確編號、別名及完整名稱優先於部分符合結果。怪物工具及掉落道具選擇器亦改為第一次點擊即可操作。",
+            "補回 51 筆製作工坊配方，包含所需製造書、材料、批次產量、費用、製作天數及已記錄友好度要求。製造書可開啟相關配方，配方亦可返回成品頁。",
+            "修正遊戲改版是否已實裝的版本比較，包括較長的版本編號；比隨附客戶端更新的改版會醒目顯示於清單頂部。"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.2.0",
       "date": "2026-10-21",
       "sections": [
