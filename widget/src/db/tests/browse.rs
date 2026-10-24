@@ -153,6 +153,89 @@ fn recipe_page_lists_kind_and_materials() {
 }
 
 #[test]
+fn recipe_page_shows_recorded_npc_and_location_in_selected_languages() {
+    let catalog = Catalog::open().expect("db");
+    let id: i64 = catalog.conn.query_row(
+        "SELECT id FROM recipes WHERE source = 'unified' AND result_item = 5626", [], |row| row.get(0),
+    ).unwrap();
+    let npc = catalog.index.npc(414).expect("recorded treasure crafting NPC");
+    for lang in ["zh-en", "en-zh", "ko-en"] {
+        let (_, _, _, facts) = catalog.recipe_sheet(id, lang).expect("recipe");
+        let npc_fact = facts.iter().find(|(label, _)| label == &phrase("npc", lang)).expect("NPC fact");
+        assert_eq!(npc_fact.0, "NPC");
+        let (name, alternate) = super::super::npc::npc_names(lang, npc);
+        assert!(npc_fact.1.contains(&name));
+        if !alternate.is_empty() { assert!(npc_fact.1.contains(&alternate)); }
+        let location = super::super::text::show3(lang, &npc.place_en, &npc.place_zh, "");
+        assert!(!location.is_empty(), "the fixture has a recorded location");
+        assert!(facts.iter().any(|(_, value)| value == &location));
+        let (text, _, _) = catalog.open_key(&format!("recipe:{id}"), lang);
+        assert!(text.contains(&npc_fact.1));
+        assert!(text.contains(&location));
+    }
+}
+
+#[test]
+fn recipe_npc_location_falls_back_to_map_without_inventing_missing_npcs() {
+    let mut catalog = Catalog::open().expect("db");
+    let id: i64 = catalog.conn.query_row(
+        "SELECT id FROM recipes WHERE source = 'unified' AND result_item = 5626", [], |row| row.get(0),
+    ).unwrap();
+    let npc = catalog.index.npcs.iter_mut().find(|npc| npc.code == 414).unwrap();
+    npc.place_en.clear();
+    npc.place_zh.clear();
+    npc.map_en = "Recorded map".into();
+    npc.map_zh = "記錄地圖".into();
+    npc.map_ko = "기록 지도".into();
+    let (_, _, _, facts) = catalog.recipe_sheet(id, "ko-en").unwrap();
+    assert!(facts.iter().any(|(_, value)| value == "기록 지도 · Recorded map"));
+    catalog.index.npcs.retain(|npc| npc.code != 414);
+    let (_, _, _, facts) = catalog.recipe_sheet(id, "en").unwrap();
+    assert!(!facts.iter().any(|(label, _)| label == &phrase("npc", "en") || label == "Location"));
+    assert!(!catalog.open_key(&format!("recipe:{id}"), "en").0.contains("Recorded map"));
+}
+
+#[test]
+fn recipe_npc_lists_preserve_locations_and_skip_unknown_or_invalid_codes() {
+    let mut catalog = Catalog::open().expect("db");
+    catalog.index.npcs.retain(|npc| npc.code != 1004);
+    catalog.conn = Connection::open_in_memory().expect("fixture");
+    catalog.conn.execute_batch(
+        "CREATE TABLE recipes (
+            id INTEGER PRIMARY KEY, source TEXT, result_item INTEGER, result_qty INTEGER,
+            fee INTEGER, learn_fee INTEGER, level_min INTEGER, level_max INTEGER,
+            success_rate INTEGER, npc TEXT);
+         CREATE TABLE recipe_materials (
+            recipe_id INTEGER, slot INTEGER, item_code INTEGER, qty INTEGER, enhance INTEGER);
+         INSERT INTO recipes VALUES
+            (1, 'reinforce', 5543, 1, 0, NULL, NULL, NULL, NULL, '181, 186'),
+            (2, 'reinforce', 7008, 1, 0, NULL, NULL, NULL, NULL, '1003, 1004'),
+            (3, 'reinforce', 5543, 1, 0, NULL, NULL, NULL, NULL, 'bad, 181, 0, -1, , 99999999, 186, ?');"
+    ).unwrap();
+    for (id, codes) in [(1, vec![181, 186]), (2, vec![1003]), (3, vec![181, 186])] {
+        for lang in ["en", "ko-en"] {
+            let (_, _, _, facts) = catalog.recipe_sheet(id, lang).unwrap();
+            let related: Vec<_> = facts.into_iter().filter(|(label, _)| {
+                label == &phrase("npc", lang)
+                    || label == &super::super::text::chrome_text(lang, "所在地", "Location")
+            }).collect();
+            assert_eq!(related.len(), codes.len() * 2, "only known NPCs and their locations should appear");
+            let (text, _, _) = catalog.open_key(&format!("recipe:{id}"), lang);
+            for (pair, code) in related.chunks_exact(2).zip(&codes) {
+                let npc = catalog.index.npc(*code).expect("fixture NPC");
+                let (name, alternate) = super::super::npc::npc_names(lang, npc);
+                assert!(pair[0].1.contains(&name));
+                if !alternate.is_empty() { assert!(pair[0].1.contains(&alternate)); }
+                let location = super::super::text::show3(lang, &npc.place_en, &npc.place_zh, "");
+                assert!(!location.is_empty(), "fixture NPC has a location");
+                assert_eq!(pair[1].1, location, "each location follows its own NPC");
+                assert!(text.contains(&format!("{} {}\n{} {}", pair[0].0, pair[0].1, pair[1].0, pair[1].1)));
+            }
+        }
+    }
+}
+
+#[test]
 fn set_page_lists_the_yaksha_pieces() {
     let catalog = Catalog::open().expect("db");
     let (text, links, icon) = catalog.open_key("set:79", "zh-en");

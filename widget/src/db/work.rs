@@ -313,6 +313,13 @@ impl Catalog {
                 }
             }
         }
+        // Default yield-only rows do not establish a production method. Keep
+        // recorded facilities, labor, ingredients, and tools, but hide empty shells.
+        if places.is_empty() && formula.is_some_and(|formula| {
+            formula.labor == 0 && formula.plant.is_empty() && formula.parts.is_empty()
+        }) {
+            return Vec::new();
+        }
         let mut hits = Vec::new();
         for place in &places {
             hits.push(Hit {

@@ -43,10 +43,14 @@ impl Catalog {
         if ids.len() > 1 && recipe_id.is_none() {
             let prices: Vec<_> = prices.iter().map(|&(item_code, enhance, unit_price)| json!({"item_code": item_code,"enhance": enhance,"unit_price": unit_price})).collect();
             return Ok(json!({"status": "choose_recipe", "total": ids.len(),
-                "candidates": ids.iter().take(limit).map(|row| json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id, "source": row.source,
+                "candidates": ids.iter().take(limit).map(|row| {
+                    let mut candidate = json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id, "source": row.source,
                     "next_call": {"tool": "query_catalog", "requires_choice": true,
                         "arguments": {"keys": [key], "action": "calculate", "recipe_id": row.id, "quantity": quantity, "prices": prices, "language": language_code(lang)}}
-                })).collect::<Vec<_>>(),
+                    });
+                    self.mcp_attach_facility(&mut candidate, row.id, lang);
+                    candidate
+                }).collect::<Vec<_>>(),
                 "truncated": ids.len() > limit,
                 "next_call": if ids.len() > limit { json!({"tool": "get_recipes", "arguments": {"item_code": ids[0].result_str.parse::<i64>().unwrap_or(0), "offset": limit, "limit": limit, "language": language_code(lang)}}) } else { Value::Null },
                 "note": "Choose a recorded route; no recipe is selected by guessing."}));

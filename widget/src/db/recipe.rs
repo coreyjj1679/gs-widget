@@ -8,7 +8,7 @@ use super::{Catalog, Hit};
 use super::names::haystack;
 use super::rows::RecipeRow;
 use super::store::online;
-use super::text::{caption, commas, label, lead3, phrase, trail3};
+use super::text::{caption, chrome_text, commas, label, lead3, phrase, show3, trail3};
 
 pub(in crate::db) const PREF: &[&str] = &[
     "alchemy",
@@ -18,6 +18,7 @@ pub(in crate::db) const PREF: &[&str] = &[
     "formation",
     "baekje",
     "npc",
+    "facility",
     "reinforce",
 ];
 
@@ -115,7 +116,7 @@ impl Catalog {
 
     pub(in crate::db) fn open_recipe(&self, id: i64, lang: &str) -> (String, Vec<Hit>, Option<(PathBuf, i32)>) {
         let row = self.conn.query_row(
-            "SELECT source, result_item, result_qty, fee, learn_fee FROM recipes WHERE id = ?1",
+            "SELECT source, result_item, result_qty, fee, learn_fee, npc FROM recipes WHERE id = ?1",
             [id],
             |row| {
                 Ok((
@@ -124,10 +125,11 @@ impl Catalog {
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             },
         );
-        let Ok((source, result, qty, fee, learn)) = row else {
+        let Ok((source, result, qty, fee, learn, npc)) = row else {
             return (phrase("missing-recipe", lang), Vec::new(), None);
         };
         let name = self.item_name(result, lang);
@@ -142,16 +144,32 @@ impl Catalog {
         if let Some(learn) = learn.filter(|value| *value > 0) {
             text.push_str(&format!("\n{} {}", phrase("learn", lang), commas(learn)));
         }
+        for (label, value) in self.recipe_npc_facts(&npc, lang) {
+            text.push_str(&format!("\n{label} {value}"));
+        }
+        for (label, value) in self.facility_recipe_facts(id, lang) {
+            text.push_str(&format!("\n{label} {value}"));
+        }
         text.push_str(&format!("\n\n{}\n", phrase("materials", lang)));
         text.push_str(&self.material_tree(id, 3, &mut vec![id], lang));
-        let links = self.recipe_material_hits(id, lang);
+        let mut links = vec![Hit {
+            title: name,
+            subtitle: caption(&chrome_text(lang, "成品", "Result"), format!("× {}", commas(qty))),
+            key: format!("item:{result}"),
+            icon: self.item_icon(result),
+            solo: false,
+            aside: chrome_text(lang, "查看物品", "View item"),
+            badge: None,
+            chip: String::new(),
+        }];
+        links.extend(self.recipe_material_hits(id, lang));
         let icon = self.item_icon(result);
         (text, links, icon)
     }
 
     pub fn recipe_sheet(&self, id: i64, lang: &str) -> Option<(String, String, String, Vec<(String, String)>)> {
         let row = self.conn.query_row(
-            "SELECT source, result_item, result_qty, fee, learn_fee, level_min, level_max, success_rate
+            "SELECT source, result_item, result_qty, fee, learn_fee, level_min, level_max, success_rate, npc
              FROM recipes WHERE id = ?1",
             [id],
             |row| {
@@ -164,10 +182,11 @@ impl Catalog {
                     row.get::<_, Option<i64>>(5)?,
                     row.get::<_, Option<i64>>(6)?,
                     row.get::<_, Option<i64>>(7)?,
+                    row.get::<_, String>(8)?,
                 ))
             },
         );
-        let Ok((source, result, qty, fee, learn, level_min, _level_max, success)) = row else {
+        let Ok((source, result, qty, fee, learn, level_min, _level_max, success, npc)) = row else {
             return None;
         };
         let mut lines = vec![
@@ -185,8 +204,51 @@ impl Catalog {
         if let Some(rate) = success.filter(|value| *value > 0) {
             lines.push((phrase("success", lang), format!("{}%", commas(rate))));
         }
+        lines.extend(self.recipe_npc_facts(&npc, lang));
+        lines.extend(self.facility_recipe_facts(id, lang));
         let (en, zh, ko) = self.item_names3(result);
         Some((lead3(lang, &en, &zh, &ko), trail3(lang, &en, &zh, &ko), format!("#{result}"), lines))
+    }
+
+    fn recipe_npc_facts(&self, recorded: &str, lang: &str) -> Vec<(String, String)> {
+        let mut facts = Vec::new();
+        for npc in recorded.split(',')
+            .filter_map(|value| value.trim().parse::<i64>().ok())
+            .filter(|code| *code > 0)
+            .filter_map(|code| self.index.npc(code))
+        {
+            let (name, alternate) = super::npc::npc_names(lang, npc);
+            let name = if alternate.is_empty() { name } else { format!("{name} / {alternate}") };
+            facts.push((phrase("npc", lang), name));
+            let place = show3(lang, &npc.place_en, &npc.place_zh, "");
+            let location = if place.is_empty() {
+                show3(lang, &npc.map_en, &npc.map_zh, &npc.map_ko)
+            } else {
+                place
+            };
+            if !location.is_empty() {
+                facts.push((chrome_text(lang, "所在地", "Location"), location));
+            }
+        }
+        facts
+    }
+
+    fn recipe_material_summary(&self, id: i64, lang: &str) -> String {
+        let Ok(mut stmt) = self.conn.prepare(
+            "SELECT item_code, qty, enhance FROM recipe_materials WHERE recipe_id = ?1 ORDER BY slot",
+        ) else { return String::new() };
+        let materials = stmt.query_map([id], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
+        }).map(|rows| rows.filter_map(Result::ok).collect::<Vec<_>>()).unwrap_or_default();
+        // Keep the complete list for the existing hover/keyboard information panel;
+        // the compact row elides this text to fit its available width.
+        materials.into_iter().map(|(code, qty, enhance)| {
+            let (en, zh, ko) = self.item_names3(code);
+            let mut name = show3(lang, &en, &zh, &ko);
+            if name.is_empty() { name = self.item_name(code, lang); }
+            if enhance > 0 { name.push_str(&format!(" +{}", commas(enhance))); }
+            format!("{name} × {}", commas(qty))
+        }).collect::<Vec<_>>().join(" · ")
     }
 
     pub(in crate::db) fn material_tree(&self, recipe_id: i64, depth: usize, seen: &mut Vec<i64>, lang: &str) -> String {
@@ -284,7 +346,10 @@ impl Catalog {
             .take(12)
             .map(|(id, source, _)| Hit {
                 title: label(&source, lang),
-                subtitle: phrase("open-recipe", lang),
+                subtitle: {
+                    let materials = self.recipe_material_summary(id, lang);
+                    if materials.is_empty() { phrase("open-recipe", lang) } else { materials }
+                },
                 key: format!("recipe:{id}"),
                 icon: self.item_icon(code),
                     solo: false,

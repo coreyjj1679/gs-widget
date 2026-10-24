@@ -122,6 +122,8 @@ Each spirit's **Upgrade to this spirit** section lists the previous form, requir
 
 ## Data
 
+Crafting workshop recipes include the required recipe book, materials, batch yield, fee, production days and recorded friendship requirement. Books link to the recipes that use them, and each recipe links back to its product. Refresh the 51 bundled workshop recipes from `Makingfacility.txt` with `python3 scripts/import_facility_recipes.py --full-db /path/to/gs-parser/data/gersang-full.db`. The source is opened read-only; the importer preserves other recipe IDs and updates its own tables transactionally. `meta.facility_recipes_source` records source hashes and coverage. Village names retain the source Korean where no explicit town-code mapping is available.
+
 Monster drops show the client catalog's recorded percentage beside each item. Unmatched rates appear as **未記錄 / Not recorded** (or **—** in the icon strip); they are not treated as zero. Single-player drops retain their existing label. These are the client's base values, before any in-game bonuses or events.
 
 In full-mode monster filters, search the drop-item dropdown by name, alias or item code (for example `#11608`). It lists only items with monster drop sources. Selecting an item filters its monsters and sorts their recorded drop rates from high to low; the sort direction can be reversed, and unknown rates always remain last. The selected drop is highlighted in each monster's drops. If an item occurs in multiple slots, sorting uses the highest recorded slot rate, without adding different conditions together.

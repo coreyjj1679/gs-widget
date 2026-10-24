@@ -12,6 +12,7 @@ pub(in crate::db) const SOURCE_LABEL: &[(&str, &str, &str, &str)] = &[
     ("blacksmith", "鐵匠", "Blacksmith", "대장"),
     ("jeweler", "細工", "Jeweler", "세공"),
     ("npc", "NPC製造", "NPC craft", "NPC제작"),
+    ("facility", "製造所", "Crafting workshop", "제조소"),
     ("formation", "陣形", "Formation", "진형"),
     ("baekje", "百濟寶物", "Baekje", "백제보물"),
     ("reinforce", "強化", "Reinforce", "강화"),
@@ -344,6 +345,7 @@ pub(in crate::db) fn named_lead(lang: &str, en: &str, zh: &str, label: &str, cod
 pub(in crate::db) fn phrase(key: &str, lang: &str) -> String {
     let (zh, en) = match key {
         "code" => ("代碼", "Code"),
+        "npc" => ("NPC", "NPC"),
         "vendor" => ("扔店價", "Vendor"),
         "weight" => ("重量", "Weight"),
         "item-sort" => ("分類", "Category"),

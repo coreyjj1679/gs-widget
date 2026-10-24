@@ -151,9 +151,11 @@ impl Catalog {
                 .iter()
                 .filter(|row| row.result_str == id)
                 .map(|row| {
-                    json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id,
+                    let mut result = json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id,
                     "name": lead3(lang, &row.en, &row.zh, &row.ko), "source": row.source,
-                    "item_code": number().unwrap_or_default(), "level_min": row.level_min})
+                    "item_code": number().unwrap_or_default(), "level_min": row.level_min});
+                    self.mcp_attach_facility(&mut result, row.id, lang);
+                    result
                 })
                 .collect(),
             ("item", "drops") => self.mcp_drops(number()?, lang, 0, usize::MAX)?["results"]
@@ -444,7 +446,10 @@ impl Catalog {
                     .unwrap()
                     .push(json!({"item_code": code, "quantity": quantity, "enhance": enhance}));
             }
-            result.extend(grouped.into_values());
+            result.extend(grouped.into_iter().map(|(recipe, mut row)| {
+                self.mcp_attach_facility(&mut row, recipe, lang);
+                row
+            }));
         }
         let remaining = limit.saturating_sub(result.len());
         result.extend(

@@ -8954,7 +8954,7 @@ export component App inherits Window {
                                     width: parent.width; height: parent.height - self.y - 8px;
                                     facts: root.facts; links: root.links; note: root.sheet-note; body: root.detail;
                                     source-note: root.source-note;
-                                    link-label: root.category == "recipe" ? (UiLanguage.tr("Materials", "材料")) : (UiLanguage.tr("Related", "相關"));
+                                    link-label: root.viewing-recipe ? (UiLanguage.tr("Result and materials", "成品與材料")) : (UiLanguage.tr("Related", "相關"));
                                     no-image-label: root.no-image-label;
                                     open-key(key) => { if (key != "") { root.open-hit(key); } }
                                     choose-source(key) => { root.source-changed(key); keys.focus(); }
@@ -9831,7 +9831,7 @@ export component App inherits Window {
                     if root.card-sheet && !root.quest-sheet && !root.viewing-item && (root.links.length == 0 || root.links[0].chip != "section") && (root.links.length > 0 || root.category != "hero"): Text {
                         x: root.side-gap;
                         y: root.card-list-y - 22px;
-                        text: (root.category == "hero" ? (UiLanguage.tr("Class line", "轉職")) : root.quest-sheet ? (UiLanguage.tr("Links", "連結")) : root.viewing-npc ? (UiLanguage.tr("Quests", "任務")) : root.recipe-sheet ? (UiLanguage.tr("Materials", "材料")) : (UiLanguage.tr("Dropped by", "會掉落的怪物"))) + "  " + root.links.length;
+                        text: (root.category == "hero" ? (UiLanguage.tr("Class line", "轉職")) : root.quest-sheet ? (UiLanguage.tr("Links", "連結")) : root.viewing-npc ? (UiLanguage.tr("Quests", "任務")) : root.recipe-sheet ? (UiLanguage.tr("Result and materials", "成品與材料")) : (UiLanguage.tr("Dropped by", "會掉落的怪物"))) + "  " + root.links.length;
                         font-size: 12px;
                         color: DesktopTheme.secondary;
                     }

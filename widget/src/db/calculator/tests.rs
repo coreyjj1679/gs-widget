@@ -262,6 +262,48 @@ fn doll_catalog_uses_only_the_unified_single_unit_recipe() {
 }
 
 #[test]
+fn facility_recipe_counts_manufacturing_book_once_per_batch() {
+    let catalog = Catalog::open().expect("db");
+    let book = catalog.calculator_catalog().unwrap();
+    let recipe_id = catalog
+        .index
+        .recipes
+        .iter()
+        .find(|recipe| recipe.source == "facility" && recipe.result_str == "4570")
+        .expect("Dragon Kukri facility recipe")
+        .id;
+    assert!(catalog.can_calculate_record("item:4570"));
+    assert!(catalog
+        .calculator_recipes(&book, 4570, "en")
+        .iter()
+        .any(|recipe| recipe.recipe_id == recipe_id));
+
+    let mut document = catalog.calculator_document(&book, recipe_id, "en").unwrap();
+    assert_eq!((document.output, document.fee_per_batch), (1, 100_000_000));
+    let materials: BTreeMap<_, _> = document
+        .materials
+        .iter()
+        .map(|material| (material.code, material.per_batch))
+        .collect();
+    assert_eq!(materials, BTreeMap::from([
+        (4656, 1), (2287, 200), (4621, 50), (4104, 20), (4105, 3), (4626, 20),
+    ]));
+    document.quantity = 3;
+    for material in &mut document.materials {
+        material.unit_price = Some(if material.code == 4656 { 1_000 } else { 10 });
+    }
+    let total = document.calculate().unwrap();
+    assert_eq!(total.batches, 3);
+    assert_eq!(total.fee, 300_000_000);
+    let books: Vec<_> = total.materials.iter().filter(|row| row.key.code == 4656).collect();
+    assert_eq!(books.len(), 1);
+    assert_eq!(books[0].quantity, 3);
+    assert_eq!(books[0].line_total, Some(3_000));
+    assert_eq!(total.total, Some(300_011_790));
+    assert_eq!(decode_calculator(&encode_calculator(&document).unwrap()).unwrap(), document);
+}
+
+#[test]
 fn catalog_indexes_validated_result_ids_in_catalog_order() {
     let mut catalog = Catalog::open().expect("db");
     catalog.conn = rusqlite::Connection::open_in_memory().unwrap();

@@ -1,6 +1,7 @@
 //! Read-only catalog access for MCP. No GUI, preference migration or saved calculations.
 mod calculation;
 mod content;
+mod facility;
 mod names;
 mod query;
 mod relations;
@@ -507,10 +508,12 @@ impl Catalog {
         let name = self.item_name(code, lang);
         let mut result = page_map(rows, offset, limit, |row| {
             let document = self.calculator_document(book, row.id, lang);
-            json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id,
+            let mut result = json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id,
                 "source": row.source, "name": name,
                 "calculable": document.is_ok(), "calculation_unavailable_reason": document.as_ref().err(),
-                "recipe": document.ok()})
+                "recipe": document.ok()});
+            self.mcp_attach_facility(&mut result, row.id, lang);
+            result
         });
         result["item_code"] = json!(code);
         Ok(result)
@@ -548,14 +551,14 @@ impl Catalog {
             "item_code": row.key.code, "enhance": row.key.enhance, "name": row.title,
             "quantity": row.quantity, "unit_price": row.unit_price, "line_total": row.line_total,
         })).collect();
-        Ok(
-            json!({"recipe_id": recipe_id, "item_code": document.item_code, "name": document.title,
+        let mut result = json!({"recipe_id": recipe_id, "item_code": document.item_code, "name": document.title,
             "requested_quantity": quantity, "batches": calculation.batches, "output_units": calculation.output_units,
             "crafting_fee": calculation.fee, "known_material_cost": calculation.material_total,
             "known_total": calculation.known_total, "total": calculation.total, "complete": calculation.total.is_some(),
             "materials": materials, "success_rate": document.success, "learn_fee": document.learn_fee,
-            "note": "Unit prices are supplied by the user, not live market prices. Missing prices remain unknown, not zero. Totals exclude learning fees and failed attempts; quantities cover direct recipe materials only."}),
-        )
+            "note": "Unit prices are supplied by the user, not live market prices. Missing prices remain unknown, not zero. Totals exclude learning fees and failed attempts; quantities cover direct recipe materials only."});
+        self.mcp_attach_facility(&mut result, recipe_id, lang);
+        Ok(result)
     }
 }
 

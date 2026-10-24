@@ -11,6 +11,7 @@ mod character_data;
 mod character_calculator;
 mod character_calculator_browse;
 mod enchant;
+mod facility_recipe;
 mod hero;
 mod item;
 mod load;

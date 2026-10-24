@@ -738,6 +738,7 @@ impl Catalog {
                     material
                 })
                 .collect::<Vec<_>>());
+            self.mcp_attach_facility(&mut row, *id, lang);
             if row["source"] == "reinforce" {
                 row["calculable"] = json!(false);
                 row["calculation_unavailable_reason"] = json!("Reinforcement output enhancement levels are not recorded; this is not a complete craftable recipe.");

@@ -289,6 +289,7 @@ impl Catalog {
             "recipe" => {
                 result["materials"] =
                     json!(self.mcp_relation_rows(&format!("recipe:{id}"), "related", lang)?);
+                self.mcp_attach_facility(result, id.parse().unwrap_or(0), lang);
             }
             "town" => {
                 let town = self.index.towns.iter().find(|row| row.code == id).unwrap();
@@ -438,7 +439,14 @@ impl Catalog {
 
     pub(super) fn mcp_production(&self, code: i64, lang: &str) -> Result<Value, String> {
         let facilities = self.mcp_relation_rows(&format!("item:{code}"), "production", lang)?;
-        let Some(formula) = self.index.formulas.get(&code) else {
+        // A default yield alone is not evidence of a production method. Match
+        // the detail page while retaining facilities and recorded requirements.
+        let Some(formula) = self.index.formulas.get(&code).filter(|formula| {
+            !facilities.is_empty()
+                || formula.labor != 0
+                || !formula.plant.is_empty()
+                || !formula.parts.is_empty()
+        }) else {
             return Ok(
                 json!({"status": if facilities.is_empty() { "not_recorded" } else { "facilities_only" }, "facilities": facilities, "formula": null}),
             );
@@ -545,6 +553,38 @@ mod tests {
             .iter()
             .any(|row| row["key"] == "item:63" && row["quantity"] == 200));
         assert!(item.get("related").is_none());
+    }
+
+    #[test]
+    fn production_hides_yield_only_shells_but_keeps_recorded_requirements() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        let item = catalog
+            .mcp_entity_sections("item:4570", "en", &["production".into()])
+            .unwrap();
+        assert_eq!(item["production"]["status"], "not_recorded");
+        assert_eq!(item["production"]["facilities"], json!([]));
+        assert!(item["production"]["formula"].is_null());
+
+        let silk = catalog.mcp_production(597, "en").unwrap();
+        assert_eq!(silk["status"], "recorded");
+        assert!(silk["facilities"].as_array().unwrap().iter()
+            .any(|facility| facility["key"] == "bay:WEA"));
+        assert!(silk["formula"]["requirements"].as_array().unwrap().iter()
+            .any(|part| part["key"] == "item:63" && part["quantity"] == 200));
+
+        let (&tool_product, _) = catalog.index.formulas.iter()
+            .find(|(_, formula)| formula.parts.iter().any(|part| part.kind == "tool"))
+            .expect("bundled production tool requirement");
+        let tools = catalog.mcp_production(tool_product, "en").unwrap();
+        assert_eq!(tools["status"], "recorded");
+        assert!(tools["formula"]["requirements"].as_array().unwrap().iter()
+            .any(|part| part["kind"] == "tool"));
+        let (&labor_product, _) = catalog.index.formulas.iter()
+            .find(|(_, formula)| formula.labor > 0)
+            .expect("bundled production labor requirement");
+        let labor = catalog.mcp_production(labor_product, "en").unwrap();
+        assert_eq!(labor["status"], "recorded");
+        assert!(labor["formula"]["labor"].as_i64().unwrap() > 0);
     }
 
     #[test]
