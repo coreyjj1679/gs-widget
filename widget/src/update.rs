@@ -38,6 +38,16 @@ pub struct Release {
     sha256: String,
 }
 
+#[cfg(test)]
+pub(crate) fn release_for_test(version: &str) -> Release {
+    Release {
+        version: version.into(),
+        url: "https://example.invalid/update.zip".into(),
+        size: 1,
+        sha256: "a".repeat(64),
+    }
+}
+
 #[derive(Debug)]
 pub struct PreparedUpdate {
     directory: PathBuf,

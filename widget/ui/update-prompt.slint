@@ -1,0 +1,164 @@
+import { Button } from "std-widgets.slint";
+import { DesktopTheme } from "desktop.slint";
+import { UiLanguage } from "language.slint";
+
+// A launch prompt shares the updater state; closing it never cancels a download
+// or discards the prepared release. The native buttons retain keyboard semantics.
+export component UpdatePrompt inherits Rectangle {
+    in property <string> installed-version;
+    in property <string> available-version;
+    in property <int> state;
+    in property <int> progress;
+    in property <string> error;
+    in property <string> status;
+    in property <string> action;
+    callback accepted();
+    callback dismissed();
+    property <bool> busy: state == 1 || state == 4 || state == 7;
+    property <bool> stacked-actions: root.width < 380px;
+    property <string> heading: state == 4 ? UiLanguage.tr("Downloading update", "正在下載更新") :
+        state == 5 ? UiLanguage.tr("Ready to update", "更新已準備好") :
+        state == 6 ? UiLanguage.tr("Update could not finish", "未能完成更新") :
+        state == 7 ? UiLanguage.tr("Restarting…", "正在重新啟動…") :
+        state == 1 ? UiLanguage.tr("Checking for updates…", "正在檢查更新…") :
+        UiLanguage.tr("Update available", "有新版本可用");
+    background: DesktopTheme.canvas.with-alpha(0.72);
+    // Consume clicks outside the dialog without treating them as consent.
+    TouchArea {
+        scroll-event(event) => { return accept; }
+    }
+
+    dialog-focus := FocusScope {
+        width: 100%; height: 100%;
+        focus-on-tab-navigation: false;
+        init => { later.focus(); }
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                if (root.state != 7) { root.dismissed(); }
+                return accept;
+            }
+            if (event.text == Key.Tab || event.text == Key.Backtab) {
+                if (later.has-focus && !root.busy) { primary.focus(); }
+                else { later.focus(); }
+                return accept;
+            }
+            if (event.text == Key.DownArrow || event.text == Key.PageDown) {
+                details-scroll.content-y = max(min(0px, details-scroll.height - details-scroll.content-height),
+                    min(0px, details-scroll.content-y - (event.text == Key.PageDown ? details-scroll.height : 36px)));
+                return accept;
+            }
+            if (event.text == Key.UpArrow || event.text == Key.PageUp) {
+                details-scroll.content-y = min(0px,
+                    details-scroll.content-y + (event.text == Key.PageUp ? details-scroll.height : 36px));
+                return accept;
+            }
+            // No shortcuts or unhandled keys may act on the page underneath.
+            return accept;
+        }
+
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: min(480px, parent.width - 32px);
+            height: min(header.preferred-height + details.preferred-height + actions.height + 88px,
+                parent.height - 32px);
+            border-radius: 8px;
+            background: DesktopTheme.surface;
+            border-width: 1px;
+            border-color: DesktopTheme.border;
+            accessible-role: groupbox;
+            accessible-label: root.heading;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 20px;
+                header := VerticalLayout {
+                    spacing: 8px;
+                    Text {
+                        text: root.heading;
+                        color: DesktopTheme.text;
+                        font-size: 21px;
+                        font-weight: 600;
+                        wrap: word-wrap;
+                        accessible-live-region: polite;
+                    }
+                    Text {
+                        text: UiLanguage.tr("Installed: v", "目前版本：v") + root.installed-version
+                            + "  →  v" + root.available-version;
+                        color: DesktopTheme.secondary;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                }
+                details-scroll := Flickable {
+                    min-height: 0px;
+                    vertical-stretch: 1;
+                    content-width: self.width;
+                    content-height: details.preferred-height;
+                    details := VerticalLayout {
+                        width: parent.width;
+                        spacing: 16px;
+                        alignment: start;
+                        Text {
+                            text: root.state == 3 ? UiLanguage.tr(
+                                "Download the new version now? You can keep browsing while it downloads, then choose when to restart.",
+                                "現在下載新版本？下載期間可繼續使用圖鑑，完成後再決定何時重新啟動。") : root.status;
+                            color: DesktopTheme.text;
+                            font-size: 14px;
+                            wrap: word-wrap;
+                            accessible-live-region: polite;
+                        }
+                        if root.state == 4: Rectangle {
+                            height: 4px;
+                            background: DesktopTheme.control;
+                            Rectangle {
+                                x: 0px; y: 0px;
+                                height: 100%;
+                                width: parent.width * root.progress / 100;
+                                background: DesktopTheme.accent;
+                            }
+                        }
+                        if root.error != "": Text {
+                            text: root.error;
+                            color: #f1b5af;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                            accessible-live-region: assertive;
+                        }
+                        Text {
+                            text: root.state == 3 ? UiLanguage.tr(
+                                "Your favourites, aliases and settings are kept. Choose Later to be reminded next time you open Gersang.",
+                                "更新會保留收藏、別名和設定。選擇「稍後」，下次開啟 Gersang 時再提醒。") : UiLanguage.tr(
+                                "You can also manage this update in Settings → App.",
+                                "也可到「設定 → 程式」繼續處理更新。");
+                            color: DesktopTheme.secondary;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+                actions := Rectangle {
+                    height: root.stacked-actions ? 84px : 36px;
+                    later := Button {
+                        x: root.stacked-actions ? 0px : parent.width - self.width - primary.width - 12px;
+                        y: 0px;
+                        width: root.stacked-actions ? parent.width : self.preferred-width;
+                        height: 36px;
+                        text: root.state == 4 ? UiLanguage.tr("Keep browsing", "繼續瀏覽") : UiLanguage.tr("Later", "稍後");
+                        enabled: root.state != 7;
+                        clicked => { root.dismissed(); }
+                    }
+                    primary := Button {
+                        x: root.stacked-actions ? 0px : parent.width - self.width;
+                        y: root.stacked-actions ? 48px : 0px;
+                        width: root.stacked-actions ? parent.width : self.preferred-width;
+                        height: 36px;
+                        text: root.busy ? UiLanguage.tr("Please wait…", "請稍候…") : root.action;
+                        enabled: !root.busy;
+                        clicked => { later.focus(); root.accepted(); }
+                    }
+                }
+            }
+        }
+    }
+}

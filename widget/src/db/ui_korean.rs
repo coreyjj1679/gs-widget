@@ -2,6 +2,16 @@
 // Keep untranslated proper names (MCP, GitHub, product names) at call sites.
 pub(super) fn translated(en: &str) -> Option<&'static str> {
     Some(match en {
+        "Update available" => "새 업데이트가 있습니다",
+        "Downloading update" => "업데이트 다운로드 중",
+        "Ready to update" => "업데이트 준비 완료",
+        "Update could not finish" => "업데이트를 완료하지 못했습니다",
+        "Installed: v" => "설치된 버전: v",
+        "Later" => "나중에",
+        "Keep browsing" => "계속 둘러보기",
+        "Download the new version now? You can keep browsing while it downloads, then choose when to restart." => "새 버전을 지금 다운로드할까요? 다운로드하는 동안 계속 둘러보고, 완료 후 다시 시작할 시점을 선택할 수 있습니다.",
+        "Your favourites, aliases and settings are kept. Choose Later to be reminded next time you open Gersang." => "즐겨찾기, 별칭과 설정은 유지됩니다. ‘나중에’를 선택하면 다음에 Gersang을 열 때 다시 알려드립니다.",
+        "You can also manage this update in Settings → App." => "설정 → 앱에서도 업데이트를 계속 진행할 수 있습니다.",
         "Action needed" => "작업을 완료하지 못했습니다",
         "Dismiss" => "닫기",
         "Exporting image…" => "이미지 내보내는 중…",

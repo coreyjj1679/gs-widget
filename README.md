@@ -10,7 +10,7 @@ A desktop reference for Gersang items, monsters, quests, and characters. Choose 
 2. Extract the whole ZIP to a writable folder, such as `%LOCALAPPDATA%\Programs\gs-widget`. Keep `gersang-widget.exe` and `data` together.
 3. Open **`gersang-widget.exe`**. No Git, Rust, or game installation is needed.
 
-Use the Windows ZIP asset; GitHub's **Source code** downloads are for developers. Updates are available in **Settings → App**. Personal settings are stored separately in `%LOCALAPPDATA%\gs-widget`.
+Use the Windows ZIP asset; GitHub's **Source code** downloads are for developers. On launch, the app checks for updates in the background and asks before downloading a new version. Choose **Later** to keep using the app, or manage updates in **Settings → App**. Personal settings are stored separately in `%LOCALAPPDATA%\gs-widget`.
 
 ## Quest roadmaps
 

@@ -4,9 +4,9 @@
 
 Download `gs-widget-v1.1.0-windows-x64.zip` (or a newer version) from [GitHub Releases](https://github.com/coreyjj1679/gs-widget/releases/latest). Extract the whole archive into a writable folder such as `%LOCALAPPDATA%\Programs\gs-widget`, then open `gersang-widget.exe`. The ZIP contains the executable, `data/gersang.db`, `data/client-version.txt`, and the bundled `data/client` pictures. GitHub's automatically generated **Source code** ZIP is not the runnable app.
 
-Each launch checks for updates in the background and shows a notice at the bottom left of the navigation bar when a newer stable version is available. Offline or failed startup checks remain quiet and do not affect the local catalog, pictures or personal settings. Open **Settings → App / 設定 → 程式** to see the installed app version or check manually; a failed manual check displays an error and a retry option.
+Each launch checks for updates in the background. When a newer stable version is available, a prompt shows the installed and available versions and offers **Download update / 下載更新** or **Later / 稍後**. Later dismisses the prompt for this launch; the navigation notice and **Settings → App / 設定 → 程式** remain available. If the app is collapsed into its floating bar, the prompt waits until you expand it. Offline or failed startup checks remain quiet and do not affect the local catalog, pictures or personal settings. Settings also lets you check manually; a failed manual check displays an error and a retry option.
 
-Choose **Download update / 下載更新** when you want the new version, then **Restart and update / 重新啟動並更新** when it is ready. Browsing remains available during checks and downloads. A restart always requires that final button press. The updater checks the Release asset's SHA-256 digest returned by GitHub over HTTPS before accepting the ZIP; it does not require Git or Rust on the user's computer.
+Choose **Download update / 下載更新** when you want the new version, then **Restart and update / 重新啟動並更新** when it is ready. The prompt shows download progress; **Keep browsing / 繼續瀏覽** closes it while the download continues. You can finish the update from Settings or the navigation notice. A restart always requires that final button press. The updater checks the Release asset's SHA-256 digest returned by GitHub over HTTPS before accepting the ZIP; it does not require Git or Rust on the user's computer.
 
 Favourites, aliases and preferences live under `%LOCALAPPDATA%\gs-widget`, outside the installed app. An existing installation's settings are migrated from beside the active catalog on first launch; existing destination files take precedence and source files are retained. Do not delete the old `data` folder until you have launched the new app and checked your settings. Close the app before copying the profile folder as a backup. The app and game catalog have separate version numbers.
 
@@ -91,6 +91,20 @@ To run the offline GUI check locally with PowerShell 7, use a temporary profile 
 ```
 
 The script temporarily sets `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY` to `http://127.0.0.1:1`, clears `NO_PROXY`, and selects Slint's `winit-software` backend. It waits up to 30 seconds for the normal window and `aliases.txt`, verifies the app remains alive and responsive for another 35 seconds (covering the update check's 30-second timeout), then requests a normal close. Every wait is bounded; cleanup kills a stuck process and restores the caller's environment. This is an offline startup/responsiveness check, not a visual layout or complete update-installation test. A Windows desktop session is required for local execution.
+
+## Launch update prompt checks
+
+Use a disposable Windows x64 build older than the latest eligible release. Confirm the prompt shows both versions, and no download starts before **Download update**. Verify **Later**, Escape and the initially focused button leave the current app usable, with no repeat prompt during that launch. Reopen to check again. Collapse the app before the response arrives and confirm the prompt waits for expansion.
+
+Check full and small windows in Chinese, English and Korean. Tab and Shift+Tab must remain within the prompt; Enter on **Later** must dismiss it. Download, choose **Keep browsing**, and confirm progress continues in Settings. Restart must require a separate action, and unsaved aliases must block it with visible recovery instructions. Offline and up-to-date launches must not show the prompt.
+
+The headless UI regression can also capture the three languages at full, widget and minimum widget sizes:
+
+```sh
+GS_UPDATE_REVIEW="$PWD/.impeccable/review/updates" cargo test --locked --manifest-path widget/Cargo.toml update_ui::tests
+```
+
+These deterministic fixtures do not download or install releases; use Windows for the real updater checks below.
 
 ## Isolated dummy update test: v1.0.0 → v1.0.1
 

@@ -34,6 +34,41 @@ struct Session {
     prepared: Option<update::PreparedUpdate>,
 }
 
+fn apply_checked(
+    app: &App,
+    session: &RefCell<Session>,
+    result: Result<Option<update::Release>, String>,
+    background: bool,
+) {
+    match result {
+        Ok(Some(release)) => {
+            app.set_update_version(release.version.clone().into());
+            session.borrow_mut().release = Some(release);
+            app.set_update_state(AVAILABLE);
+            // Only discovery on launch interrupts browsing. Manual checks already
+            // have a visible result in Settings or the navigation footer.
+            if background {
+                app.set_update_prompt_open(true);
+            }
+        }
+        Ok(None) => {
+            app.set_update_state(CURRENT);
+            if app.get_update_prompt_open() {
+                app.invoke_dismiss_update_prompt();
+            }
+        }
+        Err(_) if background => {
+            // A failed check is not evidence that the installed version is current.
+            // Startup stays quiet when offline or when GitHub cannot be reached.
+            app.set_update_state(IDLE);
+        }
+        Err(message) => {
+            app.set_update_error(crate::db::localized_error(&app.get_lang(), &message).into());
+            app.set_update_state(ERROR);
+        }
+    }
+}
+
 /// The returned timer must remain alive for the lifetime of the window.
 pub fn install(app: &App) -> Timer {
     app.set_app_version(env!("CARGO_PKG_VERSION").into());
@@ -109,31 +144,13 @@ pub fn install(app: &App) -> Timer {
         // Coalesce progress into one repaint, while preserving completion ordering.
         for event in rx.try_iter() {
             match event {
-                Event::Checked {
-                    result: Ok(Some(release)),
-                    ..
-                } => {
-                    app.set_update_version(release.version.clone().into());
-                    session.borrow_mut().release = Some(release);
-                    app.set_update_state(AVAILABLE);
+                Event::Checked { result, background } => {
+                    apply_checked(&app, &session, result, background);
                 }
-                Event::Checked {
-                    result: Ok(None), ..
-                } => app.set_update_state(CURRENT),
-                Event::Checked {
-                    result: Err(_),
-                    background: true,
-                } => {
-                    // Do not report “up to date” when no check succeeded, and
-                    // do not interrupt offline use with a startup error.
-                    app.set_update_state(IDLE);
-                }
-                Event::Checked {
-                    result: Err(message),
-                    background: false,
-                }
-                | Event::Downloaded(Err(message)) => {
-                    app.set_update_error(crate::db::localized_error(&app.get_lang(), &message).into());
+                Event::Downloaded(Err(message)) => {
+                    app.set_update_error(
+                        crate::db::localized_error(&app.get_lang(), &message).into(),
+                    );
                     app.set_update_state(ERROR);
                 }
                 Event::Progress(percent) => app.set_update_progress(percent),
@@ -149,7 +166,9 @@ pub fn install(app: &App) -> Timer {
                 }
                 Event::Installer(Err(message), prepared) => {
                     session.borrow_mut().prepared = Some(prepared);
-                    app.set_update_error(crate::db::localized_error(&app.get_lang(), &message).into());
+                    app.set_update_error(
+                        crate::db::localized_error(&app.get_lang(), &message).into(),
+                    );
                     app.set_update_state(READY);
                 }
             }
@@ -157,3 +176,6 @@ pub fn install(app: &App) -> Timer {
     });
     timer
 }
+
+#[cfg(test)]
+mod tests;
