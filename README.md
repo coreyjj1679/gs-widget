@@ -18,11 +18,11 @@ Follow prerequisites and branches, preview objectives and rewards, and open link
 
 ![A 40-quest dependency roadmap with five branches, Korean and English names, and objective and reward icons](docs/screenshots/quest-roadmap-ko-en.jpg)
 
-## Monster details
+## Monster catalog and drop comparison
 
-Browse monster stats, locations, and item drops. Choose your primary and secondary languages in **Settings → Look → Languages**.
+Search **古土** in the drop-item filter, select **Ancient Earth Seal**, and compare monsters by **Drop rate ↓**. The selected drop is highlighted on each card. Screenshots use Korean as the primary language and English as the secondary language, set in **Settings → Look → Languages**.
 
-![Monster details with stats, locations, and item drops in Korean and English](docs/screenshots/monster-details-ko-en.jpg)
+![Monster catalog filtered by Ancient Earth Seal, with recorded drop rates sorted highest first and Korean and English names](docs/screenshots/monster-catalog-drop-rate-ko-en.jpg)
 
 ## Build from source
 
