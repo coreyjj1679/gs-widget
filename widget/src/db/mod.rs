@@ -10,6 +10,7 @@ mod copy_name;
 mod character_data;
 mod character_calculator;
 mod character_calculator_browse;
+pub(crate) mod bonus;
 mod enchant;
 mod facility_recipe;
 mod hero;

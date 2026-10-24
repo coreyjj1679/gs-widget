@@ -1,0 +1,615 @@
+import { UiLanguage } from "language.slint";
+import { Button, CheckBox, ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
+import { DesktopTheme, DesktopIcon } from "desktop.slint";
+import { CharacterCalcChoice, CharacterCalcArt, CharacterPicker } from "character-calculator.slint";
+
+export struct BonusRow {
+    key: string,
+    title: string,
+    detail: string,
+    depth: int,
+    level: string,
+    inherited: string,
+    white: string,
+    white-enabled: bool,
+    bonus: string,
+    icon: image,
+    has-icon: bool,
+    editable: bool,
+    inherited-editable: bool,
+    indian-white-history: bool,
+    white-before-india: bool,
+    x: float,
+    y: float,
+    active: bool,
+    source-owner: string,
+    source-options: [string],
+    source-choices: [CharacterCalcChoice],
+    source-codes: [string],
+    source-index: int,
+    min-level: int,
+    max-level: int,
+}
+
+export struct BonusEdge {
+    from-x: float,
+    from-y: float,
+    to-x: float,
+    to-y: float,
+}
+
+global BonusLanguage {
+    public pure function tr(en: string, zh: string, ko: string) -> string {
+        return UiLanguage.primary == "ko" ? ko : UiLanguage.tr(en, zh);
+    }
+}
+
+// Keep drafts visible while the controller validates and recalculates.
+component BonusInput inherits LineEdit {
+    in property <string> value;
+    in property <string> label;
+    callback input(string);
+    callback focused();
+    text: root.value;
+    height: 30px;
+    min-width: 0px;
+    horizontal-alignment: right;
+    accessible-label: root.label;
+    changed value => {
+        if (self.text != root.value) { self.text = root.value; }
+    }
+    changed has-focus => { if (self.has-focus) { root.focused(); } }
+    edited => { root.input(self.text); }
+}
+
+component BonusNodeHeading inherits Rectangle {
+    in property <BonusRow> record;
+    callback select();
+    callback focused();
+    height: 30px;
+    border-radius: 3px;
+    border-width: 1px;
+    border-color: heading-focus.has-focus ? DesktopTheme.accent : transparent;
+    background: area.has-hover ? DesktopTheme.hover : transparent;
+    forward-focus: heading-focus;
+    accessible-role: button;
+    accessible-label: BonusLanguage.tr("Select ", "選擇", "선택: ") + root.record.title
+        + BonusLanguage.tr(", bonus ", "，紅利 ", ", 보너스 ") + (root.record.bonus == "" ? "—" : root.record.bonus);
+    accessible-action-default => { root.select(); }
+    HorizontalLayout {
+        padding: 0px; spacing: 6px;
+        CharacterCalcArt { width: 26px; height: 26px; icon: root.record.icon; has-icon: root.record.has-icon; }
+        VerticalLayout {
+            horizontal-stretch: 1; min-width: 0px; spacing: 1px;
+            Text {
+                text: root.record.title; color: DesktopTheme.text;
+                font-size: 13px; font-weight: 600; overflow: elide;
+            }
+            Text {
+                text: BonusLanguage.tr("Bonus ", "紅利 ", "보너스 ") + (root.record.bonus == "" ? "—" : root.record.bonus);
+                color: DesktopTheme.accent; font-size: 12px; overflow: elide;
+            }
+        }
+    }
+    heading-focus := FocusScope {
+        changed has-focus => { if (self.has-focus) { root.focused(); } }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.select(); return accept; }
+            return reject;
+        }
+    }
+    area := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { heading-focus.focus(); root.select(); }
+    }
+    Tooltip {
+        Rectangle {
+            width: label.preferred-width + 16px; height: label.preferred-height + 12px;
+            background: DesktopTheme.raised; border-radius: 4px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            label := Text {
+                x: 8px; y: 6px;
+                text: root.record.title; font-size: 12px; color: DesktopTheme.text;
+            }
+        }
+    }
+}
+
+// Four game portraits make the exclusive source choice compact and visible.
+component BonusSourceChoices inherits Rectangle {
+    in property <[CharacterCalcChoice]> options;
+    in property <int> current-index;
+    in property <bool> enabled: true;
+    callback selected(int);
+    callback focused();
+    height: 28px;
+    min-width: 130px;
+    forward-focus: choice-focus;
+    accessible-role: radio-group;
+    accessible-label: BonusLanguage.tr("Promotion source: choose one", "轉職來源：四選一", "전직 재료: 하나 선택");
+    accessible-description: BonusLanguage.tr("Only the selected unit is used. Arrow keys change the source.", "只計算選中的兵種，可用方向鍵切換。", "선택한 용병만 계산합니다. 방향키로 변경하세요.");
+    accessible-orientation: horizontal;
+    accessible-item-count: root.options.length;
+    accessible-value: root.options[root.current-index].title;
+    accessible-enabled: root.enabled;
+    function choose(index: int) {
+        if (!root.enabled || root.options.length == 0) { return; }
+        let next = mod(index + root.options.length, root.options.length);
+        if (next != root.current-index) { root.selected(next); }
+        root.focused();
+    }
+    for option[index] in root.options: Rectangle {
+        x: (root.width - (root.options.length * 34 - 6) * 1px) / 2 + index * 34px;
+        width: 28px; height: 28px;
+        border-radius: 3px;
+        border-width: choice-focus.has-focus && root.current-index == index ? 2px : 1px;
+        border-color: root.current-index == index ? DesktopTheme.accent : transparent;
+        background: root.current-index == index ? DesktopTheme.selected : tap.has-hover && root.enabled ? DesktopTheme.hover-strong : transparent;
+        accessible-role: radio-button;
+        accessible-label: option.title;
+        accessible-enabled: root.enabled;
+        accessible-checkable: true;
+        accessible-checked: root.current-index == index;
+        accessible-item-index: index;
+        accessible-action-default => {
+            if (root.enabled) { choice-focus.focus(); root.choose(index); }
+        }
+        if option.has-icon: Image {
+            x: 3px; y: 3px; width: 22px; height: 22px;
+            source: option.icon; image-fit: contain;
+            opacity: root.enabled ? 1 : 0.45;
+        }
+        if !option.has-icon: DesktopIcon {
+            x: 6px; y: 6px; width: 16px; height: 16px;
+            path: "M16 7 A4 4 0 1 1 8 7 A4 4 0 1 1 16 7 M4 21 L4 18 C4 13 20 13 20 18 L20 21";
+            ink: DesktopTheme.muted;
+        }
+        tap := TouchArea {
+            enabled: root.enabled; mouse-cursor: pointer;
+            clicked => { choice-focus.focus(); root.choose(index); }
+        }
+        Tooltip {
+            Rectangle {
+                width: label.preferred-width + 16px; height: label.preferred-height + 12px;
+                background: DesktopTheme.raised; border-radius: 4px;
+                border-width: 1px; border-color: DesktopTheme.border;
+                label := Text {
+                    x: 8px; y: 6px;
+                    text: option.title; font-size: 12px; color: DesktopTheme.text;
+                }
+            }
+        }
+    }
+    choice-focus := FocusScope {
+        width: 100%; height: 100%; enabled: root.enabled;
+        focus-on-click: false;
+        focus-gained => { root.focused(); }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.choose(root.current-index); return accept; }
+            if (event.text == Key.UpArrow || event.text == Key.LeftArrow) { root.choose(root.current-index - 1); return accept; }
+            if (event.text == Key.DownArrow || event.text == Key.RightArrow) { root.choose(root.current-index + 1); return accept; }
+            if (event.text == Key.Home) { root.choose(0); return accept; }
+            if (event.text == Key.End) { root.choose(root.options.length - 1); return accept; }
+            return reject;
+        }
+    }
+}
+
+export component BonusCalculatorPane inherits Rectangle {
+    in property <[CharacterCalcChoice]> candidates;
+    in property <[string]> groups;
+    in-out property <int> group-index;
+    in property <string> selected-name;
+    in property <image> selected-icon;
+    in property <bool> selected-has-icon;
+    in property <[BonusRow]> rows;
+    in property <[BonusEdge]> edges;
+    in property <int> tree-columns: 1;
+    in property <int> tree-depth: 1;
+    in property <float> tree-center: 0.5;
+    in property <string> selected-key;
+    in property <BonusRow> selected-row;
+    in property <string> total;
+    in property <string> maximum;
+    in property <string> maximum-label;
+    in property <string> verification;
+    in property <bool> perfect;
+    in property <string> maximum-note;
+    in property <string> formula;
+    in property <string> note;
+    in property <string> error;
+    in property <bool> has-white;
+    in property <bool> can-optimize;
+    in property <bool> optimizing;
+    in property <string> plan-status;
+    in property <string> source-text;
+    callback search-query(string);
+    callback select-group(int);
+    callback select-character(string);
+    callback select-node(string);
+    callback input-changed(string, string, string);
+    callback preset(int);
+    callback white-preset();
+    callback optimize();
+    callback open-cross-check();
+    property <length> graph-scroll-x: 0px;
+    property <length> graph-scroll-y: 0px;
+    property <bool> inspector-open: false;
+    property <bool> sources-open: false;
+    property <length> column-width: max(188px, (graph.visible-width - 16px) / max(root.tree-columns, 1));
+    property <length> node-width: min(232px, root.column-width - 12px);
+    property <length> node-height: 72px;
+    property <length> source-height: 88px;
+    property <length> row-pitch: 80px;
+    property <length> graph-top: 12px;
+    background: DesktopTheme.canvas;
+
+    function center-tree() {
+        root.graph-scroll-x = -max(0px, min(8px + root.tree-center * root.column-width - graph.visible-width / 2, graph.content-width - graph.visible-width));
+    }
+    changed selected-name => {
+        root.center-tree();
+        root.graph-scroll-y = 0px;
+    }
+    changed tree-center => { root.center-tree(); }
+    changed tree-columns => { root.center-tree(); }
+    changed column-width => { root.center-tree(); }
+    changed error => {
+        if (root.error != "" && root.selected-row.indian-white-history) { root.inspector-open = true; }
+    }
+    function reveal-node(left: length, top: length, node-width: length, node-height: length) {
+        if (left < -graph.content-x) { graph.content-x = -left; }
+        else if (left + node-width > -graph.content-x + graph.visible-width) {
+            graph.content-x = -left - min(node-width, graph.visible-width) + graph.visible-width;
+        }
+        if (top < -graph.content-y) { graph.content-y = -top; }
+        else if (top + node-height > -graph.content-y + graph.visible-height) {
+            graph.content-y = -top - min(node-height, graph.visible-height) + graph.visible-height;
+        }
+    }
+
+    VerticalLayout {
+        spacing: 6px;
+        Text {
+            text: BonusLanguage.tr(
+                "Bonus calculations are in beta. Cross-check with other calculators before use.",
+                "紅利計算仍在 Beta 測試中，使用前建議與其他計算網站交叉核對。",
+                "보너스 계산은 베타 버전입니다. 사용 전 다른 계산기와 교차 확인해 주세요.");
+            color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            ComboBox {
+                width: 152px; height: 42px;
+                model: root.groups; current-index <=> root.group-index;
+                accessible-label: BonusLanguage.tr("Bonus unit category", "紅利兵種分類", "보너스 용병 분류");
+                selected(value) => {
+                    root.select-group(self.current-index);
+                    target-picker.reset-options();
+                }
+            }
+            target-picker := CharacterPicker {
+                horizontal-stretch: 1; min-width: 0px;
+                selected-name: root.selected-name;
+                selected-icon: root.selected-icon;
+                selected-has-icon: root.selected-has-icon;
+                options: root.candidates;
+                request(query) => { root.search-query(query); }
+                choose(id) => { root.select-character(id); }
+            }
+            Button {
+                text: BonusLanguage.tr("Evidence", "計算依據", "계산 근거");
+                height: 42px;
+                clicked => { root.sources-open = !root.sources-open; root.inspector-open = root.sources-open; }
+            }
+        }
+        HorizontalLayout {
+            spacing: 7px;
+            Button {
+                text: BonusLanguage.tr("All Lv. 200", "全部 200 級", "모두 200 레벨");
+                enabled: root.rows.length > 0; height: 30px;
+                accessible-label: BonusLanguage.tr("Set materials to level 200, respecting promotion minimums", "將素材設為 200 級，依轉職最低等級調整", "전직 최소레벨을 지키며 재료를 200레벨로 설정");
+                clicked => { root.preset(200); }
+            }
+            Button {
+                text: BonusLanguage.tr("Max levels", "全部滿級", "모두 최대레벨");
+                enabled: root.rows.length > 0; height: 30px;
+                accessible-label: BonusLanguage.tr("Set every material to its maximum level", "將每個素材設為各自的等級上限", "모든 재료를 각각의 최대 레벨로 설정");
+                clicked => { root.preset(260); }
+            }
+            if root.has-white: Button {
+                text: BonusLanguage.tr("White robes 300", "全員白衣 300", "모두 백의 300");
+                enabled: root.has-white; height: 30px;
+                accessible-label: BonusLanguage.tr("Set every eligible material to 300 white-robe points; Indian routes use white robes before conversion", "可用白衣的素材全部設為 300；印度路線按轉印度前完成白衣計算", "백의 가능한 재료를 모두 300으로 설정; 인도 전직 전에 완료한 이력");
+                clicked => { root.white-preset(); }
+            }
+            Button {
+                text: root.optimizing ? BonusLanguage.tr("Calculating…", "計算中…", "계산 중…") : BonusLanguage.tr("Least XP perfect", "最低經驗完美", "최소 경험치 완벽");
+                enabled: root.can-optimize && !root.optimizing; height: 30px;
+                accessible-label: BonusLanguage.tr("Apply the perfect training plan with the lowest total experience, including full white robes", "套用全鏈總經驗最低的完美配置，包含滿白衣", "최대 백의를 포함한 최소 총 경험치 완벽 육성 계획 적용");
+                clicked => { root.optimize(); }
+            }
+            Button {
+                text: BonusLanguage.tr("Reset", "重設", "초기화");
+                enabled: root.rows.length > 0; height: 30px;
+                accessible-label: BonusLanguage.tr("Reset bonus inputs", "重設紅利輸入", "보너스 입력 초기화");
+                clicked => { root.preset(0); }
+            }
+            Text {
+                horizontal-stretch: 1; min-width: 0px;
+                text: root.width > 1000px ? BonusLanguage.tr("Edit levels directly in the tree", "直接在升級樹調整素材等級", "전직 트리에서 재료 레벨을 조정하세요") : "";
+                color: DesktopTheme.secondary; font-size: 12px;
+                vertical-alignment: center; horizontal-alignment: right; overflow: elide;
+            }
+        }
+        if root.plan-status != "" && !root.inspector-open: Text {
+            text: root.plan-status; color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+            accessible-live-region: polite;
+        }
+        if root.selected-name != "": Rectangle {
+            height: 48px;
+            border-width: 1px; border-color: DesktopTheme.border;
+            border-radius: 5px; background: DesktopTheme.surface-alt;
+            HorizontalLayout {
+                padding: 6px; spacing: 8px;
+                CharacterCalcArt { width: 28px; height: 28px; icon: root.selected-icon; has-icon: root.selected-has-icon; }
+                Text {
+                    text: root.selected-name; font-size: 14px; font-weight: 600;
+                    color: DesktopTheme.text; vertical-alignment: center;
+                    horizontal-stretch: 1; min-width: 0px; overflow: elide;
+                }
+                VerticalLayout {
+                    width: min(340px, root.width * 0.52); spacing: 0px;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: BonusLanguage.tr("Synthesis bonus", "合成紅利", "합성 보너스");
+                            color: DesktopTheme.secondary; font-size: 13px; vertical-alignment: center;
+                        }
+                        Text {
+                            text: root.total == "" ? "—" : root.total;
+                            font-size: 20px; font-weight: 600; color: DesktopTheme.accent;
+                            vertical-alignment: center;
+                            accessible-label: BonusLanguage.tr("Target synthesis bonus: ", "目標合成紅利：", "목표 합성 보너스: ") + (root.total == "" ? BonusLanguage.tr("Not available", "尚未計算", "계산 불가") : root.total);
+                        }
+                    }
+                    if root.maximum != "": HorizontalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: root.maximum-label + " " + root.maximum;
+                            color: DesktopTheme.secondary; font-size: 12px;
+                            horizontal-stretch: 1; min-width: 0px; horizontal-alignment: right; overflow: elide;
+                        }
+                        if root.perfect: Text {
+                            text: BonusLanguage.tr("Perfect · no rebirth", "無重生完美", "완벽 · 재탄생 없음");
+                            color: DesktopTheme.accent; font-size: 12px; font-weight: 600;
+                        }
+                    }
+                }
+            }
+        }
+        if root.error != "": Text {
+            text: root.error; color: #efb0a8; font-size: 13px; wrap: word-wrap;
+            accessible-role: text; accessible-live-region: polite;
+            accessible-label: BonusLanguage.tr("Input error: ", "輸入錯誤：", "입력 오류: ") + root.error;
+        }
+        graph := ScrollView {
+            vertical-stretch: 1; min-height: 100px;
+            content-width: max(self.visible-width, root.column-width * max(root.tree-columns, 1) + 16px);
+            content-height: root.selected-name == "" ? self.visible-height : root.graph-top + max(root.tree-depth - 1, 0) * root.row-pitch + root.source-height + 6px;
+            content-x <=> root.graph-scroll-x;
+            content-y <=> root.graph-scroll-y;
+            horizontal-scrollbar-policy: as-needed;
+            vertical-scrollbar-policy: as-needed;
+            if root.selected-name == "": Text {
+                x: 24px; y: 36px; width: graph.visible-width - 48px;
+                text: BonusLanguage.tr("Choose a target above to see its material chains side by side.", "先選擇目標兵種，即可並排查看各條素材升級鏈。", "위에서 목표 용병을 선택하면 재료별 전직 경로를 나란히 볼 수 있습니다.");
+                color: DesktopTheme.secondary; font-size: 14px; wrap: word-wrap;
+            }
+            // Orthogonal links keep separate material chains readable at a glance.
+            for edge in root.edges: link := Rectangle {
+                property <length> source-x: 8px + edge.from-x * root.column-width;
+                property <length> target-x: 8px + edge.to-x * root.column-width;
+                property <length> source-y: edge.from-y < 0 ? 0px : root.graph-top + edge.from-y * root.row-pitch + root.node-height;
+                property <length> target-y: root.graph-top + edge.to-y * root.row-pitch;
+                property <length> joint-y: (self.source-y + self.target-y) / 2;
+                Rectangle {
+                    x: link.source-x; y: link.source-y;
+                    width: 1px; height: max(link.joint-y - link.source-y, 1px);
+                    background: DesktopTheme.muted;
+                }
+                Rectangle {
+                    x: min(link.source-x, link.target-x); y: link.joint-y;
+                    width: max(abs(link.target-x - link.source-x), 1px); height: 1px;
+                    background: DesktopTheme.muted;
+                }
+                Rectangle {
+                    x: link.target-x; y: link.joint-y;
+                    width: 1px; height: max(link.target-y - link.joint-y, 1px);
+                    background: DesktopTheme.muted;
+                }
+            }
+            for row in root.rows: material := Rectangle {
+                visible: row.depth > 0;
+                x: 8px + row.x * root.column-width - root.node-width / 2;
+                y: root.graph-top + row.y * root.row-pitch;
+                width: root.node-width;
+                height: row.source-options.length > 1 ? root.source-height : root.node-height;
+                background: root.selected-key == row.key ? DesktopTheme.selected : row.active ? DesktopTheme.surface : DesktopTheme.surface-alt;
+                border-radius: 5px; border-width: 1px;
+                border-color: root.selected-key == row.key ? DesktopTheme.accent : DesktopTheme.border;
+                VerticalLayout {
+                    padding: 6px; spacing: 4px; alignment: start;
+                    if row.source-options.length > 1: Text {
+                        text: BonusLanguage.tr("Source · Choose 1 of ", "轉職來源 · 四選一", "전직 재료 · ") + (UiLanguage.primary == "zh" ? "" : row.source-options.length + (UiLanguage.primary == "ko" ? "종 중 1종" : ""));
+                        color: DesktopTheme.secondary; font-size: 11px; overflow: elide;
+                    }
+                    if row.source-options.length > 1: source-choices := BonusSourceChoices {
+                        options: row.source-choices; enabled: row.active; current-index: row.source-index;
+                        selected(index) => {
+                            root.input-changed(row.source-owner, "predecessor", row.source-codes[index]);
+                        }
+                        focused => {
+                            root.select-node(row.key);
+                            root.reveal-node(material.x, material.y + source-choices.y, material.width, 28px);
+                        }
+                    }
+                    if row.source-options.length <= 1: BonusNodeHeading {
+                        record: row;
+                        select => {
+                            root.select-node(row.key);
+                            root.reveal-node(material.x, material.y, material.width, material.height);
+                        }
+                        focused => {
+                            root.select-node(row.key);
+                            root.reveal-node(material.x, material.y, material.width, material.height);
+                        }
+                    }
+                    if row.editable: HorizontalLayout {
+                        height: 26px; spacing: 6px;
+                        HorizontalLayout {
+                            horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                            Text {
+                                text: row.source-options.length > 1 ? row.title : BonusLanguage.tr("Lv.", "等級", "레벨");
+                                horizontal-stretch: row.source-options.length > 1 ? 1 : 0; min-width: 0px;
+                                color: DesktopTheme.secondary; font-size: 11px; overflow: elide; vertical-alignment: center;
+                            }
+                            BonusInput {
+                                height: 26px; min-width: 52px;
+                                horizontal-stretch: row.source-options.length > 1 ? 0 : 1;
+                                preferred-width: row.source-options.length > 1 ? 52px : 48px;
+                                value: row.level; placeholder-text: row.min-level + "–" + row.max-level;
+                                label: row.title + BonusLanguage.tr(" material level, ", "素材等級，", " 재료 레벨, ") + row.min-level + "–" + row.max-level;
+                                input(value) => { root.input-changed(row.key, "level", value); }
+                                focused => {
+                                    root.select-node(row.key);
+                                    root.reveal-node(material.x, material.y, material.width, material.height);
+                                }
+                            }
+                        }
+                        if row.white-enabled: HorizontalLayout {
+                            horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                            Text {
+                                text: BonusLanguage.tr("White", "白衣", "백의");
+                                color: DesktopTheme.secondary; font-size: 11px; vertical-alignment: center;
+                            }
+                            BonusInput {
+                                height: 26px; min-width: 52px; horizontal-stretch: 1;
+                                value: row.white; placeholder-text: "0";
+                                label: row.title + BonusLanguage.tr(" white robe points, 0 to 300", "白衣點數，0 至 300", " 백의종군 포인트, 0~300");
+                                input(value) => { root.input-changed(row.key, "white", value); }
+                                focused => {
+                                    root.select-node(row.key);
+                                    root.reveal-node(material.x, material.y, material.width, material.height);
+                                }
+                            }
+                        }
+                    }
+                    if !row.editable: Text {
+                        text: BonusLanguage.tr("No level input needed", "此階段不需輸入等級", "레벨 입력이 필요하지 않습니다");
+                        color: DesktopTheme.secondary; font-size: 11px; wrap: word-wrap;
+                    }
+                }
+            }
+        }
+        if root.selected-name != "": Rectangle {
+            height: 1px; background: DesktopTheme.border;
+        }
+        if root.selected-name != "": HorizontalLayout {
+            height: 30px; spacing: 10px;
+            Button {
+                text: root.inspector-open ? BonusLanguage.tr("Hide details", "收起進階設定", "상세 접기") : BonusLanguage.tr("Advanced / formula", "進階設定／公式", "상세 설정 / 공식");
+                height: 30px;
+                clicked => { root.inspector-open = !root.inspector-open; root.sources-open = false; }
+            }
+            Text {
+                horizontal-stretch: 1; min-width: 0px;
+                text: root.sources-open ? BonusLanguage.tr("Game data and calculation assumptions", "遊戲資料與計算假設", "게임 데이터와 계산 가정") : root.selected-row.title == "" ? BonusLanguage.tr("Select a node to inspect its inherited bonus", "點選兵種可調整實際繼承紅利", "용병을 선택해 실제 계승 보너스를 확인하세요") : root.selected-row.title;
+                color: DesktopTheme.secondary; font-size: 12px;
+                vertical-alignment: center; overflow: elide;
+            }
+        }
+        if root.inspector-open && root.sources-open: ScrollView {
+            height: 148px;
+            content-width: self.visible-width;
+            content-height: sources.preferred-height;
+            horizontal-scrollbar-policy: always-off;
+            sources := VerticalLayout {
+                width: parent.width; spacing: 8px; padding-right: 8px;
+                Text { text: root.source-text; color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap; }
+                HorizontalLayout {
+                    Button {
+                        text: BonusLanguage.tr("Cross-check with Geota", "開啟 Geota 交叉核對", "거타에서 교차 확인");
+                        clicked => { root.open-cross-check(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                }
+            }
+        }
+        if root.selected-name != "" && root.inspector-open && !root.sources-open: ScrollView {
+            height: 148px;
+            content-width: self.visible-width;
+            content-height: inspector.preferred-height;
+            horizontal-scrollbar-policy: always-off;
+            vertical-scrollbar-policy: as-needed;
+            inspector := VerticalLayout {
+                width: parent.width; spacing: 8px; padding-right: 8px;
+                if root.plan-status != "": Text {
+                    text: root.plan-status; color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+                if root.selected-row.inherited-editable: HorizontalLayout {
+                    spacing: 10px;
+                    Text {
+                        text: BonusLanguage.tr("Actual inherited bonus", "實際繼承紅利", "실제 계승 보너스");
+                        color: DesktopTheme.text; font-size: 13px; vertical-alignment: center;
+                    }
+                    BonusInput {
+                        width: 124px;
+                        value: root.selected-row.inherited; enabled: root.selected-row.active;
+                        placeholder-text: BonusLanguage.tr("Automatic", "自動計算", "자동 계산");
+                        label: root.selected-row.title + BonusLanguage.tr(" inherited bonus; leave blank for automatic", "繼承紅利；留空為自動計算", " 계승 보너스; 비워 두면 자동 계산");
+                        input(value) => { root.input-changed(root.selected-row.key, "inherited", value); }
+                    }
+                    Text {
+                        horizontal-stretch: 1; min-width: 0px;
+                        text: BonusLanguage.tr("Exclude white robes. Blank = automatic.", "不含白衣；留空則依下方素材自動計算。", "백의 제외. 빈칸은 재료로 자동 계산합니다.");
+                        color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap; vertical-alignment: center;
+                    }
+                }
+                if root.selected-row.indian-white-history && root.selected-row.inherited-editable: CheckBox {
+                    text: BonusLanguage.tr("White robes completed before conversion to India", "在四國兵階段完成白衣，再轉印度", "인도 전직 전에 사국 용병 단계에서 백의종군 완료");
+                    checked: root.selected-row.white-before-india;
+                    enabled: root.selected-row.active;
+                    toggled => {
+                        root.input-changed(root.selected-row.key, "white-before-india", self.checked ? "true" : "false");
+                    }
+                }
+                if root.selected-row.indian-white-history && !root.selected-row.white-before-india && root.selected-row.white != "" && root.selected-row.white != "0": Text {
+                    text: BonusLanguage.tr("If white robes were used after conversion to India, enter the actual inherited bonus.", "若在印度階段使用白衣，請填實際繼承紅利。", "인도 전직 후 백의종군을 사용했다면 실제 계승 보너스를 입력하세요.");
+                    color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+                if root.selected-row.detail != "": Text {
+                    text: root.selected-row.detail;
+                    color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+                if root.formula != "": Text {
+                    text: root.formula;
+                    color: DesktopTheme.text; font-size: 12px; wrap: word-wrap;
+                }
+                if root.verification != "": Text {
+                    text: root.verification;
+                    color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+                if root.maximum-note != "": Text {
+                    text: root.maximum-note;
+                    color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+                if root.note != "": Text {
+                    text: root.note;
+                    color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                }
+            }
+        }
+    }
+}

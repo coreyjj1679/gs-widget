@@ -14,6 +14,7 @@ mod mcp_ui;
 mod perf;
 mod quick_search_ui;
 mod calculator_ui;
+mod bonus_ui;
 mod calculator_export;
 mod sheet;
 mod update;
@@ -463,6 +464,7 @@ fn main() {
     );
 
     calculator_ui::install(&app, Rc::clone(&catalog), Rc::clone(&icons));
+    bonus_ui::install(&app, Rc::clone(&catalog), Rc::clone(&icons));
     quick_search_ui::install(&app, Rc::clone(&catalog), session.clone());
     let favourites = Rc::new(RefCell::new(db::load_favourites()));
     let alias_rows = Rc::new(RefCell::new(db::alias_rows()));
@@ -1238,6 +1240,7 @@ fn main() {
         app.set_quest_map_open(quest_map_open);
         show_alias_rows(&app, &lang_catalog, &lang_aliases.borrow());
         app.invoke_calculator_refresh();
+        app.invoke_bonus_refresh();
         if app.get_full_mode() && app.get_category().is_empty() {
             show_home_saved(&app, &lang_catalog, &lang_session, &lang_favs.borrow());
         }

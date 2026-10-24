@@ -22,7 +22,9 @@ export struct QuestItemRow {
 
 import { CalculatorPane, CalcChoice, CalcMaterial, CalcNestedOption, CalcSaved } from "calculator.slint";
 import { CharacterCalculatorPane, CharacterCalcChoice, CharacterCalcMaterial } from "character-calculator.slint";
+import { BonusCalculatorPane, BonusRow, BonusEdge } from "bonus-calculator.slint";
 export { CalcChoice, CalcMaterial, CalcNestedOption, CalcSaved }
+export { BonusRow, BonusEdge }
 
 export struct ChangelogItem {
     text-en: string,
@@ -4974,6 +4976,43 @@ export component App inherits Window {
     callback character-calculator-price-changed(string, string) -> bool;
     callback character-calculator-request-nested-options(string, bool);
     callback character-calculator-set-source(string, string);
+    in-out property <[CharacterCalcChoice]> bonus-candidates;
+    in-out property <[string]> bonus-groups;
+    in-out property <int> bonus-group-index;
+    in-out property <string> bonus-selected-name;
+    in-out property <image> bonus-selected-icon;
+    in-out property <bool> bonus-selected-has-icon;
+    in-out property <[BonusRow]> bonus-rows;
+    in-out property <[BonusEdge]> bonus-edges;
+    in-out property <int> bonus-tree-columns;
+    in-out property <int> bonus-tree-depth;
+    in-out property <float> bonus-tree-center;
+    in-out property <string> bonus-selected-key;
+    in-out property <BonusRow> bonus-selected-row;
+    in-out property <string> bonus-total;
+    in-out property <string> bonus-maximum;
+    in-out property <string> bonus-maximum-label;
+    in-out property <string> bonus-verification;
+    in-out property <bool> bonus-perfect;
+    in-out property <string> bonus-maximum-note;
+    in-out property <string> bonus-formula;
+    in-out property <string> bonus-note;
+    in-out property <string> bonus-error;
+    in-out property <bool> bonus-has-white;
+    in-out property <bool> bonus-can-optimize;
+    in-out property <bool> bonus-optimizing;
+    in-out property <string> bonus-plan-status;
+    in-out property <string> bonus-source-text;
+    callback bonus-refresh();
+    callback bonus-search(string);
+    callback bonus-select-group(int);
+    callback bonus-select-character(string);
+    callback bonus-select-node(string);
+    callback bonus-input-changed(string, string, string);
+    callback bonus-preset(int);
+    callback bonus-white-preset();
+    callback bonus-optimize();
+    callback bonus-open-cross-check();
     in-out property <[CalcChoice]> calculator-candidates;
     in-out property <[CalcMaterial]> calculator-materials;
     in-out property <[CalcNestedOption]> calculator-nested-options;
@@ -7743,6 +7782,7 @@ export component App inherits Window {
                             clicked => { root.calculator-tab = 0; }
                             navigate(step) => {
                                 if (step == -2) { root.calculator-tab = 0; }
+                                else if (step == -1 || step == 2) { root.calculator-tab = 2; bonus-calc-tab.focus(); }
                                 else { root.calculator-tab = 1; character-calc-tab.focus(); }
                             }
                         }
@@ -7754,7 +7794,20 @@ export component App inherits Window {
                             tab-stop: root.calculator-tab == 1;
                             clicked => { root.calculator-tab = 1; }
                             navigate(step) => {
-                                if (step == 2) { root.calculator-tab = 1; }
+                                if (step == 1 || step == 2) { root.calculator-tab = 2; bonus-calc-tab.focus(); }
+                                else { root.calculator-tab = 0; item-calc-tab.focus(); }
+                            }
+                        }
+                        bonus-calc-tab := PatchTab {
+                            label: UiLanguage.primary == "ko" ? "보너스" : UiLanguage.tr("Bonus", "紅利");
+                            width: 120px;
+                            active: root.calculator-tab == 2;
+                            arrow-navigation: true;
+                            tab-stop: root.calculator-tab == 2;
+                            clicked => { root.calculator-tab = 2; }
+                            navigate(step) => {
+                                if (step == 2) { root.calculator-tab = 2; }
+                                else if (step == -1) { root.calculator-tab = 1; character-calc-tab.focus(); }
                                 else { root.calculator-tab = 0; item-calc-tab.focus(); }
                             }
                         }
@@ -7860,6 +7913,48 @@ export component App inherits Window {
                     price-changed(key, q) => { return root.character-calculator-price-changed(key, q); }
                     request-nested-options(key, reuse) => { root.character-calculator-request-nested-options(key, reuse); }
                     set-source(key, source) => { root.character-calculator-set-source(key, source); }
+                }
+                if root.full-mode && root.calculator-open && !root.settings-open: BonusCalculatorPane {
+                    visible: root.calculator-tab == 2;
+                    x: root.page-pad; y: 70px;
+                    width: parent.width - root.page-pad * 2;
+                    height: max(parent.height - 82px, 0px);
+                    candidates: root.bonus-candidates;
+                    groups: root.bonus-groups;
+                    group-index <=> root.bonus-group-index;
+                    selected-name: root.bonus-selected-name;
+                    selected-icon: root.bonus-selected-icon;
+                    selected-has-icon: root.bonus-selected-has-icon;
+                    rows: root.bonus-rows;
+                    edges: root.bonus-edges;
+                    tree-columns: root.bonus-tree-columns;
+                    tree-depth: root.bonus-tree-depth;
+                    tree-center: root.bonus-tree-center;
+                    selected-key: root.bonus-selected-key;
+                    selected-row: root.bonus-selected-row;
+                    total: root.bonus-total;
+                    maximum: root.bonus-maximum;
+                    maximum-label: root.bonus-maximum-label;
+                    verification: root.bonus-verification;
+                    perfect: root.bonus-perfect;
+                    maximum-note: root.bonus-maximum-note;
+                    formula: root.bonus-formula;
+                    note: root.bonus-note;
+                    error: root.bonus-error;
+                    has-white: root.bonus-has-white;
+                    can-optimize: root.bonus-can-optimize;
+                    optimizing: root.bonus-optimizing;
+                    plan-status: root.bonus-plan-status;
+                    source-text: root.bonus-source-text;
+                    search-query(query) => { root.bonus-search(query); }
+                    select-group(index) => { root.bonus-select-group(index); }
+                    select-character(code) => { root.bonus-select-character(code); }
+                    select-node(key) => { root.bonus-select-node(key); }
+                    input-changed(key, field, value) => { root.bonus-input-changed(key, field, value); }
+                    preset(level) => { root.bonus-preset(level); }
+                    white-preset => { root.bonus-white-preset(); }
+                    optimize => { root.bonus-optimize(); }
+                    open-cross-check => { root.bonus-open-cross-check(); }
                 }
                 if root.category == "" && !root.settings-open && !root.calculator-open && !root.full-mode: home := Rectangle {
                     width: parent.width;

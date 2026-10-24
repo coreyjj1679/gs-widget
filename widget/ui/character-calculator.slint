@@ -37,7 +37,7 @@ global CharacterCalcLanguage {
     }
 }
 
-component CharacterCalcArt inherits Rectangle {
+export component CharacterCalcArt inherits Rectangle {
     in property <image> icon;
     in property <bool> has-icon;
     width: 32px;
@@ -54,7 +54,7 @@ component CharacterCalcArt inherits Rectangle {
     }
 }
 
-component CharacterPicker inherits Rectangle {
+export component CharacterPicker inherits Rectangle {
     in property <string> selected-name;
     in property <image> selected-icon;
     in property <bool> selected-has-icon;

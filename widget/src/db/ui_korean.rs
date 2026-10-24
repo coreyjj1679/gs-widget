@@ -274,6 +274,7 @@ pub(super) fn translated(en: &str) -> Option<&'static str> {
         "Non-elemental" => "무속성",
         "Element not recorded" => "속성 기록 없음",
         "Bonuses" => "보너스",
+        "Bonus" => "보너스",
         "Base stats" => "기본 능력치",
         "No base stats recorded." => "기본 능력치 기록 없음.",
         "Open full details" => "전체 상세 정보 열기",
