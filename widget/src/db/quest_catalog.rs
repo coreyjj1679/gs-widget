@@ -31,6 +31,9 @@ const STANDARD_CATEGORIES: &[&str] = &["items", "combat", "mixed", "other", "uns
 #[derive(Clone, Default)]
 pub struct QuestMapPreview {
     pub summary: String,
+    pub npc: String,
+    pub npc_key: String,
+    pub npc_location: String,
     pub objectives: String,
     pub rewards: String,
     pub reward_items: String,
@@ -778,8 +781,32 @@ impl Catalog {
                 requirements.join("\n")
             ));
         }
+        let (npc, npc_key, npc_location) = if quest.npc > 0 {
+            let known = self.index.npc(quest.npc);
+            let key = known.map(|npc| format!("npc:{}", npc.code)).unwrap_or_default();
+            let name = known
+                .map(|npc| preview_name(lang, &npc.en, &npc.zh, &npc.ko))
+                .filter(|name| !name.is_empty())
+                .unwrap_or_else(|| self.named_npc(quest.npc, lang));
+            let location = known
+                .map(|npc| {
+                    let place = preview_name(lang, &npc.place_en, &npc.place_zh, "");
+                    if place.is_empty() {
+                        preview_name(lang, &npc.map_en, &npc.map_zh, &npc.map_ko)
+                    } else {
+                        place
+                    }
+                })
+                .unwrap_or_default();
+            (name, key, location)
+        } else {
+            (String::new(), String::new(), String::new())
+        };
         QuestMapPreview {
             summary,
+            npc,
+            npc_key,
+            npc_location,
             objectives: objectives.join("\n\n"),
             rewards: if rewards.is_empty() {
                 chrome_text(lang, "未提供獎勵資料", "No rewards recorded")
@@ -1621,6 +1648,87 @@ mod tests {
                     && key == &format!("npc:{}", npc.code)
             }));
         }
+    }
+
+    #[test]
+    fn roadmap_preview_includes_localized_giver_across_quest_sources() {
+        let catalog = Catalog::open().expect("db");
+        let mut sources = HashSet::new();
+        for quest in &catalog.index.quests {
+            let Some(npc) = catalog.index.npc(quest.npc) else {
+                continue;
+            };
+            if !sources.insert(quest.source.as_str()) {
+                continue;
+            }
+            for lang in ["en", "zh", "ko", "en-zh", "zh-en", "en-ko", "zh-ko", "ko-en", "ko-zh"] {
+                let preview = catalog.quest_map_preview(quest.id, lang);
+                assert_eq!(
+                    preview.npc,
+                    preview_name(lang, &npc.en, &npc.zh, &npc.ko),
+                    "{} / {lang}",
+                    quest.source,
+                );
+                assert_eq!(preview.npc_key, format!("npc:{}", npc.code));
+                let place = preview_name(lang, &npc.place_en, &npc.place_zh, "");
+                let location = if place.is_empty() {
+                    preview_name(lang, &npc.map_en, &npc.map_zh, &npc.map_ko)
+                } else {
+                    place
+                };
+                assert_eq!(preview.npc_location, location, "{} / {lang}", quest.source);
+            }
+        }
+        assert!(sources.contains("main"));
+        assert!(sources.len() > 1, "exercise more than the main quest source");
+    }
+
+    #[test]
+    fn roadmap_preview_keeps_missing_givers_and_locations_honest() {
+        let mut catalog = Catalog::open().expect("db");
+        let quest_index = catalog
+            .index
+            .quests
+            .iter()
+            .position(|quest| catalog.index.npc(quest.npc).is_some())
+            .expect("quest with a known NPC");
+        let id = catalog.index.quests[quest_index].id;
+        let npc_code = catalog.index.quests[quest_index].npc;
+        let npc = catalog
+            .index
+            .npcs
+            .iter_mut()
+            .find(|npc| npc.code == npc_code)
+            .unwrap();
+        npc.place_en.clear();
+        npc.place_zh.clear();
+        npc.map_en = "Map name".into();
+        npc.map_zh = "地圖名稱".into();
+        npc.map_ko = "지도 이름".into();
+        assert_eq!(
+            catalog.quest_map_preview(id, "zh-en").npc_location,
+            "地圖名稱 / Map name"
+        );
+        assert_eq!(
+            catalog.quest_map_preview(id, "ko").npc_location,
+            "지도 이름"
+        );
+
+        catalog.index.quests[quest_index].npc = i64::MAX;
+        let unknown = catalog.quest_map_preview(id, "en");
+        assert_eq!(unknown.npc, i64::MAX.to_string());
+        assert!(unknown.npc_key.is_empty());
+        assert!(unknown.npc_location.is_empty());
+
+        catalog.index.quests[quest_index].npc = 0;
+        let absent = catalog.quest_map_preview(id, "en");
+        assert!(absent.npc.is_empty());
+        assert!(absent.npc_key.is_empty());
+        assert!(absent.npc_location.is_empty());
+        let missing = catalog.quest_map_preview(i64::MIN, "en");
+        assert!(missing.npc.is_empty());
+        assert!(missing.npc_key.is_empty());
+        assert!(missing.npc_location.is_empty());
     }
 
     #[test]

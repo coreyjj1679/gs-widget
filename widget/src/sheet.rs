@@ -552,6 +552,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                     key: node.hit.key.into(), title: node.hit.title.into(), subtitle: node.hit.subtitle.into(),
                     relation: node.hit.aside.into(), x: node.x, y: node.y, state: node.state, cyclic: node.cyclic,
                     summary: preview.summary.into(), objectives: preview.objectives.into(),
+                    npc: preview.npc.into(), npc_key: preview.npc_key.into(), npc_location: preview.npc_location.into(),
                     rewards: preview.rewards.into(), brief: preview.brief.into(),
                     reward_items: preview.reward_items.into(), reward_stats: preview.reward_stats.into(),
                     required_items: super::quest_icons::item_chips(catalog, session, &items.required, gen, true, &mut pending_items, &mut item_jobs),

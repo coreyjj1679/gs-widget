@@ -98,6 +98,7 @@ pub(super) fn translated(en: &str) -> Option<&'static str> {
         "Quantity " => "수량 ",
         "not recorded" => "기록 없음",
         "Quest givers" => "퀘스트 NPC",
+        "Quest giver" => "의뢰 NPC",
         "Quest regions" => "퀘스트 지역",
         "Quest chains" => "연속 퀘스트",
         "Browse the quests offered by each NPC." => "각 NPC가 제공하는 퀘스트를 확인하세요.",

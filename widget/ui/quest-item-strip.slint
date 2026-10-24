@@ -10,6 +10,23 @@ export struct QuestItemChip {
     has-icon: bool,
 }
 
+export component QuestItemImage inherits Rectangle {
+    in property <QuestItemChip> item;
+    width: 26px; height: 26px;
+    if root.item.has-icon: Image {
+        width: 100%; height: 100%; source: root.item.icon; image-fit: contain;
+    }
+    if !root.item.has-icon: Path {
+        x: parent.width * 4 / 26; y: parent.height * 4 / 26;
+        width: parent.width * 18 / 26; height: parent.height * 18 / 26;
+        viewbox-width: 24; viewbox-height: 24;
+        commands: root.item.key.starts-with("monster:")
+            ? "M5 8L4 3L9 6H15L20 3L19 8V15L15 20H9L5 15ZM8 11H10M14 11H16M9 16H15"
+            : "M4 7L12 3L20 7V17L12 21L4 17ZM4 7L12 11L20 7M12 11V21";
+        fill: transparent; stroke: DesktopTheme.secondary; stroke-width: 1.5px * root.width / 26px;
+    }
+}
+
 export component QuestSummaryBadge inherits Rectangle {
     in property <string> label;
     in property <string> hint;
@@ -48,17 +65,9 @@ component ItemPreviewRow inherits Rectangle {
     in property <QuestItemChip> item;
     in property <bool> english;
     height: max(28px, names.preferred-height);
-    if root.item.has-icon: Image {
+    QuestItemImage {
         x: 0px; y: 1px; width: 26px; height: 26px;
-        source: root.item.icon; image-fit: contain;
-    }
-    if !root.item.has-icon: Path {
-        x: 4px; y: 5px; width: 18px; height: 18px;
-        viewbox-width: 24; viewbox-height: 24;
-        commands: root.item.key.starts-with("monster:")
-            ? "M5 8L4 3L9 6H15L20 3L19 8V15L15 20H9L5 15ZM8 11H10M14 11H16M9 16H15"
-            : "M4 7L12 3L20 7V17L12 21L4 17ZM4 7L12 11L20 7M12 11V21";
-        fill: transparent; stroke: DesktopTheme.secondary; stroke-width: 1.5px;
+        item: root.item;
     }
     names := VerticalLayout {
         x: 34px; y: 0px; width: parent.width - 34px; height: self.preferred-height;
@@ -144,17 +153,9 @@ component ItemChip inherits Rectangle {
     accessible-role: text;
     accessible-label: item.title + (item.alternate == "" ? "" : ". " + item.alternate);
     accessible-description: (UiLanguage.tr("Quantity ", "數量 ")) + (item.quantity != "" ? item.quantity : (UiLanguage.tr("not recorded", "未提供")));
-    if root.item.has-icon: Image {
+    QuestItemImage {
         x: 0px; y: 0px; width: 26px * root.zoom; height: 26px * root.zoom;
-        source: root.item.icon; image-fit: contain;
-    }
-    if !root.item.has-icon: Path {
-        x: 4px * root.zoom; y: 4px * root.zoom; width: 18px * root.zoom; height: 18px * root.zoom;
-        viewbox-width: 24; viewbox-height: 24;
-        commands: root.item.key.starts-with("monster:")
-            ? "M5 8L4 3L9 6H15L20 3L19 8V15L15 20H9L5 15ZM8 11H10M14 11H16M9 16H15"
-            : "M4 7L12 3L20 7V17L12 21L4 17ZM4 7L12 11L20 7M12 11V21";
-        fill: transparent; stroke: DesktopTheme.secondary; stroke-width: 1.5px * root.zoom;
+        item: root.item;
     }
     Text {
         x: 28px * root.zoom; y: 0px; width: parent.width - self.x; height: parent.height;

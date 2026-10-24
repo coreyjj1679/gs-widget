@@ -9080,7 +9080,8 @@ export component App inherits Window {
                             nodes: root.quest-map-nodes; segments: root.quest-map-segments;
                             graph-width: root.quest-map-width; graph-height: root.quest-map-height;
                             focus-x: root.quest-map-focus-x; focus-y: root.quest-map-focus-y; note: root.quest-map-note;
-                            open-key(key) => { root.open-hit(key); }
+                            open-key(key) => { root.quest-map-open = false; root.open-hit(key); keys.focus(); }
+                            open-related(key) => { root.open-hit(key); keys.focus(); }
                             show-details => { root.quest-map-open = false; }
                         }
                     }
@@ -9100,7 +9101,8 @@ export component App inherits Window {
                         nodes: root.quest-map-nodes; segments: root.quest-map-segments;
                         graph-width: root.quest-map-width; graph-height: root.quest-map-height;
                         focus-x: root.quest-map-focus-x; focus-y: root.quest-map-focus-y; note: root.quest-map-note;
-                        open-key(key) => { root.open-hit(key); }
+                        open-key(key) => { root.quest-map-open = false; root.open-hit(key); keys.focus(); }
+                        open-related(key) => { root.open-hit(key); keys.focus(); }
                         show-details => { root.quest-map-open = false; }
                     }
                     if root.viewing == "" && root.hero-record-list && !root.full-board: hero-list := Flickable {

@@ -1,6 +1,6 @@
 import { UiLanguage } from "language.slint";
 import { DesktopTheme } from "desktop.slint";
-import { QuestItemChip, QuestItemStrip, QuestSummaryBadge } from "quest-item-strip.slint";
+import { QuestItemChip, QuestItemImage, QuestItemStrip, QuestSummaryBadge } from "quest-item-strip.slint";
 
 export struct QuestMapNode {
     key: string,
@@ -17,6 +17,9 @@ export struct QuestMapNode {
     objectives: string,
     rewards: string,
     brief: string,
+    npc: string,
+    npc-key: string,
+    npc-location: string,
     x: float,
     y: float,
     state: int,
@@ -32,6 +35,63 @@ export struct QuestMapSegment {
     unresolved: bool,
     highlighted: bool,
     arrow: bool,
+}
+
+component PreviewLink inherits Rectangle {
+    in property <string> record-key;
+    in property <string> label;
+    in property <string> description;
+    callback open-key(string);
+    callback focus-changed(bool, length, length);
+    border-radius: 3px;
+    background: record-key != "" && (tap.has-hover || focus.has-focus) ? DesktopTheme.hover-strong : transparent;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: label;
+    accessible-description: description;
+    accessible-enabled: record-key != "";
+    accessible-action-default => { if (root.record-key != "") { root.open-key(root.record-key); } }
+    @children
+    focus := FocusScope {
+        width: 100%; height: 100%; enabled: root.record-key != "";
+        focus-on-click: false;
+        changed has-focus => { root.focus-changed(self.has-focus, root.absolute-position.y, root.height); }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.open-key(root.record-key); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea {
+        width: 100%; height: 100%; enabled: root.record-key != "";
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); root.open-key(root.record-key); }
+    }
+}
+
+// Keep every target reachable while retaining full action/requirement text below.
+component PreviewIcons inherits Rectangle {
+    in property <[QuestItemChip]> items;
+    callback open-key(string);
+    callback focus-changed(int, bool, length, length);
+    property <int> columns: max(1, floor(self.width / 64px));
+    height: ceil(items.length / columns) * 34px;
+    for item[i] in root.items: PreviewLink {
+        x: mod(i, root.columns) * 64px; y: floor(i / root.columns) * 34px;
+        width: 64px; height: 30px;
+        record-key: item.key;
+        label: UiLanguage.tr("Open ", "開啟 ") + item.title + (item.alternate == "" ? "" : ". " + item.alternate);
+        description: UiLanguage.tr("Quantity ", "數量 ") + (item.quantity != "" ? item.quantity : UiLanguage.tr("not recorded", "未提供"));
+        open-key(key) => { root.open-key(key); }
+        focus-changed(focused, top, size) => { root.focus-changed(i, focused, top, size); }
+        QuestItemImage { x: 0px; y: 2px; width: 28px; height: 28px; item: item; }
+        Text {
+            x: 30px; y: 0px; width: 32px; height: 30px;
+            text: item.quantity == "" ? "—" : "×" + item.quantity;
+            font-size: 11px; color: DesktopTheme.text; vertical-alignment: center; overflow: elide;
+        }
+    }
 }
 
 component MapControl inherits Rectangle {
@@ -89,6 +149,7 @@ component MapTask inherits Rectangle {
     callback focus-changed(bool);
     callback scroll-preview(int);
     callback dismiss-preview();
+    callback focus-preview();
     property <bool> pointer-focused: false;
     property <bool> item-active: required.item-active || rewards.item-active || goal-badge.hint-active;
     width: 232px * zoom;
@@ -101,7 +162,7 @@ component MapTask inherits Rectangle {
     accessible-role: button;
     accessible-enabled: node.key != "" && node.state != 4;
     accessible-label: node.title;
-    accessible-description: (node.alternate != "" ? node.alternate + ". " : "") + node.relation + ". " + node.subtitle + ". " + node.brief + ". " + node.objectives + ". " + node.rewards;
+    accessible-description: (node.alternate != "" ? node.alternate + ". " : "") + node.relation + ". " + node.subtitle + ". " + node.npc + ". " + node.npc-location + ". " + node.brief + ". " + node.objectives + ". " + node.rewards;
     accessible-action-default => { if (root.node.key != "" && root.node.state != 4) { root.clicked(); } }
     changed item-active => {
         if (root.item-active) { root.dismiss-preview(); }
@@ -216,6 +277,7 @@ component MapTask inherits Rectangle {
         }
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            if (root.preview-visible && event.text == Key.Tab && !event.modifiers.shift) { root.focus-preview(); return accept; }
             if (root.preview-visible && (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.PageUp || event.text == Key.PageDown)) {
                 root.scroll-preview(event.text == Key.UpArrow ? -1 : event.text == Key.DownArrow ? 1 : event.text == Key.PageUp ? -4 : 4);
                 return accept;
@@ -238,6 +300,7 @@ export component QuestRoadmap inherits Rectangle {
     in property <string> selected-title;
     in property <string> note;
     callback open-key(string);
+    callback open-related(string);
     callback show-details();
     property <int> zoom-step: 2;
     property <float> zoom: 0.6 + zoom-step * 0.2;
@@ -246,6 +309,7 @@ export component QuestRoadmap inherits Rectangle {
     property <int> focused-node: -1;
     property <int> latched-node: -1;
     property <bool> preview-hover: false;
+    property <string> preview-focused-link: "";
     property <int> preview-index: hovered-node >= 0 ? hovered-node : focused-node >= 0 ? focused-node : latched-node;
     property <QuestMapNode> preview-node: preview-index >= 0 && preview-index < nodes.length ? nodes[preview-index] : {};
     property <bool> preview-open: preview-index >= 0 && preview-index < nodes.length;
@@ -277,6 +341,22 @@ export component QuestRoadmap inherits Rectangle {
     }
     function dismiss-preview() {
         root.hovered-node = -1; root.focused-node = -1; root.latched-node = -1;
+        root.preview-focused-link = "";
+    }
+    function open-preview-key(key: string) {
+        if (key == "") { return; }
+        root.dismiss-preview();
+        root.open-related(key);
+    }
+    function focus-preview-link(key: string, focused: bool, top: length, size: length) {
+        if (focused) {
+            root.preview-focused-link = key;
+            let offset = top - preview-body.absolute-position.y;
+            if (offset < -preview-scroll.content-y) { preview-scroll.content-y = -offset; }
+            else if (offset + size > -preview-scroll.content-y + preview-scroll.height) {
+                preview-scroll.content-y = min(0px, preview-scroll.height - offset - size);
+            }
+        } else if (root.preview-focused-link == key) { root.preview-focused-link = ""; }
     }
     function hide-pointer-preview() { root.hovered-node = -1; root.latched-node = -1; }
     function scroll-preview(step: int) {
@@ -287,7 +367,7 @@ export component QuestRoadmap inherits Rectangle {
     changed preview-index => { preview-scroll.content-y = 0px; }
     Timer {
         interval: 180ms;
-        running: root.latched-node >= 0 && root.hovered-node < 0 && root.focused-node < 0 && !root.preview-hover;
+        running: root.latched-node >= 0 && root.hovered-node < 0 && root.focused-node < 0 && !root.preview-hover && !preview-focus.has-focus && root.preview-focused-link == "";
         triggered => { root.latched-node = -1; }
     }
     init => { root.center-current(); }
@@ -390,11 +470,12 @@ export component QuestRoadmap inherits Rectangle {
                         else if (root.hovered-node == i) { root.hovered-node = -1; }
                     }
                     focus-changed(focused) => {
-                        if (focused) { root.focused-node = i; }
+                        if (focused) { root.focused-node = i; root.latched-node = i; }
                         else if (root.focused-node == i) { root.focused-node = -1; }
                     }
                     scroll-preview(step) => { root.scroll-preview(step); }
                     dismiss-preview => { root.dismiss-preview(); }
+                    focus-preview => { root.latched-node = i; preview-focus.focus(); }
                     clicked => { root.dismiss-preview(); root.initial-center = false; root.open-key(node.key); }
                 }
                 if root.nodes.length == 0: Text {
@@ -415,67 +496,112 @@ export component QuestRoadmap inherits Rectangle {
                 height: min(max(160px, preview-body.preferred-height + 44px), max(160px, parent.height - 16px));
                 background: DesktopTheme.raised;
                 border-radius: 7px;
-                border-width: 1px; border-color: DesktopTheme.secondary;
+                border-width: 1px; border-color: preview-focus.has-focus ? DesktopTheme.accent : DesktopTheme.secondary;
                 clip: true;
                 z: 3;
-                preview-scroll := Flickable {
-                    x: 14px; y: 12px;
-                    width: parent.width - 28px; height: max(24px, parent.height - 42px);
-                    content-width: self.width; content-height: max(self.height, preview-body.preferred-height);
-                    preview-body := VerticalLayout {
-                        x: 0px; y: 0px; width: parent.width; height: self.preferred-height;
-                        spacing: 8px; alignment: start;
-                        Text {
-                            width: preview-scroll.width; height: self.preferred-height;
-                            text: root.preview-node.title; font-size: 14px; font-weight: 600;
-                            color: DesktopTheme.text; wrap: word-wrap;
+                preview-focus := FocusScope {
+                    width: 100%; height: 100%; enabled: root.preview-open;
+                    focus-on-click: false;
+                    key-pressed(event) => {
+                        if (event.text == Key.UpArrow || event.text == Key.DownArrow || event.text == Key.PageUp || event.text == Key.PageDown) {
+                            root.scroll-preview(event.text == Key.UpArrow ? -1 : event.text == Key.DownArrow ? 1 : event.text == Key.PageUp ? -4 : 4);
+                            return accept;
                         }
-                        if root.preview-node.alternate != "": Text {
-                            width: preview-scroll.width; height: self.preferred-height;
-                            text: root.preview-node.alternate; font-size: 12px;
-                            color: DesktopTheme.secondary; wrap: word-wrap;
-                        }
-                        Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.subtitle; font-size: 11px; color: DesktopTheme.secondary; wrap: word-wrap; }
-                        Rectangle { height: 1px; background: DesktopTheme.border; }
-                        if root.preview-node.state == 4 && root.preview-node.brief != "": Text {
-                            width: preview-scroll.width; height: self.preferred-height;
-                            text: root.preview-node.brief; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap;
-                        }
-                        if root.preview-node.state == 4 && root.preview-node.brief == "": Text {
-                            width: preview-scroll.width; height: self.preferred-height;
-                            text: root.preview-node.subtitle; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap;
-                        }
-                        if root.preview-node.state != 4: VerticalLayout {
-                            width: preview-scroll.width; height: self.preferred-height;
-                            spacing: 4px;
-                            Text { width: preview-scroll.width; height: self.preferred-height; text: UiLanguage.tr("Goals & requirements", "目標與條件"); font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
-                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.objectives != "" ? root.preview-node.objectives : (UiLanguage.tr("No structured objective data.", "未提供結構化目標。")); font-size: 12px; color: root.preview-node.objectives == "" ? DesktopTheme.secondary : DesktopTheme.text; wrap: word-wrap; }
-                        }
-                        if root.preview-node.state != 4: VerticalLayout {
-                            width: preview-scroll.width; height: self.preferred-height;
-                            spacing: 4px;
-                            Text { width: preview-scroll.width; height: self.preferred-height; text: UiLanguage.tr("Rewards", "任務獎勵"); font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
-                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.rewards != "" ? root.preview-node.rewards : (UiLanguage.tr("No reward data.", "未提供獎勵資料。")); font-size: 12px; color: root.preview-node.rewards == "" ? DesktopTheme.secondary : DesktopTheme.text; wrap: word-wrap; }
-                        }
-                        if root.preview-node.state != 4 && root.preview-node.brief != "": VerticalLayout {
-                            width: preview-scroll.width; height: self.preferred-height;
-                            spacing: 4px;
-                            Text { width: preview-scroll.width; height: self.preferred-height; text: UiLanguage.tr("Description", "任務說明"); font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
-                            Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.brief; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap; }
-                        }
+                        if (event.text == Key.Escape) { root.dismiss-preview(); return accept; }
+                        return reject;
                     }
-                }
-                Text {
-                    x: 14px; y: parent.height - 22px; width: parent.width - 28px; height: 16px;
-                    text: preview-scroll.content-height > preview-scroll.height ? (UiLanguage.tr("Scroll preview · ↑↓ / PgUp / PgDn", "捲動預覽 · ↑↓ / PgUp / PgDn")) : (UiLanguage.tr("Select a quest to view details", "點選任務可切換內容"));
-                    font-size: 10px; color: DesktopTheme.secondary; overflow: elide;
-                }
-                TouchArea {
-                    x: 0px; y: 0px; width: parent.width; height: parent.height;
-                    changed has-hover => { root.preview-hover = self.has-hover; }
-                    scroll-event(event) => {
-                        preview-scroll.content-y = clamp(preview-scroll.content-y + event.delta-y, min(0px, preview-scroll.height - preview-scroll.content-height), 0px);
-                        return accept;
+                    // A parent observes hover without intercepting the links' clicks.
+                    TouchArea {
+                        width: 100%; height: 100%;
+                        changed has-hover => { root.preview-hover = self.has-hover; }
+                        scroll-event(event) => {
+                            preview-scroll.content-y = clamp(preview-scroll.content-y + event.delta-y, min(0px, preview-scroll.height - preview-scroll.content-height), 0px);
+                            return accept;
+                        }
+                        preview-scroll := Flickable {
+                            x: 14px; y: 12px;
+                            width: parent.width - 28px; height: max(24px, parent.height - 42px);
+                            content-width: self.width; content-height: max(self.height, preview-body.preferred-height);
+                            preview-body := VerticalLayout {
+                                x: 0px; y: 0px; width: parent.width; height: self.preferred-height;
+                                spacing: 8px; alignment: start;
+                                Text {
+                                    width: preview-scroll.width; height: self.preferred-height;
+                                    text: root.preview-node.title; font-size: 14px; font-weight: 600;
+                                    color: DesktopTheme.text; wrap: word-wrap;
+                                }
+                                if root.preview-node.alternate != "": Text {
+                                    width: preview-scroll.width; height: self.preferred-height;
+                                    text: root.preview-node.alternate; font-size: 12px;
+                                    color: DesktopTheme.secondary; wrap: word-wrap;
+                                }
+                                Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.subtitle; font-size: 11px; color: DesktopTheme.secondary; wrap: word-wrap; }
+                                Rectangle { height: 1px; background: DesktopTheme.border; }
+                                if root.preview-node.state != 4: PreviewLink {
+                                    width: preview-scroll.width; height: npc-body.preferred-height + 8px;
+                                    record-key: root.preview-node.npc-key;
+                                    label: UiLanguage.tr("Quest giver", "委託人") + ": " + (root.preview-node.npc != "" ? root.preview-node.npc : UiLanguage.tr("Not recorded", "未記錄"));
+                                    description: root.preview-node.npc-location;
+                                    open-key(key) => { root.open-preview-key(key); }
+                                    focus-changed(focused, top, size) => { root.focus-preview-link("npc", focused, top, size); }
+                                    npc-body := HorizontalLayout {
+                                        x: 4px; y: 4px; width: parent.width - 8px; height: self.preferred-height;
+                                        spacing: 8px; alignment: start;
+                                        Image { width: 28px; height: 28px; source: @image-url("icons/npc.png"); image-fit: contain; }
+                                        VerticalLayout {
+                                            horizontal-stretch: 1; min-width: 0px; spacing: 4px;
+                                            Text { text: UiLanguage.tr("Quest giver", "委託人"); font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
+                                            Text { text: root.preview-node.npc != "" ? root.preview-node.npc : UiLanguage.tr("Not recorded", "未記錄"); font-size: 12px; color: root.preview-node.npc-key != "" ? DesktopTheme.accent : DesktopTheme.text; wrap: word-wrap; }
+                                            if root.preview-node.npc-location != "": Text {
+                                                text: UiLanguage.tr("Location", "所在地") + ": " + root.preview-node.npc-location;
+                                                font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                                            }
+                                        }
+                                    }
+                                }
+                                if root.preview-node.state == 4 && root.preview-node.brief != "": Text {
+                                    width: preview-scroll.width; height: self.preferred-height;
+                                    text: root.preview-node.brief; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap;
+                                }
+                                if root.preview-node.state == 4 && root.preview-node.brief == "": Text {
+                                    width: preview-scroll.width; height: self.preferred-height;
+                                    text: root.preview-node.subtitle; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap;
+                                }
+                                if root.preview-node.state != 4: VerticalLayout {
+                                    width: preview-scroll.width; height: self.preferred-height;
+                                    spacing: 4px;
+                                    Text { width: preview-scroll.width; height: self.preferred-height; text: UiLanguage.tr("Goals & requirements", "目標與條件"); font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
+                                    if root.preview-node.required-items.length > 0: PreviewIcons {
+                                        width: preview-scroll.width; items: root.preview-node.required-items;
+                                        open-key(key) => { root.open-preview-key(key); }
+                                        focus-changed(i, focused, top, size) => { root.focus-preview-link("required:" + i, focused, top, size); }
+                                    }
+                                    Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.objectives != "" ? root.preview-node.objectives : (UiLanguage.tr("No structured objective data.", "未提供結構化目標。")); font-size: 12px; color: root.preview-node.objectives == "" ? DesktopTheme.secondary : DesktopTheme.text; wrap: word-wrap; }
+                                }
+                                if root.preview-node.state != 4: VerticalLayout {
+                                    width: preview-scroll.width; height: self.preferred-height;
+                                    spacing: 4px;
+                                    Text { width: preview-scroll.width; height: self.preferred-height; text: UiLanguage.tr("Rewards", "任務獎勵"); font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
+                                    if root.preview-node.reward-icons.length > 0: PreviewIcons {
+                                        width: preview-scroll.width; items: root.preview-node.reward-icons;
+                                        open-key(key) => { root.open-preview-key(key); }
+                                        focus-changed(i, focused, top, size) => { root.focus-preview-link("reward:" + i, focused, top, size); }
+                                    }
+                                    Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.rewards != "" ? root.preview-node.rewards : (UiLanguage.tr("No reward data.", "未提供獎勵資料。")); font-size: 12px; color: root.preview-node.rewards == "" ? DesktopTheme.secondary : DesktopTheme.text; wrap: word-wrap; }
+                                }
+                                if root.preview-node.state != 4 && root.preview-node.brief != "": VerticalLayout {
+                                    width: preview-scroll.width; height: self.preferred-height;
+                                    spacing: 4px;
+                                    Text { width: preview-scroll.width; height: self.preferred-height; text: UiLanguage.tr("Description", "任務說明"); font-size: 12px; font-weight: 600; color: DesktopTheme.secondary; }
+                                    Text { width: preview-scroll.width; height: self.preferred-height; text: root.preview-node.brief; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap; }
+                                }
+                            }
+                        }
+                        Text {
+                            x: 14px; y: parent.height - 22px; width: parent.width - 28px; height: 16px;
+                            text: preview-scroll.content-height > preview-scroll.height ? (UiLanguage.tr("Scroll preview · ↑↓ / PgUp / PgDn", "捲動預覽 · ↑↓ / PgUp / PgDn")) : (UiLanguage.tr("Select a quest to view details", "點選任務查看詳情"));
+                            font-size: 10px; color: DesktopTheme.secondary; overflow: elide;
+                        }
                     }
                 }
             }
