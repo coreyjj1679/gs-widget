@@ -89,6 +89,22 @@ jobs:
         run: |
           $smoke = Join-Path $env:RUNNER_TEMP "gs-widget-smoke"
           ./scripts/smoke_windows_offline.ps1 -ExePath "$smoke/app/gersang-widget.exe" -LocalAppData "$smoke/profile" -WorkingDirectory $env:RUNNER_TEMP
+      - name: Verify both languages and modes in the packaged GUI before publication
+        run: |
+          $smoke = Join-Path $env:RUNNER_TEMP "gs-widget-smoke"
+          ./scripts/smoke_windows_changelog.ps1 -ExePath "$smoke/app/gersang-widget.exe" -RepositoryRoot "$env:GITHUB_WORKSPACE" -TestRoot "$env:RUNNER_TEMP/release changelog" -Packaged
+      - name: Save native UI screenshots, trees and test report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-release-changelog-evidence
+          path: |
+            ${{ runner.temp }}/release changelog/**/*.json
+            ${{ runner.temp }}/release changelog/**/*.png
+            ${{ runner.temp }}/release changelog/**/*.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
       - name: Save downloadable build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

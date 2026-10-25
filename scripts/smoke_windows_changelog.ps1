@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$ExePath,
     [Parameter(Mandatory = $true)][string]$RepositoryRoot,
-    [Parameter(Mandatory = $true)][string]$TestRoot
+    [Parameter(Mandatory = $true)][string]$TestRoot,
+    [switch]$Packaged
 )
 
 # Exercise accessible settings/calculator controls and native navigation keys.
@@ -198,8 +199,8 @@ $report = [ordered]@{
 }
 $overrides = @{
     LOCALAPPDATA = $null
-    GERSANG_DB = Join-Path $repository "data/gersang.db"
-    GERSANG_CLIENT = Join-Path $repository "data/client"
+    GERSANG_DB = if ($Packaged) { $null } else { Join-Path $repository "data/gersang.db" }
+    GERSANG_CLIENT = if ($Packaged) { $null } else { Join-Path $repository "data/client" }
     HTTPS_PROXY = "http://127.0.0.1:1"
     HTTP_PROXY = "http://127.0.0.1:1"
     ALL_PROXY = "http://127.0.0.1:1"

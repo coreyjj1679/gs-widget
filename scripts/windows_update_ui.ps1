@@ -57,8 +57,8 @@ if ($PSVersionTable.PSEdition -eq "Core") {
 $IsWindows = $true
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 $OutputEncoding = [Console]::OutputEncoding
-# The shared helper contains the Chinese native window title. Windows
-# PowerShell treats BOM-less .ps1 files as ANSI, so decode its UTF-8 explicitly.
+# Windows PowerShell treats BOM-less .ps1 files as ANSI. Decode the shared
+# helper explicitly as UTF-8 so future non-ASCII text is preserved as well.
 $helperSource = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "windows_gui_test_helpers.ps1"), [System.Text.Encoding]::UTF8)
 . ([scriptblock]::Create($helperSource))
 Add-Type -AssemblyName UIAutomationClient

@@ -1,6 +1,6 @@
-# Winit owns an additional visible, untitled event-loop window. Select the real
-# application window by title and process ID, as widget/src/window/windows.rs
-# does, instead of relying on Process.MainWindowHandle's first-window heuristic.
+# Winit owns an additional visible event-loop window. Select the unowned main
+# window by native class and process ID, as widget/src/window/windows.rs does.
+# A translated caption or Process.MainWindowHandle cannot identify it reliably.
 if (-not $IsWindows) { throw "GUI smoke helpers require PowerShell 7 on Windows" }
 
 if (-not ("GersangSmokeWindow" -as [type])) {
@@ -20,6 +20,12 @@ public static class GersangSmokeWindow
     [DllImport("user32.dll", ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr window);
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern IntPtr GetWindow(IntPtr window, uint command);
+
+    [DllImport("user32.dll", ExactSpelling = true)]
+    private static extern int GetWindowLongW(IntPtr window, int index);
 
     [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
     private static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message,
@@ -47,17 +53,24 @@ public static class GersangSmokeWindow
 
     public static IntPtr Find(uint processId)
     {
+        IntPtr found = IntPtr.Zero;
         IntPtr window = IntPtr.Zero;
-        while ((window = FindWindowExW(IntPtr.Zero, window, null, "巨商")) != IntPtr.Zero)
+        // The pinned winit backend uses this class for real windows and a
+        // separate "Winit Thread Event Target" class for its message window.
+        while ((window = FindWindowExW(IntPtr.Zero, window, "Window Class", null)) != IntPtr.Zero)
         {
             uint owner;
             if (GetWindowThreadProcessId(window, out owner) != 0 &&
-                owner == processId && IsWindowVisible(window))
+                owner == processId && IsWindowVisible(window) &&
+                GetWindow(window, 4) == IntPtr.Zero && // GW_OWNER
+                (GetWindowLongW(window, -16) & 0x40000000) == 0 && // no WS_CHILD
+                (GetWindowLongW(window, -20) & 0x00000080) == 0) // no WS_EX_TOOLWINDOW
             {
-                return window;
+                if (found != IntPtr.Zero) return IntPtr.Zero; // Never choose an arbitrary main window.
+                found = window;
             }
         }
-        return IntPtr.Zero;
+        return found;
     }
 
     public static bool Responds(IntPtr window)
@@ -105,7 +118,7 @@ function Wait-Gui {
         if ($window -ne [IntPtr]::Zero -and [GersangSmokeWindow]::Responds($window)) { return }
         Start-Sleep -Milliseconds 200
     }
-    throw "Visible 巨商 window for process $($AppProcess.Id) did not become responsive within $Seconds seconds"
+    throw "Visible application window for process $($AppProcess.Id) did not become responsive within $Seconds seconds"
 }
 
 function Assert-GuiResponsive {
@@ -116,7 +129,7 @@ function Assert-GuiResponsive {
         if ($AppProcess.HasExited) { throw "GUI exited during observation: $($AppProcess.Id)" }
         $window = [GersangSmokeWindow]::Find([uint32]$AppProcess.Id)
         if ($window -eq [IntPtr]::Zero -or -not [GersangSmokeWindow]::Responds($window)) {
-            throw "Visible 巨商 window stopped responding during observation: $($AppProcess.Id)"
+            throw "Visible application window stopped responding during observation: $($AppProcess.Id)"
         }
         Start-Sleep -Milliseconds 200
     }
@@ -128,7 +141,7 @@ function Close-Gui {
     if ($AppProcess.HasExited) { throw "GUI exited before normal shutdown was requested: $($AppProcess.Id)" }
     $window = [GersangSmokeWindow]::Find([uint32]$AppProcess.Id)
     if ($window -eq [IntPtr]::Zero) {
-        throw "Could not request normal 巨商 window shutdown: $($AppProcess.Id)"
+        throw "Could not request normal application window shutdown: $($AppProcess.Id)"
     }
     $exitCode = [GersangSmokeWindow]::CloseAndWait([uint32]$AppProcess.Id, $window)
     if ($exitCode -ne 0) { throw "GUI closed with error: $exitCode" }

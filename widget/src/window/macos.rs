@@ -11,7 +11,9 @@ fn widget_window(mtm: MainThreadMarker) -> Option<Retained<NSWindow>> {
     NSApplication::sharedApplication(mtm)
         .windows()
         .iter()
-        .find(|window| window.title().to_string() == "巨商")
+        // AppKit's list is process-local. Keep all supported main-window titles
+        // eligible, including a minimized window that focus_window must restore.
+        .find(|window| matches!(window.title().to_string().as_str(), "巨商" | "Gersang" | "거상"))
 }
 
 pub(crate) fn focus_window() {
