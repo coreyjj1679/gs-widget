@@ -2,6 +2,23 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "1.2.3",
+      "date": "2026-10-25",
+      "sections": [
+        {
+          "kind": "fixed",
+          "en": [
+            "Fix native window lookup on Windows when English or Korean is the primary language, restoring name copying, hotkey window activation and monitor-aware positioning. Window lookup also remains valid after changing language or minimizing the app.",
+            "Restore macOS window activation and monitor positioning when English or Korean is the primary language."
+          ],
+          "zh-TW": [
+            "修正 Windows 在英文或韓文主語言下無法辨識主視窗的問題，恢復名稱複製、快捷鍵喚起及多螢幕定位；切換語言或最小化後仍可正確辨識視窗。",
+            "修正 macOS 在英文或韓文主語言下的視窗喚起及螢幕定位。"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.2.2",
       "date": "2026-10-25",
       "sections": [
