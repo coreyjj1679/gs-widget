@@ -9,7 +9,7 @@ use super::names::{haystack, name_match};
 use super::quest::quest_source_rank;
 use super::rows::{MonsterRow, PlaceRow};
 use super::store::online;
-use super::text::{caption, chrome_text, commas, commas_text, element_file, element_name, lead, lead3, phrase, pick, pick_place, trail3};
+use super::text::{caption, chrome_text, commas, commas_text, element_file, element_name, lead3, phrase, pick, pick_place, trail3};
 
 pub(in crate::db) fn load_locations(conn: &Connection) -> Result<HashMap<String, Vec<i64>>, String> {
     let mut stmt = conn
@@ -579,7 +579,7 @@ mod brief_tests {
     #[test]
     fn card_summaries_use_localized_catalog_drop_names() {
         let catalog = Catalog::open().expect("db");
-        for (lang, place) in [("zh-en", "出沒地：朝鮮地圖"), ("en-zh", "Found in: Korea Field")] {
+        for (lang, place) in [("zh-en", "出沒地：朝鮮地圖 · Korea Field"), ("en-zh", "Found in: Korea Field · 朝鮮地圖"), ("zh", "出沒地：朝鮮地圖")] {
             let cards = catalog.monster_cards(&["M24".into()], lang);
             let card = cards.get("M24").expect("deer");
             let drops = catalog.monster_drops("M24", lang);
@@ -1037,7 +1037,7 @@ impl Catalog {
                 ))
             }) {
                 for (code, gts, en, zh) in rows.flatten() {
-                    let name = lead(lang, &en, &zh);
+                    let name = super::text::show(lang, &en, &zh);
                     place_names.entry(code).or_default().push(if name.is_empty() { format!("#{gts}") } else { name });
                 }
             }

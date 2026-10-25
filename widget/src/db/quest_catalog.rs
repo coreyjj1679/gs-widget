@@ -44,6 +44,9 @@ pub struct QuestMapPreview {
 #[derive(Clone, Default)]
 pub struct QuestListSummary {
     pub summary: String,
+    /// Complete localized objectives for hover, keyboard and accessibility;
+    /// the visible card keeps its independently bounded summary.
+    pub objective_details: String,
     pub rewards: String,
     pub reward_items: String,
     pub reward_stats: String,
@@ -302,7 +305,7 @@ fn list_preview_missions(
     conn: &Connection,
     wanted: &HashSet<i64>,
     lang: &str,
-) -> HashMap<i64, String> {
+) -> HashMap<i64, (String, String)> {
     if wanted.is_empty() {
         return HashMap::new();
     }
@@ -339,7 +342,7 @@ fn list_preview_missions(
     }
     texts
         .into_iter()
-        .map(|(id, (en, zh))| (id, lead(lang, &en, &zh)))
+        .map(|(id, (en, zh))| (id, (lead(lang, &en, &zh), trail(lang, &en, &zh))))
         .collect()
 }
 
@@ -660,6 +663,7 @@ impl Catalog {
                 quest.id,
                 QuestListSummary {
                     summary: preview_objective_summary(targets, ""),
+                    objective_details: targets.join("\n"),
                     rewards: preview_reward_summary(&rewards, lang),
                     reward_items: preview_reward_items(&reward_items, lang),
                     reward_stats: reward_stats.join(" · "),
@@ -670,13 +674,16 @@ impl Catalog {
         let unknown = chrome_text(lang, "目標未註明", "Objective not specified");
         for id in needs_mission {
             if let Some(row) = found.get_mut(&id) {
-                row.summary = preview_summary(
-                    &[],
-                    missions
-                        .get(&id)
-                        .filter(|text| !text.trim().is_empty())
-                        .unwrap_or(&unknown),
-                );
+                let (primary, alternate) = missions.get(&id)
+                    .filter(|(primary, _)| !primary.trim().is_empty())
+                    .map(|(primary, alternate)| (primary.as_str(), alternate.as_str()))
+                    .unwrap_or((&unknown, ""));
+                row.summary = preview_summary(&[], primary);
+                row.objective_details = if alternate.is_empty() {
+                    primary.to_string()
+                } else {
+                    format!("{primary}\n{alternate}")
+                };
             }
         }
         found

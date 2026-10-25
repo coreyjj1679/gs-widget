@@ -82,9 +82,11 @@ impl Catalog {
         };
         let mut facts = Vec::new();
         if recipe.book_item > 0 {
+            let (name, alternate) = self.related_item_names(recipe.book_item, lang);
+            let name = if alternate.is_empty() { name } else { format!("{name} · {alternate}") };
             facts.push((
                 chrome_text(lang, "所需製造書", "Required recipe book"),
-                format!("{} × 1", self.item_name(recipe.book_item, lang)),
+                format!("{name} × 1"),
             ));
         }
         facts.push((

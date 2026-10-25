@@ -133,6 +133,7 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
         }).collect();
         let mut alternates = Vec::with_capacity(hits.len());
         let mut objectives = Vec::with_capacity(hits.len());
+        let mut objective_details = Vec::with_capacity(hits.len());
         let mut rewards = Vec::with_capacity(hits.len());
         let mut reward_items = Vec::with_capacity(hits.len());
         let mut reward_stats = Vec::with_capacity(hits.len());
@@ -141,12 +142,14 @@ pub(crate) fn publish(app: &App, catalog: &db::Catalog, session: &Session, favou
             alternates.push(SharedString::from(catalog.quest_alternate_title(id, &lang)));
             let summary = summaries.get(&id).cloned().unwrap_or_default();
             objectives.push(SharedString::from(summary.summary));
+            objective_details.push(SharedString::from(summary.objective_details));
             rewards.push(SharedString::from(summary.rewards));
             reward_items.push(SharedString::from(summary.reward_items));
             reward_stats.push(SharedString::from(summary.reward_stats));
         }
         app.set_quest_alternate_titles(ModelRc::new(VecModel::from(alternates)));
         app.set_quest_objective_summaries(ModelRc::new(VecModel::from(objectives)));
+        app.set_quest_objective_details(ModelRc::new(VecModel::from(objective_details)));
         app.set_quest_reward_summaries(ModelRc::new(VecModel::from(rewards)));
         app.set_quest_reward_items(ModelRc::new(VecModel::from(reward_items)));
         app.set_quest_reward_stats(ModelRc::new(VecModel::from(reward_stats)));
@@ -899,7 +902,7 @@ fn name_metadata<'a>(alternate: &str, subtitle: &'a str) -> &'a str {
 }
 
 pub(crate) fn item_row_names(catalog: &db::Catalog, key: &str, subtitle: &str, lang: &str) -> (String, String) {
-    let alternate = catalog.item_alternate_name(key, lang);
+    let alternate = catalog.record_alternate_name(key, lang);
     let metadata = name_metadata(&alternate, subtitle).to_string();
     (alternate, metadata)
 }
@@ -1028,6 +1031,7 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
         };
         let brief = hit.key.strip_prefix("monster:").and_then(|code| cards.get(code));
         let monster_drops = brief.map(|card| {
+            let mut legacy_slot = -1;
             let items: Vec<MonsterDrop> = card.drop_items.iter().enumerate().map(|(slot, drop)| {
                 let icon = drop.icon.as_ref().and_then(|(path, frame)| {
                     let cache_key = format!("{}#{frame}", path.display());
@@ -1044,7 +1048,11 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
                     }
                     icon
                 });
+                // Legacy image slots omit drops without source images. Keep the
+                // identity here so compact tooltips cannot drift onto another item.
+                let compact_slot = if drop.icon.is_some() { legacy_slot += 1; legacy_slot } else { -1 };
                 MonsterDrop {
+                    compact_slot,
                     key: drop.key.clone().into(),
                     title: drop.title.clone().into(),
                     drop_rate: drop.drop_rate.clone().into(),

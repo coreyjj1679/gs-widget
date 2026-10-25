@@ -8,7 +8,7 @@ use super::names::haystack;
 use super::recipe::formula_lands;
 use super::rows::{FormulaPart, Index, ItemFormula, MakePlace, WorkBuilding, WorkFacility, WorkProduct, WorkUpgradeName};
 use super::store::{column_exists, online, table_exists};
-use super::text::{caption, commas, lead3, phrase, trail3};
+use super::text::{caption, commas, lead3, phrase, show3, trail3};
 
 pub(in crate::db) fn work_lands(nations: &str, lang: &str) -> String {
     let korea = nations.contains('K');
@@ -322,9 +322,18 @@ impl Catalog {
         }
         let mut hits = Vec::new();
         for place in &places {
+            let yard = place.key.strip_prefix("bay:").and_then(|code| self.index.yards.get(code));
+            let alternate = yard
+                .map(|yard| trail3(lang, &yard.en, &yard.zh, &yard.ko))
+                .unwrap_or_default();
+            let building = yard.and_then(|yard| self.index.works.iter().find(|building| {
+                building.facilities.contains(&yard.code)
+                    && lead3(lang, &building.en, &building.zh, &building.ko) == place.building
+            })).map(|building| show3(lang, &building.en, &building.zh, &building.ko))
+                .unwrap_or_else(|| place.building.clone());
             hits.push(Hit {
                 title: place.facility.clone(),
-                subtitle: place.building.clone(),
+                subtitle: caption(&alternate, building),
                 key: place.key.clone(),
                 icon: place.icon.clone(),
                 solo: false,
@@ -359,9 +368,10 @@ impl Catalog {
         }
         for part in &formula.parts {
             let tool = part.kind == "tool";
+            let (title, alternate) = self.related_item_names(part.item, lang);
             hits.push(Hit {
-                title: self.item_name(part.item, lang),
-                subtitle: if part.qty > 0 { format!("× {}", commas(part.qty)) } else { String::new() },
+                title,
+                subtitle: caption(&alternate, if part.qty > 0 { format!("× {}", commas(part.qty)) } else { String::new() }),
                 key: format!("item:{}", part.item),
                 icon: self.item_icon(part.item),
                 solo: false,
@@ -392,15 +402,18 @@ impl Catalog {
         products.sort_by_key(|(product, _)| *product);
         products
             .into_iter()
-            .map(|(product, qty)| Hit {
-                title: self.item_name(product, lang),
-                subtitle: format!("× {}", commas(qty)),
-                key: format!("item:{product}"),
-                icon: self.item_icon(product),
-                solo: false,
-                aside: phrase("make", lang),
-                badge: None,
-                chip: String::new(),
+            .map(|(product, qty)| {
+                let (title, alternate) = self.related_item_names(product, lang);
+                Hit {
+                    title,
+                    subtitle: caption(&alternate, format!("× {}", commas(qty))),
+                    key: format!("item:{product}"),
+                    icon: self.item_icon(product),
+                    solo: false,
+                    aside: phrase("make", lang),
+                    badge: None,
+                    chip: String::new(),
+                }
             })
             .collect()
     }

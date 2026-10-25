@@ -145,6 +145,7 @@ component ChangelogHistory inherits Rectangle {
 }
 
 export struct MonsterDrop {
+    compact-slot: int,
     key: string,
     title: string,
     drop-rate: string,
@@ -2072,6 +2073,28 @@ component ModeButton inherits Rectangle {
     }
 }
 
+// Images retain their legacy slot identity, while names come from structured drops.
+component CompactDropImage inherits Rectangle {
+    in property <image> icon;
+    in property <MonsterDrop> drop;
+    callback focused();
+    property <string> full-name: root.drop.title + (root.drop.alternate-name != "" && root.drop.alternate-name != root.drop.title ? "\n" + root.drop.alternate-name : "") + "\n" + root.drop.drop-rate;
+    width: 22px; height: 22px;
+    border-width: 1px; border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    accessible-role: button; accessible-label: root.full-name;
+    accessible-action-default => { RecordInfo.text = root.full-name; }
+    forward-focus: focus;
+    Image { width: 100%; height: 100%; source: root.icon; image-fit: contain; }
+    Tooltip { RecordTooltip { text: root.full-name; } }
+    focus := FocusScope {
+        changed has-focus => { if (self.has-focus) { root.focused(); } }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space || ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I"))) { RecordInfo.text = root.full-name; return accept; }
+            return reject;
+        }
+    }
+}
+
 component MonsterCard inherits Rectangle {
     in property <Hit> hit;
     in property <bool> selected: false;
@@ -2080,15 +2103,30 @@ component MonsterCard inherits Rectangle {
     in property <bool> portrait: false;
     callback clicked();
     callback favourite-clicked();
+    callback focused();
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-label: root.hit.title;
+    accessible-description: RecordText.description(root.hit);
+    accessible-action-default => { root.clicked(); }
+    focus := FocusScope {
+        changed has-focus => { if (self.has-focus) { root.focused(); } }
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { RecordInfo.show(root.hit); return accept; }
+            return reject;
+        }
+    }
+    Tooltip { RecordTooltip { text: RecordText.full(root.hit); } }
     height: 214px;
     border-radius: 10px;
     border-width: 1px;
-    border-color: selected ? DesktopTheme.accent : DesktopTheme.border;
+    border-color: focus.has-focus || selected ? DesktopTheme.accent : DesktopTheme.border;
     background: selected ? DesktopTheme.selected : (area.has-hover ? DesktopTheme.hover : DesktopTheme.surface-alt);
     area := TouchArea {
         width: parent.width - 40px;
         height: 100%;
-        clicked => { root.clicked(); }
+        clicked => { focus.focus(); root.clicked(); }
         mouse-cursor: pointer;
         HorizontalLayout {
             width: 100%;
@@ -2136,10 +2174,10 @@ component MonsterCard inherits Rectangle {
                     color: DesktopTheme.text;
                     overflow: elide;
                 }
-                if root.hit.subtitle != "": Text {
-                    text: root.hit.subtitle;
+                if RecordText.secondary(root.hit) != "": Text {
+                    text: RecordText.secondary(root.hit);
                     font-size: 12px;
-                    color: DesktopTheme.accent;
+                    color: DesktopTheme.secondary;
                     overflow: elide;
                 }
                 MetaRow { label: UiLanguage.tr("Type", "種類"); value: root.hit.stat-kind; }
@@ -2162,10 +2200,12 @@ component MonsterCard inherits Rectangle {
                         color: DesktopTheme.muted;
                         vertical-alignment: center;
                     }
-                    if root.hit.drop1.width > 0: Image { source: root.hit.drop1; width: 22px; height: 22px; image-fit: contain; }
-                    if root.hit.drop2.width > 0: Image { source: root.hit.drop2; width: 22px; height: 22px; image-fit: contain; }
-                    if root.hit.drop3.width > 0: Image { source: root.hit.drop3; width: 22px; height: 22px; image-fit: contain; }
-                    if root.hit.drop4.width > 0: Image { source: root.hit.drop4; width: 22px; height: 22px; image-fit: contain; }
+                    for drop in root.hit.monster-drops: Rectangle {
+                        property <image> picture: drop.compact-slot == 0 ? root.hit.drop1 : drop.compact-slot == 1 ? root.hit.drop2 : drop.compact-slot == 2 ? root.hit.drop3 : root.hit.drop4;
+                        visible: drop.compact-slot >= 0 && drop.compact-slot < 4 && self.picture.width > 0;
+                        width: self.visible ? 22px : 0px; height: 22px;
+                        if self.visible: CompactDropImage { icon: parent.picture; drop: drop; focused => { root.focused(); } }
+                    }
                     if root.hit.drop-total > 4: Text {
                         text: "+" + (root.hit.drop-total - 4);
                         font-size: 11px;
@@ -2496,6 +2536,8 @@ component MonsterSortPicker inherits Rectangle {
 // The region directory stays separate from the monster search and filters.
 component MonsterRegionLink inherits Rectangle {
     in property <string> title;
+    in property <string> alternate: "";
+    property <string> full-name: root.title + (root.alternate != "" ? "\n" + root.alternate : "");
     in property <string> short-title: root.title;
     in property <bool> heading;
     in property <bool> selected;
@@ -2509,7 +2551,7 @@ component MonsterRegionLink inherits Rectangle {
     border-color: focus.has-focus || root.keyboard-current ? DesktopTheme.accent : transparent;
     accessible-role: button;
     accessible-label: root.title;
-    accessible-description: root.selected ? "Selected" : "";
+    accessible-description: root.alternate + (root.selected ? " · " + UiLanguage.tr("Selected", "已選取") : "");
     accessible-action-default => { root.clicked(); }
     forward-focus: focus;
     Text {
@@ -2521,6 +2563,7 @@ component MonsterRegionLink inherits Rectangle {
     focus := FocusScope {
         width: 100%; height: 100%;
         key-pressed(event) => {
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { RecordInfo.text = root.full-name; return accept; }
             if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
             if (event.text == Key.UpArrow || event.text == Key.DownArrow) { root.step(event.text == Key.DownArrow ? 1 : -1); return accept; }
             return reject;
@@ -2537,7 +2580,7 @@ component MonsterRegionLink inherits Rectangle {
             border-width: 1px; border-color: DesktopTheme.border;
             tip := Text {
                 x: 10px; y: 8px; width: parent.width - 20px;
-                text: root.title; wrap: word-wrap; font-size: 13px; color: DesktopTheme.text;
+                text: root.full-name; wrap: word-wrap; font-size: 13px; color: DesktopTheme.text;
             }
         }
     }
@@ -3108,6 +3151,7 @@ component CompactRecordLink inherits Rectangle {
 // Classic reference-page structure using the app’s existing desktop palette.
 component LegacyPlace inherits Rectangle {
     in property <string> title;
+    in property <string> alternate: "";
     in property <bool> heading;
     in property <bool> selected;
     callback clicked();
@@ -3115,6 +3159,16 @@ component LegacyPlace inherits Rectangle {
     background: selected ? DesktopTheme.selected : heading ? DesktopTheme.control : tap.has-hover ? DesktopTheme.hover : transparent;
     accessible-role: button;
     accessible-label: title;
+    accessible-description: root.alternate;
+    forward-focus: focus;
+    Tooltip { RecordTooltip { text: root.title + (root.alternate != "" ? "\n" + root.alternate : ""); } }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { RecordInfo.text = root.title + "\n" + root.alternate; return accept; }
+            return reject;
+        }
+    }
     accessible-action-default => { root.clicked(); }
     Text {
         x: 8px; width: parent.width - 16px; height: 100%;
@@ -3268,7 +3322,7 @@ component LegacyRegionNavigator inherits Rectangle {
             for row[i] in root.rows: LegacyPlace {
                 x: root.flow-x[i] * 1px; y: root.flow-y[i] * 1px;
                 width: root.flow-w[i] * 1px;
-                title: row.title;
+                title: row.title; alternate: row.subtitle;
                 heading: row.chip == "label";
                 selected: row.key != "" && root.selected-key == row.key;
                 clicked => { if (row.key != "") { root.choose(i); } }
@@ -4022,6 +4076,7 @@ component QuestPick inherits Rectangle {
     in property <Hit> hit;
     in property <string> alternate-title;
     in property <string> objective;
+    in property <string> objective-details;
     in property <string> rewards;
     in property <string> reward-items;
     in property <string> reward-stats;
@@ -4035,7 +4090,7 @@ component QuestPick inherits Rectangle {
     background: selected ? DesktopTheme.selection-low : tap.has-hover || focus.has-focus || keyboard-selected ? DesktopTheme.hover : transparent;
     accessible-role: button;
     accessible-label: hit.title;
-    accessible-description: (alternate-title != "" ? alternate-title + " · " : "") + hit.aside + " · " + objective + " · " + rewards;
+    accessible-description: (alternate-title != "" ? alternate-title + " · " : "") + hit.aside + " · " + objective-details + " · " + rewards;
     accessible-action-default => { root.clicked(); }
     tap := TouchArea { width: 100%; height: 100%; mouse-cursor: pointer; clicked => { focus.focus(); root.clicked(); } }
     Rectangle {
@@ -4060,7 +4115,7 @@ component QuestPick inherits Rectangle {
     QuestSummaryBadge {
         x: 12px; y: 62px;
         label: (UiLanguage.tr("Goal", "目標")) + (root.items.required-items.length > 0 && root.items.other-objectives != "" ? " +" : "");
-        hint: root.items.required-items.length > 0 ? root.items.other-objectives : "";
+        hint: root.objective-details;
         activated => { focus.focus(); root.clicked(); }
     }
     if root.items.required-items.length > 0: QuestItemStrip {
@@ -4090,9 +4145,11 @@ component QuestPick inherits Rectangle {
         overflow: elide; font-size: 11px; color: root.selected ? DesktopTheme.accent : DesktopTheme.secondary;
     }
     Rectangle { y: parent.height - 1px; x: 12px; width: parent.width - 24px; height: 1px; background: root.selected || root.keyboard-selected || focus.has-focus ? transparent : DesktopTheme.border; }
+    Tooltip { RecordTooltip { text: RecordText.full(root.hit) + "\n" + root.objective-details; } }
     focus := FocusScope {
         focus-on-click: false;
         key-pressed(event) => {
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { RecordInfo.text = RecordText.full(root.hit) + "\n" + root.objective-details; return accept; }
             if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
             return reject;
         }
@@ -5146,6 +5203,7 @@ export component App inherits Window {
     in-out property <[string]> quest-category-names;
     in-out property <[string]> quest-alternate-titles;
     in-out property <[string]> quest-objective-summaries;
+    in-out property <[string]> quest-objective-details;
     in-out property <[string]> quest-reward-summaries;
     in-out property <[string]> quest-reward-items;
     in-out property <[string]> quest-reward-stats;
@@ -8708,7 +8766,7 @@ export component App inherits Window {
                                             heading: row.chip == "label";
                                             selected: root.expanded == row.key && !root.filter-global;
                                             keyboard-current: root.region-cursor == i + 2;
-                                            title: row.title;
+                                            title: row.title; alternate: row.subtitle;
                                             clicked => {
                                                 root.region-cursor = i + 2;
                                                 root.choose-monster-place(row.key, row.title);
@@ -8848,7 +8906,7 @@ export component App inherits Window {
                                 content-y <=> root.directory-offset;
                                 for row[i] in root.hits: LegacyPlace {
                                     x: root.flow-x[i] * 1px; y: root.flow-y[i] * 1px; width: root.flow-w[i] * 1px;
-                                    title: row.title; heading: row.chip == "label";
+                                    title: row.title; alternate: row.subtitle; heading: row.chip == "label";
                                     selected: root.expanded == row.key || root.cursor == i;
                                     clicked => {
                                         if (row.key != "") {
@@ -9163,7 +9221,7 @@ export component App inherits Window {
                                     for row[i] in root.hits: Rectangle {
                                         y: i * 142px; width: parent.width; height: 140px;
                                         if root.cursor == i || root.detail-key == row.key || (self.y + 140px >= -root.list-offset - 284px && self.y <= -root.list-offset + quest-results.height + 284px): QuestPick {
-                                            width: parent.width; hit: row; alternate-title: root.quest-alternate-titles[i]; objective: root.quest-objective-summaries[i]; rewards: root.quest-reward-summaries[i]; reward-items: root.quest-reward-items[i]; reward-stats: root.quest-reward-stats[i]; english: UiLanguage.primary == "en"; selected: root.detail-key == row.key; keyboard-selected: root.cursor == i;
+                                            width: parent.width; hit: row; alternate-title: root.quest-alternate-titles[i]; objective: root.quest-objective-summaries[i]; objective-details: root.quest-objective-details[i]; rewards: root.quest-reward-summaries[i]; reward-items: root.quest-reward-items[i]; reward-stats: root.quest-reward-stats[i]; english: UiLanguage.primary == "en"; selected: root.detail-key == row.key; keyboard-selected: root.cursor == i;
                                             items: root.quest-item-rows[i];
                                             clicked => { root.cursor = i; root.open-hit(row.key); keys.focus(); }
                                         }
@@ -9296,6 +9354,7 @@ export component App inherits Window {
                                     root.cursor = i;
                                     root.open-hit(row.key);
                                 }
+                                focused => { root.cursor = i; root.reveal-list(i); }
                                 favourite-clicked => { root.toggle-favourite(row.key); }
                             }
                         }

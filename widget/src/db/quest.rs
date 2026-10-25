@@ -57,14 +57,16 @@ pub(in crate::db) fn load_quests(conn: &Connection) -> Result<Vec<QuestRow>, Str
         let (id, source, code, title, detail, kind, npc) = row.map_err(|err| err.to_string())?;
         let empty = Vec::new();
         let quest_lines = lines.get(&id).unwrap_or(&empty);
-        let title_ko = korean_quest_title(conn, &source, &title);
-        let mut title_en = quest_line(quest_lines, QUEST_TITLE_ROLES, "en").unwrap_or_default();
-        let mut title_zh = quest_line(quest_lines, QUEST_TITLE_ROLES, "zh").unwrap_or_default();
+        let (mut title_en, mut title_zh, title_ko) = complete_quest_title(
+            conn, &source, &title,
+            quest_line(quest_lines, QUEST_TITLE_ROLES, "en").unwrap_or_default(),
+            quest_line(quest_lines, QUEST_TITLE_ROLES, "zh").unwrap_or_default(),
+        );
         if title_en.is_empty() && title_zh.is_empty() && title_ko.is_empty() {
             title_en = code.clone();
             title_zh = code.clone();
         }
-        let mut parts = vec![title.clone(), detail.clone(), title_ko.clone()];
+        let mut parts = vec![title.clone(), detail.clone(), title_ko.clone(), title_en.clone(), title_zh.clone()];
         for line in quest_lines {
             for text in line.texts.values() {
                 parts.push(text.clone());
@@ -87,15 +89,32 @@ pub(in crate::db) fn load_quests(conn: &Connection) -> Result<Vec<QuestRow>, Str
     Ok(quests)
 }
 
-fn korean_quest_title(conn: &Connection, source: &str, stored: &str) -> String {
+fn complete_quest_title(conn: &Connection, source: &str, stored: &str, mut en: String, mut zh: String) -> (String, String, String) {
     // Mercenary source titles contain character IDs, not localized names.
-    if source == "mercenary" {
-        conn.query_row("SELECT name_ko FROM characters WHERE code = ?1", [stored], |row| row.get(0)).unwrap_or_default()
+    let ko = if source == "mercenary" {
+        let (character_en, character_zh, ko): (String, String, String) = conn.query_row(
+            "SELECT IFNULL(se.text, ''), IFNULL(sz.text, ''), c.name_ko
+             FROM characters c
+             LEFT JOIN strings se ON se.object = 'OnlineText.dat' AND se.lang = 'en'
+                AND c.name_gts > 0 AND se.id = printf('%08d', c.name_gts)
+             LEFT JOIN strings sz ON sz.object = 'OnlineText.dat' AND sz.lang = 'zh'
+                AND c.name_gts > 0 AND sz.id = printf('%08d', c.name_gts)
+             WHERE c.code = ?1",
+            [stored], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap_or_else(|_| {
+            let ko = conn.query_row("SELECT name_ko FROM characters WHERE code = ?1", [stored], |row| row.get(0)).unwrap_or_default();
+            (String::new(), String::new(), ko)
+        });
+        // A recorded quest translation takes precedence over the character name.
+        if en.trim().is_empty() { en = character_en; }
+        if zh.trim().is_empty() { zh = character_zh; }
+        ko
     } else if stored.trim() == "0" {
         String::new()
     } else {
         game_breaks(stored.to_string())
-    }
+    };
+    (en, zh, ko)
 }
 
 pub(in crate::db) fn load_quest_lines(conn: &Connection) -> Result<HashMap<i64, Vec<QuestLine>>, String> {
@@ -584,9 +603,11 @@ impl Catalog {
             return (quest.title_en.clone(), quest.title_zh.clone(), quest.title_ko.clone());
         }
         let (en, zh) = self.quest_names(id);
-        let ko = self.conn.query_row("SELECT source, title FROM quests WHERE id = ?1", [id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
-            .map(|(source, title)| korean_quest_title(&self.conn, &source, &title)).unwrap_or_default();
-        (en, zh, ko)
+        if let Ok((source, title)) = self.conn.query_row("SELECT source, title FROM quests WHERE id = ?1", [id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))) {
+            complete_quest_title(&self.conn, &source, &title, en, zh)
+        } else {
+            (en, zh, String::new())
+        }
     }
 
     pub(in crate::db) fn quest_row(&self, id: i64) -> Option<(String, String, String, String, String, String)> {

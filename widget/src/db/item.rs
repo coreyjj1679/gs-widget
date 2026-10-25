@@ -833,6 +833,15 @@ impl Catalog {
         String::new()
     }
 
+    /// Alternate display name from the catalog index; never changes stored names.
+    pub fn record_alternate_name(&self, key: &str, lang: &str) -> String {
+        if let Some(code) = key.strip_prefix("hero:") {
+            return self.index.heroes.iter().find(|hero| hero.code == code)
+                .map(|hero| super::hero::hero_names(lang, hero).1).unwrap_or_default();
+        }
+        self.item_alternate_name(key, lang)
+    }
+
     pub fn item_sheet(&self, code: i64, lang: &str) -> Option<(String, String, String, Vec<(String, String)>, String)> {
         let row = self.conn.query_row(
             "SELECT i.name_ko, IFNULL(se.text, ''), IFNULL(sz.text, ''), price, weight, description, IFNULL(desc_gts, 0)

@@ -8,13 +8,13 @@ use super::names::{fuzzy_rows, haystack, plain_name};
 use super::rows::{Index, NpcRow};
 use super::store::{online, table_exists};
 use super::language::primary_lang;
-use super::text::{caption, chrome_text, commas, lead, lead3, phrase, trail3};
+use super::text::{caption, chrome_text, commas, lead3, phrase, show3, stack3, trail3};
 
 pub(in crate::db) fn npc_sheet_parts(npc: &NpcRow, lang: &str) -> (String, String, String, Vec<(String, String)>, String) {
     let (title, alt) = npc_names(lang, npc);
-    let map = lead3(lang, &npc.map_en, &npc.map_zh, &npc.map_ko);
+    let map = show3(lang, &npc.map_en, &npc.map_zh, &npc.map_ko);
     let mut facts = Vec::new();
-    let nation = lead3(lang, &npc.nation_en, &npc.nation_zh, &chrome_text("ko", &npc.nation_zh, &npc.nation_en));
+    let nation = show3(lang, &npc.nation_en, &npc.nation_zh, &chrome_text("ko", &npc.nation_zh, &npc.nation_en));
     if !nation.is_empty() {
         facts.push((phrase("nation", lang), nation));
     }
@@ -22,7 +22,7 @@ pub(in crate::db) fn npc_sheet_parts(npc: &NpcRow, lang: &str) -> (String, Strin
         facts.push((phrase("map", lang), map.clone()));
     }
     facts.push((phrase("coord", lang), format!("{}, {}", commas(npc.x), commas(npc.y))));
-    (title, alt, map, facts, lead(lang, &npc.place_en, &npc.place_zh))
+    (title, alt, map, facts, stack3(lang, &npc.place_en, &npc.place_zh, ""))
 }
 
 pub(in crate::db) fn npc_names(lang: &str, npc: &NpcRow) -> (String, String) {
@@ -252,7 +252,7 @@ impl Index {
                 let (title, alt) = npc_names(lang, npc);
                 Hit {
                     title,
-                    subtitle: caption(&alt, lead3(lang, &npc.map_en, &npc.map_zh, &npc.map_ko)),
+                    subtitle: caption(&alt, show3(lang, &npc.map_en, &npc.map_zh, &npc.map_ko)),
                     key: format!("npc:{}", npc.code),
                     icon: npc.icon.clone(),
                     solo: false,

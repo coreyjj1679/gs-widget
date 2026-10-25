@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use rusqlite::Connection;
 
 use super::item::pref_rank;
+use super::language::{primary_lang, secondary_lang};
 use super::{Catalog, Hit};
 use super::names::haystack;
 use super::rows::RecipeRow;
@@ -84,6 +85,20 @@ pub(in crate::db) fn load_recipes(
 }
 
 impl Catalog {
+    /// Display names for related item rows, keeping metadata separate from the
+    /// selected secondary name and preserving the existing unnamed-item fallback.
+    pub(in crate::db) fn related_item_names(&self, code: i64, lang: &str) -> (String, String) {
+        let (en, zh, ko) = self.item_names3(code);
+        let title = lead3(lang, &en, &zh, &ko);
+        // Linked items can synthesize a translated prefix + base name even when
+        // their own GTS names are empty. Keep that fallback unless Korean was
+        // explicitly selected, in which case the recorded Korean name is useful.
+        let linked_fallback = en.trim().is_empty() && zh.trim().is_empty()
+            && primary_lang(lang) != "ko" && secondary_lang(lang) != Some("ko");
+        let title = if title.is_empty() || linked_fallback { self.item_name(code, lang) } else { title };
+        (title, trail3(lang, &en, &zh, &ko))
+    }
+
     pub(in crate::db) fn recipes_using(&self, code: i64, lang: &str) -> Vec<Hit> {
         let mut stmt = match self.conn.prepare(
             "SELECT r.id, r.source, r.result_item, m.qty
@@ -101,15 +116,18 @@ impl Catalog {
         .map(|rows| rows.filter_map(Result::ok).collect::<Vec<_>>())
         .unwrap_or_default()
         .into_iter()
-        .map(|(id, source, result, qty)| Hit {
-            title: self.item_name(result, lang),
-            subtitle: caption(&label(&source, lang), format!("× {}", commas(qty))),
-            key: format!("recipe:{id}"),
-            icon: self.item_icon(result),
-            solo: false,
-            aside: phrase("use-craft", lang),
-            badge: None,
-            chip: String::new(),
+        .map(|(id, source, result, qty)| {
+            let (title, alternate) = self.related_item_names(result, lang);
+            Hit {
+                title,
+                subtitle: caption(&alternate, caption(&label(&source, lang), format!("× {}", commas(qty)))),
+                key: format!("recipe:{id}"),
+                icon: self.item_icon(result),
+                solo: false,
+                aside: phrase("use-craft", lang),
+                badge: None,
+                chip: String::new(),
+            }
         })
         .collect()
     }
@@ -132,9 +150,10 @@ impl Catalog {
         let Ok((source, result, qty, fee, learn, npc)) = row else {
             return (phrase("missing-recipe", lang), Vec::new(), None);
         };
-        let name = self.item_name(result, lang);
+        let (name, alternate) = self.related_item_names(result, lang);
+        let heading = if alternate.is_empty() { name.clone() } else { format!("{name}\n{alternate}") };
         let mut text = format!(
-            "{name}\n{}  {} {}\n{} {}",
+            "{heading}\n{}  {} {}\n{} {}",
             label(&source, lang),
             phrase("qty", lang),
             commas(qty),
@@ -154,7 +173,7 @@ impl Catalog {
         text.push_str(&self.material_tree(id, 3, &mut vec![id], lang));
         let mut links = vec![Hit {
             title: name,
-            subtitle: caption(&chrome_text(lang, "成品", "Result"), format!("× {}", commas(qty))),
+            subtitle: caption(&alternate, caption(&chrome_text(lang, "成品", "Result"), format!("× {}", commas(qty)))),
             key: format!("item:{result}"),
             icon: self.item_icon(result),
             solo: false,
@@ -266,7 +285,8 @@ impl Catalog {
         let mut out = String::new();
         let indent = "  ".repeat(3 - depth.min(3));
         for (code, qty) in rows {
-            let name = self.item_name(code, lang);
+            let (name, alternate) = self.related_item_names(code, lang);
+            let name = if alternate.is_empty() { name } else { format!("{name} · {alternate}") };
             out.push_str(&format!("{indent}{name} × {}\n", commas(qty)));
             if depth > 0 {
                 if let Some(child) = self.preferred_recipe(code, Some(recipe_id)) {
@@ -291,6 +311,7 @@ impl Catalog {
         .expect("link rows")
         .filter_map(Result::ok)
         .map(|(code, qty, enhance)| {
+            let (title, alternate) = self.related_item_names(code, lang);
             let child = self.preferred_recipe(code, Some(recipe_id));
             let mut subtitle = format!("× {}", commas(qty));
             if enhance > 0 {
@@ -300,8 +321,8 @@ impl Catalog {
                 subtitle.push_str(&format!("  {}", label(&self.recipe_source(child), lang)));
             }
             Hit {
-                title: self.item_name(code, lang),
-                subtitle,
+                title,
+                subtitle: caption(&alternate, subtitle),
                 key: match child {
                     Some(id) => format!("recipe:{id}"),
                     None => format!("item:{code}"),
@@ -393,3 +414,7 @@ impl Catalog {
             .unwrap_or_default()
     }
 }
+
+#[cfg(test)]
+#[path = "tests/related_bilingual.rs"]
+mod related_bilingual_tests;

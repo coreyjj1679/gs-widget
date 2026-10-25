@@ -444,7 +444,7 @@ fn npc_sheet_shows_name_nation_map_and_place() {
     assert_eq!(name, "金春森");
     assert_eq!(alt, "Kim Choonsam");
     assert!(!map.is_empty());
-    assert!(facts.iter().any(|(label, value)| label == "國籍" && value == "全區"));
+    assert!(facts.iter().any(|(label, value)| label == "國籍" && value == "全區 · All"));
     assert!(facts.iter().any(|(label, value)| label == "地圖" && value == &map));
     assert!(facts.iter().any(|(label, value)| label == "座標" && value.contains(',')));
     assert!(note.contains("平壤"));
