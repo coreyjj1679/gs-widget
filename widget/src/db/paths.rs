@@ -73,7 +73,14 @@ pub(in crate::db) fn character_file_index(client_root: &Path, data: &Path, selec
         entries.sort_by_key(|entry| entry.file_name());
         for entry in entries {
             let path = entry.path();
-            if path.is_file() {
+            // Directory entries already carry the file type on Windows. Avoid
+            // another metadata lookup for every regular asset in a full client,
+            // while retaining the previous behavior for links and lookup errors.
+            let is_file = match entry.file_type() {
+                Ok(kind) if !kind.is_symlink() => kind.is_file(),
+                _ => path.is_file(),
+            };
+            if is_file {
                 // A partial bundled directory must not hide other characters
                 // supplied by the configured full client. Earlier roots win.
                 let name = entry.file_name().to_string_lossy().to_lowercase();
@@ -292,6 +299,34 @@ mod tests {
         assert_eq!(std::fs::read(&files["fixturemount.agf"]).unwrap(), b"external mount");
         assert_eq!(std::fs::read(&files["assets/textures/herocharacter/fixtureshared.agf"]).unwrap(), b"mount with same filename");
         assert!(!files.contains_key("fixture-nested.agf"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn character_file_index_follows_file_links_but_excludes_directories_and_broken_links() {
+        use std::os::unix::fs::symlink;
+        let data = super::super::user_data::preferences_dir().join("character-index-file-types");
+        let folder = data.join("client/Assets/Textures/Characters");
+        let directory = folder.join("FixtureDirectory.AGF");
+        let regular = folder.join("FixtureRegular.AGF");
+        let target = data.join("linked-source.agf");
+        let file_link = folder.join("FixtureLinked.AGF");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(&regular, b"regular").unwrap();
+        std::fs::write(&target, b"linked").unwrap();
+        std::fs::write(directory.join("FixtureNested.AGF"), b"nested").unwrap();
+        symlink(&target, &file_link).unwrap();
+        symlink(&directory, folder.join("FixtureDirectoryLink.AGF")).unwrap();
+        symlink(data.join("missing.agf"), folder.join("FixtureBroken.AGF")).unwrap();
+
+        let files = character_file_index(&data.join("client"), &data, Some(&folder));
+        assert_eq!(files["fixtureregular.agf"], regular);
+        assert_eq!(files["fixturelinked.agf"], file_link);
+        assert_eq!(files["assets/textures/characters/fixturelinked.agf"], file_link);
+        assert_eq!(std::fs::read(&files["fixturelinked.agf"]).unwrap(), b"linked");
+        for excluded in ["fixturedirectory.agf", "fixturedirectorylink.agf", "fixturebroken.agf", "fixturenested.agf"] {
+            assert!(!files.contains_key(excluded), "Unexpected indexed entry: {excluded}");
+        }
     }
 
     #[test]

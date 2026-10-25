@@ -8963,20 +8963,30 @@ export component App inherits Window {
                                             property <bool> group-start: rec.chip.starts-with("spirit:") && (i == 0 || root.catalog-results[i - 1].chip != rec.chip);
                                             height: (self.group-start ? 32px : 0px)
                                                 + (rec.enchant-scroll ? (rec.alternate-name != "" ? 76px : 58px)
-                                                    : self.companion ? max(78px, metadata-measure.preferred-height + 52px) : 58px)
-                                                + (rec.enchant-scroll ? bonus-measure.height + CatalogLayout.equipment-height(self.width, rec.enchant-equipment.length)
+                                                    : self.companion ? variable-measure.preferred-height : 58px)
+                                                + (rec.enchant-scroll ? variable-measure.preferred-height + CatalogLayout.equipment-height(self.width, rec.enchant-equipment.length)
                                                     + CatalogLayout.material-height(self.width, rec.enchant-materials.length) : 0px);
-                                            metadata-measure := Text {
+                                            // Ordinary records are exactly 58px tall. Only variable-height
+                                            // records need text measurement, including outside the viewport.
+                                            variable-measure := VerticalLayout {
                                                 visible: false;
-                                                width: max(parent.width - (rec.has-icon ? 52px : 10px) - 12px, 0px);
-                                                text: record-slot.companion ? rec.aside : "";
-                                                wrap: word-wrap; font-size: 12px;
-                                            }
-                                            bonus-measure := EnchantBonusPreview {
-                                                visible: false;
-                                                width: max(parent.width - 20px, 0px);
-                                                summary: rec.enchant-bonuses;
-                                                recorded: rec.enchant-bonuses-recorded;
+                                                width: parent.width; spacing: 0px; padding: 0px;
+                                                if record-slot.companion && !rec.enchant-scroll: Rectangle {
+                                                    height: max(78px, metadata-measure.preferred-height + 52px);
+                                                    metadata-measure := Text {
+                                                        width: max(parent.width - (rec.has-icon ? 52px : 10px) - 12px, 0px);
+                                                        text: rec.aside;
+                                                        wrap: word-wrap; font-size: 12px;
+                                                    }
+                                                }
+                                                if rec.enchant-scroll: Rectangle {
+                                                    height: bonus-measure.height;
+                                                    bonus-measure := EnchantBonusPreview {
+                                                        width: max(parent.width - 20px, 0px);
+                                                        summary: rec.enchant-bonuses;
+                                                        recorded: rec.enchant-bonuses-recorded;
+                                                    }
+                                                }
                                             }
                                             if root.catalog-keyboard-index == i || root.detail-key == rec.key || (root.catalog-result-list && root.cursor == i) || (record-slot.y + record-slot.height >= -records.content-y - 120px && record-slot.y <= -records.content-y + records.height + 120px): CatalogRow {
                                                 x: 0px; y: 0px; width: parent.width;

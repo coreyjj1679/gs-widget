@@ -1,0 +1,2350 @@
+{
+  "environment": {
+    "cpu": "Apple M5",
+    "memory_gib": 24,
+    "os": "macOS",
+    "version": "1.2.1",
+    "build": "release",
+    "renderer": "native application default; exact renderer not independently identified",
+    "logical_width": 1414,
+    "logical_height": 907,
+    "scale_factor": 2,
+    "language": "zh-en",
+    "language_confirmation": "On-screen settings showed primary Chinese and secondary English; unchanged languages.txt predated the baseline run.",
+    "legacy": false,
+    "battle": false,
+    "gallery": false,
+    "parallel_compilation": false,
+    "windows_measurement": false,
+    "os_cold_cache": false,
+    "code_released": false,
+    "provenance": "Operator-supplied context for this fixed 2026-10-25 measurement protocol."
+  },
+  "methodology": {
+    "protocol": "Item warm-up navigation ordinal0, then four scenarios in fixed order, five rounds; analyze ordinals1..20 only.",
+    "first": "First measured visit within each shared process after item warm-up; not fresh OS/disk cache.",
+    "warm": "Median/min/max of visits2..5 (four samples), computed independently for each metric.",
+    "preparation": "One outer list.publish or list.reload_board span. Nested query/rows/cards/model spans are never added to it.",
+    "first_render": "ui.update_to_render measures update start to rendering-notifier completion; not all images loaded or screen-present latency.",
+    "icon_paint": "First/last observed icon.paint callback completion relative to navigation. Counts are attempted target updates, including failures; not proof all images are present.",
+    "pending_batches": "Observed icon.decode minus icon.queue_wait starts; proxy for waiting UI callbacks, not guaranteed scheduler instrumentation.",
+    "attribution_limit": "Events attributed by navigation timestamp until next navigation or subsequent detail.open span start, whichever is first; final ordinal20 is additionally bounded to1000ms after navigation. This excludes later record-opening regression checks that have no navigation marker. Assumes protocol waits for outstanding jobs; nonzero pending count flags possible spillover.",
+    "event_loop_delay": "Only recorded delays in first500ms are summarized; timer reports delays >=20ms, so null means no recorded delay, not proven zero."
+  },
+  "before": {
+    "source": "docs/performance/2026-10-25/habitat-before.jsonl",
+    "trace_sha256": "340f58d9791dda1921a06fbabc403f6c22a5ec5d3973d9236764a077231d499f",
+    "process_id": 31784,
+    "included_navigation_ordinals": [
+      1,
+      20
+    ],
+    "excluded_warmup_navigation_ordinal": 0,
+    "excluded_later_navigation_count": 2,
+    "scenarios": [
+      {
+        "scenario": "monster_directory",
+        "label": "怪物目錄",
+        "first": {
+          "ordinal": 1,
+          "visit": 0,
+          "scenario": "monster_directory",
+          "label": "怪物目錄",
+          "navigation_stage": "navigation.monster",
+          "navigation_ms": 30580.202125,
+          "segment_end_ms": 31418.141208,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.publish",
+          "preparation_ms": 2.852875,
+          "update_to_first_render_ms": 25.601916,
+          "nav_to_first_render_ms": 25.600624999999127,
+          "first_frame_render_span_ms": 10.182958000000001,
+          "published_row_counts": [
+            127
+          ],
+          "queued_icon_jobs": 0,
+          "icon_paint_batches": 0,
+          "icon_paint_targets": 0,
+          "first_icon_paint_after_nav_ms": null,
+          "last_icon_paint_after_nav_ms": null,
+          "first_render_after_last_icon_paint_ms": null,
+          "max_icon_queue_wait_ms": null,
+          "max_icon_paint_batch_ms": null,
+          "max_pending_ui_batches": 0,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": 97.923333
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 3.2057709999999995,
+            "min": 2.666542,
+            "max": 3.5302089999999997
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 52.50518700000001,
+            "min": 46.9855,
+            "max": 57.677292
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 52.503791500013904,
+            "min": 46.98454199999105,
+            "max": 57.67637500001001
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 2.0900624999999997,
+            "min": 1.706459,
+            "max": 2.200333
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 2,
+            "median": 46.537229499999995,
+            "min": 40.458042,
+            "max": 52.616417
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 1,
+            "visit": 0,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 30580.202125,
+            "segment_end_ms": 31418.141208,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 2.852875,
+            "update_to_first_render_ms": 25.601916,
+            "nav_to_first_render_ms": 25.600624999999127,
+            "first_frame_render_span_ms": 10.182958000000001,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 97.923333
+          },
+          {
+            "ordinal": 5,
+            "visit": 1,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 170807.533917,
+            "segment_end_ms": 171420.673875,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 3.098292,
+            "update_to_first_render_ms": 57.677292,
+            "nav_to_first_render_ms": 57.67637500001001,
+            "first_frame_render_span_ms": 1.706459,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 40.458042
+          },
+          {
+            "ordinal": 9,
+            "visit": 2,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 173308.646333,
+            "segment_end_ms": 173894.689833,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 3.3132499999999996,
+            "update_to_first_render_ms": 53.114791000000004,
+            "nav_to_first_render_ms": 53.11337499998626,
+            "first_frame_render_span_ms": 2.186333,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 13,
+            "visit": 3,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 175731.30800000002,
+            "segment_end_ms": 176320.89308299997,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 2.666542,
+            "update_to_first_render_ms": 46.9855,
+            "nav_to_first_render_ms": 46.98454199999105,
+            "first_frame_render_span_ms": 2.200333,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 17,
+            "visit": 4,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 178104.99991699998,
+            "segment_end_ms": 178724.8405,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 3.5302089999999997,
+            "update_to_first_render_ms": 51.895583,
+            "nav_to_first_render_ms": 51.894208000041544,
+            "first_frame_render_span_ms": 1.9937919999999998,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 52.616417
+          }
+        ]
+      },
+      {
+        "scenario": "black_merchant_camp",
+        "label": "黑色商團營地",
+        "first": {
+          "ordinal": 2,
+          "visit": 0,
+          "scenario": "black_merchant_camp",
+          "label": "黑色商團營地",
+          "navigation_stage": "navigation.monster",
+          "navigation_ms": 31418.141208,
+          "segment_end_ms": 169420.538042,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.reload_board",
+          "preparation_ms": 9.353958,
+          "update_to_first_render_ms": 31.434499999999996,
+          "nav_to_first_render_ms": 31.426374999999098,
+          "first_frame_render_span_ms": 18.80625,
+          "published_row_counts": [
+            12
+          ],
+          "queued_icon_jobs": 154,
+          "icon_paint_batches": 6,
+          "icon_paint_targets": 154,
+          "first_icon_paint_after_nav_ms": 36.64062499999636,
+          "last_icon_paint_after_nav_ms": 37.05349999999817,
+          "first_render_after_last_icon_paint_ms": 42.34687499999927,
+          "max_icon_queue_wait_ms": 18.346542,
+          "max_icon_paint_batch_ms": 0.11620799999999999,
+          "max_pending_ui_batches": 6,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": null
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 0.988021,
+            "min": 0.8758750000000001,
+            "max": 1.375375
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 11.5507295,
+            "min": 10.409958,
+            "max": 13.5885
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 11.550458500016248,
+            "min": 10.409333999996306,
+            "max": 13.588000000017928
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 8.367313,
+            "min": 7.882667,
+            "max": 9.800457999999999
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 1,
+            "median": 25.691916,
+            "min": 25.691916,
+            "max": 25.691916
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 2,
+            "visit": 0,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 31418.141208,
+            "segment_end_ms": 169420.538042,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 9.353958,
+            "update_to_first_render_ms": 31.434499999999996,
+            "nav_to_first_render_ms": 31.426374999999098,
+            "first_frame_render_span_ms": 18.80625,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 154,
+            "icon_paint_batches": 6,
+            "icon_paint_targets": 154,
+            "first_icon_paint_after_nav_ms": 36.64062499999636,
+            "last_icon_paint_after_nav_ms": 37.05349999999817,
+            "first_render_after_last_icon_paint_ms": 42.34687499999927,
+            "max_icon_queue_wait_ms": 18.346542,
+            "max_icon_paint_batch_ms": 0.11620799999999999,
+            "max_pending_ui_batches": 6,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 6,
+            "visit": 1,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 171420.673875,
+            "segment_end_ms": 172028.38145800002,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 1.375375,
+            "update_to_first_render_ms": 11.21725,
+            "nav_to_first_render_ms": 11.217042000003858,
+            "first_frame_render_span_ms": 8.743459,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 25.691916
+          },
+          {
+            "ordinal": 10,
+            "visit": 2,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 173894.689833,
+            "segment_end_ms": 174466.355833,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 0.931417,
+            "update_to_first_render_ms": 10.409958,
+            "nav_to_first_render_ms": 10.409333999996306,
+            "first_frame_render_span_ms": 7.991167000000001,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 14,
+            "visit": 3,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 176320.89308299997,
+            "segment_end_ms": 176919.336542,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 0.8758750000000001,
+            "update_to_first_render_ms": 11.884209,
+            "nav_to_first_render_ms": 11.883875000028638,
+            "first_frame_render_span_ms": 9.800457999999999,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 18,
+            "visit": 4,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 178724.8405,
+            "segment_end_ms": 179320.526,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 1.044625,
+            "update_to_first_render_ms": 13.5885,
+            "nav_to_first_render_ms": 13.588000000017928,
+            "first_frame_render_span_ms": 7.882667,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          }
+        ]
+      },
+      {
+        "scenario": "item_entry",
+        "label": "道具入口",
+        "first": {
+          "ordinal": 3,
+          "visit": 0,
+          "scenario": "item_entry",
+          "label": "道具入口",
+          "navigation_stage": "navigation.item",
+          "navigation_ms": 169420.538042,
+          "segment_end_ms": 170106.012708,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.publish",
+          "preparation_ms": 12.698208000000001,
+          "update_to_first_render_ms": 46.579625,
+          "nav_to_first_render_ms": 46.57416600000579,
+          "first_frame_render_span_ms": 9.296875,
+          "published_row_counts": [
+            27,
+            169
+          ],
+          "queued_icon_jobs": 0,
+          "icon_paint_batches": 0,
+          "icon_paint_targets": 0,
+          "first_icon_paint_after_nav_ms": null,
+          "last_icon_paint_after_nav_ms": null,
+          "first_render_after_last_icon_paint_ms": null,
+          "max_icon_queue_wait_ms": null,
+          "max_icon_paint_batch_ms": null,
+          "max_pending_ui_batches": 0,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": 36.522416
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 3.9829375,
+            "min": 2.8815,
+            "max": 5.46075
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 20.9139165,
+            "min": 19.616166,
+            "max": 24.640083999999998
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 20.912166999987676,
+            "min": 19.61479099999997,
+            "max": 24.638999999966472
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 4.6000625,
+            "min": 3.656083,
+            "max": 5.961208
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 3,
+            "visit": 0,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 169420.538042,
+            "segment_end_ms": 170106.012708,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 12.698208000000001,
+            "update_to_first_render_ms": 46.579625,
+            "nav_to_first_render_ms": 46.57416600000579,
+            "first_frame_render_span_ms": 9.296875,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 36.522416
+          },
+          {
+            "ordinal": 7,
+            "visit": 1,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 172028.38145800002,
+            "segment_end_ms": 172606.398042,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 4.84075,
+            "update_to_first_render_ms": 24.640083999999998,
+            "nav_to_first_render_ms": 24.638999999966472,
+            "first_frame_render_span_ms": 5.961208,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 11,
+            "visit": 2,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 174466.355833,
+            "segment_end_ms": 175024.201125,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 5.46075,
+            "update_to_first_render_ms": 20.910333,
+            "nav_to_first_render_ms": 20.90791700000409,
+            "first_frame_render_span_ms": 3.656083,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 15,
+            "visit": 3,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 176919.336542,
+            "segment_end_ms": 177469.0005,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 3.1251249999999997,
+            "update_to_first_render_ms": 19.616166,
+            "nav_to_first_render_ms": 19.61479099999997,
+            "first_frame_render_span_ms": 3.8192500000000003,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 19,
+            "visit": 4,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 179320.526,
+            "segment_end_ms": 179886.863708,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 2.8815,
+            "update_to_first_render_ms": 20.917499999999997,
+            "nav_to_first_render_ms": 20.91641699997126,
+            "first_frame_render_span_ms": 5.3808750000000005,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          }
+        ]
+      },
+      {
+        "scenario": "item_materials",
+        "label": "道具材料",
+        "first": {
+          "ordinal": 4,
+          "visit": 0,
+          "scenario": "item_materials",
+          "label": "道具材料",
+          "navigation_stage": "navigation.item",
+          "navigation_ms": 170106.012708,
+          "segment_end_ms": 170807.533917,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.reload_board",
+          "preparation_ms": 8.495916,
+          "update_to_first_render_ms": 78.12091699999999,
+          "nav_to_first_render_ms": 78.1198339999828,
+          "first_frame_render_span_ms": 12.794291,
+          "published_row_counts": [
+            1920
+          ],
+          "queued_icon_jobs": 1867,
+          "icon_paint_batches": 60,
+          "icon_paint_targets": 1867,
+          "first_icon_paint_after_nav_ms": 81.25766699999804,
+          "last_icon_paint_after_nav_ms": 90.75708400001167,
+          "first_render_after_last_icon_paint_ms": 149.74116700002924,
+          "max_icon_queue_wait_ms": 70.484875,
+          "max_icon_paint_batch_ms": 0.8465,
+          "max_pending_ui_batches": 60,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": 127.04729200000001
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 6.802125,
+            "min": 6.736416,
+            "max": 6.946666
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 59.620771,
+            "min": 56.684916,
+            "max": 61.326541999999996
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 59.61989600001834,
+            "min": 56.68370799999684,
+            "max": 61.3253749999858
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 3.6094999999999997,
+            "min": 3.094917,
+            "max": 4.324458
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 4,
+            "median": 73.7558335,
+            "min": 33.964417,
+            "max": 87.748875
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 4,
+            "visit": 0,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 170106.012708,
+            "segment_end_ms": 170807.533917,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 8.495916,
+            "update_to_first_render_ms": 78.12091699999999,
+            "nav_to_first_render_ms": 78.1198339999828,
+            "first_frame_render_span_ms": 12.794291,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 1867,
+            "icon_paint_batches": 60,
+            "icon_paint_targets": 1867,
+            "first_icon_paint_after_nav_ms": 81.25766699999804,
+            "last_icon_paint_after_nav_ms": 90.75708400001167,
+            "first_render_after_last_icon_paint_ms": 149.74116700002924,
+            "max_icon_queue_wait_ms": 70.484875,
+            "max_icon_paint_batch_ms": 0.8465,
+            "max_pending_ui_batches": 60,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 127.04729200000001
+          },
+          {
+            "ordinal": 8,
+            "visit": 1,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 172606.398042,
+            "segment_end_ms": 173308.646333,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.736416,
+            "update_to_first_render_ms": 60.311249999999994,
+            "nav_to_first_render_ms": 60.310250000009546,
+            "first_frame_render_span_ms": 3.5041249999999997,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 87.748875
+          },
+          {
+            "ordinal": 12,
+            "visit": 2,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 175024.201125,
+            "segment_end_ms": 175731.30800000002,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.946666,
+            "update_to_first_render_ms": 56.684916,
+            "nav_to_first_render_ms": 56.68370799999684,
+            "first_frame_render_span_ms": 3.094917,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 33.964417
+          },
+          {
+            "ordinal": 16,
+            "visit": 3,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 177469.0005,
+            "segment_end_ms": 178104.99991699998,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.831834,
+            "update_to_first_render_ms": 61.326541999999996,
+            "nav_to_first_render_ms": 61.3253749999858,
+            "first_frame_render_span_ms": 4.324458,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 66.073917
+          },
+          {
+            "ordinal": 20,
+            "visit": 4,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 179886.863708,
+            "segment_end_ms": 180886.863708,
+            "segment_end_reason": "final_visit_1000ms_observation_window",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.772416,
+            "update_to_first_render_ms": 58.930292,
+            "nav_to_first_render_ms": 58.92954200002714,
+            "first_frame_render_span_ms": 3.7148749999999997,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 81.43775000000001
+          }
+        ]
+      }
+    ]
+  },
+  "after": {
+    "source": "docs/performance/2026-10-25/habitat-after.jsonl",
+    "trace_sha256": "f9c4ec71aebc3fc2124b69ec27a3e586c8c3ba71c57d44e54a55867468c5c350",
+    "process_id": 37054,
+    "included_navigation_ordinals": [
+      1,
+      20
+    ],
+    "excluded_warmup_navigation_ordinal": 0,
+    "excluded_later_navigation_count": 11,
+    "scenarios": [
+      {
+        "scenario": "monster_directory",
+        "label": "怪物目錄",
+        "first": {
+          "ordinal": 1,
+          "visit": 0,
+          "scenario": "monster_directory",
+          "label": "怪物目錄",
+          "navigation_stage": "navigation.monster",
+          "navigation_ms": 8104.163458,
+          "segment_end_ms": 8669.523167,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.publish",
+          "preparation_ms": 2.626584,
+          "update_to_first_render_ms": 16.523333,
+          "nav_to_first_render_ms": 16.52233399999932,
+          "first_frame_render_span_ms": 7.787833,
+          "published_row_counts": [
+            127
+          ],
+          "queued_icon_jobs": 0,
+          "icon_paint_batches": 0,
+          "icon_paint_targets": 0,
+          "first_icon_paint_after_nav_ms": null,
+          "last_icon_paint_after_nav_ms": null,
+          "first_render_after_last_icon_paint_ms": null,
+          "max_icon_queue_wait_ms": null,
+          "max_icon_paint_batch_ms": null,
+          "max_pending_ui_batches": 0,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": null
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 2.5453959999999998,
+            "min": 1.311834,
+            "max": 2.692292
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 15.054103999999999,
+            "min": 9.780875,
+            "max": 15.625457999999998
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 15.053103999999621,
+            "min": 9.779832999998689,
+            "max": 15.623500000001513
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 2.0646875,
+            "min": 1.105417,
+            "max": 2.695792
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 1,
+            "median": 22.372625,
+            "min": 22.372625,
+            "max": 22.372625
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 1,
+            "visit": 0,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 8104.163458,
+            "segment_end_ms": 8669.523167,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 2.626584,
+            "update_to_first_render_ms": 16.523333,
+            "nav_to_first_render_ms": 16.52233399999932,
+            "first_frame_render_span_ms": 7.787833,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 5,
+            "visit": 1,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 10240.108292,
+            "segment_end_ms": 10726.208,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 1.311834,
+            "update_to_first_render_ms": 9.780875,
+            "nav_to_first_render_ms": 9.779832999998689,
+            "first_frame_render_span_ms": 1.105417,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 9,
+            "visit": 2,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 12267.193667000001,
+            "segment_end_ms": 12796.586041999999,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 2.692292,
+            "update_to_first_render_ms": 15.405792,
+            "nav_to_first_render_ms": 15.404874999998356,
+            "first_frame_render_span_ms": 2.695792,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 13,
+            "visit": 3,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 14368.034875,
+            "segment_end_ms": 14848.029332999999,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 2.5127499999999996,
+            "update_to_first_render_ms": 14.702416,
+            "nav_to_first_render_ms": 14.701333000000886,
+            "first_frame_render_span_ms": 1.773125,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 17,
+            "visit": 4,
+            "scenario": "monster_directory",
+            "label": "怪物目錄",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 16413.396708,
+            "segment_end_ms": 16939.764541999997,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 2.578042,
+            "update_to_first_render_ms": 15.625457999999998,
+            "nav_to_first_render_ms": 15.623500000001513,
+            "first_frame_render_span_ms": 2.3562499999999997,
+            "published_row_counts": [
+              127
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 22.372625
+          }
+        ]
+      },
+      {
+        "scenario": "black_merchant_camp",
+        "label": "黑色商團營地",
+        "first": {
+          "ordinal": 2,
+          "visit": 0,
+          "scenario": "black_merchant_camp",
+          "label": "黑色商團營地",
+          "navigation_stage": "navigation.monster",
+          "navigation_ms": 8669.523167,
+          "segment_end_ms": 9198.934041999999,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.reload_board",
+          "preparation_ms": 6.515458,
+          "update_to_first_render_ms": 26.732625,
+          "nav_to_first_render_ms": 26.73162500000035,
+          "first_frame_render_span_ms": 16.514917,
+          "published_row_counts": [
+            12
+          ],
+          "queued_icon_jobs": 83,
+          "icon_paint_batches": 4,
+          "icon_paint_targets": 83,
+          "first_icon_paint_after_nav_ms": 36.99920800000109,
+          "last_icon_paint_after_nav_ms": 46.627041000001554,
+          "first_render_after_last_icon_paint_ms": 54.43741600000067,
+          "max_icon_queue_wait_ms": 19.088583,
+          "max_icon_paint_batch_ms": 0.249291,
+          "max_pending_ui_batches": 1,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": null
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 0.991979,
+            "min": 0.9536250000000001,
+            "max": 1.039708
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 14.413124999999999,
+            "min": 10.451458,
+            "max": 14.828583
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 14.412750000001324,
+            "min": 10.451041999998779,
+            "max": 14.828333000001294
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 7.149542,
+            "min": 6.679167,
+            "max": 7.921625
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 2,
+            "visit": 0,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 8669.523167,
+            "segment_end_ms": 9198.934041999999,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.515458,
+            "update_to_first_render_ms": 26.732625,
+            "nav_to_first_render_ms": 26.73162500000035,
+            "first_frame_render_span_ms": 16.514917,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 83,
+            "icon_paint_batches": 4,
+            "icon_paint_targets": 83,
+            "first_icon_paint_after_nav_ms": 36.99920800000109,
+            "last_icon_paint_after_nav_ms": 46.627041000001554,
+            "first_render_after_last_icon_paint_ms": 54.43741600000067,
+            "max_icon_queue_wait_ms": 19.088583,
+            "max_icon_paint_batch_ms": 0.249291,
+            "max_pending_ui_batches": 1,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 6,
+            "visit": 1,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 10726.208,
+            "segment_end_ms": 11272.028499999999,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 0.9921660000000001,
+            "update_to_first_render_ms": 10.451458,
+            "nav_to_first_render_ms": 10.451041999998779,
+            "first_frame_render_span_ms": 6.8045420000000005,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 10,
+            "visit": 2,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 12796.586041999999,
+            "segment_end_ms": 13321.805708,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 0.9536250000000001,
+            "update_to_first_render_ms": 14.31725,
+            "nav_to_first_render_ms": 14.316791000001103,
+            "first_frame_render_span_ms": 6.679167,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 14,
+            "visit": 3,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 14848.029332999999,
+            "segment_end_ms": 15372.065083000001,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 0.991792,
+            "update_to_first_render_ms": 14.508999999999999,
+            "nav_to_first_render_ms": 14.508709000001545,
+            "first_frame_render_span_ms": 7.494542,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 18,
+            "visit": 4,
+            "scenario": "black_merchant_camp",
+            "label": "黑色商團營地",
+            "navigation_stage": "navigation.monster",
+            "navigation_ms": 16939.764541999997,
+            "segment_end_ms": 17463.201833,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 1.039708,
+            "update_to_first_render_ms": 14.828583,
+            "nav_to_first_render_ms": 14.828333000001294,
+            "first_frame_render_span_ms": 7.921625,
+            "published_row_counts": [
+              12
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          }
+        ]
+      },
+      {
+        "scenario": "item_entry",
+        "label": "道具入口",
+        "first": {
+          "ordinal": 3,
+          "visit": 0,
+          "scenario": "item_entry",
+          "label": "道具入口",
+          "navigation_stage": "navigation.item",
+          "navigation_ms": 9198.934041999999,
+          "segment_end_ms": 9736.71975,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.publish",
+          "preparation_ms": 1.731791,
+          "update_to_first_render_ms": 9.727708,
+          "nav_to_first_render_ms": 9.72662500000115,
+          "first_frame_render_span_ms": 2.048667,
+          "published_row_counts": [
+            27,
+            169
+          ],
+          "queued_icon_jobs": 0,
+          "icon_paint_batches": 0,
+          "icon_paint_targets": 0,
+          "first_icon_paint_after_nav_ms": null,
+          "last_icon_paint_after_nav_ms": null,
+          "first_render_after_last_icon_paint_ms": null,
+          "max_icon_queue_wait_ms": null,
+          "max_icon_paint_batch_ms": null,
+          "max_pending_ui_batches": 0,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": null
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 1.4261875000000002,
+            "min": 1.409916,
+            "max": 1.476291
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 11.957583,
+            "min": 11.351666999999999,
+            "max": 12.660042
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 11.956854499999281,
+            "min": 11.350750000001426,
+            "max": 12.659333999999944
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 2.3597085,
+            "min": 2.113416,
+            "max": 2.746417
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 3,
+            "visit": 0,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 9198.934041999999,
+            "segment_end_ms": 9736.71975,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 1.731791,
+            "update_to_first_render_ms": 9.727708,
+            "nav_to_first_render_ms": 9.72662500000115,
+            "first_frame_render_span_ms": 2.048667,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 7,
+            "visit": 1,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 11272.028499999999,
+            "segment_end_ms": 11769.476542,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 1.409916,
+            "update_to_first_render_ms": 11.351666999999999,
+            "nav_to_first_render_ms": 11.350750000001426,
+            "first_frame_render_span_ms": 2.124917,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 11,
+            "visit": 2,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 13321.805708,
+            "segment_end_ms": 13838.462625,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 1.423,
+            "update_to_first_render_ms": 12.660042,
+            "nav_to_first_render_ms": 12.659333999999944,
+            "first_frame_render_span_ms": 2.746417,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 15,
+            "visit": 3,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 15372.065083000001,
+            "segment_end_ms": 15875.611417,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 1.476291,
+            "update_to_first_render_ms": 11.38875,
+            "nav_to_first_render_ms": 11.387958999997863,
+            "first_frame_render_span_ms": 2.113416,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 19,
+            "visit": 4,
+            "scenario": "item_entry",
+            "label": "道具入口",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 17463.201833,
+            "segment_end_ms": 17993.449417,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.publish",
+            "preparation_ms": 1.429375,
+            "update_to_first_render_ms": 12.526416000000001,
+            "nav_to_first_render_ms": 12.525750000000698,
+            "first_frame_render_span_ms": 2.5945,
+            "published_row_counts": [
+              27,
+              169
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          }
+        ]
+      },
+      {
+        "scenario": "item_materials",
+        "label": "道具材料",
+        "first": {
+          "ordinal": 4,
+          "visit": 0,
+          "scenario": "item_materials",
+          "label": "道具材料",
+          "navigation_stage": "navigation.item",
+          "navigation_ms": 9736.71975,
+          "segment_end_ms": 10240.108292,
+          "segment_end_reason": "next_navigation",
+          "parent_span": "list.reload_board",
+          "preparation_ms": 6.717333,
+          "update_to_first_render_ms": 37.48775,
+          "nav_to_first_render_ms": 37.48712500000147,
+          "first_frame_render_span_ms": 7.793459,
+          "published_row_counts": [
+            1920
+          ],
+          "queued_icon_jobs": 1867,
+          "icon_paint_batches": 59,
+          "icon_paint_targets": 1867,
+          "first_icon_paint_after_nav_ms": 8.316417000000001,
+          "last_icon_paint_after_nav_ms": 314.9782500000001,
+          "first_render_after_last_icon_paint_ms": 320.14416699999856,
+          "max_icon_queue_wait_ms": 27.934125,
+          "max_icon_paint_batch_ms": 0.623666,
+          "max_pending_ui_batches": 1,
+          "pending_batches_at_next_navigation": 0,
+          "max_event_loop_delay_first_500ms": null
+        },
+        "warm_samples": 4,
+        "warm": {
+          "preparation_ms": {
+            "samples": 4,
+            "median": 6.7565,
+            "min": 6.308292,
+            "max": 6.85325
+          },
+          "update_to_first_render_ms": {
+            "samples": 4,
+            "median": 34.7941045,
+            "min": 31.976249999999997,
+            "max": 36.922042000000005
+          },
+          "nav_to_first_render_ms": {
+            "samples": 4,
+            "median": 34.79320849999931,
+            "min": 31.975374999999985,
+            "max": 36.920915999999124
+          },
+          "first_frame_render_span_ms": {
+            "samples": 4,
+            "median": 2.8670205,
+            "min": 2.608458,
+            "max": 3.463708
+          },
+          "queued_icon_jobs": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "icon_paint_targets": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "last_icon_paint_after_nav_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_queue_wait_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_icon_paint_batch_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_pending_ui_batches": {
+            "samples": 4,
+            "median": 0.0,
+            "min": 0,
+            "max": 0
+          },
+          "first_render_after_last_icon_paint_ms": {
+            "samples": 0,
+            "median": null,
+            "min": null,
+            "max": null
+          },
+          "max_event_loop_delay_first_500ms": {
+            "samples": 1,
+            "median": 27.860375,
+            "min": 27.860375,
+            "max": 27.860375
+          }
+        },
+        "visits": [
+          {
+            "ordinal": 4,
+            "visit": 0,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 9736.71975,
+            "segment_end_ms": 10240.108292,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.717333,
+            "update_to_first_render_ms": 37.48775,
+            "nav_to_first_render_ms": 37.48712500000147,
+            "first_frame_render_span_ms": 7.793459,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 1867,
+            "icon_paint_batches": 59,
+            "icon_paint_targets": 1867,
+            "first_icon_paint_after_nav_ms": 8.316417000000001,
+            "last_icon_paint_after_nav_ms": 314.9782500000001,
+            "first_render_after_last_icon_paint_ms": 320.14416699999856,
+            "max_icon_queue_wait_ms": 27.934125,
+            "max_icon_paint_batch_ms": 0.623666,
+            "max_pending_ui_batches": 1,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 8,
+            "visit": 1,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 11769.476542,
+            "segment_end_ms": 12267.193667000001,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.768084,
+            "update_to_first_render_ms": 36.559209,
+            "nav_to_first_render_ms": 36.558250000000044,
+            "first_frame_render_span_ms": 3.463708,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": 27.860375
+          },
+          {
+            "ordinal": 12,
+            "visit": 2,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 13838.462625,
+            "segment_end_ms": 14368.034875,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.744916,
+            "update_to_first_render_ms": 33.029,
+            "nav_to_first_render_ms": 33.028166999998575,
+            "first_frame_render_span_ms": 2.7914160000000003,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 16,
+            "visit": 3,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 15875.611417,
+            "segment_end_ms": 16413.396708,
+            "segment_end_reason": "next_navigation",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.85325,
+            "update_to_first_render_ms": 31.976249999999997,
+            "nav_to_first_render_ms": 31.975374999999985,
+            "first_frame_render_span_ms": 2.608458,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          },
+          {
+            "ordinal": 20,
+            "visit": 4,
+            "scenario": "item_materials",
+            "label": "道具材料",
+            "navigation_stage": "navigation.item",
+            "navigation_ms": 17993.449417,
+            "segment_end_ms": 18993.449417,
+            "segment_end_reason": "final_visit_1000ms_observation_window",
+            "parent_span": "list.reload_board",
+            "preparation_ms": 6.308292,
+            "update_to_first_render_ms": 36.922042000000005,
+            "nav_to_first_render_ms": 36.920915999999124,
+            "first_frame_render_span_ms": 2.942625,
+            "published_row_counts": [
+              1920
+            ],
+            "queued_icon_jobs": 0,
+            "icon_paint_batches": 0,
+            "icon_paint_targets": 0,
+            "first_icon_paint_after_nav_ms": null,
+            "last_icon_paint_after_nav_ms": null,
+            "first_render_after_last_icon_paint_ms": null,
+            "max_icon_queue_wait_ms": null,
+            "max_icon_paint_batch_ms": null,
+            "max_pending_ui_batches": 0,
+            "pending_batches_at_next_navigation": 0,
+            "max_event_loop_delay_first_500ms": null
+          }
+        ]
+      }
+    ]
+  },
+  "comparison": [
+    {
+      "scenario": "monster_directory",
+      "first_delta_after_minus_before": {
+        "preparation_ms": -0.22629100000000024,
+        "update_to_first_render_ms": -9.078582999999998,
+        "nav_to_first_render_ms": -9.078290999999808,
+        "first_frame_render_span_ms": -2.395125000000001,
+        "queued_icon_jobs": 0,
+        "icon_paint_batches": 0,
+        "icon_paint_targets": 0,
+        "first_icon_paint_after_nav_ms": null,
+        "last_icon_paint_after_nav_ms": null,
+        "max_icon_queue_wait_ms": null,
+        "max_icon_paint_batch_ms": null,
+        "max_pending_ui_batches": 0,
+        "first_render_after_last_icon_paint_ms": null,
+        "max_event_loop_delay_first_500ms": null
+      },
+      "warm_median_delta_after_minus_before": {
+        "preparation_ms": -0.6603749999999997,
+        "update_to_first_render_ms": -37.45108300000001,
+        "nav_to_first_render_ms": -37.45068750001428,
+        "first_frame_render_span_ms": -0.025374999999999925,
+        "queued_icon_jobs": 0.0,
+        "icon_paint_batches": 0.0,
+        "icon_paint_targets": 0.0,
+        "first_icon_paint_after_nav_ms": null,
+        "last_icon_paint_after_nav_ms": null,
+        "max_icon_queue_wait_ms": null,
+        "max_icon_paint_batch_ms": null,
+        "max_pending_ui_batches": 0.0,
+        "first_render_after_last_icon_paint_ms": null,
+        "max_event_loop_delay_first_500ms": -24.164604499999996
+      }
+    },
+    {
+      "scenario": "black_merchant_camp",
+      "first_delta_after_minus_before": {
+        "preparation_ms": -2.8385000000000007,
+        "update_to_first_render_ms": -4.701874999999998,
+        "nav_to_first_render_ms": -4.6947499999987485,
+        "first_frame_render_span_ms": -2.291332999999998,
+        "queued_icon_jobs": -71,
+        "icon_paint_batches": -2,
+        "icon_paint_targets": -71,
+        "first_icon_paint_after_nav_ms": 0.3585830000047281,
+        "last_icon_paint_after_nav_ms": 9.573541000003388,
+        "max_icon_queue_wait_ms": 0.7420410000000004,
+        "max_icon_paint_batch_ms": 0.133083,
+        "max_pending_ui_batches": -5,
+        "first_render_after_last_icon_paint_ms": 12.090541000001394,
+        "max_event_loop_delay_first_500ms": null
+      },
+      "warm_median_delta_after_minus_before": {
+        "preparation_ms": 0.003958000000000017,
+        "update_to_first_render_ms": 2.8623955,
+        "nav_to_first_render_ms": 2.8622914999850764,
+        "first_frame_render_span_ms": -1.217770999999999,
+        "queued_icon_jobs": 0.0,
+        "icon_paint_batches": 0.0,
+        "icon_paint_targets": 0.0,
+        "first_icon_paint_after_nav_ms": null,
+        "last_icon_paint_after_nav_ms": null,
+        "max_icon_queue_wait_ms": null,
+        "max_icon_paint_batch_ms": null,
+        "max_pending_ui_batches": 0.0,
+        "first_render_after_last_icon_paint_ms": null,
+        "max_event_loop_delay_first_500ms": null
+      }
+    },
+    {
+      "scenario": "item_entry",
+      "first_delta_after_minus_before": {
+        "preparation_ms": -10.966417000000002,
+        "update_to_first_render_ms": -36.851917,
+        "nav_to_first_render_ms": -36.84754100000464,
+        "first_frame_render_span_ms": -7.248208,
+        "queued_icon_jobs": 0,
+        "icon_paint_batches": 0,
+        "icon_paint_targets": 0,
+        "first_icon_paint_after_nav_ms": null,
+        "last_icon_paint_after_nav_ms": null,
+        "max_icon_queue_wait_ms": null,
+        "max_icon_paint_batch_ms": null,
+        "max_pending_ui_batches": 0,
+        "first_render_after_last_icon_paint_ms": null,
+        "max_event_loop_delay_first_500ms": null
+      },
+      "warm_median_delta_after_minus_before": {
+        "preparation_ms": -2.5567499999999996,
+        "update_to_first_render_ms": -8.9563335,
+        "nav_to_first_render_ms": -8.955312499988395,
+        "first_frame_render_span_ms": -2.240354,
+        "queued_icon_jobs": 0.0,
+        "icon_paint_batches": 0.0,
+        "icon_paint_targets": 0.0,
+        "first_icon_paint_after_nav_ms": null,
+        "last_icon_paint_after_nav_ms": null,
+        "max_icon_queue_wait_ms": null,
+        "max_icon_paint_batch_ms": null,
+        "max_pending_ui_batches": 0.0,
+        "first_render_after_last_icon_paint_ms": null,
+        "max_event_loop_delay_first_500ms": null
+      }
+    },
+    {
+      "scenario": "item_materials",
+      "first_delta_after_minus_before": {
+        "preparation_ms": -1.7785829999999994,
+        "update_to_first_render_ms": -40.63316699999999,
+        "nav_to_first_render_ms": -40.63270899998133,
+        "first_frame_render_span_ms": -5.000831999999999,
+        "queued_icon_jobs": 0,
+        "icon_paint_batches": -1,
+        "icon_paint_targets": 0,
+        "first_icon_paint_after_nav_ms": -72.94124999999804,
+        "last_icon_paint_after_nav_ms": 224.22116599998844,
+        "max_icon_queue_wait_ms": -42.55075,
+        "max_icon_paint_batch_ms": -0.22283399999999998,
+        "max_pending_ui_batches": -59,
+        "first_render_after_last_icon_paint_ms": 170.40299999996932,
+        "max_event_loop_delay_first_500ms": null
+      },
+      "warm_median_delta_after_minus_before": {
+        "preparation_ms": -0.04562500000000025,
+        "update_to_first_render_ms": -24.826666499999995,
+        "nav_to_first_render_ms": -24.826687500019034,
+        "first_frame_render_span_ms": -0.7424794999999995,
+        "queued_icon_jobs": 0.0,
+        "icon_paint_batches": 0.0,
+        "icon_paint_targets": 0.0,
+        "first_icon_paint_after_nav_ms": null,
+        "last_icon_paint_after_nav_ms": null,
+        "max_icon_queue_wait_ms": null,
+        "max_icon_paint_batch_ms": null,
+        "max_pending_ui_batches": 0.0,
+        "first_render_after_last_icon_paint_ms": null,
+        "max_event_loop_delay_first_500ms": -45.89545849999999
+      }
+    }
+  ]
+}

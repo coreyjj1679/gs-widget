@@ -1,0 +1,836 @@
+{
+  "arch": "aarch64",
+  "debug_assertions": false,
+  "image_candidates": 4291,
+  "image_decode_failures_across_samples": 0,
+  "image_sample": 1000,
+  "measurements": [
+    {
+      "count": 1,
+      "max_ms": 291.391333,
+      "median_ms": 291.391333,
+      "min_ms": 291.391333,
+      "samples": 1,
+      "scenario": "catalog.open"
+    },
+    {
+      "count": 1000,
+      "max_ms": 19.448166999999998,
+      "median_ms": 19.448166999999998,
+      "min_ms": 19.448166999999998,
+      "samples": 1,
+      "scenario": "icons.cold"
+    },
+    {
+      "count": 844,
+      "max_ms": 19.780874999999998,
+      "median_ms": 13.865374999999998,
+      "min_ms": 13.751792,
+      "samples": 5,
+      "scenario": "monsters.cards"
+    },
+    {
+      "count": 7951,
+      "max_ms": 7.873082999999999,
+      "median_ms": 5.397333,
+      "min_ms": 5.116083,
+      "samples": 5,
+      "scenario": "search.item.en"
+    },
+    {
+      "count": 1,
+      "max_ms": 3.438292,
+      "median_ms": 3.3297079999999997,
+      "min_ms": 3.204084,
+      "samples": 5,
+      "scenario": "search.item.fuzzy"
+    },
+    {
+      "count": 109,
+      "max_ms": 8.157124999999999,
+      "median_ms": 3.103958,
+      "min_ms": 3.075,
+      "samples": 5,
+      "scenario": "search.patch.zh"
+    },
+    {
+      "count": 810,
+      "max_ms": 2.3832910000000003,
+      "median_ms": 2.187334,
+      "min_ms": 2.0467079999999997,
+      "samples": 5,
+      "scenario": "monsters.filter"
+    },
+    {
+      "count": 124,
+      "max_ms": 1.9289159999999999,
+      "median_ms": 1.774458,
+      "min_ms": 1.72975,
+      "samples": 5,
+      "scenario": "regions.search"
+    },
+    {
+      "count": 933,
+      "max_ms": 1.843709,
+      "median_ms": 1.7227080000000001,
+      "min_ms": 1.64625,
+      "samples": 5,
+      "scenario": "search.quest.en"
+    },
+    {
+      "count": 4347,
+      "max_ms": 1.9078330000000001,
+      "median_ms": 1.384292,
+      "min_ms": 1.3402500000000002,
+      "samples": 5,
+      "scenario": "section.realm:china"
+    },
+    {
+      "count": 1803,
+      "max_ms": 1.209209,
+      "median_ms": 1.103125,
+      "min_ms": 0.959083,
+      "samples": 5,
+      "scenario": "search.recipe.en"
+    },
+    {
+      "count": 1133,
+      "max_ms": 0.967541,
+      "median_ms": 0.943125,
+      "min_ms": 0.876625,
+      "samples": 5,
+      "scenario": "search.npc.en"
+    },
+    {
+      "count": 580,
+      "max_ms": 14.667416000000001,
+      "median_ms": 0.879334,
+      "min_ms": 0.846125,
+      "samples": 5,
+      "scenario": "search.patch.en"
+    },
+    {
+      "count": 27,
+      "max_ms": 1.266666,
+      "median_ms": 0.785834,
+      "min_ms": 0.7665000000000001,
+      "samples": 5,
+      "scenario": "search.item.root"
+    },
+    {
+      "count": 1920,
+      "max_ms": 0.7585,
+      "median_ms": 0.694083,
+      "min_ms": 0.664916,
+      "samples": 5,
+      "scenario": "section.icat:E"
+    },
+    {
+      "count": 581,
+      "max_ms": 1.267,
+      "median_ms": 0.659667,
+      "min_ms": 0.649083,
+      "samples": 5,
+      "scenario": "search.patch.root"
+    },
+    {
+      "count": 1741,
+      "max_ms": 0.623584,
+      "median_ms": 0.6132909999999999,
+      "min_ms": 0.604459,
+      "samples": 5,
+      "scenario": "section.icat:I"
+    },
+    {
+      "count": 1133,
+      "max_ms": 0.6065,
+      "median_ms": 0.577041,
+      "min_ms": 0.571833,
+      "samples": 5,
+      "scenario": "search.npc.root"
+    },
+    {
+      "count": 76,
+      "max_ms": 0.571167,
+      "median_ms": 0.562791,
+      "min_ms": 0.538541,
+      "samples": 5,
+      "scenario": "search.quest.zh"
+    },
+    {
+      "count": 125,
+      "max_ms": 0.627875,
+      "median_ms": 0.52925,
+      "min_ms": 0.476875,
+      "samples": 5,
+      "scenario": "regions.all"
+    },
+    {
+      "count": 223,
+      "max_ms": 0.912875,
+      "median_ms": 0.513833,
+      "min_ms": 0.476041,
+      "samples": 5,
+      "scenario": "search.item.zh"
+    },
+    {
+      "count": 1385,
+      "max_ms": 0.5042920000000001,
+      "median_ms": 0.48899999999999993,
+      "min_ms": 0.487292,
+      "samples": 5,
+      "scenario": "section.icat:W"
+    },
+    {
+      "count": 622,
+      "max_ms": 0.5550830000000001,
+      "median_ms": 0.486875,
+      "min_ms": 0.43929199999999996,
+      "samples": 5,
+      "scenario": "search.monster.en"
+    },
+    {
+      "count": 768,
+      "max_ms": 0.465875,
+      "median_ms": 0.44949999999999996,
+      "min_ms": 0.439958,
+      "samples": 5,
+      "scenario": "section.qsrc:main"
+    },
+    {
+      "count": 844,
+      "max_ms": 0.40683400000000003,
+      "median_ms": 0.383708,
+      "min_ms": 0.36745799999999995,
+      "samples": 5,
+      "scenario": "monsters.all"
+    },
+    {
+      "count": 387,
+      "max_ms": 0.401208,
+      "median_ms": 0.380375,
+      "min_ms": 0.359291,
+      "samples": 5,
+      "scenario": "search.atlas.en"
+    },
+    {
+      "count": 1526,
+      "max_ms": 0.38725,
+      "median_ms": 0.35875,
+      "min_ms": 0.348125,
+      "samples": 5,
+      "scenario": "section.craft:reinforce"
+    },
+    {
+      "count": 1000,
+      "max_ms": 0.5565410000000001,
+      "median_ms": 0.349333,
+      "min_ms": 0.33641699999999997,
+      "samples": 5,
+      "scenario": "icons.warm"
+    },
+    {
+      "count": 306,
+      "max_ms": 0.3625,
+      "median_ms": 0.318042,
+      "min_ms": 0.29775,
+      "samples": 5,
+      "scenario": "search.hero.en"
+    },
+    {
+      "count": 437,
+      "max_ms": 0.472083,
+      "median_ms": 0.313459,
+      "min_ms": 0.295791,
+      "samples": 5,
+      "scenario": "search.works.en"
+    },
+    {
+      "count": 996,
+      "max_ms": 0.363292,
+      "median_ms": 0.299417,
+      "min_ms": 0.285041,
+      "samples": 5,
+      "scenario": "section.realm:joseon"
+    },
+    {
+      "count": 906,
+      "max_ms": 0.344167,
+      "median_ms": 0.286667,
+      "min_ms": 0.261875,
+      "samples": 5,
+      "scenario": "section.realm:japan"
+    },
+    {
+      "count": 749,
+      "max_ms": 0.331167,
+      "median_ms": 0.283041,
+      "min_ms": 0.2745,
+      "samples": 5,
+      "scenario": "section.icat:H"
+    },
+    {
+      "count": 1273,
+      "max_ms": 0.280625,
+      "median_ms": 0.2665,
+      "min_ms": 0.262,
+      "samples": 5,
+      "scenario": "section.icat:other"
+    },
+    {
+      "count": 680,
+      "max_ms": 0.252041,
+      "median_ms": 0.240542,
+      "min_ms": 0.233458,
+      "samples": 5,
+      "scenario": "section.icat:IL"
+    },
+    {
+      "count": 533,
+      "max_ms": 0.21529099999999998,
+      "median_ms": 0.204833,
+      "min_ms": 0.203458,
+      "samples": 5,
+      "scenario": "section.icat:A"
+    },
+    {
+      "count": 475,
+      "max_ms": 0.185584,
+      "median_ms": 0.172625,
+      "min_ms": 0.17075,
+      "samples": 5,
+      "scenario": "section.icat:Y"
+    },
+    {
+      "count": 304,
+      "max_ms": 0.157041,
+      "median_ms": 0.1375,
+      "min_ms": 0.129542,
+      "samples": 5,
+      "scenario": "section.icat:G"
+    },
+    {
+      "count": 309,
+      "max_ms": 0.138917,
+      "median_ms": 0.135208,
+      "min_ms": 0.130959,
+      "samples": 5,
+      "scenario": "section.icat:S"
+    },
+    {
+      "count": 302,
+      "max_ms": 0.13641599999999998,
+      "median_ms": 0.134208,
+      "min_ms": 0.131125,
+      "samples": 5,
+      "scenario": "section.icat:B"
+    },
+    {
+      "count": 309,
+      "max_ms": 0.135625,
+      "median_ms": 0.128833,
+      "min_ms": 0.12629100000000001,
+      "samples": 5,
+      "scenario": "section.icat:II"
+    },
+    {
+      "count": 264,
+      "max_ms": 0.13566699999999998,
+      "median_ms": 0.121708,
+      "min_ms": 0.119208,
+      "samples": 5,
+      "scenario": "section.icat:C"
+    },
+    {
+      "count": 403,
+      "max_ms": 0.123583,
+      "median_ms": 0.1215,
+      "min_ms": 0.1185,
+      "samples": 5,
+      "scenario": "section.realm:taiwan"
+    },
+    {
+      "count": 242,
+      "max_ms": 0.118792,
+      "median_ms": 0.114208,
+      "min_ms": 0.111208,
+      "samples": 5,
+      "scenario": "section.icat:R"
+    },
+    {
+      "count": 50,
+      "max_ms": 0.167333,
+      "median_ms": 0.111958,
+      "min_ms": 0.096,
+      "samples": 5,
+      "scenario": "search.recipe.zh"
+    },
+    {
+      "count": 230,
+      "max_ms": 0.130583,
+      "median_ms": 0.104,
+      "min_ms": 0.101333,
+      "samples": 5,
+      "scenario": "section.icat:F"
+    },
+    {
+      "count": 426,
+      "max_ms": 0.108792,
+      "median_ms": 0.103833,
+      "min_ms": 0.10304100000000001,
+      "samples": 5,
+      "scenario": "section.craft:unified"
+    },
+    {
+      "count": 10,
+      "max_ms": 0.081458,
+      "median_ms": 0.08,
+      "min_ms": 0.07470800000000001,
+      "samples": 5,
+      "scenario": "search.npc.zh"
+    },
+    {
+      "count": 236,
+      "max_ms": 0.079,
+      "median_ms": 0.0765,
+      "min_ms": 0.074625,
+      "samples": 5,
+      "scenario": "section.yard:WEA"
+    },
+    {
+      "count": 184,
+      "max_ms": 0.072584,
+      "median_ms": 0.068125,
+      "min_ms": 0.066708,
+      "samples": 5,
+      "scenario": "section.yard:FAC"
+    },
+    {
+      "count": 169,
+      "max_ms": 0.08349999999999999,
+      "median_ms": 0.06658299999999999,
+      "min_ms": 0.062833,
+      "samples": 5,
+      "scenario": "section.icat:set"
+    },
+    {
+      "count": 0,
+      "max_ms": 0.118584,
+      "median_ms": 0.065166,
+      "min_ms": 0.063542,
+      "samples": 5,
+      "scenario": "search.works.no_match"
+    },
+    {
+      "count": 95,
+      "max_ms": 0.07083300000000001,
+      "median_ms": 0.0635,
+      "min_ms": 0.060667,
+      "samples": 5,
+      "scenario": "section.icat:V"
+    },
+    {
+      "count": 95,
+      "max_ms": 0.064917,
+      "median_ms": 0.06075,
+      "min_ms": 0.059708,
+      "samples": 5,
+      "scenario": "section.icat:J"
+    },
+    {
+      "count": 193,
+      "max_ms": 0.063833,
+      "median_ms": 0.060125,
+      "min_ms": 0.059667000000000005,
+      "samples": 5,
+      "scenario": "section.realm:india"
+    },
+    {
+      "count": 100,
+      "max_ms": 0.065541,
+      "median_ms": 0.058625000000000003,
+      "min_ms": 0.058499999999999996,
+      "samples": 5,
+      "scenario": "section.icat:K"
+    },
+    {
+      "count": 15,
+      "max_ms": 0.09737499999999999,
+      "median_ms": 0.051583,
+      "min_ms": 0.046583,
+      "samples": 5,
+      "scenario": "search.hero.root"
+    },
+    {
+      "count": 17,
+      "max_ms": 0.075584,
+      "median_ms": 0.051458000000000004,
+      "min_ms": 0.046417,
+      "samples": 5,
+      "scenario": "search.works.zh"
+    },
+    {
+      "count": 29,
+      "max_ms": 0.062958,
+      "median_ms": 0.048042,
+      "min_ms": 0.046333,
+      "samples": 5,
+      "scenario": "search.hero.zh"
+    },
+    {
+      "count": 124,
+      "max_ms": 0.047666,
+      "median_ms": 0.044833000000000005,
+      "min_ms": 0.044458,
+      "samples": 5,
+      "scenario": "section.yard:ARM"
+    },
+    {
+      "count": 43,
+      "max_ms": 0.049959,
+      "median_ms": 0.044042000000000005,
+      "min_ms": 0.043083,
+      "samples": 5,
+      "scenario": "section.icat:U"
+    },
+    {
+      "count": 140,
+      "max_ms": 0.04375,
+      "median_ms": 0.041833999999999996,
+      "min_ms": 0.04075,
+      "samples": 5,
+      "scenario": "section.realm:mongolia"
+    },
+    {
+      "count": 20,
+      "max_ms": 0.068125,
+      "median_ms": 0.04075,
+      "min_ms": 0.035417000000000004,
+      "samples": 5,
+      "scenario": "search.monster.zh"
+    },
+    {
+      "count": 8,
+      "max_ms": 0.114041,
+      "median_ms": 0.037583000000000005,
+      "min_ms": 0.032125,
+      "samples": 5,
+      "scenario": "search.recipe.root"
+    },
+    {
+      "count": 27,
+      "max_ms": 0.039542,
+      "median_ms": 0.036875000000000005,
+      "min_ms": 0.036417,
+      "samples": 5,
+      "scenario": "section.icat:T"
+    },
+    {
+      "count": 18,
+      "max_ms": 0.035207999999999996,
+      "median_ms": 0.033874999999999995,
+      "min_ms": 0.033708,
+      "samples": 5,
+      "scenario": "section.icat:N"
+    },
+    {
+      "count": 18,
+      "max_ms": 0.034332999999999995,
+      "median_ms": 0.033874999999999995,
+      "min_ms": 0.033791999999999996,
+      "samples": 5,
+      "scenario": "section.icat:P"
+    },
+    {
+      "count": 17,
+      "max_ms": 0.034208,
+      "median_ms": 0.033874999999999995,
+      "min_ms": 0.033833,
+      "samples": 5,
+      "scenario": "section.icat:L"
+    },
+    {
+      "count": 15,
+      "max_ms": 0.039458,
+      "median_ms": 0.033459,
+      "min_ms": 0.033166,
+      "samples": 5,
+      "scenario": "section.icat:Q"
+    },
+    {
+      "count": 10,
+      "max_ms": 0.031667,
+      "median_ms": 0.0315,
+      "min_ms": 0.031417,
+      "samples": 5,
+      "scenario": "section.icat:M"
+    },
+    {
+      "count": 10,
+      "max_ms": 0.031542,
+      "median_ms": 0.031375,
+      "min_ms": 0.03125,
+      "samples": 5,
+      "scenario": "section.icat:O"
+    },
+    {
+      "count": 77,
+      "max_ms": 0.031375,
+      "median_ms": 0.026041,
+      "min_ms": 0.0255,
+      "samples": 5,
+      "scenario": "section.qsrc:letter"
+    },
+    {
+      "count": 69,
+      "max_ms": 0.028917,
+      "median_ms": 0.024791,
+      "min_ms": 0.024416,
+      "samples": 5,
+      "scenario": "section.yard:FAR"
+    },
+    {
+      "count": 93,
+      "max_ms": 0.0265,
+      "median_ms": 0.02375,
+      "min_ms": 0.023583,
+      "samples": 5,
+      "scenario": "section.craft:npc"
+    },
+    {
+      "count": 61,
+      "max_ms": 0.0235,
+      "median_ms": 0.020707999999999997,
+      "min_ms": 0.020458,
+      "samples": 5,
+      "scenario": "section.yard:RAN"
+    },
+    {
+      "count": 54,
+      "max_ms": 0.02,
+      "median_ms": 0.017667,
+      "min_ms": 0.017374999999999998,
+      "samples": 5,
+      "scenario": "section.craft:jeweler"
+    },
+    {
+      "count": 44,
+      "max_ms": 0.017917000000000002,
+      "median_ms": 0.017667,
+      "min_ms": 0.017583,
+      "samples": 5,
+      "scenario": "section.qsrc:mercenary"
+    },
+    {
+      "count": 50,
+      "max_ms": 0.020041999999999997,
+      "median_ms": 0.016917,
+      "min_ms": 0.016416,
+      "samples": 5,
+      "scenario": "section.rank:4"
+    },
+    {
+      "count": 5,
+      "max_ms": 0.025541,
+      "median_ms": 0.015333000000000001,
+      "min_ms": 0.011250000000000001,
+      "samples": 5,
+      "scenario": "search.quest.root"
+    },
+    {
+      "count": 47,
+      "max_ms": 0.016625,
+      "median_ms": 0.015000000000000001,
+      "min_ms": 0.014459,
+      "samples": 5,
+      "scenario": "section.craft:blacksmith"
+    },
+    {
+      "count": 41,
+      "max_ms": 0.019917,
+      "median_ms": 0.014,
+      "min_ms": 0.013791000000000001,
+      "samples": 5,
+      "scenario": "section.craft:alchemy"
+    },
+    {
+      "count": 33,
+      "max_ms": 0.016291,
+      "median_ms": 0.014,
+      "min_ms": 0.013375,
+      "samples": 5,
+      "scenario": "section.rank:14"
+    },
+    {
+      "count": 41,
+      "max_ms": 0.016208,
+      "median_ms": 0.013625000000000002,
+      "min_ms": 0.013458000000000001,
+      "samples": 5,
+      "scenario": "section.rank:0"
+    },
+    {
+      "count": 51,
+      "max_ms": 0.013209,
+      "median_ms": 0.013084,
+      "min_ms": 0.012917,
+      "samples": 5,
+      "scenario": "section.craft:facility"
+    },
+    {
+      "count": 37,
+      "max_ms": 0.0155,
+      "median_ms": 0.012625,
+      "min_ms": 0.012416,
+      "samples": 5,
+      "scenario": "section.rank:2"
+    },
+    {
+      "count": 41,
+      "max_ms": 0.014084,
+      "median_ms": 0.012041999999999999,
+      "min_ms": 0.010916,
+      "samples": 5,
+      "scenario": "section.craft:baekje"
+    },
+    {
+      "count": 37,
+      "max_ms": 0.015417000000000002,
+      "median_ms": 0.012041999999999999,
+      "min_ms": 0.012,
+      "samples": 5,
+      "scenario": "section.rank:1"
+    },
+    {
+      "count": 1,
+      "max_ms": 0.014624999999999999,
+      "median_ms": 0.009375,
+      "min_ms": 0.007500000000000001,
+      "samples": 5,
+      "scenario": "search.atlas.zh"
+    },
+    {
+      "count": 15,
+      "max_ms": 0.009208000000000001,
+      "median_ms": 0.008792,
+      "min_ms": 0.008709000000000001,
+      "samples": 5,
+      "scenario": "section.rank:13"
+    },
+    {
+      "count": 30,
+      "max_ms": 0.008624999999999999,
+      "median_ms": 0.0085,
+      "min_ms": 0.008333,
+      "samples": 5,
+      "scenario": "section.qsrc:intro"
+    },
+    {
+      "count": 21,
+      "max_ms": 0.007458,
+      "median_ms": 0.007291,
+      "min_ms": 0.00725,
+      "samples": 5,
+      "scenario": "section.rank:10"
+    },
+    {
+      "count": 6,
+      "max_ms": 0.009375,
+      "median_ms": 0.005917,
+      "min_ms": 0.0045839999999999995,
+      "samples": 5,
+      "scenario": "search.atlas.root"
+    },
+    {
+      "count": 15,
+      "max_ms": 0.006167000000000001,
+      "median_ms": 0.00575,
+      "min_ms": 0.0050409999999999995,
+      "samples": 5,
+      "scenario": "section.rank:5"
+    },
+    {
+      "count": 15,
+      "max_ms": 0.005708,
+      "median_ms": 0.0052499999999999995,
+      "min_ms": 0.0051660000000000005,
+      "samples": 5,
+      "scenario": "section.rank:11"
+    },
+    {
+      "count": 14,
+      "max_ms": 0.0049169999999999995,
+      "median_ms": 0.004667,
+      "min_ms": 0.004542,
+      "samples": 5,
+      "scenario": "section.qsrc:dispatch"
+    },
+    {
+      "count": 8,
+      "max_ms": 0.005125,
+      "median_ms": 0.0035,
+      "min_ms": 0.00275,
+      "samples": 5,
+      "scenario": "section.rank:3"
+    },
+    {
+      "count": 9,
+      "max_ms": 0.004292,
+      "median_ms": 0.003292,
+      "min_ms": 0.003208,
+      "samples": 5,
+      "scenario": "section.rank:12"
+    },
+    {
+      "count": 5,
+      "max_ms": 0.006167000000000001,
+      "median_ms": 0.0028339999999999997,
+      "min_ms": 0.002792,
+      "samples": 5,
+      "scenario": "search.works.root"
+    },
+    {
+      "count": 8,
+      "max_ms": 0.002792,
+      "median_ms": 0.00275,
+      "min_ms": 0.002667,
+      "samples": 5,
+      "scenario": "section.rank:9"
+    },
+    {
+      "count": 8,
+      "max_ms": 0.0028339999999999997,
+      "median_ms": 0.0027089999999999996,
+      "min_ms": 0.0026249999999999997,
+      "samples": 5,
+      "scenario": "section.rank:6"
+    },
+    {
+      "count": 8,
+      "max_ms": 0.00275,
+      "median_ms": 0.0027080000000000003,
+      "min_ms": 0.002666,
+      "samples": 5,
+      "scenario": "section.rank:7"
+    },
+    {
+      "count": 6,
+      "max_ms": 0.035167,
+      "median_ms": 0.0025,
+      "min_ms": 0.0024159999999999997,
+      "samples": 5,
+      "scenario": "search.monster.root"
+    },
+    {
+      "count": 6,
+      "max_ms": 0.003125,
+      "median_ms": 0.002125,
+      "min_ms": 0.002041,
+      "samples": 5,
+      "scenario": "section.rank:8"
+    }
+  ],
+  "os": "macos",
+  "scope": "catalog and image decoding only; excludes GUI layout, rendering, event loop, and image upload",
+  "version": "1.2.1"
+}

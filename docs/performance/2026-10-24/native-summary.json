@@ -1,0 +1,742 @@
+{
+  "trace_file": "native-2026-10-25.jsonl",
+  "trace_sha256": "b71be9dd5cd491af684bd9e4892c28ddf6cd3d99f2c8aecc10425ecd5b6f1856",
+  "trace_events": 1940,
+  "trace_navigation_events": 52,
+  "process_ids": [
+    27979
+  ],
+  "measurement_date": "2026-10-25",
+  "timezone": "Asia/Hong_Kong",
+  "environment": {
+    "hardware": "Apple M5",
+    "memory_gib": 24,
+    "os": "macos",
+    "arch": "aarch64",
+    "version": "1.2.1",
+    "build": "release",
+    "renderer": "normal application default; exact renderer/GPU backend not positively identified",
+    "logical_width": 1414,
+    "logical_height": 907,
+    "scale_factor": 2,
+    "language": "zh",
+    "language_note": "Isolated zh-en preference was not accepted by parse_languages and fell back to single-language zh.",
+    "concurrent_compilation": false
+  },
+  "method": {
+    "navigation_numbering": "Select stage names starting with navigation. in raw event order; number from zero.",
+    "segment": "A navigation event through, but excluding, the next navigation event; the final segment ends at EOF.",
+    "latency": "Use elapsed_ms of the first ui.update_to_render in the selected segment. This spans existing begin_update to next AfterRendering, not mouse dispatch or display presentation.",
+    "data_prep": "Use elapsed_ms of the first list.publish or list.reload_board in the selected segment. This span overlaps the frame latency and must not be added to it.",
+    "first_root_navigation_ordinals": [
+      0,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "warm_root_navigation_ordinals_inclusive": [
+      16,
+      51
+    ],
+    "warm_rounds": 4,
+    "warm_category_order": [
+      "monster",
+      "item",
+      "recipe",
+      "quest",
+      "npc",
+      "hero",
+      "works",
+      "atlas",
+      "patch"
+    ],
+    "warm_median": "Arithmetic mean of the two middle values among four sorted warm samples; first sample is excluded.",
+    "nested_navigation_ordinals": [
+      1,
+      11,
+      13,
+      15
+    ],
+    "excluded_root_setup_ordinals": [
+      10,
+      12,
+      14
+    ],
+    "segment_9_caution": "Only first frame/prep is patch. Subsequent frame/prep in this segment belongs to enchant, whose navigation is not instrumented, and is not attributed to patch.",
+    "scope_exclusions": [
+      "Mouse dispatch before begin_update",
+      "Display presentation",
+      "Verified complete loading of all icons",
+      "Home, enchant, calculator, and settings native timings due to profiler coverage"
+    ],
+    "other_events": "Other asynchronous, rendering and UI automation events or wall-clock gaps are not interpreted as page loading latency."
+  },
+  "roots": [
+    {
+      "category": "monster",
+      "first": {
+        "navigation_ordinal_zero_based": 0,
+        "navigation_event_index_zero_based": 12,
+        "category": "monster",
+        "navigation_since_start_ms": 32884.944458,
+        "first_frame_event_index_zero_based": 20,
+        "update_to_first_render_ms": 43.058583999999996,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 18,
+        "data_prep_ms": 3.442125
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 16,
+          "navigation_event_index_zero_based": 1499,
+          "category": "monster",
+          "navigation_since_start_ms": 118456.56300000001,
+          "first_frame_event_index_zero_based": 1507,
+          "update_to_first_render_ms": 19.7035,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1505,
+          "data_prep_ms": 2.3925
+        },
+        {
+          "navigation_ordinal_zero_based": 25,
+          "navigation_event_index_zero_based": 1610,
+          "category": "monster",
+          "navigation_since_start_ms": 123532.511208,
+          "first_frame_event_index_zero_based": 1618,
+          "update_to_first_render_ms": 28.235834,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1616,
+          "data_prep_ms": 2.44425
+        },
+        {
+          "navigation_ordinal_zero_based": 34,
+          "navigation_event_index_zero_based": 1720,
+          "category": "monster",
+          "navigation_since_start_ms": 128588.89400000001,
+          "first_frame_event_index_zero_based": 1728,
+          "update_to_first_render_ms": 31.191291,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1726,
+          "data_prep_ms": 3.207042
+        },
+        {
+          "navigation_ordinal_zero_based": 43,
+          "navigation_event_index_zero_based": 1830,
+          "category": "monster",
+          "navigation_since_start_ms": 133706.28,
+          "first_frame_event_index_zero_based": 1838,
+          "update_to_first_render_ms": 29.377541,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1836,
+          "data_prep_ms": 2.311875
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 19.7035,
+        "median": 28.806687500000002,
+        "max": 31.191291
+      }
+    },
+    {
+      "category": "item",
+      "first": {
+        "navigation_ordinal_zero_based": 2,
+        "navigation_event_index_zero_based": 980,
+        "category": "item",
+        "navigation_since_start_ms": 54163.276458,
+        "first_frame_event_index_zero_based": 997,
+        "update_to_first_render_ms": 38.271833,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 990,
+        "data_prep_ms": 5.5887080000000005
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 17,
+          "navigation_event_index_zero_based": 1509,
+          "category": "item",
+          "navigation_since_start_ms": 119020.662333,
+          "first_frame_event_index_zero_based": 1521,
+          "update_to_first_render_ms": 20.197166999999997,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1519,
+          "data_prep_ms": 3.614625
+        },
+        {
+          "navigation_ordinal_zero_based": 26,
+          "navigation_event_index_zero_based": 1619,
+          "category": "item",
+          "navigation_since_start_ms": 124108.264291,
+          "first_frame_event_index_zero_based": 1631,
+          "update_to_first_render_ms": 20.697666,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1629,
+          "data_prep_ms": 2.780583
+        },
+        {
+          "navigation_ordinal_zero_based": 35,
+          "navigation_event_index_zero_based": 1729,
+          "category": "item",
+          "navigation_since_start_ms": 129149.86175000001,
+          "first_frame_event_index_zero_based": 1741,
+          "update_to_first_render_ms": 23.06725,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1739,
+          "data_prep_ms": 2.737917
+        },
+        {
+          "navigation_ordinal_zero_based": 44,
+          "navigation_event_index_zero_based": 1839,
+          "category": "item",
+          "navigation_since_start_ms": 134271.295291,
+          "first_frame_event_index_zero_based": 1851,
+          "update_to_first_render_ms": 20.245375,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1849,
+          "data_prep_ms": 3.859541
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 20.197166999999997,
+        "median": 20.4715205,
+        "max": 23.06725
+      }
+    },
+    {
+      "category": "recipe",
+      "first": {
+        "navigation_ordinal_zero_based": 3,
+        "navigation_event_index_zero_based": 1009,
+        "category": "recipe",
+        "navigation_since_start_ms": 54768.559457999996,
+        "first_frame_event_index_zero_based": 1027,
+        "update_to_first_render_ms": 21.216915999999998,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1020,
+        "data_prep_ms": 0.887417
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 18,
+          "navigation_event_index_zero_based": 1522,
+          "category": "recipe",
+          "navigation_since_start_ms": 119582.86995800001,
+          "first_frame_event_index_zero_based": 1534,
+          "update_to_first_render_ms": 19.769459,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1532,
+          "data_prep_ms": 0.531209
+        },
+        {
+          "navigation_ordinal_zero_based": 27,
+          "navigation_event_index_zero_based": 1632,
+          "category": "recipe",
+          "navigation_since_start_ms": 124633.895916,
+          "first_frame_event_index_zero_based": 1644,
+          "update_to_first_render_ms": 19.053084000000002,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1642,
+          "data_prep_ms": 0.373125
+        },
+        {
+          "navigation_ordinal_zero_based": 36,
+          "navigation_event_index_zero_based": 1742,
+          "category": "recipe",
+          "navigation_since_start_ms": 129728.249208,
+          "first_frame_event_index_zero_based": 1754,
+          "update_to_first_render_ms": 18.194084,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1752,
+          "data_prep_ms": 0.311542
+        },
+        {
+          "navigation_ordinal_zero_based": 45,
+          "navigation_event_index_zero_based": 1852,
+          "category": "recipe",
+          "navigation_since_start_ms": 134836.428708,
+          "first_frame_event_index_zero_based": 1864,
+          "update_to_first_render_ms": 19.063584000000002,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1862,
+          "data_prep_ms": 0.464375
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 18.194084,
+        "median": 19.058334000000002,
+        "max": 19.769459
+      }
+    },
+    {
+      "category": "quest",
+      "first": {
+        "navigation_ordinal_zero_based": 4,
+        "navigation_event_index_zero_based": 1028,
+        "category": "quest",
+        "navigation_since_start_ms": 61146.848916,
+        "first_frame_event_index_zero_based": 1035,
+        "update_to_first_render_ms": 42.341208,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1033,
+        "data_prep_ms": 30.075625000000002
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 19,
+          "navigation_event_index_zero_based": 1536,
+          "category": "quest",
+          "navigation_since_start_ms": 120070.129833,
+          "first_frame_event_index_zero_based": 1543,
+          "update_to_first_render_ms": 35.776708,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1541,
+          "data_prep_ms": 31.462333
+        },
+        {
+          "navigation_ordinal_zero_based": 28,
+          "navigation_event_index_zero_based": 1645,
+          "category": "quest",
+          "navigation_since_start_ms": 125194.436708,
+          "first_frame_event_index_zero_based": 1652,
+          "update_to_first_render_ms": 23.973584,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1650,
+          "data_prep_ms": 17.381416
+        },
+        {
+          "navigation_ordinal_zero_based": 37,
+          "navigation_event_index_zero_based": 1755,
+          "category": "quest",
+          "navigation_since_start_ms": 130274.870583,
+          "first_frame_event_index_zero_based": 1762,
+          "update_to_first_render_ms": 25.88925,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1760,
+          "data_prep_ms": 18.489834000000002
+        },
+        {
+          "navigation_ordinal_zero_based": 46,
+          "navigation_event_index_zero_based": 1865,
+          "category": "quest",
+          "navigation_since_start_ms": 135376.66975,
+          "first_frame_event_index_zero_based": 1872,
+          "update_to_first_render_ms": 26.876166,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1870,
+          "data_prep_ms": 19.324042
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 23.973584,
+        "median": 26.382708,
+        "max": 35.776708
+      }
+    },
+    {
+      "category": "npc",
+      "first": {
+        "navigation_ordinal_zero_based": 5,
+        "navigation_event_index_zero_based": 1036,
+        "category": "npc",
+        "navigation_since_start_ms": 61707.54375,
+        "first_frame_event_index_zero_based": 1068,
+        "update_to_first_render_ms": 39.786666,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1046,
+        "data_prep_ms": 3.032708
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 20,
+          "navigation_event_index_zero_based": 1544,
+          "category": "npc",
+          "navigation_since_start_ms": 120641.182166,
+          "first_frame_event_index_zero_based": 1556,
+          "update_to_first_render_ms": 38.795333,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1554,
+          "data_prep_ms": 3.405375
+        },
+        {
+          "navigation_ordinal_zero_based": 29,
+          "navigation_event_index_zero_based": 1653,
+          "category": "npc",
+          "navigation_since_start_ms": 125758.895833,
+          "first_frame_event_index_zero_based": 1665,
+          "update_to_first_render_ms": 37.428250000000006,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1663,
+          "data_prep_ms": 3.0595000000000003
+        },
+        {
+          "navigation_ordinal_zero_based": 38,
+          "navigation_event_index_zero_based": 1763,
+          "category": "npc",
+          "navigation_since_start_ms": 130833.812333,
+          "first_frame_event_index_zero_based": 1775,
+          "update_to_first_render_ms": 38.851208,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1773,
+          "data_prep_ms": 2.720625
+        },
+        {
+          "navigation_ordinal_zero_based": 47,
+          "navigation_event_index_zero_based": 1873,
+          "category": "npc",
+          "navigation_since_start_ms": 135908.686916,
+          "first_frame_event_index_zero_based": 1885,
+          "update_to_first_render_ms": 39.067209,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1883,
+          "data_prep_ms": 2.600583
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 37.428250000000006,
+        "median": 38.8232705,
+        "max": 39.067209
+      }
+    },
+    {
+      "category": "hero",
+      "first": {
+        "navigation_ordinal_zero_based": 6,
+        "navigation_event_index_zero_based": 1120,
+        "category": "hero",
+        "navigation_since_start_ms": 62288.582208,
+        "first_frame_event_index_zero_based": 1138,
+        "update_to_first_render_ms": 44.657000000000004,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1131,
+        "data_prep_ms": 0.716417
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 21,
+          "navigation_event_index_zero_based": 1558,
+          "category": "hero",
+          "navigation_since_start_ms": 121205.188333,
+          "first_frame_event_index_zero_based": 1570,
+          "update_to_first_render_ms": 42.956875,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1568,
+          "data_prep_ms": 0.523334
+        },
+        {
+          "navigation_ordinal_zero_based": 30,
+          "navigation_event_index_zero_based": 1667,
+          "category": "hero",
+          "navigation_since_start_ms": 126330.702833,
+          "first_frame_event_index_zero_based": 1679,
+          "update_to_first_render_ms": 43.696167,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1677,
+          "data_prep_ms": 0.33591699999999997
+        },
+        {
+          "navigation_ordinal_zero_based": 39,
+          "navigation_event_index_zero_based": 1777,
+          "category": "hero",
+          "navigation_since_start_ms": 131384.210208,
+          "first_frame_event_index_zero_based": 1789,
+          "update_to_first_render_ms": 41.425833000000004,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1787,
+          "data_prep_ms": 0.811333
+        },
+        {
+          "navigation_ordinal_zero_based": 48,
+          "navigation_event_index_zero_based": 1886,
+          "category": "hero",
+          "navigation_since_start_ms": 136466.662208,
+          "first_frame_event_index_zero_based": 1899,
+          "update_to_first_render_ms": 43.590165999999996,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1896,
+          "data_prep_ms": 0.6549579999999999
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 41.425833000000004,
+        "median": 43.2735205,
+        "max": 43.696167
+      }
+    },
+    {
+      "category": "works",
+      "first": {
+        "navigation_ordinal_zero_based": 7,
+        "navigation_event_index_zero_based": 1139,
+        "category": "works",
+        "navigation_since_start_ms": 62867.309166,
+        "first_frame_event_index_zero_based": 1154,
+        "update_to_first_render_ms": 14.14975,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1149,
+        "data_prep_ms": 0.34620799999999996
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 22,
+          "navigation_event_index_zero_based": 1571,
+          "category": "works",
+          "navigation_since_start_ms": 121768.61829099999,
+          "first_frame_event_index_zero_based": 1583,
+          "update_to_first_render_ms": 18.63325,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1581,
+          "data_prep_ms": 0.515417
+        },
+        {
+          "navigation_ordinal_zero_based": 31,
+          "navigation_event_index_zero_based": 1681,
+          "category": "works",
+          "navigation_since_start_ms": 126918.186541,
+          "first_frame_event_index_zero_based": 1693,
+          "update_to_first_render_ms": 17.564957999999997,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1691,
+          "data_prep_ms": 0.302542
+        },
+        {
+          "navigation_ordinal_zero_based": 40,
+          "navigation_event_index_zero_based": 1791,
+          "category": "works",
+          "navigation_since_start_ms": 131949.568,
+          "first_frame_event_index_zero_based": 1803,
+          "update_to_first_render_ms": 13.684375000000001,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1801,
+          "data_prep_ms": 0.310708
+        },
+        {
+          "navigation_ordinal_zero_based": 49,
+          "navigation_event_index_zero_based": 1900,
+          "category": "works",
+          "navigation_since_start_ms": 137073.966125,
+          "first_frame_event_index_zero_based": 1912,
+          "update_to_first_render_ms": 13.3145,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1910,
+          "data_prep_ms": 0.411791
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 13.3145,
+        "median": 15.6246665,
+        "max": 18.63325
+      }
+    },
+    {
+      "category": "atlas",
+      "first": {
+        "navigation_ordinal_zero_based": 8,
+        "navigation_event_index_zero_based": 1162,
+        "category": "atlas",
+        "navigation_since_start_ms": 63535.71925,
+        "first_frame_event_index_zero_based": 1207,
+        "update_to_first_render_ms": 43.446332999999996,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1172,
+        "data_prep_ms": 3.020166
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 23,
+          "navigation_event_index_zero_based": 1584,
+          "category": "atlas",
+          "navigation_since_start_ms": 122268.96229099999,
+          "first_frame_event_index_zero_based": 1596,
+          "update_to_first_render_ms": 41.825874999999996,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1594,
+          "data_prep_ms": 2.778333
+        },
+        {
+          "navigation_ordinal_zero_based": 32,
+          "navigation_event_index_zero_based": 1694,
+          "category": "atlas",
+          "navigation_since_start_ms": 127459.267666,
+          "first_frame_event_index_zero_based": 1706,
+          "update_to_first_render_ms": 39.498334,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1704,
+          "data_prep_ms": 2.149584
+        },
+        {
+          "navigation_ordinal_zero_based": 41,
+          "navigation_event_index_zero_based": 1804,
+          "category": "atlas",
+          "navigation_since_start_ms": 132516.625958,
+          "first_frame_event_index_zero_based": 1816,
+          "update_to_first_render_ms": 38.3305,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1814,
+          "data_prep_ms": 2.33825
+        },
+        {
+          "navigation_ordinal_zero_based": 50,
+          "navigation_event_index_zero_based": 1913,
+          "category": "atlas",
+          "navigation_since_start_ms": 137613.503208,
+          "first_frame_event_index_zero_based": 1925,
+          "update_to_first_render_ms": 38.641083,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1923,
+          "data_prep_ms": 2.2461249999999997
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 38.3305,
+        "median": 39.069708500000004,
+        "max": 41.825874999999996
+      }
+    },
+    {
+      "category": "patch",
+      "first": {
+        "navigation_ordinal_zero_based": 9,
+        "navigation_event_index_zero_based": 1208,
+        "category": "patch",
+        "navigation_since_start_ms": 64133.32875,
+        "first_frame_event_index_zero_based": 1221,
+        "update_to_first_render_ms": 49.567042,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1218,
+        "data_prep_ms": 4.442458
+      },
+      "warm_samples": [
+        {
+          "navigation_ordinal_zero_based": 24,
+          "navigation_event_index_zero_based": 1597,
+          "category": "patch",
+          "navigation_since_start_ms": 122899.541583,
+          "first_frame_event_index_zero_based": 1609,
+          "update_to_first_render_ms": 49.661291000000006,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1607,
+          "data_prep_ms": 5.664
+        },
+        {
+          "navigation_ordinal_zero_based": 33,
+          "navigation_event_index_zero_based": 1707,
+          "category": "patch",
+          "navigation_since_start_ms": 128032.373375,
+          "first_frame_event_index_zero_based": 1719,
+          "update_to_first_render_ms": 47.326958000000005,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1717,
+          "data_prep_ms": 4.384959
+        },
+        {
+          "navigation_ordinal_zero_based": 42,
+          "navigation_event_index_zero_based": 1817,
+          "category": "patch",
+          "navigation_since_start_ms": 133106.443125,
+          "first_frame_event_index_zero_based": 1829,
+          "update_to_first_render_ms": 48.602875,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1827,
+          "data_prep_ms": 4.67475
+        },
+        {
+          "navigation_ordinal_zero_based": 51,
+          "navigation_event_index_zero_based": 1927,
+          "category": "patch",
+          "navigation_since_start_ms": 138189.154625,
+          "first_frame_event_index_zero_based": 1939,
+          "update_to_first_render_ms": 45.902167,
+          "data_prep_stage": "list.publish",
+          "data_prep_event_index_zero_based": 1937,
+          "data_prep_ms": 4.291708
+        }
+      ],
+      "warm_count": 4,
+      "warm_update_to_first_render_ms": {
+        "min": 45.902167,
+        "median": 47.9649165,
+        "max": 49.661291000000006
+      }
+    }
+  ],
+  "nested": [
+    {
+      "page": "monster.all",
+      "record_count": 844,
+      "first": {
+        "navigation_ordinal_zero_based": 1,
+        "navigation_event_index_zero_based": 23,
+        "category": "monster",
+        "navigation_since_start_ms": 53418.705707999994,
+        "first_frame_event_index_zero_based": 37,
+        "update_to_first_render_ms": 76.95112499999999,
+        "data_prep_stage": "list.reload_board",
+        "data_prep_event_index_zero_based": 28,
+        "data_prep_ms": 67.643042
+      },
+      "last_observed_icon_model_update": {
+        "event_index_zero_based": 978,
+        "since_navigation_ms": 224.66970800000126,
+        "definition": "Last observed icon.paint event before the next instrumented navigation; not verified all images complete or displayed."
+      }
+    },
+    {
+      "page": "item.material",
+      "record_count": 1920,
+      "first": {
+        "navigation_ordinal_zero_based": 11,
+        "navigation_event_index_zero_based": 1255,
+        "category": "item",
+        "navigation_since_start_ms": 89485.926875,
+        "first_frame_event_index_zero_based": 1302,
+        "update_to_first_render_ms": 60.23,
+        "data_prep_stage": "list.reload_board",
+        "data_prep_event_index_zero_based": 1260,
+        "data_prep_ms": 5.936583
+      }
+    },
+    {
+      "page": "recipe.reinforce",
+      "record_count": 1526,
+      "first": {
+        "navigation_ordinal_zero_based": 13,
+        "navigation_event_index_zero_based": 1357,
+        "category": "recipe",
+        "navigation_since_start_ms": 93167.123666,
+        "first_frame_event_index_zero_based": 1396,
+        "update_to_first_render_ms": 52.850916,
+        "data_prep_stage": "list.reload_board",
+        "data_prep_event_index_zero_based": 1362,
+        "data_prep_ms": 2.656083
+      }
+    },
+    {
+      "page": "quest.all",
+      "record_count": 933,
+      "first": {
+        "navigation_ordinal_zero_based": 15,
+        "navigation_event_index_zero_based": 1472,
+        "category": "quest",
+        "navigation_since_start_ms": 94374.108166,
+        "first_frame_event_index_zero_based": 1498,
+        "update_to_first_render_ms": 78.10400000000001,
+        "data_prep_stage": "list.publish",
+        "data_prep_event_index_zero_based": 1477,
+        "data_prep_ms": 60.56675
+      }
+    }
+  ]
+}

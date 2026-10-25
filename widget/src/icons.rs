@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::Receiver;
 use std::rc::{Rc, Weak};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -11,7 +11,10 @@ use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, SharedString, 
 
 use super::agf;
 use super::list::{picture_key, EnchantPreviewKind};
-use super::{App, EnchantEquipment, Hit, ICON_CACHE, IconJob, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
+use super::{
+    App, EnchantEquipment, Hit, IconJob, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode,
+    ICON_CACHE,
+};
 
 struct IconTarget {
     generation: u64,
@@ -29,8 +32,14 @@ fn current_generation(links: bool, generation: &AtomicU64, link_generation: &Ato
     if links { link_generation } else { generation }.load(Ordering::Relaxed)
 }
 
-fn discard_stale_targets(targets: &mut Vec<IconTarget>, generation: &AtomicU64, link_generation: &AtomicU64) {
-    targets.retain(|target| target.generation == current_generation(target.links, generation, link_generation));
+fn discard_stale_targets(
+    targets: &mut Vec<IconTarget>,
+    generation: &AtomicU64,
+    link_generation: &AtomicU64,
+) {
+    targets.retain(|target| {
+        target.generation == current_generation(target.links, generation, link_generation)
+    });
 }
 
 pub(crate) fn spawn_icon_worker(
@@ -40,66 +49,115 @@ pub(crate) fn spawn_icon_worker(
     link_generation: Arc<AtomicU64>,
 ) {
     thread::spawn(move || {
-        while let Ok(first) = rx.recv() {
-            let started = Instant::now();
-            let mut decoded: Vec<DecodedIcon> = Vec::new();
-            let mut by_cache_key = HashMap::new();
-            let mut job_count = 0;
-            let mut next = Some(first);
-            while let Some(job) = next {
-                if job.gen == current_generation(job.links, &generation, &link_generation) {
-                    let target = IconTarget { generation: job.gen, links: job.links, row_key: job.row_key };
-                    if let Some(&index) = by_cache_key.get(&job.cache_key) {
-                        let result: &mut DecodedIcon = &mut decoded[index];
-                        result.targets.push(target);
-                    } else {
-                        let icon = agf::frame_rgba(&job.path, job.frame).ok();
-                        by_cache_key.insert(job.cache_key.clone(), decoded.len());
-                        decoded.push(DecodedIcon { cache_key: job.cache_key, icon, targets: vec![target] });
-                    }
-                    job_count += 1;
-                }
-                // Keep each UI delivery small, and let the first decoded icons appear promptly.
-                if job_count >= 32 || started.elapsed() >= Duration::from_millis(4) {
-                    break;
-                }
-                next = rx.try_recv().ok();
-            }
-            if decoded.is_empty() {
-                continue;
-            }
-            super::perf::record("icon.decode", started.elapsed(), job_count);
-            let generation = generation.clone();
-            let link_generation = link_generation.clone();
-            let queued = Instant::now();
-            let _ = app.upgrade_in_event_loop(move |app| {
-                super::perf::record("icon.queue_wait", queued.elapsed(), job_count);
-                let started = Instant::now();
-                let mut painted = 0;
-                for result in decoded {
-                    let mut targets = result.targets;
-                    discard_stale_targets(&mut targets, &generation, &link_generation);
-                    if targets.is_empty() {
-                        continue;
-                    }
-                    let has_icon = result.icon.is_some();
-                    let image = match result.icon {
-                        Some(icon) => {
-                            let image = image_from_icon(icon);
-                            remember_icon(&result.cache_key, image.clone());
-                            image
+        process_icon_jobs(
+            rx,
+            &generation,
+            &link_generation,
+            |decoded, job_count, delivered| {
+                let generation = generation.clone();
+                let link_generation = link_generation.clone();
+                let queued = Instant::now();
+                app.upgrade_in_event_loop(move |app| {
+                    super::perf::record("icon.queue_wait", queued.elapsed(), job_count);
+                    let started = Instant::now();
+                    let mut painted = 0;
+                    for result in decoded {
+                        let mut targets = result.targets;
+                        discard_stale_targets(&mut targets, &generation, &link_generation);
+                        if targets.is_empty() {
+                            continue;
                         }
-                        None => Image::default(),
-                    };
-                    for target in targets {
-                        paint_hit(&app, &target.row_key, image.clone(), has_icon, target.links);
-                        painted += 1;
+                        let (image, has_icon) =
+                            resolve_decoded_icon(&result.cache_key, result.icon);
+                        for target in targets {
+                            paint_hit(&app, &target.row_key, image.clone(), has_icon, target.links);
+                            painted += 1;
+                        }
                     }
-                }
-                super::perf::record("icon.paint", started.elapsed(), painted);
-            });
-        }
+                    super::perf::record("icon.paint", started.elapsed(), painted);
+                    // This unbounded channel never blocks the UI. If the window or
+                    // queued closure is dropped, the receiver disconnects instead.
+                    let _ = delivered.send(());
+                })
+                .is_ok()
+            },
+        );
     });
+}
+
+fn process_icon_jobs(
+    rx: Receiver<IconJob>,
+    generation: &AtomicU64,
+    link_generation: &AtomicU64,
+    mut deliver: impl FnMut(Vec<DecodedIcon>, usize, Sender<()>) -> bool,
+) {
+    while let Ok(first) = rx.recv() {
+        let started = Instant::now();
+        let mut decoded: Vec<DecodedIcon> = Vec::new();
+        let mut by_cache_key = HashMap::new();
+        let mut job_count = 0;
+        let mut next = Some(first);
+        while let Some(job) = next {
+            if job.gen == current_generation(job.links, generation, link_generation) {
+                let target = IconTarget {
+                    generation: job.gen,
+                    links: job.links,
+                    row_key: job.row_key,
+                };
+                if let Some(&index) = by_cache_key.get(&job.cache_key) {
+                    let result: &mut DecodedIcon = &mut decoded[index];
+                    result.targets.push(target);
+                } else {
+                    let icon = agf::frame_rgba(&job.path, job.frame).ok();
+                    by_cache_key.insert(job.cache_key.clone(), decoded.len());
+                    decoded.push(DecodedIcon {
+                        cache_key: job.cache_key,
+                        icon,
+                        targets: vec![target],
+                    });
+                }
+                job_count += 1;
+            }
+            // Keep each UI delivery small, and let the first decoded icons appear promptly.
+            if job_count >= 32 || started.elapsed() >= Duration::from_millis(4) {
+                break;
+            }
+            next = rx.try_recv().ok();
+        }
+        if decoded.is_empty() {
+            continue;
+        }
+        super::perf::record("icon.decode", started.elapsed(), job_count);
+        // At most one decoded batch waits in the UI queue. Previously a
+        // large page could enqueue every batch before rendering/input got
+        // another turn. Waiting also lets navigation invalidate old jobs
+        // before more pixels are copied from the AGF cache.
+        let (delivered, acknowledgement) = mpsc::channel();
+        if !deliver(decoded, job_count, delivered) || acknowledgement.recv().is_err() {
+            break;
+        }
+    }
+}
+
+fn resolve_decoded_icon(cache_key: &str, icon: Option<agf::Icon>) -> (Image, bool) {
+    let cached = ICON_CACHE.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .and_then(|cache| cache.borrow().get(cache_key).cloned())
+    });
+    if let Some(image) = cached {
+        // A different row/batch may already have uploaded this same artwork.
+        // Share the image identity rather than copying its RGBA buffer again.
+        return (image, true);
+    }
+    match icon {
+        Some(icon) => {
+            let image = image_from_icon(icon);
+            remember_icon(cache_key, image.clone());
+            (image, true)
+        }
+        None => (Image::default(), false),
+    }
 }
 
 struct RowIndex {
@@ -388,6 +446,101 @@ mod tests {
     use super::{discard_stale_targets, indexed_row, note_lines, paint_catalog_models, paint_enchant_preview, paint_model, paint_monster_drop, paint_quest_item_rows, paint_quest_map_items, EnchantPreviewKind, IconTarget};
     use crate::{EnchantEquipment, Hit, MonsterDrop, QuestItemChip, QuestItemRow, QuestMapNode};
     use slint::{Image, Model, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
+
+    fn queued_job(row: &str, generation: u64, links: bool) -> crate::IconJob {
+        crate::IconJob {
+            gen: generation,
+            links,
+            cache_key: "worker-test-missing-icon".into(),
+            row_key: row.into(),
+            path: "worker-test-missing-icon.agf".into(),
+            frame: 0,
+        }
+    }
+
+    #[test]
+    fn icon_worker_waits_for_ui_delivery_and_skips_canceled_backlog() {
+        use std::sync::{atomic::{AtomicU64, Ordering}, mpsc, Arc};
+        use std::time::Duration;
+        let (jobs, queue) = mpsc::channel();
+        let (deliveries, results) = mpsc::channel();
+        let generation = Arc::new(AtomicU64::new(4));
+        let worker_generation = Arc::clone(&generation);
+        for index in 0..65 {
+            jobs.send(queued_job(&format!("item:old-{index}"), 4, false)).unwrap();
+        }
+        let worker = std::thread::spawn(move || {
+            super::process_icon_jobs(queue, &worker_generation, &AtomicU64::new(7), |batch, count, done| {
+                deliveries.send((batch, count, done)).is_ok()
+            });
+        });
+        let (batch, count, done) = results.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(count > 0 && count <= 32);
+        assert_eq!(batch.len(), 1, "Duplicate artwork is decoded once per batch");
+        assert_eq!(batch[0].targets.len(), count);
+        assert!(matches!(results.recv_timeout(Duration::from_millis(50)), Err(mpsc::RecvTimeoutError::Timeout)),
+            "No second delivery may queue until the UI acknowledges the first");
+
+        // Navigation cancels the old list while the UI is busy, but independent
+        // linked images and the new list must still be delivered afterward.
+        generation.store(5, Ordering::Relaxed);
+        jobs.send(queued_job("item:new", 5, false)).unwrap();
+        jobs.send(queued_job("item:linked", 7, true)).unwrap();
+        jobs.send(queued_job("item:stale-link", 6, true)).unwrap();
+        drop(jobs);
+        done.send(()).unwrap();
+        let mut current = Vec::new();
+        while let Ok((batch, _, done)) = results.recv_timeout(Duration::from_secs(2)) {
+            for icon in batch {
+                current.extend(icon.targets.into_iter().map(|target| (target.row_key, target.links)));
+            }
+            done.send(()).unwrap();
+        }
+        worker.join().unwrap();
+        assert_eq!(current, vec![("item:new".into(), false), ("item:linked".into(), true)]);
+    }
+
+    #[test]
+    fn dropped_ui_delivery_stops_icon_worker_without_waiting_for_more_jobs() {
+        use std::sync::{atomic::AtomicU64, mpsc};
+        let (jobs, queue) = mpsc::channel();
+        jobs.send(queued_job("item:closing", 1, false)).unwrap();
+        // Keep the producer alive: completion must come from the dropped UI
+        // acknowledgement, not from the job queue disconnecting.
+        let worker = std::thread::spawn(move || {
+            super::process_icon_jobs(queue, &AtomicU64::new(1), &AtomicU64::new(1), |_, _, done| {
+                drop(done);
+                true
+            });
+        });
+        worker.join().unwrap();
+        assert!(jobs.send(queued_job("item:after-close", 1, false)).is_err());
+    }
+
+    #[test]
+    fn duplicate_decoded_icons_reuse_uploaded_image_and_failures_are_not_cached() {
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+        use std::rc::Rc;
+        let cache = Rc::new(RefCell::new(HashMap::new()));
+        let previous = crate::ICON_CACHE.with(|slot| slot.replace(Some(Rc::clone(&cache))));
+        let first = crate::agf::Icon { width: 2, height: 3, rgba: vec![255; 24] };
+        let (image, found) = super::resolve_decoded_icon("same-artwork", Some(first));
+        assert!(found);
+        assert_eq!(image.size().width, 2);
+        // A distinguishable buffer proves that the cached image was reused,
+        // rather than allocating another upload for a later row's result.
+        let duplicate = crate::agf::Icon { width: 1, height: 1, rgba: vec![255; 4] };
+        let (reused, found) = super::resolve_decoded_icon("same-artwork", Some(duplicate));
+        assert!(found);
+        assert_eq!(reused.size(), image.size());
+        assert_eq!(cache.borrow().len(), 1);
+        let (failed, found) = super::resolve_decoded_icon("missing-artwork", None);
+        assert!(!found);
+        assert_eq!(failed.size().width, 0);
+        assert!(!cache.borrow().contains_key("missing-artwork"));
+        crate::ICON_CACHE.with(|slot| *slot.borrow_mut() = previous);
+    }
 
     #[test]
     fn directory_portraits_update_shared_and_separate_search_models_by_key() {

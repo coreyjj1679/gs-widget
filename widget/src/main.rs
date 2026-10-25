@@ -12,6 +12,7 @@ mod list;
 mod mcp;
 mod mcp_ui;
 mod perf;
+mod perf_pages;
 mod quick_search_ui;
 mod calculator_ui;
 mod bonus_ui;
@@ -312,6 +313,12 @@ fn main() {
         return;
     }
     let args: Vec<_> = std::env::args_os().collect();
+    if let Some(index) = args.iter().position(|arg| arg == "--profile-pages") {
+        let result = args.get(index + 1).ok_or_else(|| "Usage: --profile-pages <report.json>".to_string())
+            .and_then(|path| perf_pages::benchmark(std::path::Path::new(path)));
+        if let Err(error) = result { eprintln!("Page performance profile failed: {error}"); std::process::exit(1); }
+        return;
+    }
     if let Some(index) = args.iter().position(|arg| arg == "--profile-ui") {
         let result = args.get(index + 1).ok_or_else(|| "Usage: --profile-ui <report.json>".to_string())
             .and_then(|path| perf::benchmark_ui(std::path::Path::new(path)));

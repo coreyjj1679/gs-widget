@@ -1058,7 +1058,11 @@ fn show_rows(app: &App, session: &Session, catalog: &db::Catalog, nation: &str, 
         }).unwrap_or_default();
         let mut drops = vec![Image::default(); 10];
         let drop_total = brief.map(|card| card.drop_total).unwrap_or(0);
-        if let Some(card) = brief {
+        // Full-mode board rows use monster_drops and are never shown by compact
+        // MonsterCard, so skip their duplicate drop image jobs. Keep these slots
+        // on hits: switching to compact while a detail is open reuses that list
+        // on Back without republishing it.
+        if let Some(card) = brief.filter(|_| !app.get_full_mode() || !board) {
             for (index, (path, frame)) in card.drops.iter().enumerate().take(10) {
                 let cache_key = format!("{}#{frame}", path.display());
                 if let Some(image) = session.cache.borrow().get(&cache_key) {

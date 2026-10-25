@@ -1,0 +1,1566 @@
+{
+  "arch": "aarch64",
+  "debug_assertions": false,
+  "first_visit_definition": "First visit within one shared process, after eager calculator/bonus initialization; not a cold OS cache or an independently cold process per page.",
+  "full_mode": true,
+  "icon_queue": "Queued jobs counted and discarded after each sample; no background decoder competes with these synchronous timings. Startup calculator/bonus icons remain in the shared cache.",
+  "language": "zh-en",
+  "logical_height": 800,
+  "logical_width": 1280,
+  "measurements": [
+    {
+      "first": {
+        "prep_ms": 0.47195800000000004,
+        "queued_icons_excluded": 0,
+        "render_ms": 16.073458,
+        "total_ms": 16.54575,
+        "visit": 0
+      },
+      "page": "home",
+      "repeat_prep": {
+        "max_ms": 1.675958,
+        "median_ms": 0.446417,
+        "min_ms": 0.384208
+      },
+      "repeat_render": {
+        "max_ms": 16.868959,
+        "median_ms": 6.457458999999999,
+        "min_ms": 3.07875
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 17.919166999999998,
+        "median_ms": 7.5403340000000005,
+        "min_ms": 3.473083
+      },
+      "rows": {
+        "saved_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 0.47195800000000004,
+          "queued_icons_excluded": 0,
+          "render_ms": 16.073458,
+          "total_ms": 16.54575,
+          "visit": 0
+        },
+        {
+          "prep_ms": 1.675958,
+          "queued_icons_excluded": 0,
+          "render_ms": 6.457458999999999,
+          "total_ms": 8.133625,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.39429200000000003,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.07875,
+          "total_ms": 3.473083,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.384208,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.9334169999999995,
+          "total_ms": 5.317958,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.446417,
+          "queued_icons_excluded": 0,
+          "render_ms": 7.09375,
+          "total_ms": 7.5403340000000005,
+          "visit": 4
+        },
+        {
+          "prep_ms": 1.05,
+          "queued_icons_excluded": 0,
+          "render_ms": 16.868959,
+          "total_ms": 17.919166999999998,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 5.9622090000000005,
+        "queued_icons_excluded": 0,
+        "render_ms": 26.885167000000003,
+        "total_ms": 32.847750000000005,
+        "visit": 0
+      },
+      "page": "monster",
+      "repeat_prep": {
+        "max_ms": 2.509542,
+        "median_ms": 1.2005,
+        "min_ms": 1.1460000000000001
+      },
+      "repeat_render": {
+        "max_ms": 4.855459000000001,
+        "median_ms": 4.2335,
+        "min_ms": 3.806
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 7.162624999999999,
+        "median_ms": 5.394417000000001,
+        "min_ms": 4.952500000000001
+      },
+      "rows": {
+        "board_rows": 0,
+        "list_rows": 127,
+        "region_rows": 125,
+        "section_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 5.9622090000000005,
+          "queued_icons_excluded": 0,
+          "render_ms": 26.885167000000003,
+          "total_ms": 32.847750000000005,
+          "visit": 0
+        },
+        {
+          "prep_ms": 2.004875,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.855459000000001,
+          "total_ms": 6.860416,
+          "visit": 1
+        },
+        {
+          "prep_ms": 2.509542,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.652958,
+          "total_ms": 7.162624999999999,
+          "visit": 2
+        },
+        {
+          "prep_ms": 1.1460000000000001,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.806,
+          "total_ms": 4.952500000000001,
+          "visit": 3
+        },
+        {
+          "prep_ms": 1.2005,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.1649579999999995,
+          "total_ms": 5.3655420000000005,
+          "visit": 4
+        },
+        {
+          "prep_ms": 1.160667,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.2335,
+          "total_ms": 5.394417000000001,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 34.772749999999995,
+        "queued_icons_excluded": 9915,
+        "render_ms": 7.176208,
+        "total_ms": 41.949042,
+        "visit": 0
+      },
+      "page": "monster.all",
+      "repeat_prep": {
+        "max_ms": 43.250792000000004,
+        "median_ms": 25.548624999999998,
+        "min_ms": 24.497083999999997
+      },
+      "repeat_render": {
+        "max_ms": 6.267375,
+        "median_ms": 5.694167,
+        "min_ms": 5.2252089999999995
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 48.945125,
+        "median_ms": 31.238249999999997,
+        "min_ms": 30.072667
+      },
+      "rows": {
+        "board_rows": 844,
+        "list_rows": 127,
+        "region_rows": 125,
+        "section_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 34.772749999999995,
+          "queued_icons_excluded": 9915,
+          "render_ms": 7.176208,
+          "total_ms": 41.949042,
+          "visit": 0
+        },
+        {
+          "prep_ms": 25.686167,
+          "queued_icons_excluded": 9915,
+          "render_ms": 5.2252089999999995,
+          "total_ms": 30.911458999999997,
+          "visit": 1
+        },
+        {
+          "prep_ms": 43.250792000000004,
+          "queued_icons_excluded": 9915,
+          "render_ms": 5.694167,
+          "total_ms": 48.945125,
+          "visit": 2
+        },
+        {
+          "prep_ms": 24.497083999999997,
+          "queued_icons_excluded": 9915,
+          "render_ms": 5.5754589999999995,
+          "total_ms": 30.072667,
+          "visit": 3
+        },
+        {
+          "prep_ms": 25.548624999999998,
+          "queued_icons_excluded": 9915,
+          "render_ms": 5.832709,
+          "total_ms": 31.3815,
+          "visit": 4
+        },
+        {
+          "prep_ms": 24.970708000000002,
+          "queued_icons_excluded": 9915,
+          "render_ms": 6.267375,
+          "total_ms": 31.238249999999997,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 1.393459,
+        "queued_icons_excluded": 195,
+        "render_ms": 11.925457999999999,
+        "total_ms": 13.319125,
+        "visit": 0
+      },
+      "page": "item",
+      "repeat_prep": {
+        "max_ms": 1.57325,
+        "median_ms": 1.4311250000000002,
+        "min_ms": 1.412834
+      },
+      "repeat_render": {
+        "max_ms": 9.806000000000001,
+        "median_ms": 8.521958,
+        "min_ms": 7.908167000000001
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 11.237166,
+        "median_ms": 9.934875,
+        "min_ms": 9.481459
+      },
+      "rows": {
+        "board_rows": 169,
+        "list_rows": 27,
+        "region_rows": 0,
+        "section_rows": 27
+      },
+      "samples": [
+        {
+          "prep_ms": 1.393459,
+          "queued_icons_excluded": 195,
+          "render_ms": 11.925457999999999,
+          "total_ms": 13.319125,
+          "visit": 0
+        },
+        {
+          "prep_ms": 1.468209,
+          "queued_icons_excluded": 195,
+          "render_ms": 8.283000000000001,
+          "total_ms": 9.751249999999999,
+          "visit": 1
+        },
+        {
+          "prep_ms": 1.57325,
+          "queued_icons_excluded": 195,
+          "render_ms": 7.908167000000001,
+          "total_ms": 9.481459,
+          "visit": 2
+        },
+        {
+          "prep_ms": 1.4311250000000002,
+          "queued_icons_excluded": 195,
+          "render_ms": 9.806000000000001,
+          "total_ms": 11.237166,
+          "visit": 3
+        },
+        {
+          "prep_ms": 1.4255419999999999,
+          "queued_icons_excluded": 195,
+          "render_ms": 9.117167,
+          "total_ms": 10.542833,
+          "visit": 4
+        },
+        {
+          "prep_ms": 1.412834,
+          "queued_icons_excluded": 195,
+          "render_ms": 8.521958,
+          "total_ms": 9.934875,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 0.215584,
+        "queued_icons_excluded": 33,
+        "render_ms": 9.42775,
+        "total_ms": 9.643374999999999,
+        "visit": 0
+      },
+      "page": "recipe",
+      "repeat_prep": {
+        "max_ms": 0.370958,
+        "median_ms": 0.173959,
+        "min_ms": 0.167083
+      },
+      "repeat_render": {
+        "max_ms": 8.810125000000001,
+        "median_ms": 6.115125,
+        "min_ms": 5.655916
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 8.977250000000002,
+        "median_ms": 6.290791,
+        "min_ms": 5.826042
+      },
+      "rows": {
+        "board_rows": 41,
+        "list_rows": 8,
+        "region_rows": 0,
+        "section_rows": 8
+      },
+      "samples": [
+        {
+          "prep_ms": 0.215584,
+          "queued_icons_excluded": 33,
+          "render_ms": 9.42775,
+          "total_ms": 9.643374999999999,
+          "visit": 0
+        },
+        {
+          "prep_ms": 0.370958,
+          "queued_icons_excluded": 33,
+          "render_ms": 6.149959,
+          "total_ms": 6.521083,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.175666,
+          "queued_icons_excluded": 33,
+          "render_ms": 6.115125,
+          "total_ms": 6.290791,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.169792,
+          "queued_icons_excluded": 33,
+          "render_ms": 5.655916,
+          "total_ms": 5.826042,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.167083,
+          "queued_icons_excluded": 33,
+          "render_ms": 8.810125000000001,
+          "total_ms": 8.977250000000002,
+          "visit": 4
+        },
+        {
+          "prep_ms": 0.173959,
+          "queued_icons_excluded": 33,
+          "render_ms": 5.7305,
+          "total_ms": 5.904667,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 10.451167000000002,
+        "queued_icons_excluded": 0,
+        "render_ms": 7.088167,
+        "total_ms": 17.53975,
+        "visit": 0
+      },
+      "page": "quest",
+      "repeat_prep": {
+        "max_ms": 6.887917000000001,
+        "median_ms": 5.753542,
+        "min_ms": 5.710666
+      },
+      "repeat_render": {
+        "max_ms": 5.820584,
+        "median_ms": 3.743583,
+        "min_ms": 3.3482920000000003
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 11.713084,
+        "median_ms": 9.497209,
+        "min_ms": 9.059083000000001
+      },
+      "rows": {
+        "board_rows": 0,
+        "list_rows": 10,
+        "region_rows": 0,
+        "section_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 10.451167000000002,
+          "queued_icons_excluded": 0,
+          "render_ms": 7.088167,
+          "total_ms": 17.53975,
+          "visit": 0
+        },
+        {
+          "prep_ms": 6.887917000000001,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.119834,
+          "total_ms": 11.007958,
+          "visit": 1
+        },
+        {
+          "prep_ms": 5.892334,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.820584,
+          "total_ms": 11.713084,
+          "visit": 2
+        },
+        {
+          "prep_ms": 5.753542,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.743583,
+          "total_ms": 9.497209,
+          "visit": 3
+        },
+        {
+          "prep_ms": 5.710666,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.3482920000000003,
+          "total_ms": 9.059083000000001,
+          "visit": 4
+        },
+        {
+          "prep_ms": 5.732209,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.66725,
+          "total_ms": 9.399667,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 19.44775,
+        "queued_icons_excluded": 1807,
+        "render_ms": 8.949959,
+        "total_ms": 28.397875,
+        "visit": 0
+      },
+      "page": "quest.all",
+      "repeat_prep": {
+        "max_ms": 22.128875,
+        "median_ms": 19.166333,
+        "min_ms": 18.683291
+      },
+      "repeat_render": {
+        "max_ms": 5.843708,
+        "median_ms": 4.156875,
+        "min_ms": 4.107958
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 27.97275,
+        "median_ms": 23.368458,
+        "min_ms": 22.948417
+      },
+      "rows": {
+        "board_rows": 0,
+        "list_rows": 933,
+        "region_rows": 0,
+        "section_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 19.44775,
+          "queued_icons_excluded": 1807,
+          "render_ms": 8.949959,
+          "total_ms": 28.397875,
+          "visit": 0
+        },
+        {
+          "prep_ms": 22.128875,
+          "queued_icons_excluded": 1807,
+          "render_ms": 5.843708,
+          "total_ms": 27.97275,
+          "visit": 1
+        },
+        {
+          "prep_ms": 19.260333,
+          "queued_icons_excluded": 1807,
+          "render_ms": 4.107958,
+          "total_ms": 23.368458,
+          "visit": 2
+        },
+        {
+          "prep_ms": 18.828542,
+          "queued_icons_excluded": 1807,
+          "render_ms": 4.119875,
+          "total_ms": 22.948417,
+          "visit": 3
+        },
+        {
+          "prep_ms": 18.683291,
+          "queued_icons_excluded": 1807,
+          "render_ms": 4.871292,
+          "total_ms": 23.554624999999998,
+          "visit": 4
+        },
+        {
+          "prep_ms": 19.166333,
+          "queued_icons_excluded": 1807,
+          "render_ms": 4.156875,
+          "total_ms": 23.323291,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 11.122125,
+        "queued_icons_excluded": 211,
+        "render_ms": 5.319291000000001,
+        "total_ms": 16.441541,
+        "visit": 0
+      },
+      "page": "enchant",
+      "repeat_prep": {
+        "max_ms": 3.9766250000000003,
+        "median_ms": 3.9494580000000004,
+        "min_ms": 3.818584
+      },
+      "repeat_render": {
+        "max_ms": 5.528459000000001,
+        "median_ms": 4.509458,
+        "min_ms": 4.362083999999999
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 9.358708,
+        "median_ms": 8.474333000000001,
+        "min_ms": 8.180916999999999
+      },
+      "rows": {
+        "board_rows": 25,
+        "list_rows": 7,
+        "region_rows": 0,
+        "section_rows": 7
+      },
+      "samples": [
+        {
+          "prep_ms": 11.122125,
+          "queued_icons_excluded": 211,
+          "render_ms": 5.319291000000001,
+          "total_ms": 16.441541,
+          "visit": 0
+        },
+        {
+          "prep_ms": 3.9494580000000004,
+          "queued_icons_excluded": 211,
+          "render_ms": 4.5247910000000005,
+          "total_ms": 8.474333000000001,
+          "visit": 1
+        },
+        {
+          "prep_ms": 3.9766250000000003,
+          "queued_icons_excluded": 211,
+          "render_ms": 4.392458,
+          "total_ms": 8.369167000000001,
+          "visit": 2
+        },
+        {
+          "prep_ms": 3.8301250000000002,
+          "queued_icons_excluded": 211,
+          "render_ms": 5.528459000000001,
+          "total_ms": 9.358708,
+          "visit": 3
+        },
+        {
+          "prep_ms": 3.818584,
+          "queued_icons_excluded": 211,
+          "render_ms": 4.362083999999999,
+          "total_ms": 8.180916999999999,
+          "visit": 4
+        },
+        {
+          "prep_ms": 3.975458,
+          "queued_icons_excluded": 211,
+          "render_ms": 4.509458,
+          "total_ms": 8.485125,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 1.417375,
+        "queued_icons_excluded": 671,
+        "render_ms": 23.802332999999997,
+        "total_ms": 25.219792,
+        "visit": 0
+      },
+      "page": "npc",
+      "repeat_prep": {
+        "max_ms": 1.757667,
+        "median_ms": 1.4675420000000001,
+        "min_ms": 1.4395829999999998
+      },
+      "repeat_render": {
+        "max_ms": 23.040291,
+        "median_ms": 22.477791,
+        "min_ms": 19.456958
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 24.608125,
+        "median_ms": 23.917458,
+        "min_ms": 20.911167000000003
+      },
+      "rows": {
+        "board_rows": 0,
+        "list_rows": 1133,
+        "region_rows": 0,
+        "section_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 1.417375,
+          "queued_icons_excluded": 671,
+          "render_ms": 23.802332999999997,
+          "total_ms": 25.219792,
+          "visit": 0
+        },
+        {
+          "prep_ms": 1.454084,
+          "queued_icons_excluded": 671,
+          "render_ms": 19.456958,
+          "total_ms": 20.911167000000003,
+          "visit": 1
+        },
+        {
+          "prep_ms": 1.4675420000000001,
+          "queued_icons_excluded": 671,
+          "render_ms": 20.64425,
+          "total_ms": 22.111875,
+          "visit": 2
+        },
+        {
+          "prep_ms": 1.4395829999999998,
+          "queued_icons_excluded": 671,
+          "render_ms": 22.477791,
+          "total_ms": 23.917458,
+          "visit": 3
+        },
+        {
+          "prep_ms": 1.4865,
+          "queued_icons_excluded": 671,
+          "render_ms": 23.040291,
+          "total_ms": 24.526916,
+          "visit": 4
+        },
+        {
+          "prep_ms": 1.757667,
+          "queued_icons_excluded": 671,
+          "render_ms": 22.850333,
+          "total_ms": 24.608125,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 0.2195,
+        "queued_icons_excluded": 34,
+        "render_ms": 6.084542,
+        "total_ms": 6.3041670000000005,
+        "visit": 0
+      },
+      "page": "hero",
+      "repeat_prep": {
+        "max_ms": 0.790209,
+        "median_ms": 0.19349999999999998,
+        "min_ms": 0.148959
+      },
+      "repeat_render": {
+        "max_ms": 7.791959,
+        "median_ms": 5.095667,
+        "min_ms": 4.955417
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 7.941083999999999,
+        "median_ms": 5.317333,
+        "min_ms": 5.150583
+      },
+      "rows": {
+        "board_rows": 41,
+        "list_rows": 15,
+        "region_rows": 0,
+        "section_rows": 15
+      },
+      "samples": [
+        {
+          "prep_ms": 0.2195,
+          "queued_icons_excluded": 34,
+          "render_ms": 6.084542,
+          "total_ms": 6.3041670000000005,
+          "visit": 0
+        },
+        {
+          "prep_ms": 0.790209,
+          "queued_icons_excluded": 34,
+          "render_ms": 5.5520830000000005,
+          "total_ms": 6.342334,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.19349999999999998,
+          "queued_icons_excluded": 34,
+          "render_ms": 4.956958,
+          "total_ms": 5.150583,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.172625,
+          "queued_icons_excluded": 34,
+          "render_ms": 5.095667,
+          "total_ms": 5.268791,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.148959,
+          "queued_icons_excluded": 34,
+          "render_ms": 7.791959,
+          "total_ms": 7.941083999999999,
+          "visit": 4
+        },
+        {
+          "prep_ms": 0.36174999999999996,
+          "queued_icons_excluded": 34,
+          "render_ms": 4.955417,
+          "total_ms": 5.317333,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 0.17091599999999998,
+        "queued_icons_excluded": 74,
+        "render_ms": 5.529166,
+        "total_ms": 5.700208,
+        "visit": 0
+      },
+      "page": "works",
+      "repeat_prep": {
+        "max_ms": 0.224208,
+        "median_ms": 0.160667,
+        "min_ms": 0.150584
+      },
+      "repeat_render": {
+        "max_ms": 6.455208,
+        "median_ms": 5.162334,
+        "min_ms": 4.740792
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 6.6059589999999995,
+        "median_ms": 5.3721250000000005,
+        "min_ms": 4.901625
+      },
+      "rows": {
+        "board_rows": 69,
+        "list_rows": 5,
+        "region_rows": 0,
+        "section_rows": 5
+      },
+      "samples": [
+        {
+          "prep_ms": 0.17091599999999998,
+          "queued_icons_excluded": 74,
+          "render_ms": 5.529166,
+          "total_ms": 5.700208,
+          "visit": 0
+        },
+        {
+          "prep_ms": 0.160667,
+          "queued_icons_excluded": 74,
+          "render_ms": 4.740792,
+          "total_ms": 4.901625,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.224208,
+          "queued_icons_excluded": 74,
+          "render_ms": 4.986542,
+          "total_ms": 5.211041,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.209542,
+          "queued_icons_excluded": 74,
+          "render_ms": 5.162334,
+          "total_ms": 5.3721250000000005,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.1565,
+          "queued_icons_excluded": 74,
+          "render_ms": 5.316959,
+          "total_ms": 5.4735000000000005,
+          "visit": 4
+        },
+        {
+          "prep_ms": 0.150584,
+          "queued_icons_excluded": 74,
+          "render_ms": 6.455208,
+          "total_ms": 6.6059589999999995,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 1.219625,
+        "queued_icons_excluded": 946,
+        "render_ms": 17.492792,
+        "total_ms": 18.712458,
+        "visit": 0
+      },
+      "page": "atlas",
+      "repeat_prep": {
+        "max_ms": 1.511917,
+        "median_ms": 1.164417,
+        "min_ms": 1.140625
+      },
+      "repeat_render": {
+        "max_ms": 18.206125,
+        "median_ms": 17.253459,
+        "min_ms": 17.221459000000003
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 19.718125,
+        "median_ms": 18.457749999999997,
+        "min_ms": 18.374917
+      },
+      "rows": {
+        "board_rows": 996,
+        "list_rows": 6,
+        "region_rows": 0,
+        "section_rows": 6
+      },
+      "samples": [
+        {
+          "prep_ms": 1.219625,
+          "queued_icons_excluded": 946,
+          "render_ms": 17.492792,
+          "total_ms": 18.712458,
+          "visit": 0
+        },
+        {
+          "prep_ms": 1.1533330000000002,
+          "queued_icons_excluded": 946,
+          "render_ms": 17.221459000000003,
+          "total_ms": 18.374917,
+          "visit": 1
+        },
+        {
+          "prep_ms": 1.511917,
+          "queued_icons_excluded": 946,
+          "render_ms": 18.206125,
+          "total_ms": 19.718125,
+          "visit": 2
+        },
+        {
+          "prep_ms": 1.140625,
+          "queued_icons_excluded": 946,
+          "render_ms": 17.253459,
+          "total_ms": 18.39425,
+          "visit": 3
+        },
+        {
+          "prep_ms": 1.3738750000000002,
+          "queued_icons_excluded": 946,
+          "render_ms": 17.250458,
+          "total_ms": 18.624499999999998,
+          "visit": 4
+        },
+        {
+          "prep_ms": 1.164417,
+          "queued_icons_excluded": 946,
+          "render_ms": 17.293208,
+          "total_ms": 18.457749999999997,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 4.448792,
+        "queued_icons_excluded": 0,
+        "render_ms": 12.456,
+        "total_ms": 16.904916999999998,
+        "visit": 0
+      },
+      "page": "patch",
+      "repeat_prep": {
+        "max_ms": 1.290708,
+        "median_ms": 1.245708,
+        "min_ms": 1.1981249999999999
+      },
+      "repeat_render": {
+        "max_ms": 12.336417,
+        "median_ms": 11.861625,
+        "min_ms": 11.708042
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 13.623292000000001,
+        "median_ms": 13.107417,
+        "min_ms": 12.906416
+      },
+      "rows": {
+        "board_rows": 0,
+        "list_rows": 581,
+        "region_rows": 0,
+        "section_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 4.448792,
+          "queued_icons_excluded": 0,
+          "render_ms": 12.456,
+          "total_ms": 16.904916999999998,
+          "visit": 0
+        },
+        {
+          "prep_ms": 1.1981249999999999,
+          "queued_icons_excluded": 0,
+          "render_ms": 11.708042,
+          "total_ms": 12.906416,
+          "visit": 1
+        },
+        {
+          "prep_ms": 1.22,
+          "queued_icons_excluded": 0,
+          "render_ms": 11.840333,
+          "total_ms": 13.060458,
+          "visit": 2
+        },
+        {
+          "prep_ms": 1.290708,
+          "queued_icons_excluded": 0,
+          "render_ms": 11.943667,
+          "total_ms": 13.234417,
+          "visit": 3
+        },
+        {
+          "prep_ms": 1.245708,
+          "queued_icons_excluded": 0,
+          "render_ms": 11.861625,
+          "total_ms": 13.107417,
+          "visit": 4
+        },
+        {
+          "prep_ms": 1.286875,
+          "queued_icons_excluded": 0,
+          "render_ms": 12.336417,
+          "total_ms": 13.623292000000001,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 18.431167,
+        "queued_icons_excluded": 0,
+        "render_ms": 5.016208000000001,
+        "total_ms": 23.447459000000002,
+        "visit": 0
+      },
+      "page": "calculator.equipment",
+      "repeat_prep": {
+        "max_ms": 19.915875,
+        "median_ms": 17.947000000000003,
+        "min_ms": 17.832917000000002
+      },
+      "repeat_render": {
+        "max_ms": 4.3906659999999995,
+        "median_ms": 3.910541,
+        "min_ms": 3.866375
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 23.9815,
+        "median_ms": 21.995666,
+        "min_ms": 21.70825
+      },
+      "rows": {
+        "candidate_rows": 40,
+        "material_rows": 4
+      },
+      "samples": [
+        {
+          "prep_ms": 18.431167,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.016208000000001,
+          "total_ms": 23.447459000000002,
+          "visit": 0
+        },
+        {
+          "prep_ms": 17.832917000000002,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.3906659999999995,
+          "total_ms": 22.223583,
+          "visit": 1
+        },
+        {
+          "prep_ms": 17.836041,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.872167,
+          "total_ms": 21.70825,
+          "visit": 2
+        },
+        {
+          "prep_ms": 18.085125,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.910541,
+          "total_ms": 21.995666,
+          "visit": 3
+        },
+        {
+          "prep_ms": 17.947000000000003,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.866375,
+          "total_ms": 21.813584,
+          "visit": 4
+        },
+        {
+          "prep_ms": 19.915875,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.065416,
+          "total_ms": 23.9815,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 19.987000000000002,
+        "queued_icons_excluded": 0,
+        "render_ms": 4.058541,
+        "total_ms": 24.046208,
+        "visit": 0
+      },
+      "page": "calculator.character",
+      "repeat_prep": {
+        "max_ms": 22.010792000000002,
+        "median_ms": 20.882833,
+        "min_ms": 20.110041
+      },
+      "repeat_render": {
+        "max_ms": 5.219042,
+        "median_ms": 4.140124999999999,
+        "min_ms": 4.021958
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 26.150959,
+        "median_ms": 25.344375,
+        "min_ms": 24.132208
+      },
+      "rows": {
+        "candidate_rows": 209,
+        "material_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 19.987000000000002,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.058541,
+          "total_ms": 24.046208,
+          "visit": 0
+        },
+        {
+          "prep_ms": 20.882833,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.219042,
+          "total_ms": 26.102125,
+          "visit": 1
+        },
+        {
+          "prep_ms": 22.010792000000002,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.140124999999999,
+          "total_ms": 26.150959,
+          "visit": 2
+        },
+        {
+          "prep_ms": 20.532834,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.8114170000000005,
+          "total_ms": 25.344375,
+          "visit": 3
+        },
+        {
+          "prep_ms": 20.110041,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.021958,
+          "total_ms": 24.132208,
+          "visit": 4
+        },
+        {
+          "prep_ms": 21.260583,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.055458,
+          "total_ms": 25.316083,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 19.960458,
+        "queued_icons_excluded": 0,
+        "render_ms": 5.188125,
+        "total_ms": 25.148625,
+        "visit": 0
+      },
+      "page": "calculator.bonus",
+      "repeat_prep": {
+        "max_ms": 19.749416999999998,
+        "median_ms": 18.287791000000002,
+        "min_ms": 17.929209
+      },
+      "repeat_render": {
+        "max_ms": 5.085209,
+        "median_ms": 3.723416,
+        "min_ms": 3.680167
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 24.834708,
+        "median_ms": 22.011540999999998,
+        "min_ms": 21.721792
+      },
+      "rows": {
+        "candidate_rows": 186,
+        "tree_rows": 0
+      },
+      "samples": [
+        {
+          "prep_ms": 19.960458,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.188125,
+          "total_ms": 25.148625,
+          "visit": 0
+        },
+        {
+          "prep_ms": 19.749416999999998,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.085209,
+          "total_ms": 24.834708,
+          "visit": 1
+        },
+        {
+          "prep_ms": 19.2165,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.680167,
+          "total_ms": 22.896709,
+          "visit": 2
+        },
+        {
+          "prep_ms": 18.287791000000002,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.723416,
+          "total_ms": 22.011540999999998,
+          "visit": 3
+        },
+        {
+          "prep_ms": 18.117125,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.7186250000000003,
+          "total_ms": 21.835916,
+          "visit": 4
+        },
+        {
+          "prep_ms": 17.929209,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.792583,
+          "total_ms": 21.721792,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 0.01,
+        "queued_icons_excluded": 0,
+        "render_ms": 3.262833,
+        "total_ms": 3.272917,
+        "visit": 0
+      },
+      "page": "settings.look",
+      "repeat_prep": {
+        "max_ms": 0.005208,
+        "median_ms": 0.004417,
+        "min_ms": 0.0025
+      },
+      "repeat_render": {
+        "max_ms": 3.345708,
+        "median_ms": 3.1294169999999997,
+        "min_ms": 3.088209
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 3.350125,
+        "median_ms": 3.134667,
+        "min_ms": 3.093208
+      },
+      "rows": {},
+      "samples": [
+        {
+          "prep_ms": 0.01,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.262833,
+          "total_ms": 3.272917,
+          "visit": 0
+        },
+        {
+          "prep_ms": 0.003875,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.1674580000000003,
+          "total_ms": 3.1714170000000004,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.005208,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.1294169999999997,
+          "total_ms": 3.134667,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.0025,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.0955000000000004,
+          "total_ms": 3.098084,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.004958,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.088209,
+          "total_ms": 3.093208,
+          "visit": 4
+        },
+        {
+          "prep_ms": 0.004417,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.345708,
+          "total_ms": 3.350125,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 0.006,
+        "queued_icons_excluded": 0,
+        "render_ms": 3.598542,
+        "total_ms": 3.604584,
+        "visit": 0
+      },
+      "page": "settings.bar",
+      "repeat_prep": {
+        "max_ms": 0.0067079999999999996,
+        "median_ms": 0.006166,
+        "min_ms": 0.00325
+      },
+      "repeat_render": {
+        "max_ms": 3.290667,
+        "median_ms": 3.27575,
+        "min_ms": 3.022667
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 3.296916,
+        "median_ms": 3.2824579999999997,
+        "min_ms": 3.025958
+      },
+      "rows": {
+        "dock_rows": 9
+      },
+      "samples": [
+        {
+          "prep_ms": 0.006,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.598542,
+          "total_ms": 3.604584,
+          "visit": 0
+        },
+        {
+          "prep_ms": 0.006667,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.27575,
+          "total_ms": 3.2824579999999997,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.0067079999999999996,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.214917,
+          "total_ms": 3.221708,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.00325,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.022667,
+          "total_ms": 3.025958,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.004208,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.285167,
+          "total_ms": 3.289375,
+          "visit": 4
+        },
+        {
+          "prep_ms": 0.006166,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.290667,
+          "total_ms": 3.296916,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 0.1735,
+        "queued_icons_excluded": 0,
+        "render_ms": 3.359541,
+        "total_ms": 3.533208,
+        "visit": 0
+      },
+      "page": "settings.aliases",
+      "repeat_prep": {
+        "max_ms": 0.526834,
+        "median_ms": 0.142291,
+        "min_ms": 0.1305
+      },
+      "repeat_render": {
+        "max_ms": 3.5117920000000002,
+        "median_ms": 2.942166,
+        "min_ms": 2.8085419999999996
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 3.769084,
+        "median_ms": 3.121792,
+        "min_ms": 2.950875
+      },
+      "rows": {
+        "alias_rows": 2
+      },
+      "samples": [
+        {
+          "prep_ms": 0.1735,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.359541,
+          "total_ms": 3.533208,
+          "visit": 0
+        },
+        {
+          "prep_ms": 0.179542,
+          "queued_icons_excluded": 0,
+          "render_ms": 2.942166,
+          "total_ms": 3.121792,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.142291,
+          "queued_icons_excluded": 0,
+          "render_ms": 2.8085419999999996,
+          "total_ms": 2.950875,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.526834,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.242125,
+          "total_ms": 3.769084,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.141125,
+          "queued_icons_excluded": 0,
+          "render_ms": 2.825625,
+          "total_ms": 2.9667909999999997,
+          "visit": 4
+        },
+        {
+          "prep_ms": 0.1305,
+          "queued_icons_excluded": 0,
+          "render_ms": 3.5117920000000002,
+          "total_ms": 3.6423750000000004,
+          "visit": 5
+        }
+      ]
+    },
+    {
+      "first": {
+        "prep_ms": 0.007292,
+        "queued_icons_excluded": 0,
+        "render_ms": 7.315917,
+        "total_ms": 7.323416999999999,
+        "visit": 0
+      },
+      "page": "settings.app",
+      "repeat_prep": {
+        "max_ms": 0.009082999999999999,
+        "median_ms": 0.004459,
+        "min_ms": 0.00325
+      },
+      "repeat_render": {
+        "max_ms": 5.19625,
+        "median_ms": 5.02375,
+        "min_ms": 4.552874999999999
+      },
+      "repeat_samples": 5,
+      "repeat_total": {
+        "max_ms": 5.205333,
+        "median_ms": 5.030791,
+        "min_ms": 4.5573749999999995
+      },
+      "rows": {},
+      "samples": [
+        {
+          "prep_ms": 0.007292,
+          "queued_icons_excluded": 0,
+          "render_ms": 7.315917,
+          "total_ms": 7.323416999999999,
+          "visit": 0
+        },
+        {
+          "prep_ms": 0.009082999999999999,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.19625,
+          "total_ms": 5.205333,
+          "visit": 1
+        },
+        {
+          "prep_ms": 0.003916,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.668959,
+          "total_ms": 4.672916,
+          "visit": 2
+        },
+        {
+          "prep_ms": 0.00325,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.17925,
+          "total_ms": 5.182542,
+          "visit": 3
+        },
+        {
+          "prep_ms": 0.004459,
+          "queued_icons_excluded": 0,
+          "render_ms": 4.552874999999999,
+          "total_ms": 4.5573749999999995,
+          "visit": 4
+        },
+        {
+          "prep_ms": 0.007,
+          "queued_icons_excluded": 0,
+          "render_ms": 5.02375,
+          "total_ms": 5.030791,
+          "visit": 5
+        }
+      ]
+    }
+  ],
+  "monster_gallery": false,
+  "os": "macos",
+  "renderer": "winit-software",
+  "repeat_definition": "Five revisits, each preceded by an untimed neutral home snapshot that unmounts the target; home revisits use settings as the intervening page.",
+  "scale_factor": 1.0,
+  "scope": "Real catalog and page models; synchronous query/model preparation + Slint layout and CPU snapshot raster. Includes synchronous icons and submission of asynchronous icon jobs. Excludes asynchronous icon decode/delivery, event-loop latency, native presentation, network/update checks, screenshot encoding and disk writes.",
+  "screenshots": [
+    {
+      "file": "pages.monster.all.ppm",
+      "height": 800,
+      "page": "monster.all",
+      "width": 1280
+    },
+    {
+      "file": "pages.quest.all.ppm",
+      "height": 800,
+      "page": "quest.all",
+      "width": 1280
+    },
+    {
+      "file": "pages.calculator.equipment.ppm",
+      "height": 800,
+      "page": "calculator.equipment",
+      "width": 1280
+    }
+  ],
+  "settings_scope": "Four full-mode tabs; keyboard settings are only available in widget mode. Update checks are not started.",
+  "startup": [
+    {
+      "elapsed_ms": 0.049125,
+      "stage": "user_data_initialize"
+    },
+    {
+      "elapsed_ms": 305.763042,
+      "stage": "catalog_open"
+    },
+    {
+      "elapsed_ms": 214.482292,
+      "stage": "backend_and_app_create"
+    },
+    {
+      "elapsed_ms": 163.580333,
+      "stage": "calculator_install_including_character"
+    },
+    {
+      "elapsed_ms": 18.083958,
+      "stage": "bonus_install"
+    },
+    {
+      "elapsed_ms": 6.419542,
+      "stage": "navigation_assets_aliases_changelog"
+    },
+    {
+      "elapsed_ms": 1.475916,
+      "stage": "window_show_and_size"
+    }
+  ],
+  "startup_ms_before_first_page": 709.9415,
+  "version": "1.2.1"
+}
