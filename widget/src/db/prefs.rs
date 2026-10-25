@@ -33,7 +33,7 @@ pub fn load_lang() -> String {
         // content. Only migrate that meaning here, never in current selections.
         Ok(text) if matches!(text.trim(), "en-zh" | "en") => "en-zh",
         Ok(_) => "zh-en",
-        Err(_) => "zh",
+        Err(_) => "zh-en",
     };
     // Do not replace a selection saved by another instance during migration.
     write_default_preference(&languages_file(), format_languages(lang).as_bytes());
@@ -554,10 +554,11 @@ mod tests {
     }
 
     #[test]
-    fn a_fresh_install_has_a_required_primary_and_no_secondary() {
+    fn a_fresh_install_defaults_to_chinese_with_english_secondary() {
         assert!(!lang_file().exists());
         assert!(!languages_file().exists());
-        assert_eq!(load_lang(), "zh");
+        assert_eq!(load_lang(), "zh-en");
+        assert_eq!(std::fs::read_to_string(languages_file()).unwrap(), "primary=zh\nsecondary=en\n");
     }
 
     #[test]
