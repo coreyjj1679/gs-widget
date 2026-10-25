@@ -2,6 +2,36 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "1.2.2",
+      "date": "2026-10-25",
+      "sections": [
+        {
+          "kind": "improved",
+          "en": [
+            "Improve responsiveness when opening monster regions and item pages, reducing loading work in lists with many images.",
+            "Show selected secondary names in more catalog regions, quest and NPC details, crafting materials and production sources. Missing or duplicate translations stay hidden.",
+            "Use selected primary and secondary names across item, character and Bonus calculators, alias settings and JPG cost-sheet exports.",
+            "Expand secondary descriptions and release notes on demand. Keep narrow lists and calculator trees compact, with full names available in hints."
+          ],
+          "zh-TW": [
+            "改善開啟怪物地區及道具頁面的反應，減少含大量圖片清單的載入工作。",
+            "更多圖鑑地區、任務與 NPC 詳情、合成材料及生產來源會顯示已選次語名稱；缺少或重複的翻譯不會重複顯示。",
+            "道具、角色及紅利計算器、別名設定與成本表 JPG 匯出均擴充主語及次語名稱顯示。",
+            "次語說明及更新日誌可按需展開；窄版清單與計算器升級樹維持緊湊排列，完整名稱可在提示中查看。"
+          ]
+        },
+        {
+          "kind": "fixed",
+          "en": [
+            "New installations start with Chinese as the primary language and English as the secondary language. Existing saved language preferences are preserved."
+          ],
+          "zh-TW": [
+            "新安裝預設以中文為主語言、English 為次語言；已有的語言設定會保留。"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.2.1",
       "date": "2026-10-24",
       "sections": [
