@@ -47,6 +47,19 @@ mod tests {
         assert_eq!(validated_alias_text(&[(" SSA ".into(), "#6213, 6214，6213".into())], |_| true).unwrap(), "SSA 6213 6214");
         assert_eq!(validated_alias_text(&[], |_| false).unwrap(), "");
     }
+
+    #[test]
+    fn candidate_names_preserve_secondary_language_and_code_metadata() {
+        let catalog = crate::db::Catalog::open().expect("catalog");
+        for language in ["zh-en", "en-zh", "ko-en", "zh", "en", "ko"] {
+            let rows = super::alias_suggestions(&catalog, "143", language, &[]);
+            let row = rows.iter().find(|row| row.key == "item:143").expect("licorice candidate");
+            assert_eq!(row.alternate_name.as_str(), catalog.item_alternate_name("item:143", language));
+            assert_eq!(row.subtitle, "#143");
+        }
+        assert!(super::alias_suggestions(&catalog, "143", "zh-en", &["143".into()])
+            .iter().all(|row| row.key != "item:143"));
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -162,7 +175,7 @@ pub(crate) fn alias_suggestions(catalog: &db::Catalog, query: &str, lang: &str, 
             let (image, has_icon) = alias_image(&hit.icon);
             Hit {
                 title: hit.title.into(),
-                alternate_name: Default::default(),
+                alternate_name: catalog.item_alternate_name(&hit.key, lang).into(),
                 subtitle: format!("#{code}").into(),
                 detail: String::new().into(),
                 monster_drops: Default::default(),
@@ -217,10 +230,11 @@ pub(crate) fn refresh_alias_icons(app: &App, catalog: &db::Catalog, rows: &[(Str
     for (index, (_, codes)) in rows.iter().enumerate() {
         for item in catalog.alias_items(codes, &lang) {
             let (image, has_icon) = alias_image(&item.icon);
+            let (alternate_name, subtitle) = super::list::item_row_names(catalog, &item.key, &item.subtitle, &lang);
             icons.push(Hit {
                 title: item.title.clone().into(),
-                alternate_name: Default::default(),
-                subtitle: item.subtitle.clone().into(),
+                alternate_name: alternate_name.into(),
+                subtitle: subtitle.into(),
                 detail: String::new().into(),
                 monster_drops: Default::default(),
                 enchant_equipment: Default::default(),
@@ -288,10 +302,11 @@ pub(crate) fn show_alias_rows(app: &App, catalog: &db::Catalog, rows: &[(String,
             let items = catalog.alias_items(codes, &lang);
             for item in &items {
                 let (image, has_icon) = alias_image(&item.icon);
+                let (alternate_name, subtitle) = super::list::item_row_names(catalog, &item.key, &item.subtitle, &lang);
                 icons.push(Hit {
                     title: item.title.clone().into(),
-                    alternate_name: Default::default(),
-                    subtitle: item.subtitle.clone().into(),
+                    alternate_name: alternate_name.into(),
+                    subtitle: subtitle.into(),
                     detail: String::new().into(),
                     monster_drops: Default::default(),
                     enchant_equipment: Default::default(),

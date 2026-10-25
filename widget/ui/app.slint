@@ -43,10 +43,35 @@ export struct ChangelogRelease {
     sections: [ChangelogSection],
 }
 
+// Secondary prose is created only when expanded; names remain visible in their rows.
+component SecondaryText inherits Rectangle {
+    in property <string> text;
+    property <bool> expanded: false;
+    changed text => { root.expanded = false; }
+    height: content.preferred-height;
+    content := VerticalLayout {
+        width: parent.width; height: self.preferred-height; spacing: 6px;
+        if root.text != "": Button {
+            height: 28px;
+            text: root.expanded ? UiLanguage.tr("Hide secondary text", "收起副語言") : UiLanguage.tr("Show secondary text", "顯示副語言");
+            clicked => { root.expanded = !root.expanded; }
+        }
+        if root.expanded && root.text != "": Text {
+            text: root.text; width: parent.width; wrap: word-wrap;
+            font-size: 13px; color: DesktopTheme.secondary;
+        }
+    }
+}
+
+
 component ChangelogHistory inherits Rectangle {
     in property <[ChangelogRelease]> releases;
     in property <string> installed-version;
     in property <bool> english;
+    in property <string> secondary-language;
+    property <bool> secondary-open: false;
+    property <bool> has-secondary: (root.secondary-language == "zh" && UiLanguage.primary != "zh") || (root.secondary-language == "en" && UiLanguage.primary == "zh");
+    changed secondary-language => { root.secondary-open = false; }
     height: history.preferred-height;
 
     history := VerticalLayout {
@@ -70,6 +95,11 @@ component ChangelogHistory inherits Rectangle {
                 font-size: 12px;
                 color: DesktopTheme.secondary;
             }
+        }
+        if root.has-secondary && root.releases.length > 0: Button {
+            height: 28px;
+            text: root.secondary-open ? UiLanguage.tr("Hide secondary text", "收起副語言") : UiLanguage.tr("Show secondary text", "顯示副語言");
+            clicked => { root.secondary-open = !root.secondary-open; }
         }
         if root.releases.length == 0: Text {
             width: root.width;
@@ -129,14 +159,17 @@ component ChangelogHistory inherits Rectangle {
                         border-radius: 2px;
                         background: DesktopTheme.secondary;
                     }
-                    entry-text := Text {
-                        x: 12px;
-                        width: parent.width - self.x;
-                        height: self.preferred-height;
-                        text: UiLanguage.primary == "zh" ? entry.text-zh : entry.text-en;
-                        font-size: 13px;
-                        color: DesktopTheme.text;
-                        wrap: word-wrap;
+                    entry-text := VerticalLayout {
+                        x: 12px; width: parent.width - self.x; height: self.preferred-height; spacing: 4px;
+                        Text {
+                            text: UiLanguage.primary == "zh" ? entry.text-zh : entry.text-en;
+                            font-size: 13px; color: DesktopTheme.text; wrap: word-wrap;
+                        }
+                        if root.has-secondary && root.secondary-open: Text {
+                            width: parent.width;
+                            text: root.secondary-language == "zh" ? entry.text-zh : entry.text-en;
+                            font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                        }
                     }
                 }
             }
@@ -1200,6 +1233,24 @@ component OpacitySlider inherits Rectangle {
     }
 }
 
+component AliasItemName inherits Rectangle {
+    in property <Hit> hit;
+    height: root.hit.alternate-name != "" ? 34px : 20px;
+    accessible-role: text;
+    accessible-label: RecordText.full(root.hit);
+    Text { y: 0px; width: 100%; height: 19px; text: root.hit.title; font-size: 13px; color: DesktopTheme.text; overflow: elide; }
+    if root.hit.alternate-name != "": Text { y: 19px; width: 100%; height: 15px; text: root.hit.alternate-name; font-size: 11px; color: DesktopTheme.secondary; overflow: elide; }
+    Tooltip { RecordTooltip { text: RecordText.full(root.hit); } }
+    FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { RecordInfo.show(root.hit); return accept; }
+            return reject;
+        }
+    }
+}
+
+
 component AliasCard inherits Rectangle {
     in property <string> name;
     in property <string> codes;
@@ -1366,7 +1417,7 @@ component AliasCard inherits Rectangle {
             alignment: start;
             for icon in root.icons: HorizontalLayout {
                 visible: icon.aside == root.row-mark;
-                height: icon.aside == root.row-mark ? 32px : 0px;
+                height: icon.aside == root.row-mark ? (icon.alternate-name != "" ? 40px : 32px) : 0px;
                 spacing: 8px;
                 alignment: root.full-mode ? stretch : start;
                 if icon.aside == root.row-mark && icon.has-icon: Image {
@@ -1381,14 +1432,8 @@ component AliasCard inherits Rectangle {
                     color: DesktopTheme.accent;
                     vertical-alignment: center;
                 }
-                if icon.aside == root.row-mark: Text {
-                    horizontal-stretch: 1;
-                    min-width: 0px;
-                    text: icon.title;
-                    font-size: 13px;
-                    color: DesktopTheme.text;
-                    vertical-alignment: center;
-                    overflow: elide;
+                if icon.aside == root.row-mark: AliasItemName {
+                    horizontal-stretch: 1; min-width: 0px; hit: icon;
                 }
                 if icon.aside == root.row-mark: LangChip {
                     horizontal-stretch: 0;
@@ -1397,6 +1442,7 @@ component AliasCard inherits Rectangle {
                     label: "×";
                     active: false;
                     accessible-label: root.delete-label + ": " + icon.title;
+                    accessible-description: RecordText.description(icon);
                     focus-changed(focused) => {
                         root.focus-changed(focused);
                         if (focused) { root.reveal-focus(self.absolute-position.y, self.height); }
@@ -1409,7 +1455,9 @@ component AliasCard inherits Rectangle {
             spacing: 4px;
             alignment: start;
             for hit[j] in root.hits: Rectangle {
-                height: 36px;
+                height: hit.alternate-name != "" ? 44px : 36px;
+                accessible-role: button; accessible-label: RecordText.full(hit);
+                accessible-action-default => { root.toggle-hit(j); }
                 border-radius: 6px;
                 background: j == root.pick ? DesktopTheme.selected : DesktopTheme.sidebar;
                 border-width: 1px;
@@ -1440,15 +1488,7 @@ component AliasCard inherits Rectangle {
                         source: hit.icon;
                         image-fit: contain;
                     }
-                    Text {
-                        horizontal-stretch: 1;
-                        min-width: 0px;
-                        text: hit.title;
-                        font-size: 13px;
-                        color: DesktopTheme.text;
-                        vertical-alignment: center;
-                        overflow: elide;
-                    }
+                    AliasItemName { horizontal-stretch: 1; min-width: 0px; hit: hit; }
                     Text {
                         text: hit.subtitle;
                         font-size: 12px;
@@ -1466,6 +1506,7 @@ component AliasCard inherits Rectangle {
         }
     }
 }
+
 
 component SectionToggle inherits Rectangle {
     in property <string> label;
@@ -3956,6 +3997,7 @@ component HeroDetailPane inherits Rectangle {
     in property <string> alt;
     in property <string> code;
     in property <string> note;
+    in property <string> secondary-note;
     in property <image> portrait;
     in property <bool> has-portrait;
     in property <image> battle;
@@ -3990,8 +4032,8 @@ component HeroDetailPane inherits Rectangle {
         x: 16px; y: 16px; width: parent.width - 32px; height: parent.height - 32px;
         content-width: self.width; content-height: max(contents.preferred-height, self.height);
         content-y <=> root.scroll-y;
-        changed content-height => { root.scroll-span-changed(max(self.content-height - self.height, 0px)); }
-        changed height => { root.scroll-span-changed(max(self.content-height - self.height, 0px)); }
+        changed content-height => { self.content-y = clamp(self.content-y, min(0px, self.height - self.content-height), 0px); root.scroll-span-changed(max(self.content-height - self.height, 0px)); }
+        changed height => { self.content-y = clamp(self.content-y, min(0px, self.height - self.content-height), 0px); root.scroll-span-changed(max(self.content-height - self.height, 0px)); }
         contents := VerticalLayout {
             width: parent.width; height: self.preferred-height; spacing: 18px; alignment: start;
             VerticalLayout {
@@ -4048,6 +4090,7 @@ component HeroDetailPane inherits Rectangle {
                 Text { text: fact.label; color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap; }
                 Text { width: parent.width; text: fact.value; color: DesktopTheme.text; font-size: 13px; wrap: word-wrap; }
             }
+            if root.secondary-note != "": SecondaryText { width: parent.width; text: root.secondary-note; }
             if root.links.length > 0: related := VerticalLayout {
                 spacing: 4px;
                 Text { text: UiLanguage.tr("Progression & materials", "轉職、升級與材料"); color: DesktopTheme.text; font-size: 15px; font-weight: 600; }
@@ -4287,6 +4330,9 @@ component FactLine inherits Rectangle {
     in property <bool> keyboard-link: false;
     in property <length> label-width: 112px;
     callback open();
+    accessible-role: text;
+    accessible-label: root.label + " " + root.value;
+    Tooltip { RecordTooltip { text: root.label + "\n" + root.value; } }
     property <bool> heading: value == "" && !has-icon;
     height: heading ? 28px : wrap-value ? max(line-height, value-text.preferred-height + 8px) : line-height;
     border-radius: 8px;
@@ -4427,6 +4473,7 @@ component RecordDetail inherits Rectangle {
     in property <[Fact]> facts;
     in property <[Hit]> links;
     in property <string> note: "";
+    in property <string> secondary-note: "";
     in property <string> body: "";
     in property <string> link-label;
     in property <string> source-note: "";
@@ -4452,6 +4499,7 @@ component RecordDetail inherits Rectangle {
                 font-size: 13px;
                 color: DesktopTheme.text;
             }
+            if root.secondary-note != "": SecondaryText { width: parent.width - 24px; text: root.secondary-note; }
             if root.body != "" && root.facts.length == 0: Text {
                 width: parent.width - 24px;
                 text: root.body;
@@ -5219,6 +5267,7 @@ export component App inherits Window {
     in-out property <string> sheet-alt;
     in-out property <string> sheet-code;
     in-out property <string> sheet-note;
+    in-out property <string> sheet-secondary-note;
     in-out property <bool> sheet-can-calculate: false;
     // Monsters that drop the open item; full mode compares them by drop rate.
     in-out property <int> item-drop-total: 0;
@@ -9135,7 +9184,7 @@ export component App inherits Window {
                                 if root.detail-key != "" && !root.viewing-hero: RecordDetail {
                                     y: parent.heading-height + (parent.can-open ? 50px : 8px) + (parent.can-calculate ? 40px : 0px) + (parent.can-compare ? 40px : 0px);
                                     width: parent.width; height: parent.height - self.y - 8px;
-                                    facts: root.facts; links: root.links; note: root.sheet-note; body: root.detail;
+                                    facts: root.facts; links: root.links; note: root.sheet-note; secondary-note: root.sheet-secondary-note; body: root.detail;
                                     source-note: root.source-note;
                                     link-label: root.viewing-recipe ? (UiLanguage.tr("Result and materials", "成品與材料")) : (UiLanguage.tr("Related", "相關"));
                                     no-image-label: root.no-image-label;
@@ -9147,7 +9196,7 @@ export component App inherits Window {
                                     record-key: root.detail-key; english: UiLanguage.primary == "en";
                                     can-calculate: root.sheet-can-calculate && root.detail-key.starts-with("hero:");
                                     calculator-focus-request: root.record-calculator-focus-request;
-                                    title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note;
+                                    title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note; secondary-note: root.sheet-secondary-note;
                                     portrait: root.item-icon; has-portrait: root.show-icon; battle: root.battle-icon; has-battle: root.show-battle;
                                     animate: root.animate-battle; stats: root.hero-stats; effects: root.hero-effects; spirit: root.hero-spirit; facts: root.facts; links: root.links;
                                     cursor: root.cursor; scroll-y <=> root.drop-offset;
@@ -9501,7 +9550,7 @@ export component App inherits Window {
                         record-key: root.viewing; english: UiLanguage.primary == "en";
                         can-calculate: root.sheet-can-calculate && root.viewing.starts-with("hero:");
                         calculator-focus-request: root.record-calculator-focus-request;
-                        title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note;
+                        title: root.sheet-title; alt: root.sheet-alt; code: root.sheet-code; note: root.sheet-note; secondary-note: root.sheet-secondary-note;
                         portrait: root.item-icon; has-portrait: root.show-icon; battle: root.battle-icon; has-battle: root.show-battle;
                         animate: root.animate-battle; stats: root.hero-stats; effects: root.hero-effects; spirit: root.hero-spirit; facts: root.facts; links: root.links;
                         cursor: root.cursor; scroll-y <=> root.drop-offset;
@@ -9820,7 +9869,7 @@ export component App inherits Window {
                                         }
                                     }
                                     if !root.fold-row(fact.key) && root.section-open(fact.section): FactLine {
-                                        wrap-value: root.full-item-sheet || fact.has-icon;
+                                        wrap-value: true;
                                         label-width: fact.value == "" || fact.has-icon ? 0px : 120px;
                                         line-height: fact.has-icon ? 40px : 32px;
                                         label: fact.label;
@@ -9849,6 +9898,7 @@ export component App inherits Window {
                                         font-size: 13px;
                                         color: DesktopTheme.text;
                                     }
+                                    if root.sheet-secondary-note != "": SecondaryText { width: parent.width; text: root.sheet-secondary-note; }
                                 }
                             }
                         }
@@ -10564,6 +10614,7 @@ export component App inherits Window {
                         width: parent.width - self.x; height: self.preferred-height;
                         spacing: 16px; alignment: start;
                         ChangelogHistory {
+                            secondary-language: root.secondary-language;
                             releases: root.changelog-releases;
                             installed-version: root.app-version;
                             english: UiLanguage.primary == "en";

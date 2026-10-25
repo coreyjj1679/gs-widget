@@ -285,6 +285,15 @@ fn section(key: String, title: String) -> Hit {
 
 impl Catalog {
     pub fn hero_effect_lines(&self, code: &str, lang: &str) -> Vec<(String, String)> {
+        self.hero_effect_texts(code, lang, false)
+    }
+
+    pub fn hero_secondary_effect_lines(&self, code: &str, lang: &str) -> Vec<(String, String)> {
+        if super::secondary_lang(lang).is_none() { return Vec::new(); }
+        self.hero_effect_texts(code, lang, true)
+    }
+
+    fn hero_effect_texts(&self, code: &str, lang: &str, secondary: bool) -> Vec<(String, String)> {
         let Ok(mut stmt) = self.conn.prepare(
             "SELECT label_en, label_zh, value_en, value_zh FROM character_facts
              WHERE code = ?1 AND label_en = 'Skill effect' ORDER BY slot",
@@ -303,7 +312,7 @@ impl Catalog {
         };
         rows.flatten()
             .map(|(en, zh, value_en, value_zh)| {
-                (chrome_text(lang, &zh, &en), lead(lang, &value_en, &value_zh))
+                (chrome_text(lang, &zh, &en), if secondary { trail3(lang, &value_en, &value_zh, "") } else { lead(lang, &value_en, &value_zh) })
             })
             .filter(|(_, value)| !value.is_empty())
             .collect()

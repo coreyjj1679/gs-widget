@@ -890,6 +890,16 @@ impl Catalog {
         lead3(lang, &en, &zh, korean)
     }
 
+    pub fn item_secondary_note(&self, code: i64, lang: &str) -> String {
+        if super::secondary_lang(lang).is_none() { return String::new(); }
+        let Ok((gts, ko)) = self.conn.query_row(
+            "SELECT IFNULL(desc_gts, 0), description FROM items WHERE code = ?1", [code],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        ) else { return String::new(); };
+        let ko = if ko.trim() == "0" { "" } else { &ko };
+        trail3(lang, &self.online_line(gts, "en"), &self.online_line(gts, "zh"), ko)
+    }
+
     pub(in crate::db) fn online_line(&self, id: i64, lang: &str) -> String {
         self.conn
             .query_row(
@@ -1558,6 +1568,11 @@ impl Catalog {
         hits
     }
 
+    fn stacked_item_name(&self, code: i64, lang: &str) -> String {
+        let (en, zh, ko) = self.item_names3(code);
+        super::text::stack3(lang, &en, &zh, &ko)
+    }
+
     pub(in crate::db) fn enchant_lines(&self, code: i64, lang: &str) -> Vec<(String, String)> {
         if !self.has_table("enchant_recipes") {
             return Vec::new();
@@ -1579,7 +1594,7 @@ impl Catalog {
             lines.push((phrase("enchant-gear", lang), gear.join(separator)));
         }
         for (item, qty) in self.enchant_materials(&key) {
-            lines.push((phrase("materials", lang), format!("{} × {}", self.item_name(item, lang), commas(qty))));
+            lines.push((phrase("materials", lang), format!("{} × {}", self.stacked_item_name(item, lang), commas(qty))));
         }
         lines
     }
@@ -1601,13 +1616,13 @@ impl Catalog {
                         if text_id > 0 {
                             let en = self.online_line(text_id, "en");
                             let zh = self.online_line(text_id, "zh");
-                            let shown = lead(lang, &en, &zh);
+                            let shown = super::text::show(lang, &en, &zh);
                             if !shown.is_empty() {
                                 return shown;
                             }
                         }
                         if item > 0 {
-                            return self.item_name(item, lang);
+                            return self.stacked_item_name(item, lang);
                         }
                         String::new()
                     })
@@ -1868,6 +1883,19 @@ pub(super) fn push_rows(hits: &mut Vec<Hit>, lang: &str, key: &str, mut rows: Ve
 #[cfg(test)]
 mod language_tests {
     use super::*;
+
+    #[test]
+    fn secondary_item_description_uses_only_the_selected_translation() {
+        let catalog = Catalog::open().expect("catalog");
+        let zh = catalog.item_sheet(56, "zh").unwrap().4;
+        let en = catalog.item_sheet(56, "en").unwrap().4;
+        assert!(!zh.is_empty() && !en.is_empty() && zh != en);
+        assert_eq!(catalog.item_secondary_note(56, "zh-en"), en);
+        assert_eq!(catalog.item_secondary_note(56, "en-zh"), zh);
+        assert!(catalog.item_secondary_note(56, "zh").is_empty());
+        assert!(catalog.item_secondary_note(1126, "zh-en").is_empty(), "Korean-only enchant prose is not an English translation");
+        assert!(catalog.item_secondary_note(-1, "zh-en").is_empty());
+    }
 
     #[test]
     fn item_sheet_and_clipboard_use_korean_source_and_optional_secondary() {

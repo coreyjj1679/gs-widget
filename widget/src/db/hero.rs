@@ -60,6 +60,28 @@ pub(in crate::db) fn hero_names(lang: &str, hero: &HeroRow) -> (String, String) 
     }
 }
 
+fn hero_secondary_parts(hero: &HeroRow, lang: &str) -> (String, Vec<(String, String)>) {
+    let clean = |value: &str| {
+        let value = tidy(value);
+        if value == "0" { String::new() } else { value }
+    };
+    // These descriptions have English/Chinese sources only. A selected Korean
+    // secondary must stay empty instead of substituting an unrelated language.
+    let secondary = |en: &str, zh: &str| trail3(lang, &clean(en), &clean(zh), "");
+    let mut facts = Vec::new();
+    let hire = secondary(&hero.hire_en, &hero.hire_zh);
+    if !hire.is_empty() {
+        facts.push((phrase("hire", lang), hire));
+    }
+    for skill in &hero.skills {
+        let value = secondary(&skill.en, &skill.zh);
+        if value.is_empty() { continue; }
+        let name = clean(&skill.name);
+        facts.push((if name.is_empty() { phrase("skill", lang) } else { name }, value));
+    }
+    (secondary(&hero.desc_en, &hero.desc_zh), facts)
+}
+
 pub(in crate::db) fn hero_rank_pair(rank: i64) -> (&'static str, &'static str) {
     match rank {
         0 => ("Mercenary", "傭兵"),
@@ -591,6 +613,14 @@ impl Catalog {
         Some((title, alt, heading, details, note))
     }
 
+    /// Optional presentation for the selected secondary language, separate from
+    /// the primary facts so compact detail panes can reveal it on demand.
+    pub fn hero_secondary_text(&self, code: &str, lang: &str) -> (String, Vec<(String, String)>) {
+        self.index.heroes.iter().find(|hero| hero.code == code)
+            .map(|hero| hero_secondary_parts(hero, lang))
+            .unwrap_or_default()
+    }
+
     pub fn hero_portrait(&self, code: &str) -> Option<(PathBuf, i32)> {
         self.index.heroes.iter().find(|hero| hero.code == code).and_then(|hero| hero.icon.clone())
     }
@@ -982,7 +1012,8 @@ impl Index {
             hits.extend(uses.iter().map(|use_| {
                 let target = self.heroes.iter().find(|hero| hero.code == use_.target);
                 let source = self.heroes.iter().find(|hero| hero.code == use_.source);
-                let target_name = target.map(|hero| hero_names(lang, hero).0).unwrap_or_else(|| use_.target.clone());
+                let (target_name, target_alternate) = target.map(|hero| hero_names(lang, hero))
+                    .unwrap_or_else(|| (use_.target.clone(), String::new()));
                 let source_name = source.map(|hero| hero_names(lang, hero).0).unwrap_or_default();
                 let kind = roster_kind(&use_.note, target.map(|hero| hero.zh.as_str()).unwrap_or(""), use_.combo, lang);
                 let subtitle = if source_name.is_empty() || source_name == target_name {
@@ -992,7 +1023,7 @@ impl Index {
                 };
                 Hit {
                     title: target_name,
-                    subtitle,
+                    subtitle: caption(&target_alternate, subtitle),
                     key: format!("hero:{}", use_.target),
                     icon: target.and_then(|hero| hero.icon.clone()),
                     solo: false,
@@ -1004,10 +1035,11 @@ impl Index {
         }
         for (hero_code, qty) in fixed_beast_items(code) {
             let target = self.heroes.iter().find(|hero| hero.code == hero_code);
-            let target_name = target.map(|hero| hero_names(lang, hero).0).unwrap_or_else(|| hero_code.to_string());
+            let (target_name, target_alternate) = target.map(|hero| hero_names(lang, hero))
+                .unwrap_or_else(|| (hero_code.to_string(), String::new()));
             hits.push(Hit {
                 title: target_name,
-                subtitle: phrase("combine", lang),
+                subtitle: caption(&target_alternate, phrase("combine", lang)),
                 key: format!("hero:{hero_code}"),
                 icon: target.and_then(|hero| hero.icon.clone()),
                 solo: false,
@@ -1226,6 +1258,38 @@ mod tests {
         }
         // The sentinel is specific to unused skill slots, not numeric character stats.
         assert!(catalog.hero_stat_lines("U00", "en").iter().any(|(label, value)| label == "MP" && value == "0"));
+    }
+
+    #[test]
+    fn secondary_hero_descriptions_follow_selection_without_repeating_fallbacks() {
+        let mut catalog = Catalog::open().expect("catalog");
+        let (english_note, english_facts) = catalog.hero_secondary_text("U87", "zh-en");
+        assert!(english_note.contains("Gwon Yul"));
+        assert!(english_facts.iter().any(|(label, value)| label == "폭뢰격" && value.contains("Flame Nova")));
+        let (chinese_note, chinese_facts) = catalog.hero_secondary_text("U87", "en-zh");
+        assert!(chinese_note.contains("權慄"));
+        assert!(chinese_facts.iter().any(|(label, value)| label == "폭뢰격" && value.contains("暴雷")));
+        for language in ["zh", "en", "ko", "zh-ko", "ko-en", "zh-zh"] {
+            assert_eq!(catalog.hero_secondary_text("U87", language), (String::new(), Vec::new()), "{language}");
+        }
+        let hero = catalog.index.heroes.iter_mut().find(|hero| hero.code == "U87").unwrap();
+        hero.desc_zh = "Same description".into();
+        hero.desc_en = "Same description".into();
+        assert!(hero_secondary_parts(hero, "zh-en").0.is_empty());
+        assert!(english_facts.iter().all(|(_, value)| value != "0"));
+    }
+
+    #[test]
+    fn item_roster_relations_preserve_the_selected_secondary_name() {
+        let catalog = Catalog::open().expect("catalog");
+        for language in ["zh-en", "en-zh", "ko-en", "zh", "en", "ko"] {
+            let hero = catalog.index.heroes.iter().find(|hero| hero.code == "E74").unwrap();
+            let (name, alternate) = hero_names(language, hero);
+            let rows = catalog.index.roster_hits(3506, language);
+            let row = rows.iter().find(|row| row.key == "hero:E74").unwrap();
+            assert_eq!(row.title, name);
+            assert_eq!(row.subtitle, caption(&alternate, phrase("combine", language)));
+        }
     }
 
     #[test]

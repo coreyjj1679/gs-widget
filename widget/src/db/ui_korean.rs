@@ -285,6 +285,8 @@ pub(super) fn translated(en: &str) -> Option<&'static str> {
         "Pause" => "일시정지",
         "Progression & materials" => "성장 및 재료",
         "Hide base stats" => "기본 능력치 숨기기",
+        "Show secondary text" => "보조 언어 보기",
+        "Hide secondary text" => "보조 언어 접기",
         "Show base stats" => "기본 능력치 보기",
         "Lv. —" => "레벨 —",
         "See quest details" => "퀘스트 상세 정보 보기",

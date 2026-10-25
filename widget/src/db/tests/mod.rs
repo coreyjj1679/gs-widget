@@ -873,9 +873,9 @@ fn goguryeo_enchant_lists_game_materials_and_taehwang_gear() {
     assert!(gear.contains("、"));
     let materials: Vec<_> = lines.iter().filter(|(label, _)| label == "材料").map(|(_, value)| value.as_str()).collect();
     assert_eq!(materials.len(), 5);
-    assert!(materials.contains(&"赤色精氣石 × 20"));
-    assert!(materials.contains(&"黑鐵塊 × 10"));
-    assert!(materials.contains(&"勇者的證明 × 20"));
+    assert!(materials.contains(&"赤色精氣石\nRed Force Stone × 20"));
+    assert!(materials.contains(&"黑鐵塊\nDark Iron Bar × 10"));
+    assert!(materials.contains(&"勇者的證明\nMedal of Honor × 20"));
     let (_, relations, _) = catalog.open_key("item:1129", "zh-en");
     assert!(relations.iter().any(|hit| hit.key == "section:enchant-need" && hit.title == "鬼道材料"));
     assert!(relations.iter().any(|hit| hit.key == "item:2287" && hit.chip == "enchant-need" && hit.subtitle == "× 10"));

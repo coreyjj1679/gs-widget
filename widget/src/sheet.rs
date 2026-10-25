@@ -360,6 +360,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     }
     let lang = app.get_lang().to_string();
     app.set_sheet_note("".into());
+    app.set_sheet_secondary_note("".into());
     app.set_viewing_recipe(false);
     app.set_viewing_quest(false);
     app.set_viewing_npc(false);
@@ -384,6 +385,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
                 .map(|info| (catalog.enchant_success_label(&lang), info.rate));
             apply_sheet_with_success_rate(&app, name, alt, id, lines, success_rate);
             app.set_sheet_note(note.into());
+            app.set_sheet_secondary_note(catalog.item_secondary_note(code, &lang).into());
             app.set_viewing_item(true);
         }
     } else if let Some(code) = key.strip_prefix("set:") {
@@ -448,6 +450,12 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
             app.set_hero_effects(ModelRc::new(VecModel::from(effects)));
             app.set_hero_spirit(catalog.hero_is_spirit(code));
             app.set_sheet_note(note.into());
+            let (secondary_intro, mut secondary_facts) = catalog.hero_secondary_text(code, &lang);
+            secondary_facts.extend(catalog.hero_secondary_effect_lines(code, &lang));
+            let mut secondary = Vec::new();
+            if !secondary_intro.is_empty() { secondary.push(secondary_intro); }
+            secondary.extend(secondary_facts.into_iter().map(|(label, text)| format!("{label}\n{text}")));
+            app.set_sheet_secondary_note(secondary.join("\n\n").into());
             app.set_viewing_hero(true);
         } else {
             app.set_sheet_title("".into());
