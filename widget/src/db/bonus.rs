@@ -34,6 +34,18 @@ pub fn bonus_text<'a>(lang: &str, zh: &'a str, en: &'a str, ko: &'a str) -> &'a 
     }
 }
 
+fn statue_names(count: i32, index: i32, lang: &str) -> (String, String) {
+    let (zh, en, ko) = if count == 4 {
+        ("神獸石像", "Divine beast statue", "신수 석상")
+    } else {
+        ("幻獸石像", "Summon statue", "환수 석상")
+    };
+    let en = format!("{en} {}", index + 1);
+    let zh = format!("{zh} {}", index + 1);
+    let ko = format!("{ko} {}", index + 1);
+    (super::text::lead3(lang, &en, &zh, &ko), super::text::trail3(lang, &en, &zh, &ko))
+}
+
 /// Client JobChangeList_Nepar_India.txt (gersang.gcs member 749), rows with
 /// Upgrade Step=0 and four Need Mon alternatives, all requiring level 100.
 /// The client uses advanced-mercenary IDs; member 770 maps each advanced ID to
@@ -239,6 +251,8 @@ pub struct BonusNode {
     pub key: String,
     pub code: String,
     pub title: String,
+    /// Presentation only; inputs and saved identities remain language-independent.
+    pub alternate_name: String,
     pub base_stats: i64,
     pub rank: i64,
     pub nation: i64,
@@ -742,6 +756,7 @@ impl Catalog {
             key,
             code: code.into(),
             title: hero_names(lang, hero).0,
+            alternate_name: hero_names(lang, hero).1,
             base_stats,
             rank: hero.rank,
             nation: hero.nation,
@@ -841,31 +856,12 @@ impl Catalog {
         if matches!(code, "E74" | "E75" | "E76" | "E77" | "E85") {
             let statues = if code == "E85" { 4 } else { 3 };
             for index in 0..statues {
+                let (title, alternate_name) = statue_names(statues, index, lang);
                 node.children.push(BonusNode {
                     key: format!("{}/statue:{index}", node.key),
                     code: format!("statue:{index}"),
-                    title: format!(
-                        "{} {}",
-                        bonus_text(
-                            lang,
-                            if statues == 4 {
-                                "神獸石像"
-                            } else {
-                                "幻獸石像"
-                            },
-                            if statues == 4 {
-                                "Divine beast statue"
-                            } else {
-                                "Summon statue"
-                            },
-                            if statues == 4 {
-                                "신수 석상"
-                            } else {
-                                "환수 석상"
-                            }
-                        ),
-                        index + 1
-                    ),
+                    title,
+                    alternate_name,
                     base_stats: 0,
                     rank: -1,
                     nation: 0,
@@ -890,7 +886,7 @@ impl Catalog {
                     starting_bonus: 0,
                 });
             }
-            node.divisor = statues;
+            node.divisor = i64::from(statues);
             node.uses_levels = true;
             node.source = GENERAL_SOURCE.into();
         } else if !node.predecessor_options.is_empty() {
@@ -1121,6 +1117,24 @@ impl Catalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bonus_names_keep_secondary_presentation_separate_from_calculation() {
+        let catalog = Catalog::open().expect("catalog");
+        let mut expected = None;
+        for language in ["zh-en", "en-zh", "ko-en", "zh", "en", "ko", "zh-zh"] {
+            let tree = catalog.bonus_tree("U87", language).unwrap();
+            let hero = catalog.index.heroes.iter().find(|hero| hero.code == "U87").unwrap();
+            assert_eq!((tree.title.clone(), tree.alternate_name.clone()), hero_names(language, hero));
+            let result = calculate_bonus(&tree, &BTreeMap::new()).unwrap();
+            let points = result.bonus;
+            if let Some(expected) = expected { assert_eq!(points, expected); }
+            else { expected = Some(points); }
+        }
+        assert_eq!(statue_names(4, 0, "en-zh"), ("Divine beast statue 1".into(), "神獸石像 1".into()));
+        assert_eq!(statue_names(3, 1, "zh-en"), ("幻獸石像 2".into(), "Summon statue 2".into()));
+        assert!(statue_names(3, 1, "ko").1.is_empty());
+    }
 
     fn fill_required(node: &BonusNode, inputs: &mut BTreeMap<String, BonusInput>) {
         if node.manual_required {

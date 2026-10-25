@@ -48,9 +48,10 @@ impl Controller {
                 CalcSaved {
                     id: entry.id.to_string().into(),
                     title: entry.name.clone().into(),
+                    official_name: self.catalog.calculator_item_title(entry.document.item_code, &entry.document.title, lang).into(),
+                    alternate_name: self.catalog.record_alternate_name(&format!("item:{}", entry.document.item_code), lang).into(),
                     subtitle: format!(
-                        "{} · {} {} · {} {}",
-                        self.catalog.calculator_item_title(entry.document.item_code, &entry.document.title, lang),
+                        "{} {} · {} {}",
                         tr(lang, "產出", "output"),
                         number(cost.output_units),
                         tr(

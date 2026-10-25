@@ -1,11 +1,12 @@
 import { UiLanguage } from "language.slint";
-import { ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
+import { Button, ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
 import { DesktopTheme, DesktopIcon } from "desktop.slint";
-import { CalcNumber, CalcNestedOption, CalcMaterialActions } from "calculator.slint";
+import { CalcNumber, CalcNestedOption, CalcMaterialActions, CalcTextTooltip } from "calculator.slint";
 
 export struct CharacterCalcChoice {
     id: string,
     title: string,
+    alternate-name: string,
     subtitle: string,
     icon: image,
     has-icon: bool,
@@ -14,6 +15,7 @@ export struct CharacterCalcChoice {
 export struct CharacterCalcMaterial {
     key: string,
     title: string,
+    alternate-name: string,
     subtitle: string,
     quantity: string,
     price: string,
@@ -56,6 +58,7 @@ export component CharacterCalcArt inherits Rectangle {
 
 export component CharacterPicker inherits Rectangle {
     in property <string> selected-name;
+    in property <string> selected-alternate-name;
     in property <image> selected-icon;
     in property <bool> selected-has-icon;
     in property <[CharacterCalcChoice]> options;
@@ -74,7 +77,7 @@ export component CharacterPicker inherits Rectangle {
     forward-focus: picker-focus;
     accessible-role: combobox;
     accessible-label: CharacterCalcLanguage.tr("Character or mercenary: ", "角色／傭兵：", "캐릭터 / 용병: ") + (root.selected-name == "" ? CharacterCalcLanguage.tr("Choose a character", "尚未選擇", "선택해 주세요") : root.selected-name);
-    accessible-value: root.selected-name;
+    accessible-value: root.selected-name + (root.selected-alternate-name != "" ? "\n" + root.selected-alternate-name : "");
     accessible-expandable: true;
     accessible-expanded: root.open;
     accessible-action-default => { root.show-options(); }
@@ -107,11 +110,21 @@ export component CharacterPicker inherits Rectangle {
     }
     Text {
         x: root.selected-name == "" ? 12px : 47px;
-        width: parent.width - self.x - 36px; height: 100%;
+        y: 0px;
+        width: parent.width - self.x - 36px; height: root.selected-alternate-name != "" ? 23px : parent.height;
         text: root.selected-name == "" ? CharacterCalcLanguage.tr("Choose a character or mercenary…", "選擇可合成的角色或傭兵…", "합성할 캐릭터 또는 용병 선택…") : root.selected-name;
         color: root.selected-name == "" ? DesktopTheme.secondary : DesktopTheme.text;
         font-size: 14px; overflow: elide; vertical-alignment: center;
     }
+    if root.selected-alternate-name != "": Text {
+        x: root.selected-name == "" ? 12px : 47px;
+        y: 23px; width: parent.width - self.x - 36px; height: 16px;
+        text: root.selected-alternate-name; font-size: 12px;
+        color: DesktopTheme.secondary; overflow: elide;
+    }
+    Tooltip { CalcTextTooltip {
+        text: root.selected-name + (root.selected-alternate-name != "" ? "\n" + root.selected-alternate-name : "");
+    } }
     DesktopIcon {
         x: parent.width - 27px; y: 13px; width: 16px; height: 16px;
         path: root.open ? "M6 15 L12 9 L18 15" : "M6 9 L12 15 L18 9";
@@ -179,22 +192,25 @@ export component CharacterPicker inherits Rectangle {
                     background: option-touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
                     accessible-role: button;
                     accessible-label: option.title;
-                    accessible-description: option.subtitle;
+                    accessible-description: option.alternate-name + (option.alternate-name != "" && option.subtitle != "" ? "\n" : "") + option.subtitle;
                     accessible-item-selectable: true;
                     accessible-item-selected: root.option-index == i;
                     accessible-action-default => { root.choose-option(option.id); }
                     CharacterCalcArt { x: 8px; y: 10px; icon: option.icon; has-icon: option.has-icon; }
                     Text {
-                        x: 50px; y: option.subtitle == "" ? 15px : 6px;
+                        x: 50px; y: option.alternate-name == "" && option.subtitle == "" ? 15px : 6px;
                         width: parent.width - 60px; height: 22px;
                         text: option.title; font-size: 14px; color: DesktopTheme.text;
                         overflow: elide; vertical-alignment: center;
                     }
-                    if option.subtitle != "": Text {
+                    if option.alternate-name != "" || option.subtitle != "": Text {
                         x: 50px; y: 29px; width: parent.width - 60px; height: 17px;
-                        text: option.subtitle; font-size: 12px; color: DesktopTheme.secondary;
+                        text: option.alternate-name + (option.alternate-name != "" && option.subtitle != "" ? " · " : "") + option.subtitle; font-size: 12px; color: DesktopTheme.secondary;
                         overflow: elide; vertical-alignment: center;
                     }
+                    Tooltip { CalcTextTooltip {
+                        text: option.title + (option.alternate-name != "" ? "\n" + option.alternate-name : "") + (option.subtitle != "" ? "\n" + option.subtitle : "");
+                    } }
                     option-touch := TouchArea {
                         mouse-cursor: pointer;
                         clicked => { root.choose-option(option.id); }
@@ -216,6 +232,7 @@ export component CharacterCalculatorPane inherits Rectangle {
     in property <[string]> groups;
     in-out property <int> group-index;
     in property <string> selected-name;
+    in property <string> selected-alternate-name;
     in property <image> selected-icon;
     in property <bool> selected-has-icon;
     in property <[string]> routes;
@@ -227,6 +244,9 @@ export component CharacterCalculatorPane inherits Rectangle {
     in property <[CalcNestedOption]> nested-options;
     in property <bool> input-valid: true;
     in property <string> conditions;
+    in property <string> conditions-alternate;
+    property <bool> secondary-conditions-open: false;
+    changed conditions-alternate => { root.secondary-conditions-open = false; }
     in property <string> material-total;
     in property <string> fee;
     in property <string> total;
@@ -292,6 +312,7 @@ export component CharacterCalculatorPane inherits Rectangle {
                 }
                 character-picker := CharacterPicker {
                     selected-name: root.selected-name;
+                    selected-alternate-name: root.selected-alternate-name;
                     selected-icon: root.selected-icon;
                     selected-has-icon: root.selected-has-icon;
                     options: root.candidates;
@@ -376,6 +397,20 @@ export component CharacterCalculatorPane inherits Rectangle {
                             text: root.conditions;
                             font-size: 13px; color: DesktopTheme.text; wrap: word-wrap;
                         }
+                        if root.conditions-alternate != "": HorizontalLayout {
+                            alignment: start;
+                            Button {
+                                height: 28px;
+                                text: root.secondary-conditions-open
+                                    ? CharacterCalcLanguage.tr("Hide secondary text", "收起副語言", "보조 언어 숨기기")
+                                    : CharacterCalcLanguage.tr("Show secondary text", "顯示副語言", "보조 언어 보기");
+                                clicked => { root.secondary-conditions-open = !root.secondary-conditions-open; }
+                            }
+                        }
+                        if root.secondary-conditions-open && root.conditions-alternate != "": Text {
+                            text: root.conditions-alternate;
+                            font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+                        }
                     }
                     VerticalLayout {
                         spacing: 0px;
@@ -406,6 +441,9 @@ export component CharacterCalculatorPane inherits Rectangle {
                         for material in root.materials: Rectangle {
                             height: max(60px, material-row.preferred-height + 20px);
                             background: material.nested ? DesktopTheme.surface-alt : transparent;
+                            Tooltip { CalcTextTooltip {
+                                text: material.title + (material.alternate-name != "" ? "\n" + material.alternate-name : "") + (material.subtitle != "" ? "\n" + material.subtitle : "");
+                            } }
                             // The description follows the material tree; costs stay aligned.
                             if material.depth > 0: Rectangle {
                                 x: min(material.depth, 8) * 16px - 8px;
@@ -433,9 +471,9 @@ export component CharacterCalculatorPane inherits Rectangle {
                                                 font-weight: material.nested ? 600 : 400;
                                                 color: DesktopTheme.text; wrap: word-wrap;
                                             }
-                                            if material.subtitle != "": Text {
-                                                text: material.subtitle; font-size: 12px;
-                                                color: DesktopTheme.secondary; wrap: word-wrap;
+                                            if material.alternate-name != "" || material.subtitle != "": Text {
+                                                text: material.alternate-name + (material.alternate-name != "" && material.subtitle != "" ? " · " : "") + material.subtitle; font-size: 12px;
+                                                color: DesktopTheme.secondary; wrap: material.alternate-name == "" ? word-wrap : no-wrap; overflow: elide;
                                             }
                                         }
                                     }
@@ -472,7 +510,7 @@ export component CharacterCalculatorPane inherits Rectangle {
                                     reset-token: root.input-revision;
                                     draft: material.draft;
                                     has-draft: material.has-draft;
-                                    label: material.title + CharacterCalcLanguage.tr(" unit price", "單價", " 단가");
+                                    label: material.title + (material.alternate-name != "" ? " · " + material.alternate-name : "") + CharacterCalcLanguage.tr(" unit price", "單價", " 단가");
                                     placeholder-text: CharacterCalcLanguage.tr("Not entered", "未輸入", "미입력");
                                     commit(value) => { return root.price-changed(material.key, value); }
                                 }

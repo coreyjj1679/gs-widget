@@ -656,10 +656,29 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
     // interpreting a partially typed value as an accepted price.
     let before_language = db::load_character_calculator().unwrap().unwrap();
     assert!(!app.invoke_character_calculator_quantity_changed("not-a-number".into()));
-    for language in ["en-zh", "ko-zh", "zh-en"] {
+    for language in ["en-zh", "ko-zh", "zh", "zh-en"] {
         set_language(&app, language);
         let expected = catalog.localized_character_calculator_document(&before_language, language);
         assert_eq!(app.get_character_calculator_selected_name(), expected.title);
+        assert_eq!(app.get_character_calculator_selected_alternate_name(),
+            catalog.record_alternate_name("hero:T49", language));
+        for row in character_rows(&app) {
+            assert_eq!(row.alternate_name,
+                catalog.record_alternate_name(&row.key, language));
+        }
+        for choice in app.get_character_calculator_candidates().iter() {
+            assert_eq!(choice.alternate_name,
+                catalog.record_alternate_name(&format!("hero:{}", choice.id), language));
+        }
+        assert_eq!(app.get_calculator_selected_alternate_name(),
+            catalog.record_alternate_name(&format!("item:{}", item_document.item_code), language));
+        let item_costs = catalog.localized_calculator_document(&item_document, language).calculate().unwrap();
+        let item_rows: Vec<_> = app.get_calculator_materials().iter().collect();
+        for (row, cost) in item_rows.iter().zip(super::super::nested::rows(&item_costs)) {
+            assert_eq!(row.alternate_name,
+                catalog.record_alternate_name(&format!("item:{}", cost.line.key.code), language));
+        }
+        assert_eq!(db::load_calculator().unwrap().unwrap(), item_document);
         assert_eq!(app.get_character_calculator_quantity(), "3");
         assert_eq!(
             app.get_character_calculator_quantity_draft(),

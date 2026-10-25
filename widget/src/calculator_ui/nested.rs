@@ -394,7 +394,7 @@ mod tests {
             assert_eq!(doc.ingredient_at(&path).unwrap().code, row.line.key.code);
             assert_eq!(row.depth, path.len() - 1);
         }
-        let card = card_document(&doc, "en", |_| Image::default()).unwrap();
+        let card = card_document(&doc, "en", |_| Image::default(), |_| String::new()).unwrap();
         assert_eq!(card.total, "141,000,402");
         assert_eq!(card.fee, "100,000,000");
         assert_eq!(card.rows.len(), display.len());

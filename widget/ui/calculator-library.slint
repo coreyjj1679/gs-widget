@@ -6,6 +6,8 @@ import { CalcIconButton, CalcFolderChoices } from "calculator-controls.slint";
 export struct CalcSaved {
     id: string,
     title: string,
+    official-name: string,
+    alternate-name: string,
     subtitle: string,
     icon: image,
     has-icon: bool,
@@ -215,6 +217,17 @@ export component CalculatorLibrary inherits Rectangle {
                     spacing: 0px;
                     Rectangle {
                         height: 66px;
+                        Tooltip { Rectangle {
+                            width: min(520px, saved-tooltip.preferred-width + 16px);
+                            height: saved-tooltip.preferred-height + 12px;
+                            background: DesktopTheme.raised; border-radius: 4px;
+                            border-width: 1px; border-color: DesktopTheme.border;
+                            saved-tooltip := Text {
+                                x: 8px; y: 6px; width: parent.width - 16px;
+                                text: saved.title + "\n" + saved.official-name + (saved.alternate-name != "" ? "\n" + saved.alternate-name : "") + "\n" + saved.subtitle;
+                                color: DesktopTheme.text; font-size: 12px; wrap: word-wrap;
+                            }
+                        } }
                         HorizontalLayout {
                             padding-top: 12px; padding-bottom: 12px;
                             spacing: 12px;
@@ -236,10 +249,10 @@ export component CalculatorLibrary inherits Rectangle {
                                     accessible-label: saved.title;
                                 }
                                 Text {
-                                    text: saved.subtitle;
+                                    text: saved.official-name + (saved.alternate-name != "" ? " · " + saved.alternate-name : "") + " · " + saved.subtitle;
                                     font-size: 12px; color: DesktopTheme.secondary;
                                     overflow: elide;
-                                    accessible-label: saved.subtitle;
+                                    accessible-label: saved.official-name + (saved.alternate-name != "" ? "\n" + saved.alternate-name : "") + "\n" + saved.subtitle;
                                 }
                             }
                             Button {

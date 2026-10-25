@@ -8,6 +8,7 @@ export { CalcSaved }
 export struct CalcChoice {
     id: string,
     title: string,
+    alternate-name: string,
     subtitle: string,
     icon: image,
     has-icon: bool,
@@ -22,6 +23,7 @@ export struct CalcNestedOption {
 export struct CalcMaterial {
     key: string,
     title: string,
+    alternate-name: string,
     subtitle: string,
     quantity: string,
     price: string,
@@ -36,6 +38,19 @@ export struct CalcMaterial {
     detail: string,
     icon: image,
     has-icon: bool,
+}
+
+// Full names stay available when the two-line native rows elide visually.
+export component CalcTextTooltip inherits Rectangle {
+    in property <string> text;
+    width: min(520px, label.preferred-width + 16px);
+    height: label.preferred-height + 12px;
+    background: DesktopTheme.raised; border-radius: 4px;
+    border-width: 1px; border-color: DesktopTheme.border;
+    label := Text {
+        x: 8px; y: 6px; width: parent.width - 16px;
+        text: root.text; font-size: 12px; color: DesktopTheme.text; wrap: word-wrap;
+    }
 }
 
 component CalcArt inherits Rectangle {
@@ -104,6 +119,7 @@ export component CalcNumber inherits LineEdit {
 component CalcItemPicker inherits Rectangle {
     in property <bool> english;
     in property <string> selected-name;
+    in property <string> selected-alternate-name;
     in property <image> selected-icon;
     in property <bool> selected-has-icon;
     in property <[CalcChoice]> options;
@@ -122,7 +138,7 @@ component CalcItemPicker inherits Rectangle {
     forward-focus: focus;
     accessible-role: combobox;
     accessible-label: (UiLanguage.tr("Craftable item: ", "合成道具：")) + (root.selected-name == "" ? (UiLanguage.tr("Choose an item", "尚未選擇")) : root.selected-name);
-    accessible-value: root.selected-name;
+    accessible-value: root.selected-name + (root.selected-alternate-name != "" ? "\n" + root.selected-alternate-name : "");
     accessible-expandable: true;
     accessible-expanded: root.open;
     accessible-action-default => { root.show-options(); }
@@ -151,12 +167,21 @@ component CalcItemPicker inherits Rectangle {
     }
     Text {
         x: root.selected-name == "" ? 12px : 47px;
-        y: 0px; width: parent.width - self.x - 36px; height: 100%;
+        y: 0px; width: parent.width - self.x - 36px; height: root.selected-alternate-name != "" ? 23px : parent.height;
         text: root.selected-name == "" ? (UiLanguage.tr("Search for a craftable item…", "搜尋可合成的道具…")) : root.selected-name;
         color: root.selected-name == "" ? DesktopTheme.secondary : DesktopTheme.text;
         font-size: 14px;
         overflow: elide; vertical-alignment: center;
     }
+    if root.selected-alternate-name != "": Text {
+        x: root.selected-name == "" ? 12px : 47px;
+        y: 23px; width: parent.width - self.x - 36px; height: 16px;
+        text: root.selected-alternate-name; font-size: 12px;
+        color: DesktopTheme.secondary; overflow: elide;
+    }
+    Tooltip { CalcTextTooltip {
+        text: root.selected-name + (root.selected-alternate-name != "" ? "\n" + root.selected-alternate-name : "");
+    } }
     DesktopIcon {
         x: parent.width - 27px; y: 13px; width: 16px; height: 16px;
         path: root.open ? "M6 15 L12 9 L18 15" : "M6 9 L12 15 L18 9";
@@ -222,7 +247,7 @@ component CalcItemPicker inherits Rectangle {
                     background: touch.has-hover || root.option-index == i ? DesktopTheme.hover-strong : transparent;
                     accessible-role: button;
                     accessible-label: option.title;
-                    accessible-description: option.subtitle;
+                    accessible-description: option.alternate-name + (option.alternate-name != "" && option.subtitle != "" ? "\n" : "") + option.subtitle;
                     accessible-item-selectable: true;
                     accessible-item-selected: root.option-index == i;
                     accessible-action-default => { root.choose-option(option.id); }
@@ -234,9 +259,12 @@ component CalcItemPicker inherits Rectangle {
                     }
                     Text {
                         x: 50px; y: 29px; width: parent.width - 60px; height: 17px;
-                        text: option.subtitle; font-size: 12px; color: DesktopTheme.secondary;
+                        text: option.alternate-name + (option.alternate-name != "" && option.subtitle != "" ? " · " : "") + option.subtitle; font-size: 12px; color: DesktopTheme.secondary;
                         overflow: elide; vertical-alignment: center;
                     }
+                    Tooltip { CalcTextTooltip {
+                        text: option.title + (option.alternate-name != "" ? "\n" + option.alternate-name : "") + (option.subtitle != "" ? "\n" + option.subtitle : "");
+                    } }
                     touch := TouchArea {
                         mouse-cursor: pointer;
                         clicked => { root.choose-option(option.id); }
@@ -472,6 +500,7 @@ export component CalcMaterialActions inherits Rectangle {
 export component CalculatorPane inherits Rectangle {
     in property <bool> english;
     in property <string> selected-name;
+    in property <string> selected-alternate-name;
     in property <image> selected-icon;
     in property <bool> selected-has-icon;
     in property <string> selected-meta;
@@ -705,6 +734,7 @@ export component CalculatorPane inherits Rectangle {
                         CalcItemPicker {
                             english: root.english;
                             selected-name: root.selected-name;
+                            selected-alternate-name: root.selected-alternate-name;
                             selected-icon: root.selected-icon;
                             selected-has-icon: root.selected-has-icon;
                             options: root.candidates;
@@ -805,6 +835,9 @@ export component CalculatorPane inherits Rectangle {
                     for material in root.materials: Rectangle {
                         height: max(60px, material-row.preferred-height + 20px);
                         background: material.nested ? DesktopTheme.surface-alt : transparent;
+                        Tooltip { CalcTextTooltip {
+                            text: material.title + (material.alternate-name != "" ? "\n" + material.alternate-name : "") + (material.subtitle != "" ? "\n" + material.subtitle : "");
+                        } }
                         // Only the description is indented: numeric columns stay aligned.
                         // A guide joins the child text to its parent without shrinking type.
                         if material.depth > 0: Rectangle {
@@ -834,10 +867,10 @@ export component CalculatorPane inherits Rectangle {
                                             font-size: 14px; font-weight: material.nested ? 600 : 400;
                                             color: DesktopTheme.text; wrap: word-wrap;
                                         }
-                                        if material.subtitle != "": Text {
-                                            text: material.subtitle;
+                                        if material.alternate-name != "" || material.subtitle != "": Text {
+                                            text: material.alternate-name + (material.alternate-name != "" && material.subtitle != "" ? " · " : "") + material.subtitle;
                                             font-size: 12px; color: DesktopTheme.secondary;
-                                            wrap: word-wrap;
+                                            wrap: material.alternate-name == "" ? word-wrap : no-wrap; overflow: elide;
                                         }
                                     }
                                 }
@@ -873,7 +906,7 @@ export component CalculatorPane inherits Rectangle {
                                 reset-token: root.input-revision;
                                 draft: material.draft;
                                 has-draft: material.has-draft;
-                                label: material.title + (UiLanguage.tr(" unit price", "單價"));
+                                label: material.title + (material.alternate-name != "" ? " · " + material.alternate-name : "") + (UiLanguage.tr(" unit price", "單價"));
                                 placeholder-text: UiLanguage.tr("Not entered", "未輸入");
                                 commit(value) => { return root.price-changed(material.key, value); }
                             }

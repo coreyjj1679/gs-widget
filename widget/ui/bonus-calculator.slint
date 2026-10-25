@@ -6,6 +6,7 @@ import { CharacterCalcChoice, CharacterCalcArt, CharacterPicker } from "characte
 export struct BonusRow {
     key: string,
     title: string,
+    alternate-name: string,
     detail: string,
     depth: int,
     level: string,
@@ -44,6 +45,18 @@ global BonusLanguage {
     }
 }
 
+component BonusNameTooltip inherits Rectangle {
+    in property <string> text;
+    width: min(360px, max(180px, label.preferred-width + 20px));
+    height: label.preferred-height + 16px;
+    background: DesktopTheme.raised; border-radius: 4px;
+    border-width: 1px; border-color: DesktopTheme.border;
+    label := Text {
+        x: 10px; y: 8px; width: parent.width - 20px; height: self.preferred-height;
+        text: root.text; wrap: word-wrap; font-size: 12px; color: DesktopTheme.text;
+    }
+}
+
 // Keep drafts visible while the controller validates and recalculates.
 component BonusInput inherits LineEdit {
     in property <string> value;
@@ -75,6 +88,7 @@ component BonusNodeHeading inherits Rectangle {
     accessible-role: button;
     accessible-label: BonusLanguage.tr("Select ", "選擇", "선택: ") + root.record.title
         + BonusLanguage.tr(", bonus ", "，紅利 ", ", 보너스 ") + (root.record.bonus == "" ? "—" : root.record.bonus);
+    accessible-description: root.record.alternate-name;
     accessible-action-default => { root.select(); }
     HorizontalLayout {
         padding: 0px; spacing: 6px;
@@ -95,6 +109,7 @@ component BonusNodeHeading inherits Rectangle {
         changed has-focus => { if (self.has-focus) { root.focused(); } }
         key-pressed(event) => {
             if (event.text == Key.Return || event.text == Key.Space) { root.select(); return accept; }
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { root.select(); return accept; }
             return reject;
         }
     }
@@ -103,14 +118,9 @@ component BonusNodeHeading inherits Rectangle {
         clicked => { heading-focus.focus(); root.select(); }
     }
     Tooltip {
-        Rectangle {
-            width: label.preferred-width + 16px; height: label.preferred-height + 12px;
-            background: DesktopTheme.raised; border-radius: 4px;
-            border-width: 1px; border-color: DesktopTheme.border;
-            label := Text {
-                x: 8px; y: 6px;
-                text: root.record.title; font-size: 12px; color: DesktopTheme.text;
-            }
+        BonusNameTooltip {
+            text: root.record.title + (root.record.alternate-name != "" ? "\n" + root.record.alternate-name : "")
+                + "\n" + BonusLanguage.tr("Bonus ", "紅利 ", "보너스 ") + (root.record.bonus == "" ? "—" : root.record.bonus);
         }
     }
 }
@@ -122,6 +132,7 @@ component BonusSourceChoices inherits Rectangle {
     in property <bool> enabled: true;
     callback selected(int);
     callback focused();
+    callback inspect();
     height: 28px;
     min-width: 130px;
     forward-focus: choice-focus;
@@ -130,7 +141,8 @@ component BonusSourceChoices inherits Rectangle {
     accessible-description: BonusLanguage.tr("Only the selected unit is used. Arrow keys change the source.", "只計算選中的兵種，可用方向鍵切換。", "선택한 용병만 계산합니다. 방향키로 변경하세요.");
     accessible-orientation: horizontal;
     accessible-item-count: root.options.length;
-    accessible-value: root.options[root.current-index].title;
+    accessible-value: root.options[root.current-index].title
+        + (root.options[root.current-index].alternate-name != "" ? " · " + root.options[root.current-index].alternate-name : "");
     accessible-enabled: root.enabled;
     function choose(index: int) {
         if (!root.enabled || root.options.length == 0) { return; }
@@ -147,6 +159,7 @@ component BonusSourceChoices inherits Rectangle {
         background: root.current-index == index ? DesktopTheme.selected : tap.has-hover && root.enabled ? DesktopTheme.hover-strong : transparent;
         accessible-role: radio-button;
         accessible-label: option.title;
+        accessible-description: option.alternate-name;
         accessible-enabled: root.enabled;
         accessible-checkable: true;
         accessible-checked: root.current-index == index;
@@ -169,14 +182,8 @@ component BonusSourceChoices inherits Rectangle {
             clicked => { choice-focus.focus(); root.choose(index); }
         }
         Tooltip {
-            Rectangle {
-                width: label.preferred-width + 16px; height: label.preferred-height + 12px;
-                background: DesktopTheme.raised; border-radius: 4px;
-                border-width: 1px; border-color: DesktopTheme.border;
-                label := Text {
-                    x: 8px; y: 6px;
-                    text: option.title; font-size: 12px; color: DesktopTheme.text;
-                }
+            BonusNameTooltip {
+                text: option.title + (option.alternate-name != "" ? "\n" + option.alternate-name : "");
             }
         }
     }
@@ -185,7 +192,8 @@ component BonusSourceChoices inherits Rectangle {
         focus-on-click: false;
         focus-gained => { root.focused(); }
         key-pressed(event) => {
-            if (event.text == Key.Return || event.text == Key.Space) { root.choose(root.current-index); return accept; }
+            if (event.text == Key.Return || event.text == Key.Space) { root.choose(root.current-index); root.inspect(); return accept; }
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) { root.inspect(); return accept; }
             if (event.text == Key.UpArrow || event.text == Key.LeftArrow) { root.choose(root.current-index - 1); return accept; }
             if (event.text == Key.DownArrow || event.text == Key.RightArrow) { root.choose(root.current-index + 1); return accept; }
             if (event.text == Key.Home) { root.choose(0); return accept; }
@@ -200,6 +208,7 @@ export component BonusCalculatorPane inherits Rectangle {
     in property <[string]> groups;
     in-out property <int> group-index;
     in property <string> selected-name;
+    in property <string> selected-alternate-name;
     in property <image> selected-icon;
     in property <bool> selected-has-icon;
     in property <[BonusRow]> rows;
@@ -291,6 +300,7 @@ export component BonusCalculatorPane inherits Rectangle {
             target-picker := CharacterPicker {
                 horizontal-stretch: 1; min-width: 0px;
                 selected-name: root.selected-name;
+                selected-alternate-name: root.selected-alternate-name;
                 selected-icon: root.selected-icon;
                 selected-has-icon: root.selected-has-icon;
                 options: root.candidates;
@@ -353,10 +363,16 @@ export component BonusCalculatorPane inherits Rectangle {
             HorizontalLayout {
                 padding: 6px; spacing: 8px;
                 CharacterCalcArt { width: 28px; height: 28px; icon: root.selected-icon; has-icon: root.selected-has-icon; }
-                Text {
-                    text: root.selected-name; font-size: 14px; font-weight: 600;
-                    color: DesktopTheme.text; vertical-alignment: center;
-                    horizontal-stretch: 1; min-width: 0px; overflow: elide;
+                VerticalLayout {
+                    horizontal-stretch: 1; min-width: 0px; spacing: 1px; alignment: center;
+                    Text {
+                        text: root.selected-name; font-size: 14px; font-weight: 600;
+                        color: DesktopTheme.text; overflow: elide;
+                    }
+                    if root.selected-alternate-name != "": Text {
+                        text: root.selected-alternate-name; font-size: 12px;
+                        color: DesktopTheme.secondary; overflow: elide;
+                    }
                 }
                 VerticalLayout {
                     width: min(340px, root.width * 0.52); spacing: 0px;
@@ -454,11 +470,16 @@ export component BonusCalculatorPane inherits Rectangle {
                             root.select-node(row.key);
                             root.reveal-node(material.x, material.y + source-choices.y, material.width, 28px);
                         }
+                        inspect => {
+                            root.select-node(row.key);
+                            root.inspector-open = true; root.sources-open = false;
+                        }
                     }
                     if row.source-options.length <= 1: BonusNodeHeading {
                         record: row;
                         select => {
                             root.select-node(row.key);
+                            root.inspector-open = true; root.sources-open = false;
                             root.reveal-node(material.x, material.y, material.width, material.height);
                         }
                         focused => {
@@ -525,7 +546,7 @@ export component BonusCalculatorPane inherits Rectangle {
             }
             Text {
                 horizontal-stretch: 1; min-width: 0px;
-                text: root.sources-open ? BonusLanguage.tr("Game data and calculation assumptions", "遊戲資料與計算假設", "게임 데이터와 계산 가정") : root.selected-row.title == "" ? BonusLanguage.tr("Select a node to inspect its inherited bonus", "點選兵種可調整實際繼承紅利", "용병을 선택해 실제 계승 보너스를 확인하세요") : root.selected-row.title;
+                text: root.sources-open ? BonusLanguage.tr("Game data and calculation assumptions", "遊戲資料與計算假設", "게임 데이터와 계산 가정") : root.selected-row.title == "" ? BonusLanguage.tr("Select a node to inspect its inherited bonus", "點選兵種可調整實際繼承紅利", "용병을 선택해 실제 계승 보너스를 확인하세요") : root.selected-row.title + (root.selected-row.alternate-name != "" ? " · " + root.selected-row.alternate-name : "");
                 color: DesktopTheme.secondary; font-size: 12px;
                 vertical-alignment: center; overflow: elide;
             }
@@ -555,6 +576,13 @@ export component BonusCalculatorPane inherits Rectangle {
             vertical-scrollbar-policy: as-needed;
             inspector := VerticalLayout {
                 width: parent.width; spacing: 8px; padding-right: 8px;
+                VerticalLayout {
+                    spacing: 2px;
+                    Text { text: root.selected-row.title; color: DesktopTheme.text; font-size: 14px; font-weight: 600; wrap: word-wrap; }
+                    if root.selected-row.alternate-name != "": Text {
+                        text: root.selected-row.alternate-name; color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
+                    }
+                }
                 if root.plan-status != "": Text {
                     text: root.plan-status; color: DesktopTheme.secondary; font-size: 12px; wrap: word-wrap;
                 }

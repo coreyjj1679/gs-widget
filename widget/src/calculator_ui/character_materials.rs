@@ -157,6 +157,7 @@ impl CharacterController {
                 CharacterCalcMaterial {
                     key: key.into(),
                     title: line.title.clone().into(),
+                    alternate_name: self.catalog.record_alternate_name(&format!("item:{}", line.key.code), lang).into(),
                     subtitle: if line.key.enhance > 0 {
                         format!(
                             "{} +{}",

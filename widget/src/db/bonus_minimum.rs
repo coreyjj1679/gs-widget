@@ -380,6 +380,7 @@ mod tests {
             key: key.into(),
             code: key.into(),
             title: key.into(),
+            alternate_name: String::new(),
             base_stats: base,
             rank: 7,
             nation: 0,

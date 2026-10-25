@@ -47,8 +47,9 @@ impl CharacterController {
             .map(|candidate| {
                 let (icon, has_icon) = self.image(candidate.icon);
                 CharacterCalcChoice {
-                    id: candidate.code.into(),
+                    id: candidate.code.clone().into(),
                     title: candidate.title.into(),
+                    alternate_name: self.catalog.record_alternate_name(&format!("hero:{}", candidate.code), &app.get_lang()).into(),
                     subtitle: format!(
                         "{} · {} {}",
                         candidate.subtitle,
@@ -120,6 +121,8 @@ impl CharacterController {
         let document = self.document.borrow();
         let Some(document) = document.as_ref() else {
             app.set_character_calculator_selected_name("".into());
+            app.set_character_calculator_selected_alternate_name("".into());
+            app.set_character_calculator_conditions_alternate("".into());
             app.set_character_calculator_materials(ModelRc::default());
             app.set_character_calculator_routes(ModelRc::default());
             return;
@@ -135,6 +138,7 @@ impl CharacterController {
             }
         };
         app.set_character_calculator_selected_name(doc.title.clone().into());
+        app.set_character_calculator_selected_alternate_name(self.catalog.record_alternate_name(&format!("hero:{}", doc.hero_code), &lang).into());
         let (icon, has_icon) = self.image(
             self.catalog
                 .character_calculator_icon(&format!("hero:{}", doc.hero_code)),
@@ -143,6 +147,18 @@ impl CharacterController {
         app.set_character_calculator_selected_has_icon(has_icon);
         app.set_character_calculator_quantity(doc.quantity.to_string().into());
         app.set_character_calculator_conditions(doc.conditions.clone().into());
+        // Route prose is sourced in Chinese/English. Do not present an English
+        // fallback as a Korean translation, or repeat untranslated source lines.
+        let secondary_conditions = db::secondary_lang(&lang)
+            .filter(|language| matches!(*language, "zh" | "en"))
+            .and_then(|language| self.catalog.character_calculator_routes(&doc.hero_code, language)
+                .into_iter().find(|route| route.id == doc.route_id))
+            .map(|route| route.conditions.lines()
+                .filter(|line| !line.trim().is_empty()
+                    && !doc.conditions.lines().any(|primary| primary.trim() == line.trim()))
+                .collect::<Vec<_>>().join("\n"))
+            .unwrap_or_default();
+        app.set_character_calculator_conditions_alternate(secondary_conditions.into());
         let routes = self
             .catalog
             .character_calculator_routes(&doc.hero_code, &lang);
@@ -191,6 +207,7 @@ impl CharacterController {
                 let mut rows = vec![CharacterCalcMaterial {
                     key: input.key.clone().into(),
                     title: input.title.clone().into(),
+                    alternate_name: self.catalog.record_alternate_name(&input.key, &lang).into(),
                     subtitle: subtitle.into(),
                     quantity: number(cost.quantity).into(),
                     price: if let Some(child) = nested {

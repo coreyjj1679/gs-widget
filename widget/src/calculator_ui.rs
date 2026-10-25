@@ -201,6 +201,7 @@ impl Controller {
                 CalcChoice {
                     id: item.code.to_string().into(),
                     title: item.title.into(),
+                    alternate_name: self.catalog.record_alternate_name(&format!("item:{}", item.code), lang).into(),
                     subtitle: format!("{} {}", item.recipe_count, tr(lang, "種配方", "recipes"))
                         .into(),
                     icon,
@@ -218,6 +219,7 @@ impl Controller {
         self.publish_input_errors(app);
         let Some(doc) = current.as_ref() else {
             app.set_calculator_selected_name("".into());
+            app.set_calculator_selected_alternate_name("".into());
             app.set_calculator_selected_meta("".into());
             app.set_calculator_selected_has_icon(false);
             app.set_calculator_materials(ModelRc::default());
@@ -243,6 +245,7 @@ impl Controller {
         };
         let (icon, has_icon) = self.icon(doc.item_code);
         app.set_calculator_selected_name(doc.title.clone().into());
+        app.set_calculator_selected_alternate_name(self.catalog.record_alternate_name(&format!("item:{}", doc.item_code), lang).into());
         app.set_calculator_selected_icon(icon);
         app.set_calculator_selected_has_icon(has_icon);
         app.set_calculator_quantity(doc.quantity.to_string().into());
@@ -311,6 +314,7 @@ impl Controller {
                     draft: draft.unwrap_or_default().into(),
                     has_draft: draft.is_some(),
                     title: line.title.clone().into(),
+                    alternate_name: self.catalog.record_alternate_name(&format!("item:{}", line.key.code), lang).into(),
                     subtitle: if line.key.enhance > 0 {
                         format!(
                             "{} +{}",
@@ -520,7 +524,7 @@ impl Controller {
         let doc = current
             .as_ref()
             .ok_or("請先選擇道具 / Select an item first")?;
-        card_document(&self.catalog.localized_calculator_document(doc, &app.get_lang()), &app.get_lang(), |code| self.icon(code).0)
+        card_document(&self.catalog.localized_calculator_document(doc, &app.get_lang()), &app.get_lang(), |code| self.icon(code).0, |code| self.catalog.record_alternate_name(&format!("item:{code}"), &app.get_lang()))
     }
 
     fn export_card(self: &Rc<Self>, app: &App) {
@@ -644,6 +648,7 @@ fn card_document(
     doc: &db::CalcDocument,
     lang: &str,
     icon_for: impl Fn(i64) -> Image,
+    alternate_for: impl Fn(i64) -> String,
 ) -> Result<calculator_export::CardData, String> {
     let costs = doc.calculate()?;
     let rows = nested::rows(&costs)
@@ -652,6 +657,7 @@ fn card_document(
             let line = row.line;
             calculator_export::CardRow {
                 title: line.title.clone(),
+                alternate_name: alternate_for(line.key.code),
                 quantity: number(line.quantity),
                 unit_price: if line.nested.is_none() && line.unit_price.is_none() {
                     tr(lang, "待填", "Unpriced").into()
@@ -671,6 +677,7 @@ fn card_document(
     Ok(calculator_export::CardData {
         language: lang.into(),
         title: doc.title.clone(),
+        alternate_name: alternate_for(doc.item_code),
         subtitle: format!("{} · #{}", doc.source, doc.recipe_id),
         quantity: number(costs.output_units),
         fee: number(costs.fee),

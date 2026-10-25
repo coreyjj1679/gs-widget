@@ -5009,12 +5009,14 @@ export component App inherits Window {
     in-out property <[string]> character-calculator-routes;
     in-out property <int> character-calculator-route-index;
     in-out property <string> character-calculator-selected-name;
+    in-out property <string> character-calculator-selected-alternate-name;
     in-out property <image> character-calculator-selected-icon;
     in-out property <bool> character-calculator-selected-has-icon;
     in-out property <string> character-calculator-quantity: "1";
     in-out property <string> character-calculator-quantity-draft;
     in-out property <bool> character-calculator-quantity-has-draft;
     in-out property <string> character-calculator-conditions;
+    in-out property <string> character-calculator-conditions-alternate;
     in-out property <string> character-calculator-material-total;
     in-out property <string> character-calculator-fee;
     in-out property <string> character-calculator-total;
@@ -5037,6 +5039,7 @@ export component App inherits Window {
     in-out property <[string]> bonus-groups;
     in-out property <int> bonus-group-index;
     in-out property <string> bonus-selected-name;
+    in-out property <string> bonus-selected-alternate-name;
     in-out property <image> bonus-selected-icon;
     in-out property <bool> bonus-selected-has-icon;
     in-out property <[BonusRow]> bonus-rows;
@@ -5077,6 +5080,7 @@ export component App inherits Window {
     in-out property <[string]> calculator-recipes;
     in-out property <int> calculator-recipe-index;
     in-out property <string> calculator-selected-name;
+    in-out property <string> calculator-selected-alternate-name;
     in-out property <image> calculator-selected-icon;
     in-out property <bool> calculator-selected-has-icon;
     in-out property <string> calculator-selected-meta;
@@ -7885,6 +7889,7 @@ export component App inherits Window {
                     recipes: root.calculator-recipes;
                     recipe-index <=> root.calculator-recipe-index;
                     selected-name: root.calculator-selected-name;
+                    selected-alternate-name: root.calculator-selected-alternate-name;
                     selected-icon: root.calculator-selected-icon;
                     selected-has-icon: root.calculator-selected-has-icon;
                     selected-meta: root.calculator-selected-meta;
@@ -7948,12 +7953,14 @@ export component App inherits Window {
                     routes: root.character-calculator-routes;
                     route-index <=> root.character-calculator-route-index;
                     selected-name: root.character-calculator-selected-name;
+                    selected-alternate-name: root.character-calculator-selected-alternate-name;
                     selected-icon: root.character-calculator-selected-icon;
                     selected-has-icon: root.character-calculator-selected-has-icon;
                     quantity: root.character-calculator-quantity;
                     quantity-draft: root.character-calculator-quantity-draft;
                     quantity-has-draft: root.character-calculator-quantity-has-draft;
                     conditions: root.character-calculator-conditions;
+                    conditions-alternate: root.character-calculator-conditions-alternate;
                     material-total: root.character-calculator-material-total;
                     fee: root.character-calculator-fee;
                     total: root.character-calculator-total;
@@ -7981,6 +7988,7 @@ export component App inherits Window {
                     groups: root.bonus-groups;
                     group-index <=> root.bonus-group-index;
                     selected-name: root.bonus-selected-name;
+                    selected-alternate-name: root.bonus-selected-alternate-name;
                     selected-icon: root.bonus-selected-icon;
                     selected-has-icon: root.bonus-selected-has-icon;
                     rows: root.bonus-rows;

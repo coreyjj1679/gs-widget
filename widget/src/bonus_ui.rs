@@ -180,6 +180,7 @@ impl Controller {
             .map(|candidate| {
                 let (icon, has_icon) = self.image(&candidate.code);
                 CharacterCalcChoice {
+                    alternate_name: self.catalog.record_alternate_name(&format!("hero:{}", candidate.code), &app.get_lang()).into(),
                     id: candidate.code.into(),
                     title: candidate.title.into(),
                     subtitle: candidate.subtitle.into(),
@@ -243,6 +244,7 @@ impl Controller {
                 app.set_bonus_perfect(false);
                 app.set_bonus_maximum_note("".into());
                 app.set_bonus_selected_name("".into());
+                app.set_bonus_selected_alternate_name("".into());
                 app.set_bonus_selected_icon(Image::default());
                 app.set_bonus_selected_has_icon(false);
                 app.set_bonus_note("".into());
@@ -265,6 +267,7 @@ impl Controller {
         let result = calculate_bonus(tree, &inputs);
         let (icon, has_icon) = self.image(&tree.code);
         app.set_bonus_selected_name(tree.title.clone().into());
+        app.set_bonus_selected_alternate_name(tree.alternate_name.clone().into());
         app.set_bonus_selected_icon(icon);
         app.set_bonus_selected_has_icon(has_icon);
         app.set_bonus_error(
@@ -449,6 +452,7 @@ impl Controller {
                 BonusRow {
                     key: node.key.clone().into(),
                     title: node.title.clone().into(),
+                    alternate_name: node.alternate_name.clone().into(),
                     detail: detail.into(),
                     depth,
                     x,
@@ -480,6 +484,7 @@ impl Controller {
                                         CharacterCalcChoice {
                                             id: option.code.clone().into(),
                                             title: option.title.clone().into(),
+                                            alternate_name: option.alternate_name.clone().into(),
                                             subtitle: Default::default(),
                                             icon,
                                             has_icon,

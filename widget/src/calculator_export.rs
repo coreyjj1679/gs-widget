@@ -20,8 +20,10 @@ const MAX_DEPTH: usize = crate::db::MAX_NESTED_DEPTH;
 const MAX_ROWS: usize = crate::db::MAX_TOTAL_MATERIALS;
 const MAX_PAGES: usize = 128;
 
+#[derive(Clone)]
 pub struct CardRow {
     pub title: String,
+    pub alternate_name: String,
     pub depth: usize,
     /// Ancestor names; repeated as context when a subtree spans pages.
     pub context: String,
@@ -35,9 +37,11 @@ pub struct CardRow {
     pub unpriced: bool,
 }
 
+#[derive(Clone)]
 pub struct CardData {
     pub language: String,
     pub title: String,
+    pub alternate_name: String,
     pub subtitle: String,
     pub quantity: String,
     pub fee: String,
@@ -90,6 +94,8 @@ fn export_limit_error(lang: &str) -> String {
 /// Save every material on one or more 1200 × 630 JPEG cards, without overwriting
 /// earlier exports. The caller should show the returned path and page count.
 pub fn export_card(data: &CardData) -> Result<Vec<PathBuf>, String> {
+    let prepared = prepare_header(data);
+    let data = prepared.as_ref();
     validate_card(data)?;
     let pages = paginate(&data.rows).map_err(|_| export_limit_error(&data.language))?;
     let directory = crate::db::calculator_export_dir();
@@ -219,11 +225,13 @@ fn paginate(rows: &[CardRow]) -> Result<Vec<Vec<RowLayout>>, ()> {
         }
         let width = row_text_width(row);
         let titles = wrap(&row.title, width / 16.0);
-        let details = if row.detail.is_empty() {
-            Vec::new()
-        } else {
-            wrap(&row.detail, width / 12.0)
-        };
+        // Secondary names use the existing detail line size and pagination.
+        // Keep them separate from the primary title and never drop a translation
+        // merely because the material crosses a card boundary.
+        let details: Vec<_> = [&row.alternate_name, &row.detail].into_iter()
+            .filter(|text| !text.is_empty())
+            .flat_map(|text| wrap(text, width / 12.0))
+            .collect();
         let full_height = body_height(titles.len(), details.len());
         // Keep a parent's complete description and at least the beginning of its
         // first child together whenever that pair fits on an otherwise empty page.
@@ -317,12 +325,50 @@ fn paginate(rows: &[CardRow]) -> Result<Vec<Vec<RowLayout>>, ()> {
     Ok(pages)
 }
 
+fn prepare_header(data: &CardData) -> std::borrow::Cow<'_, CardData> {
+    let budget = 3usize.saturating_sub(wrap(&data.title, 960.0 / header_title_size(data)).len());
+    let lines = wrap(&data.alternate_name, 64.0);
+    if data.alternate_name.is_empty() || lines.len() <= budget {
+        return std::borrow::Cow::Borrowed(data);
+    }
+    let mut prepared = data.clone();
+    let full_name = format!("{}: {}", crate::db::ui_text(&data.language,
+        "產出副語言完整名稱", "Full output name in secondary language"), data.alternate_name);
+    if let Some(first) = prepared.rows.first_mut() {
+        first.detail = if first.detail.is_empty() { full_name } else { format!("{full_name}\n{}", first.detail) };
+    } else {
+        // A fee-only output still has room for a clearly labelled name row.
+        prepared.rows.push(CardRow {
+            title: crate::db::ui_text(&data.language, "產出名稱", "Output name"),
+            alternate_name: data.alternate_name.clone(), depth: 0,
+            context: String::new(), nested: false, detail: String::new(),
+            quantity: String::new(), unit_price: String::new(), subtotal: String::new(),
+            icon: None, unpriced: false,
+        });
+    }
+    prepared.alternate_name = if budget == 0 { String::new() } else {
+        let mut kept = lines[..budget].to_vec();
+        let last = kept.last_mut().unwrap();
+        while display_width(last) + display_width("…") > 64.0 { last.pop(); }
+        last.push('…');
+        kept.concat()
+    };
+    std::borrow::Cow::Owned(prepared)
+}
+
+fn header_title_size(data: &CardData) -> f32 {
+    [31.0, 27.0, 24.0, 21.0].into_iter()
+        .find(|size| wrap(&data.title, 960.0 / size).len() <= 2)
+        .unwrap_or(21.0)
+}
+
 fn validate_card(data: &CardData) -> Result<(), String> {
     if data.rows.len() > MAX_ROWS
         || data.rows.iter().enumerate().any(|(index, row)| {
             row.depth > MAX_DEPTH
                 || row.title.is_empty()
                 || row.title.len() > 4096
+                || row.alternate_name.len() > 4096
                 || row.detail.len() > 4096
                 || row.context.len() > 16384
                 || (index == 0 && row.depth != 0)
@@ -415,12 +461,11 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
         svg,
         r##"<rect x="44" y="59" width="76" height="76" rx="10" fill="#27303b"/>"##
     );
-    let title_size = [31.0, 27.0, 24.0, 21.0]
-        .into_iter()
-        .find(|size| wrap(&data.title, 960.0 / size).len() <= 2)
-        .unwrap_or(21.0);
+    let title_size = header_title_size(data);
     let title_lines = wrap(&data.title, 960.0 / title_size);
-    let title_y = if title_lines.len() > 2 { 76.0 } else { 91.0 };
+    let title_y = if !data.alternate_name.is_empty() {
+        if title_lines.len() > 1 { 78.0 } else { 85.0 }
+    } else if title_lines.len() > 2 { 76.0 } else { 91.0 };
     let title_step = if title_lines.len() > 2 { 26.0 } else { 33.0 };
     for (index, line) in title_lines.iter().enumerate() {
         text(
@@ -434,7 +479,17 @@ fn page_svg(data: &CardData, rows: &[RowLayout], page: usize, pages: usize) -> S
             line,
         );
     }
-    let subtitle_y = if title_lines.len() > 1 { 149.0 } else { 123.0 };
+    let alternate_lines = wrap(&data.alternate_name, 64.0);
+    let alternate_y = title_y + (title_lines.len().saturating_sub(1) as f32) * title_step + 22.0;
+    if !data.alternate_name.is_empty() {
+        for (index, line) in alternate_lines.iter().enumerate() {
+            text(&mut svg, 140.0, alternate_y + index as f32 * 17.0,
+                15.0, "#c9d2df", 400, "start", line);
+        }
+    }
+    let subtitle_y = if !data.alternate_name.is_empty() {
+        alternate_y + (alternate_lines.len().saturating_sub(1) as f32) * 17.0 + 21.0
+    } else if title_lines.len() > 1 { 149.0 } else { 123.0 };
     text(
         &mut svg,
         140.0,
@@ -855,6 +910,7 @@ mod tests {
         CardData {
             language: "zh".into(),
             title: "強化的高級白水晶".into(),
+            alternate_name: String::new(),
             subtitle: "合成配方 #1040".into(),
             quantity: "2 件".into(),
             fee: "121,360,000".into(),
@@ -867,6 +923,7 @@ mod tests {
             rows: (0..count)
                 .map(|index| CardRow {
                     title: format!("材料 {index} <&> 強化的白水晶"),
+                    alternate_name: String::new(),
                     depth: 0,
                     context: String::new(),
                     nested: false,
@@ -996,6 +1053,7 @@ mod tests {
                 let nested = depth < MAX_DEPTH && index + 1 < count;
                 data.rows.push(CardRow {
                     title: title.clone(),
+                    alternate_name: String::new(),
                     depth,
                     context: ancestors.join(" › "),
                     nested,
@@ -1047,8 +1105,39 @@ mod tests {
         assert_eq!(first_fragments, (0..data.rows.len()).collect::<Vec<_>>());
         for (index, row) in data.rows.iter().enumerate() {
             assert_eq!(titles[index], row.title);
-            assert_eq!(details[index], row.detail);
+            assert_eq!(details[index], format!("{}{}", row.alternate_name, row.detail));
         }
+    }
+
+    #[test]
+    fn bilingual_exports_preserve_names_and_numeric_columns_across_pages() {
+        let mut data = nested_card(24);
+        data.alternate_name = "Refined high-grade white crystal".into();
+        for (index, row) in data.rows.iter_mut().enumerate() {
+            row.alternate_name = format!("Material {index} · Refined crystal <&>");
+        }
+        validate_card(&data).unwrap();
+        let pages = paginate(&data.rows).unwrap();
+        assert_complete_layout(&data, &pages);
+        assert!(pages.len() > 1);
+        for (index, page) in pages.iter().enumerate() {
+            let svg = page_svg(&data, page, index + 1, pages.len());
+            assert!(svg.contains("Refined high-grade white crystal"));
+            assert!(svg.contains(&data.total));
+            assert!(!svg.contains("<&>"));
+        }
+    }
+
+    #[test]
+    fn long_secondary_headers_keep_full_names_in_paginated_details() {
+        let mut data = card(1);
+        data.alternate_name = "a".repeat(500);
+        let prepared = prepare_header(&data);
+        validate_card(&prepared).unwrap();
+        assert!(prepared.alternate_name.ends_with('…'));
+        assert!(prepared.rows[0].detail.contains(&data.alternate_name));
+        assert_complete_layout(&prepared, &paginate(&prepared.rows).unwrap());
+        assert!(data.rows[0].detail.is_empty(), "preparing an export must not edit the source");
     }
 
     #[test]
@@ -1155,19 +1244,51 @@ mod tests {
 
     /// Explicit artifact generation for visual QA, not part of the normal suite.
     #[test]
-    #[ignore = "writes first/middle/last nested JPG previews for visual review"]
+    #[ignore = "writes bilingual first/middle/last nested JPG previews for visual review"]
     fn writes_nested_card_previews() {
-        let data = nested_card(134);
-        let pages = paginate(&data.rows).unwrap();
-        assert_complete_layout(&data, &pages);
         let directory = std::env::temp_dir().join("gs-nested-card-previews");
         fs::create_dir_all(&directory).unwrap();
         let options = render_options();
-        for index in [0, pages.len() / 2, pages.len() - 1] {
-            let bytes = encode_page(&data, &pages[index], index + 1, pages.len(), &options);
-            let path = directory.join(format!("nested-cost-{:03}.jpg", index + 1));
-            fs::write(&path, bytes).unwrap();
-            println!("{}", path.display());
+        for language in ["zh-en", "en-zh"] {
+            let mut data = nested_card(134);
+            data.language = language.into();
+            let english = language == "en-zh";
+            data.title = if english { "Refined high-grade white crystal" } else { "強化的高級白水晶" }.into();
+            data.alternate_name = if english { "強化的高級白水晶" } else { "Refined high-grade white crystal" }.into();
+            if english {
+                data.subtitle = "Crafting recipe #1040".into();
+                data.quantity = "2 units".into();
+                data.total_label = "Known cost".into();
+                data.notice = "Some unit prices are missing.\nRetry costs are excluded.".into();
+            }
+            let names = [
+                ("強化的白水晶", "Refined white crystal"),
+                ("高級白水晶", "High-grade white crystal"),
+                ("白水晶粉末", "White crystal powder"),
+            ];
+            let mut ancestors = Vec::new();
+            for (index, row) in data.rows.iter_mut().enumerate() {
+                let (zh, en) = names[index % names.len()];
+                row.title = if english { en } else { zh }.into();
+                row.alternate_name = if english { zh } else { en }.into();
+                if english {
+                    row.detail = if row.nested {
+                        "2 batches · output 6 · surplus 2 · includes crafting fee 10"
+                    } else { "User-supplied material price" }.into();
+                }
+                ancestors.truncate(row.depth);
+                row.context = ancestors.join(" › ");
+                ancestors.push(row.title.clone());
+            }
+            let pages = paginate(&data.rows).unwrap();
+            assert_complete_layout(&data, &pages);
+            validate_card(&data).unwrap();
+            for index in [0, pages.len() / 2, pages.len() - 1] {
+                let bytes = encode_page(&data, &pages[index], index + 1, pages.len(), &options);
+                let path = directory.join(format!("nested-cost-{language}-{:03}.jpg", index + 1));
+                fs::write(&path, bytes).unwrap();
+                println!("{}", path.display());
+            }
         }
     }
 }

@@ -78,6 +78,9 @@ fn bonus_controller_keeps_drafts_validates_and_relocalizes() {
     assert!(app.get_bonus_candidates().row_count() >= 15);
     app.invoke_bonus_select_character("T80".into());
     assert_eq!(app.get_bonus_error(), "");
+    let catalog = db::Catalog::open().unwrap();
+    assert_eq!(app.get_bonus_selected_alternate_name().as_str(), catalog.record_alternate_name("hero:T80", "zh-en"));
+    assert!(app.get_bonus_candidates().iter().any(|row| !row.alternate_name.is_empty()));
     let full_bonus: i64 = app.get_bonus_total().parse().unwrap();
     // Independent all-250 Jumong fixture: 719, or 1019 with four 300-point white robes.
     assert_eq!(full_bonus, 719);
@@ -146,11 +149,19 @@ fn bonus_controller_keeps_drafts_validates_and_relocalizes() {
     app.invoke_bonus_preset(200);
     assert!(app.get_bonus_total().parse::<i64>().unwrap() < full_bonus + 300);
     let expected = app.get_bonus_total();
-    for lang in ["en", "ko"] {
+    for lang in ["en-zh", "ko-en", "zh", "en", "ko"] {
         app.set_lang(lang.into());
-        app.global::<crate::UiLanguage>().set_primary(lang.into());
+        app.global::<crate::UiLanguage>().set_primary(db::primary_lang(lang).into());
         app.invoke_bonus_refresh();
         assert_eq!(app.get_bonus_total(), expected);
+        assert_eq!(app.get_bonus_selected_alternate_name().as_str(), catalog.record_alternate_name("hero:T80", lang));
+        let tree = catalog.bonus_tree("T80", lang).unwrap();
+        for row in app.get_bonus_rows().iter() {
+            let node = find_node(&tree, &row.key).unwrap();
+            if !node.code.starts_with("statue:") {
+                assert_eq!(row.alternate_name.as_str(), catalog.record_alternate_name(&format!("hero:{}", node.code), lang));
+            }
+        }
         capture(&app, &window, lang);
     }
     app.invoke_bonus_preset(0);
