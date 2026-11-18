@@ -1,16 +1,14 @@
 """End-to-end tests for a small, independent character/companion fixture."""
 
-import importlib.util
 import sqlite3
+import sys
 import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "import_character_data.py"
-spec = importlib.util.spec_from_file_location("import_character_data", MODULE_PATH)
-importer = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(importer)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import import_character_data as importer
 
 CHARACTERS = """CREATE TABLE characters (
     code TEXT PRIMARY KEY, nation INTEGER NOT NULL, rank INTEGER NOT NULL,
@@ -71,8 +69,8 @@ class CharacterImportTest(unittest.TestCase):
             target.execute("INSERT INTO characters VALUES ('U00',1,0,'Porter',10,0,0,'original.agf',1,'original-sprite.agf')")
             target.execute("CREATE TABLE strings(object,id,lang,text,PRIMARY KEY(object,id,lang))")
             target.execute("INSERT INTO strings VALUES ('OnlineText.dat','00000031','en','Preferred horse name')")
-            target.execute("CREATE TABLE items(code INTEGER PRIMARY KEY)")
-            target.executemany("INSERT INTO items VALUES (?)", [(100,), (101,), (102,)])
+            target.execute("CREATE TABLE items(code INTEGER PRIMARY KEY, name_ko TEXT NOT NULL DEFAULT '')")
+            target.executemany("INSERT INTO items(code) VALUES (?)", [(100,), (101,), (102,)])
             target.execute("CREATE TABLE monster_drops(monster_code,slot,item_code,drop_rate_per_100000)")
             target.execute("INSERT INTO monster_drops VALUES ('M01',1,100,5500)")
 
@@ -209,6 +207,139 @@ class CharacterImportTest(unittest.TestCase):
         self.run_import()
         self.assertEqual(self.snapshot(), before)
 
+    def test_trainer_costs_and_exact_certificates_are_separate_routes(self):
+        # Catalog nation and the trainer's player restriction differ for Donkey.
+        monsters = [
+            ("U85", "당나귀", 1000, "35"), ("M06", "꼬마산적", 1, "30"),
+            ("M33", "백호", 1, "45"), ("M22", "독지네", 10, "85"),
+            ("M46", "반달곰", 100, "45"), ("M57", "꼬마해적", 100, "35"),
+            ("M59", "꼬마선인장", 1000, "60"),
+        ]
+        with closing(sqlite3.connect(self.source)) as source, source:
+            for code, name, _, credit in monsters:
+                self.row(source, "stats", {"ID": code, "Name": name, "Need Credit": credit})
+        with closing(sqlite3.connect(self.target)) as target, target:
+            target.executemany("INSERT INTO characters VALUES (?,?,4,?,0,0,0,'',-1,'')",
+                               [(code, nation, name) for code, name, nation, _ in monsters])
+            target.executemany("INSERT INTO items VALUES (?,?)", [
+                (853, "[M]봉인의돌"), (897, "[M]당나귀증서"), (4002, "조선 몬스터 증서(꼬마산적)"),
+                (5950, "조선 몬스터 증서(백호)"), (991, "일본 몬스터 증서(백호)"), (992, "조선 몬스터 증서(백호) 세트"),
+                (5957, "대만 몬스터 증서(꼬마선인장)"),
+            ])
+        self.run_import()
+        with closing(sqlite3.connect(self.target)) as target:
+            self.assertEqual(target.execute("SELECT code,kind,item_code,qty FROM character_materials WHERE kind LIKE 'recruitment:%' ORDER BY code,kind").fetchall(), [
+                ("M06", "recruitment:certificate", 4002, 1), ("M06", "recruitment:trainer", 853, 3),
+                ("M22", "recruitment:trainer", 853, 11),
+                ("M33", "recruitment:certificate", 5950, 1), ("M33", "recruitment:trainer", 853, 5),
+                ("M46", "recruitment:trainer", 853, 5), ("M57", "recruitment:trainer", 853, 4),
+                ("M59", "recruitment:certificate", 5957, 1), ("M59", "recruitment:trainer", 853, 7),
+                ("U85", "recruitment:certificate", 897, 1), ("U85", "recruitment:trainer", 853, 4),
+            ])
+            trainer_facts = target.execute("""
+                SELECT code, value_en FROM character_facts
+                WHERE label_en IN ('Trainer credit level', 'Trainer fee', 'Trainer nationality')
+                ORDER BY code, slot
+            """)
+            actual = {}
+            for code, value in trainer_facts:
+                actual.setdefault(code, []).append(int(value))
+            self.assertEqual(actual, {
+                "M06": [30, 30_000, 1], "M22": [85, 85_000, 10], "M33": [45, 45_000, 1],
+                "M46": [45, 45_000, 100], "M57": [35, 35_000, 100], "M59": [60, 60_000, 1000],
+                "U85": [35, 35_000, 0],
+            })
+            self.assertEqual(target.execute("""
+                SELECT code,value_en,value_zh FROM character_facts
+                WHERE label_en='Certificate nationality' ORDER BY code
+            """).fetchall(), [("M06", "1", "1"), ("M33", "1", "1"), ("M59", "1000", "1000")])
+        before = self.snapshot()
+        self.run_import()
+        self.assertEqual(self.snapshot(), before)
+
+    def test_craftable_certificates_separate_bound_and_tradable_items(self):
+        with closing(sqlite3.connect(self.target)) as target, target:
+            target.executemany("INSERT INTO characters VALUES (?,0,4,?,0,0,0,'',-1,'')", [
+                ("H47", "삼미호(雷)"), ("F41", "코끼리 주술사"), ("F42", "원숭이 주술사"),
+            ])
+            target.executemany("INSERT INTO items VALUES (?,?)", [
+                (6414, "번개정령 몬스터 증서(삼미호)"),
+                (7528, "몬스터 증서(코끼리 주술사)"), (7587, "몬스터 증서(코끼리 주술사)-(거래불가)"),
+                (7588, "몬스터 증서(원숭이 주술사)-(거래불가)"),
+            ])
+        self.run_import()
+        with closing(sqlite3.connect(self.target)) as target:
+            rows = target.execute("SELECT code,kind,item_code,qty FROM character_materials WHERE kind LIKE 'recruitment:%' ORDER BY code,kind").fetchall()
+            self.assertEqual(rows, [
+                ("F41", "recruitment:certificate", 7528, 1),
+                ("F41", "recruitment:certificate_bound", 7587, 1),
+                ("F42", "recruitment:certificate_bound", 7588, 1),
+                ("H47", "recruitment:certificate", 6414, 1),
+            ])
+            self.assertEqual(target.execute("""
+                SELECT code,label_en,value_en FROM character_facts WHERE label_en LIKE '%ertificate nationality' ORDER BY code,slot
+            """).fetchall(), [
+                ("F41", "Certificate nationality", "0"), ("F41", "Bound certificate nationality", "0"),
+                ("F42", "Bound certificate nationality", "0"), ("H47", "Certificate nationality", "0"),
+            ])
+        first = self.snapshot()
+        self.run_import()
+        self.assertEqual(first, self.snapshot())
+        with closing(sqlite3.connect(self.target)) as target, target:
+            target.execute("UPDATE items SET name_ko='Different certificate' WHERE code=6414")
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, "Unexpected certificate item for H47"):
+            self.run_import()
+        self.assertEqual(before, self.snapshot())
+
+    def test_creature_sheet_uses_recipient_and_allowed_nation_for_each_item(self):
+        with closing(sqlite3.connect(self.source)) as source, source:
+            source.execute("INSERT INTO raw_sheet VALUES ('gersang.gcs',2513,'CreatureItem.txt','creature_items')")
+            source.execute('CREATE TABLE creature_items ("Item Code",Name,"Group",CountryCode,"Allowed Nation","Creature DB ID")')
+            source.executemany("INSERT INTO creature_items VALUES (?,?, 'IJ',1000,?,?)", [
+                (7528, "몬스터 증서(코끼리 주술사)", "ALL", "F41"),
+                (7587, "몬스터 증서(코끼리 주술사)-(거래불가)", "JAPAN", "F41"),
+                (8778, "몬스터 증서(육지거북)-(거래불가)", "ALL", "F3"),
+            ])
+        with closing(sqlite3.connect(self.target)) as target, target:
+            target.executemany("INSERT INTO characters VALUES (?,?,4,?,0,0,0,'',-1,'')",
+                               [("F41", 0, "코끼리 주술사"), ("F3", 10000, "육지거북")])
+            target.executemany("INSERT INTO items VALUES (?,?)", [
+                (7528, "몬스터 증서(코끼리 주술사)"), (7587, "몬스터 증서(코끼리 주술사)-(거래불가)"),
+                (8778, "몬스터 증서(육지거북)-(거래불가)"),
+            ])
+        self.run_import()
+        with closing(sqlite3.connect(self.target)) as db:
+            self.assertEqual(db.execute("""
+                SELECT code,label_en,value_en FROM character_facts WHERE label_en LIKE '%ertificate nationality' ORDER BY code,slot
+            """).fetchall(), [
+                ("F3", "Bound certificate nationality", "0"),
+                ("F41", "Certificate nationality", "0"), ("F41", "Bound certificate nationality", "10"),
+            ])
+        with closing(sqlite3.connect(self.source)) as source, source:
+            source.execute('UPDATE creature_items SET "Creature DB ID"=? WHERE "Item Code"=?', ("F42", 7587))
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, "CreatureItem recipient or item mismatch for F41"):
+            self.run_import()
+        self.assertEqual(before, self.snapshot())
+
+    def test_promotion_nationality_belongs_to_target_and_route(self):
+        with closing(sqlite3.connect(self.target)) as target, target:
+            target.executemany("INSERT INTO characters VALUES (?,?,?,?,0,0,0,'',-1,'')", [
+                ("F14", 10000, 4, "황소짐꾼"), ("E33", 1, 5, "거산"),
+                ("T79", 10000, 8, "아이라바타"), ("unknown", 1, 5, "Other"),
+            ])
+        self.run_import()
+        with closing(sqlite3.connect(self.target)) as target:
+            self.assertEqual(target.execute("""
+                SELECT code,label_en,value_en,value_zh FROM character_facts
+                WHERE code IN ('F14', 'E33', 'T79', 'unknown') ORDER BY code
+            """).fetchall(), [
+                ("E33", "Promotion nationality", "1", "1"),
+                ("F14", "Promotion nationality", "0", "0"),
+                ("T79", "Promotion nationality", "india_or_second_promotion", "india_or_second_promotion"),
+            ])
+
     def test_invalid_source_leaves_every_target_table_unchanged(self):
         before = self.target.read_bytes()
         with closing(sqlite3.connect(self.source)) as db, db:
@@ -239,7 +370,7 @@ class CharacterImportTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing material"):
             self.run_import()
         with closing(sqlite3.connect(self.target)) as db, db:
-            db.execute("INSERT INTO items VALUES (101)")
+            db.execute("INSERT INTO items(code) VALUES (101)")
         with closing(sqlite3.connect(self.source)) as db, db:
             db.execute(f'CREATE TABLE duplicate_stats AS SELECT * FROM {self.tables["stats"]}')
             db.execute("INSERT INTO raw_sheet VALUES ('gersang.gcs',9999,'duplicate','duplicate_stats')")

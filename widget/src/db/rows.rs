@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 pub(in crate::db) struct Index {
@@ -157,10 +157,25 @@ pub(in crate::db) struct HeroRow {
     pub(in crate::db) desc_zh: String,
     pub(in crate::db) hire_en: String,
     pub(in crate::db) hire_zh: String,
+    pub(in crate::db) promotion_nationality: Option<String>,
+    pub(in crate::db) recruitment_methods: RecruitmentMethods,
     pub(in crate::db) skills: Vec<HeroSkill>,
     pub(in crate::db) names: String,
     pub(in crate::db) icon: Option<(PathBuf, i32)>,
     pub(in crate::db) companion: Option<CompanionRow>,
+}
+
+/// Each method is an alternative; all material slots within a method are required.
+pub(in crate::db) type RecruitmentMethods = BTreeMap<String, RecruitmentMethod>;
+
+#[derive(Default)]
+pub(in crate::db) struct RecruitmentMethod {
+    /// NPC recipe and output item when crafting the certificate from raw materials.
+    pub(in crate::db) certificate_recipe: Option<(i64, i64)>,
+    pub(in crate::db) materials: Vec<(i64, i64)>,
+    pub(in crate::db) nationality: Option<i64>,
+    pub(in crate::db) credit_levels: Vec<(String, String)>,
+    pub(in crate::db) fee: Option<i64>,
 }
 
 #[derive(Default)]

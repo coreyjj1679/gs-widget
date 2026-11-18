@@ -563,8 +563,9 @@ fn hero_sheet_shows_rank_nation_and_hire() {
     let (_, jumong, _) = catalog.open_key("hero:T80", "zh");
     assert!(jumong.iter().any(|hit| hit.chip == "label" && hit.title.contains("轉職")));
     let (_, fox, _) = catalog.open_key("hero:M12", "zh");
-    assert!(fox.iter().any(|hit| hit.title.contains("訓練所")));
-    assert!(fox.iter().all(|hit| !hit.title.contains("封印珠")));
+    let trainer = fox.iter().find(|hit| hit.title.contains("訓練所")).unwrap();
+    assert!(trainer.subtitle.contains("所需主角國籍：朝鮮") && trainer.subtitle.contains("僱用費 30,000 兩"));
+    assert!(fox.iter().any(|hit| hit.key == "item:853" && hit.aside == "× 3"));
     let (_, bokuden, _) = catalog.open_key("hero:T118", "zh");
     assert!(bokuden.iter().any(|hit| hit.key == "item:6831" && hit.aside == "× 4"));
     assert!(bokuden.iter().any(|hit| hit.key == "hero:T63"));

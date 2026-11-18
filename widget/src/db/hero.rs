@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use rusqlite::Connection;
 
 use super::{Catalog, Hit};
-use super::character_data::{companion_summary, load_companions};
+use super::character_data::{companion_summary, load_companions, load_recruitment_methods};
 use super::names::{NameTrie, fuzzy_rows, haystack, plain_name};
 use super::paths::resolve_client_file;
 use super::rows::{ChainBook, ChainStep, Combo, HeroRow, HeroSkill, Index, ItemRow, RosterUse};
@@ -12,7 +12,9 @@ use super::store::{online, table_exists};
 use super::text::{caption, chrome_text, commas, lead, lead3, phrase, trail3};
 use super::work::chain_role;
 
-pub(in crate::db) fn hero_sheet_parts(hero: &HeroRow, lang: &str) -> (String, String, String, Vec<(String, String)>, String) {
+type HeroSheet = (String, String, String, Vec<(String, String)>, String);
+
+pub(in crate::db) fn hero_sheet_parts(hero: &HeroRow, lang: &str) -> HeroSheet {
     let (title, alt) = hero_names(lang, hero);
     let (en, zh) = hero_rank_pair(hero.rank);
     let rank = lead3(lang, en, zh, &chrome_text("ko", zh, en));
@@ -475,7 +477,9 @@ pub(in crate::db) fn load_heroes(
         })
         .map_err(|err| err.to_string())?;
     let skills = load_hero_skills(conn, texts)?;
+    let mut promotion_nationalities = super::character_data::load_promotion_nationalities(conn).map_err(|err| err.to_string())?;
     let mut companions = load_companions(conn);
+    let mut recruitment = load_recruitment_methods(conn).map_err(|err| err.to_string())?;
     let mut heroes = Vec::new();
     for row in rows {
         let (code, nation, rank, ko, name_gts, desc_gts, hire_gts, portrait, frame, sprite) =
@@ -484,8 +488,14 @@ pub(in crate::db) fn load_heroes(
         let zh = online(texts, name_gts, "zh").to_string();
         let desc_en = online(texts, desc_gts, "en").to_string();
         let desc_zh = online(texts, desc_gts, "zh").to_string();
-        let hire_en = online(texts, hire_gts, "en").to_string();
-        let hire_zh = online(texts, hire_gts, "zh").to_string();
+        let mut hire_en = online(texts, hire_gts, "en").to_string();
+        let mut hire_zh = online(texts, hire_gts, "zh").to_string();
+        let promotion_nationality = promotion_nationalities.remove(&code);
+        if promotion_nationality.as_deref() == Some(super::character_data::INDIA_OR_SECOND_PROMOTION) {
+            // The original Airavata tooltip predates the second-promotion exception.
+            hire_en = hire_en.replace("Nationality Required India, ", "");
+            hire_zh = hire_zh.replace("印度國籍、", "");
+        }
         let (nation_en, nation_zh) = hero_nation(nation);
         let (rank_en, rank_zh) = hero_rank_pair(rank);
         let mine = skills.get(&code).cloned().unwrap_or_default();
@@ -514,6 +524,8 @@ pub(in crate::db) fn load_heroes(
             desc_zh,
             hire_en,
             hire_zh,
+            promotion_nationality,
+            recruitment_methods: recruitment.remove(&code).unwrap_or_default(),
             names: haystack(&borrowed),
             skills: mine,
             icon: hero_icon(asset_roots, &portrait, frame, &sprite),
@@ -605,10 +617,22 @@ impl Catalog {
         self.index.heroes.iter().any(|hero| hero.code == code && hero.rank == 14)
     }
 
-    pub fn hero_sheet(&self, code: &str, lang: &str) -> Option<(String, String, String, Vec<(String, String)>, String)> {
+    pub fn hero_sheet(&self, code: &str, lang: &str) -> Option<HeroSheet> {
+        self.character_sheet(code, lang, false)
+    }
+
+    pub fn hero_inline_sheet(&self, code: &str, lang: &str) -> Option<HeroSheet> {
+        self.character_sheet(code, lang, true)
+    }
+
+    fn character_sheet(&self, code: &str, lang: &str, inline_recruitment: bool) -> Option<HeroSheet> {
         let hero = self.index.heroes.iter().find(|hero| hero.code == code)?;
         let (title, alt, heading, mut facts, note) = hero_sheet_parts(hero, lang);
-        let mut details = self.hero_data_facts(code, lang);
+        if !inline_recruitment {
+            facts.extend(hero.promotion_nationality_fact(lang));
+        }
+        let inline_methods = inline_recruitment.then_some(&hero.recruitment_methods);
+        let mut details = self.hero_data_facts(code, lang, inline_methods);
         details.append(&mut facts);
         Some((title, alt, heading, details, note))
     }
@@ -643,7 +667,7 @@ impl Catalog {
         if !self.index.heroes.iter().any(|hero| hero.code == code) {
             return (phrase("missing-hero", lang), Vec::new(), None);
         }
-        let (name, alt, heading, facts, note) = self.hero_sheet(code, lang).expect("indexed hero");
+        let (name, alt, heading, facts, note) = self.hero_inline_sheet(code, lang).expect("indexed hero");
         let mut all_facts = self.hero_effect_lines(code, lang);
         all_facts.extend(self.hero_stat_lines(code, lang));
         all_facts.extend(facts);
@@ -815,6 +839,12 @@ impl Index {
 
     pub(in crate::db) fn hero_chain(&self, code: &str, lang: &str) -> Vec<Hit> {
         let mut hits = Vec::new();
+        if let Some(condition) = self.heroes.iter().find(|hero| hero.code == code).and_then(|hero| hero.promotion_condition(lang)) {
+            hits.push(Hit {
+                title: condition, subtitle: String::new(), key: String::new(), icon: None,
+                solo: false, aside: String::new(), badge: None, chip: "label".into(),
+            });
+        }
         if let Some(steps) = self.chains.get(code) {
             if steps.len() >= 2 {
                 for step in steps {
@@ -880,7 +910,9 @@ impl Index {
         }
         if blocks.is_empty() {
             if let Some(hero) = self.heroes.iter().find(|hero| hero.code == code) {
-                if matches!(hero.rank, 4 | 5 | 11) {
+                if matches!(hero.rank, 4 | 5 | 11)
+                    && !hero.recruitment_methods.contains_key("recruitment:trainer")
+                    && !hero.recruitment_methods.contains_key("recruitment:craft_certificate") {
                     let hire = scrub(&tidy(&lead(lang, &hero.hire_en, &hero.hire_zh)));
                     if hire.chars().count() >= 2 {
                         blocks.push(Hit {

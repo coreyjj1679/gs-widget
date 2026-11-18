@@ -1708,7 +1708,9 @@ impl Catalog {
         self.push_section(&mut hits, lang, "used-for", uses);
         self.push_section(&mut hits, lang, "also-from", self.item_quest_gains(code, lang));
         self.push_section(&mut hits, lang, "set", self.item_set_links(code, lang));
-        self.push_section(&mut hits, lang, "roster", self.index.roster_hits(code, lang));
+        let mut characters = self.index.roster_hits(code, lang);
+        characters.extend(self.recruitment_item_links(code, lang));
+        self.push_section(&mut hits, lang, "roster", characters);
         hits
     }
 

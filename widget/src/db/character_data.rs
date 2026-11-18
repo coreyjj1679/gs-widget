@@ -2,10 +2,161 @@ use std::collections::{BTreeMap, HashMap};
 
 use rusqlite::Connection;
 
-use super::hero::hero_names;
-use super::rows::CompanionRow;
-use super::text::{chrome_text, commas, element_name, lead, lead3, phrase, trail3};
+use super::hero::{hero_land_pair, hero_names};
+use super::rows::{CompanionRow, HeroRow, RecruitmentMethod, RecruitmentMethods};
+use super::store::{column_exists, table_exists};
+use super::text::{caption, chrome_text, commas, element_name, lead, lead3, phrase, trail3};
 use super::{Catalog, Hit};
+
+pub(in crate::db) const RECRUITMENT_METHODS: [&str; 4] = [
+    "recruitment:trainer", "recruitment:craft_certificate", "recruitment:certificate",
+    "recruitment:certificate_bound",
+];
+
+pub(in crate::db) fn player_nationality_name(code: i64, lang: &str) -> Option<String> {
+    let (en, zh) = match code {
+        0 => ("Any nationality", "不限"),
+        1 | 10 | 100 | 1000 | 10000 => hero_land_pair(code),
+        _ => return None,
+    };
+    Some(chrome_text(lang, zh, en))
+}
+
+pub(in crate::db) const INDIA_OR_SECOND_PROMOTION: &str = "india_or_second_promotion";
+
+pub(in crate::db) fn load_promotion_nationalities(conn: &Connection) -> rusqlite::Result<HashMap<String, String>> {
+    if !table_exists(conn, "character_facts") {
+        return Ok(HashMap::new());
+    }
+    let mut stmt = conn.prepare(
+        "SELECT code, value_en FROM character_facts WHERE label_en = 'Promotion nationality'",
+    )?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    rows.collect()
+}
+
+impl HeroRow {
+    pub(in crate::db) fn promotion_nationality_fact(&self, lang: &str) -> Option<(String, String)> {
+        let rule = self.promotion_nationality.as_deref()?;
+        let value = if rule == INDIA_OR_SECOND_PROMOTION {
+            chrome_text(lang, "印度籍，或任何國籍且主角已二轉", "India, or any nationality after the main character's second promotion")
+        } else {
+            player_nationality_name(rule.parse().ok()?, lang)?
+        };
+        let label = chrome_text(lang, "轉職所需主角國籍", "Main character nationality for promotion");
+        Some((label, value))
+    }
+
+    pub(in crate::db) fn promotion_condition(&self, lang: &str) -> Option<String> {
+        self.promotion_nationality_fact(lang).map(|(label, value)| format!("{label} · {value}"))
+    }
+}
+
+impl RecruitmentMethod {
+    pub(in crate::db) fn eligibility(&self, lang: &str) -> Vec<String> {
+        let mut terms = Vec::new();
+        if let Some(name) = self.nationality.and_then(|code| player_nationality_name(code, lang)) {
+            let label = chrome_text(lang, "所需主角國籍：", "Required player nationality: ");
+            terms.push(format!("{label}{name}"));
+        }
+        for (en, zh) in &self.credit_levels {
+            let level = lead(lang, en, zh);
+            if !level.is_empty() {
+                terms.push(format!("{} {level}", chrome_text(lang, "所需信用等級", "Required credit level")));
+            }
+        }
+        terms
+    }
+}
+
+pub(in crate::db) fn load_recruitment_methods(
+    conn: &Connection,
+) -> rusqlite::Result<HashMap<String, RecruitmentMethods>> {
+    let mut grouped = HashMap::<String, RecruitmentMethods>::new();
+    if !table_exists(conn, "character_materials") {
+        return Ok(grouped);
+    }
+    let mut stmt = conn.prepare(
+        "SELECT code, kind, item_code, qty FROM character_materials
+         WHERE kind IN ('recruitment:trainer', 'recruitment:certificate', 'recruitment:certificate_bound')
+         ORDER BY code, kind, slot",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+    })?;
+    for row in rows {
+        let (code, method, item, quantity) = row?;
+        grouped.entry(code).or_default()
+            .entry(method).or_default()
+            .materials.push((item, quantity));
+    }
+    load_certificate_crafting(conn, &mut grouped)?;
+    if grouped.is_empty() || !table_exists(conn, "character_facts") {
+        return Ok(grouped);
+    }
+    let mut stmt = conn.prepare(
+        "SELECT code, label_en, value_en, value_zh FROM character_facts
+         WHERE label_en IN ('Trainer nationality','Certificate nationality','Bound certificate nationality',
+                            'Trainer credit level','Trainer fee')
+         ORDER BY code, slot",
+    )?;
+    let rows = stmt.query_map([], |row| Ok((
+        row.get::<_, String>(0)?, row.get::<_, String>(1)?,
+        row.get::<_, String>(2)?, row.get::<_, String>(3)?,
+    )))?;
+    for row in rows {
+        let (code, label, en, zh) = row?;
+        let method_key = match label.as_str() {
+            "Certificate nationality" => "recruitment:certificate",
+            "Bound certificate nationality" => "recruitment:certificate_bound",
+            _ => "recruitment:trainer",
+        };
+        let Some(method) = grouped.get_mut(&code).and_then(|methods| methods.get_mut(method_key)) else { continue };
+        match label.as_str() {
+            "Trainer nationality" | "Certificate nationality" | "Bound certificate nationality" => {
+                method.nationality = lead("en", &en, &zh).parse().ok()
+                    .filter(|code| player_nationality_name(*code, "en").is_some());
+            }
+            "Trainer credit level" => method.credit_levels.push((en, zh)),
+            "Trainer fee" => method.fee = lead("en", &en, &zh).parse().ok().filter(|fee| *fee >= 0),
+            _ => {}
+        }
+    }
+    Ok(grouped)
+}
+
+fn load_certificate_crafting(conn: &Connection, methods: &mut HashMap<String, RecruitmentMethods>) -> rusqlite::Result<()> {
+    if methods.is_empty() || !column_exists(conn, "recipes", "npc") || !table_exists(conn, "recipe_materials") {
+        return Ok(());
+    }
+    // Join on the actual certificate consumed. In particular, Zhang Guolao
+    // makes the bound sorcerer certificates, which have distinct item codes.
+    let mut stmt = conn.prepare(
+        "WITH crafts AS (
+            SELECT c.code, r.id, r.result_item, r.fee
+            FROM character_materials c JOIN recipes r ON r.result_item = c.item_code
+            WHERE c.kind IN ('recruitment:certificate', 'recruitment:certificate_bound')
+              AND c.qty = 1 AND r.result_qty = 1 AND r.fee >= 0
+              AND r.source = 'unified' AND r.npc = '1012'
+              AND NOT EXISTS (SELECT 1 FROM recipe_materials m WHERE m.recipe_id = r.id
+                              AND (m.qty <= 0 OR m.enhance != 0))
+         )
+         SELECT c.code, c.id, c.result_item, c.fee, m.item_code, m.qty FROM crafts c
+         JOIN recipe_materials m ON m.recipe_id = c.id
+         WHERE c.code IN (SELECT code FROM crafts GROUP BY code HAVING count(*) = 1)
+         ORDER BY c.code, m.slot",
+    )?;
+    let mut rows = stmt.query([])?;
+    while let Some(row) = rows.next()? {
+        let code: String = row.get(0)?;
+        let Some(routes) = methods.get_mut(&code) else { continue };
+        let craft = routes.entry("recruitment:craft_certificate".into()).or_default();
+        craft.certificate_recipe = Some((row.get(1)?, row.get(2)?));
+        craft.fee = Some(row.get(3)?);
+        craft.materials.push((row.get(4)?, row.get(5)?));
+    }
+    Ok(())
+}
 
 pub(in crate::db) fn load_companions(conn: &Connection) -> HashMap<String, CompanionRow> {
     let Ok(mut stmt) = conn.prepare(
@@ -168,7 +319,7 @@ fn stat_lines(conn: &Connection, code: &str, lang: &str) -> Vec<(String, String)
     lines
 }
 
-fn extra_facts(conn: &Connection, code: &str, lang: &str, stats: bool, hide_outgoing_evolution: bool) -> Vec<(String, String)> {
+fn extra_facts(conn: &Connection, code: &str, lang: &str, stats: bool, omitted: &[&str]) -> Vec<(String, String)> {
     let Ok(mut stmt) = conn.prepare(
         "SELECT slot, label_en, label_zh, value_en, value_zh FROM character_facts WHERE code = ?1 ORDER BY slot",
     ) else {
@@ -189,11 +340,18 @@ fn extra_facts(conn: &Connection, code: &str, lang: &str, stats: bool, hide_outg
         // Slots below 100 are source-defined mount bonuses, rather than unit base stats.
         .filter(|(slot, en, ..)| {
             (*slot < 100) == stats
-                && en != "Skill effect"
-                && !(hide_outgoing_evolution && en == "Evolution intimacy")
+                && en != "Skill effect" && en != "Promotion nationality"
+                && !omitted.contains(&en.as_str())
         })
         .map(|(_, en, zh, value_en, value_zh)| {
-            (chrome_text(lang, &zh, &en), lead(lang, &value_en, &value_zh))
+            let value = lead(lang, &value_en, &value_zh);
+            let value = match en.as_str() {
+                "Trainer nationality" | "Certificate nationality" | "Bound certificate nationality" => value.parse().ok()
+                    .and_then(|code| player_nationality_name(code, lang)).unwrap_or_default(),
+                "Trainer fee" => value.parse().map(commas).unwrap_or(value),
+                _ => value,
+            };
+            (chrome_text(lang, &zh, &en), value)
         })
         .filter(|(_, value)| !value.is_empty())
         .collect()
@@ -253,8 +411,12 @@ fn incoming_spirit_evolutions(conn: &Connection, code: &str, lang: &str) -> Vec<
         .collect()
 }
 
-fn material_heading(kind: &str, lang: &str) -> String {
+pub(in crate::db) fn material_heading(kind: &str, lang: &str) -> String {
     match kind {
+        "recruitment:trainer" => chrome_text(lang, "訓練所招募", "Recruit at the monster trainer"),
+        "recruitment:certificate" => chrome_text(lang, "使用證書", "Use a certificate"),
+        "recruitment:certificate_bound" => chrome_text(lang, "使用不可交易證書", "Use an untradeable certificate"),
+        "recruitment:craft_certificate" => chrome_text(lang, "委託神仙谷的張果老製作證書", "Craft the certificate with Zhang Guolao in Taoist Hermit Valley"),
         "evolution" => chrome_text(lang, "升級材料", "Upgrade materials"),
         "acquisition" => chrome_text(lang, "獲得材料", "Acquisition materials"),
         _ => kind
@@ -320,17 +482,64 @@ impl Catalog {
 
     pub fn hero_stat_lines(&self, code: &str, lang: &str) -> Vec<(String, String)> {
         let mut lines = stat_lines(&self.conn, code, lang);
-        lines.extend(extra_facts(&self.conn, code, lang, true, false));
+        lines.extend(extra_facts(&self.conn, code, lang, true, &[]));
         lines
     }
 
-    pub(in crate::db) fn hero_data_facts(&self, code: &str, lang: &str) -> Vec<(String, String)> {
-        extra_facts(&self.conn, code, lang, false, self.hero_is_spirit(code))
+    pub(in crate::db) fn hero_data_facts(&self, code: &str, lang: &str, inline_methods: Option<&RecruitmentMethods>) -> Vec<(String, String)> {
+        let mut omitted = Vec::new();
+        if self.hero_is_spirit(code) {
+            omitted.push("Evolution intimacy");
+        }
+        if let Some(methods) = inline_methods {
+            if methods.contains_key("recruitment:trainer") {
+                omitted.extend(["Trainer nationality", "Trainer credit level", "Trainer fee"]);
+            }
+            if methods.contains_key("recruitment:certificate") {
+                omitted.push("Certificate nationality");
+            }
+            if methods.contains_key("recruitment:certificate_bound") {
+                omitted.push("Bound certificate nationality");
+            }
+        }
+        extra_facts(&self.conn, code, lang, false, &omitted)
     }
 
     pub(in crate::db) fn hero_data_links(&self, code: &str, lang: &str) -> Vec<Hit> {
         let is_spirit = self.hero_is_spirit(code);
         let mut hits = Vec::new();
+        if let Some(hero) = self.index.heroes.iter()
+            .find(|hero| hero.code == code && !hero.recruitment_methods.is_empty())
+        {
+            let heading = if hero.recruitment_methods.len() > 1 {
+                chrome_text(lang, "招募材料（任選一種方式）", "Recruitment materials (choose one method)")
+            } else {
+                chrome_text(lang, "招募材料", "Recruitment materials")
+            };
+            hits.push(section("recruitment".into(), heading));
+            for method in RECRUITMENT_METHODS {
+                if let Some(data) = hero.recruitment_methods.get(method) {
+                    let mut terms = data.eligibility(lang);
+                    if let Some((_, certificate)) = data.certificate_recipe {
+                        terms.push(format!("{} ×1", self.item_name(certificate, lang)));
+                        if let Some(fee) = data.fee {
+                            terms.push(format!("{} {} {}", chrome_text(lang, "製作費", "Crafting fee"),
+                                commas(fee), chrome_text(lang, "兩", "coins")));
+                        }
+                    }
+                    if method == "recruitment:trainer" {
+                        terms.push(match data.fee {
+                            Some(amount) => format!("{} {} {}", chrome_text(lang, "僱用費", "Hiring fee"),
+                                commas(amount), chrome_text(lang, "兩", "coins")),
+                            None => chrome_text(lang, "僱用費未記錄", "Hiring fee not recorded"),
+                        });
+                    }
+                    self.index.push_material_block(
+                        &mut hits, lang, material_heading(method, lang), terms.join(" · "), &data.materials,
+                    );
+                }
+            }
+        }
         if is_spirit {
             for evolution in incoming_spirit_evolutions(&self.conn, code, lang) {
                 let mut requirements = Vec::new();
@@ -365,7 +574,7 @@ impl Catalog {
         }
         let mut groups: BTreeMap<String, Vec<Hit>> = BTreeMap::new();
         for (kind, item_code, qty) in material_rows(&self.conn, code) {
-            if is_spirit && kind == "evolution" {
+            if (is_spirit && kind == "evolution") || RECRUITMENT_METHODS.contains(&kind.as_str()) {
                 continue;
             }
             groups.entry(kind).or_default().push(self.companion_material_link(item_code, qty, lang));
@@ -425,6 +634,30 @@ impl Catalog {
         hits
     }
 
+    pub(in crate::db) fn recruitment_item_links(&self, item: i64, lang: &str) -> Vec<Hit> {
+        let mut hits = Vec::new();
+        for hero in &self.index.heroes {
+            for (method, data) in &hero.recruitment_methods {
+                // These ingredients already have a link to the certificate's recipe under item uses.
+                if data.certificate_recipe.is_some() { continue; }
+                for (_, quantity) in data.materials.iter().filter(|(code, _)| *code == item) {
+                    let (title, alternate) = hero_names(lang, hero);
+                    hits.push(Hit {
+                        title,
+                        subtitle: caption(&alternate, material_heading(method, lang)),
+                        key: format!("hero:{}", hero.code),
+                        icon: hero.icon.clone(),
+                        solo: false,
+                        badge: None,
+                        aside: format!("× {}", commas(*quantity)),
+                        chip: String::new(),
+                    });
+                }
+            }
+        }
+        hits
+    }
+
     fn companion_material_link(&self, item_code: i64, qty: i64, lang: &str) -> Hit {
         let item = self.index.find_item(item_code);
         let (name, alt) = item.map(|item| (lead3(lang, &item.en, &item.zh, &item.ko), trail3(lang, &item.en, &item.zh, &item.ko)))
@@ -465,9 +698,93 @@ mod tests {
     fn old_catalogs_do_not_invent_stats() {
         let conn = Connection::open_in_memory().unwrap();
         assert!(stat_lines(&conn, "U00", "en").is_empty());
-        assert!(extra_facts(&conn, "U00", "en", false, false).is_empty());
+        assert!(extra_facts(&conn, "U00", "en", false, &[]).is_empty());
         assert!(incoming_spirit_evolutions(&conn, "U00", "en").is_empty());
         assert!(load_companions(&conn).is_empty());
+        assert!(load_recruitment_methods(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn nationality_is_scoped_to_the_recorded_method() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE character_materials (code TEXT, kind TEXT, item_code INTEGER, qty INTEGER, slot INTEGER);
+             INSERT INTO character_materials VALUES ('test','recruitment:trainer',853,4,0), ('test','recruitment:certificate',897,1,0);
+             CREATE TABLE character_facts (code TEXT, label_en TEXT, value_en TEXT, value_zh TEXT, slot INTEGER);
+             INSERT INTO character_facts VALUES ('test','Trainer nationality','0','0',0), ('test','Trainer fee','35000','35000',1);",
+        ).unwrap();
+        let methods = load_recruitment_methods(&conn).unwrap();
+        let trainer = &methods["test"]["recruitment:trainer"];
+        let certificate = &methods["test"]["recruitment:certificate"];
+        assert_eq!(trainer.nationality, Some(0));
+        assert_eq!(trainer.eligibility("zh"), ["所需主角國籍：不限"]);
+        assert_eq!(certificate.nationality, None);
+        assert!(certificate.eligibility("zh").is_empty());
+        assert_eq!(certificate.fee, None);
+    }
+
+    #[test]
+    fn seven_npc_certificates_show_their_own_recipe_before_redemption() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (code, item, fee) in [
+            ("H44", 6411, "5,000,000"), ("H45", 6412, "5,000,000"),
+            ("H46", 6413, "5,000,000"), ("H47", 6414, "5,000,000"),
+            ("F40", 6967, "5,000,000"), ("F41", 7587, "200,000,000"),
+            ("F42", 7588, "200,000,000"),
+        ] {
+            let rows = catalog.hero_data_links(code, "zh-en");
+            assert_eq!(rows[0].key, "recruitment");
+            assert_eq!(rows[1].title, "委託神仙谷的張果老製作證書");
+            assert!(rows[1].subtitle.contains(&catalog.item_name(item, "zh-en")));
+            assert!(rows[1].subtitle.contains(&format!("製作費 {fee} 兩")));
+            assert!(rows[2..7].iter().all(|row| row.key.starts_with("item:")));
+            assert_eq!(rows[7].title, "使用證書");
+            assert_eq!(rows[7].subtitle, "所需主角國籍：不限");
+            assert!(rows.iter().any(|row| row.key == format!("item:{item}") && row.aside == "× 1"));
+            if matches!(code, "F41" | "F42") {
+                assert_eq!(rows[9].title, "使用不可交易證書");
+                assert_eq!(rows[9].subtitle, "所需主角國籍：不限");
+            }
+        }
+    }
+
+    #[test]
+    fn donkey_recruitment_methods_have_separate_linked_materials_and_reverse_uses() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        let facts = catalog.hero_sheet("U85", "en").unwrap().3;
+        assert!(facts.contains(&("Trainer fee".into(), "35,000".into())));
+        assert!(facts.contains(&("Trainer credit level".into(), "35".into())));
+        assert!(facts.contains(&("Trainer nationality".into(), "Any nationality".into())));
+        let native_facts = catalog.hero_inline_sheet("U85", "en").unwrap().3;
+        assert!(native_facts.iter().all(|(label, _)| !label.starts_with("Trainer ")));
+        let (_, links, _) = catalog.open_key("hero:U85", "zh-en");
+        let start = links.iter().position(|row| row.key == "recruitment").unwrap();
+        assert_eq!(links[start].title, "招募材料（任選一種方式）");
+        let routes: Vec<_> = links[start + 1..].iter().take_while(|row| row.chip != "section")
+            .map(|row| (row.title.as_str(), row.key.as_str(), row.aside.as_str())).collect();
+        assert_eq!(routes, [
+            ("訓練所招募", "", ""), ("封印珠", "item:853", "× 4"),
+            ("使用證書", "", ""), ("驢的證書", "item:897", "× 1"),
+        ]);
+        assert_eq!(links[start + 1].subtitle, "所需主角國籍：不限 · 所需信用等級 35 · 僱用費 35,000 兩");
+        assert!(!links[start + 3].subtitle.contains("僱用費"));
+        for (lang, trainer_terms) in [
+            ("en", "Required player nationality: Any nationality · Required credit level 35 · Hiring fee 35,000 coins"),
+            ("ko", "필요한 주인공 국적: 제한 없음 · 필요 신용등급 35 · 고용 비용 35,000 냥"),
+        ] {
+            let rows = catalog.hero_data_links("U85", lang);
+            assert_eq!(rows[1].subtitle, trainer_terms);
+        }
+        let bandit = catalog.hero_data_links("M06", "ko");
+        assert!(bandit[1].subtitle.contains("필요한 주인공 국적: 조선"));
+        assert_eq!(bandit[3].subtitle, "필요한 주인공 국적: 조선");
+        for (code, quantity, method) in [(853, "× 4", "訓練所招募"), (897, "× 1", "使用證書")] {
+            let links = catalog.item_relations(code, "zh-en");
+            let uses: Vec<_> = links.iter().filter(|row| row.key == "hero:U85").collect();
+            assert_eq!(uses.len(), 1);
+            assert_eq!(uses[0].aside, quantity);
+            assert!(uses[0].subtitle.contains(method));
+        }
     }
 
     #[test]
@@ -516,11 +833,11 @@ mod tests {
              INSERT INTO character_facts VALUES ('mount:1', 100, 'Riding', '馬術', 'Level 2', '2 級');",
         ).unwrap();
         assert_eq!(
-            extra_facts(&conn, "mount:1", "en", true, false),
+            extra_facts(&conn, "mount:1", "en", true, &[]),
             vec![("Speed bonus".into(), "+10%".into())]
         );
         assert_eq!(
-            extra_facts(&conn, "mount:1", "zh", false, false),
+            extra_facts(&conn, "mount:1", "zh", false, &[]),
             vec![("馬術".into(), "2 級".into())]
         );
     }
@@ -589,8 +906,8 @@ mod tests {
         ]);
         assert!(links.iter().any(|hit| hit.key == "hero:V02" && hit.aside == "Next form"));
         assert!(!links.iter().any(|hit| hit.aside == "50,000" || hit.key == "item:8628" || hit.key == "item:9744"));
-        assert!(catalog.hero_data_facts("H30", "en").iter().all(|(label, _)| label != "Evolution intimacy"));
-        assert!(catalog.hero_data_facts("H30", "zh").iter().all(|(label, _)| label != "進化所需親密度"));
+        assert!(catalog.hero_data_facts("H30", "en", None).iter().all(|(label, _)| label != "Evolution intimacy"));
+        assert!(catalog.hero_data_facts("H30", "zh", None).iter().all(|(label, _)| label != "進化所需親密度"));
     }
 
     #[test]
@@ -599,7 +916,7 @@ mod tests {
         let first = catalog.hero_data_links("F16", "en");
         assert!(!first.iter().any(|hit| hit.key.starts_with("companion:incoming-evolution:") || hit.key.starts_with("item:")));
         assert!(first.iter().any(|hit| hit.key == "hero:F19" && hit.aside == "Next form"));
-        assert!(catalog.hero_data_facts("F16", "en").iter().all(|(label, _)| label != "Evolution intimacy"));
+        assert!(catalog.hero_data_facts("F16", "en", None).iter().all(|(label, _)| label != "Evolution intimacy"));
         let mount = catalog.hero_data_links("mount:3", "en");
         assert!(!mount.iter().any(|hit| hit.key.starts_with("companion:incoming-evolution:")));
         assert!(mount.iter().any(|hit| hit.key == "companion:acquisition"));

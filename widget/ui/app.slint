@@ -4047,7 +4047,7 @@ component HeroDetailPane inherits Rectangle {
                 alignment: start;
                 Button {
                     width: min(224px, parent.width); height: 32px; horizontal-stretch: 0;
-                    text: UiLanguage.tr("Calculate crafting cost", "計算合成成本");
+                    text: UiLanguage.tr("Calculate acquisition cost", "計算取得成本");
                     property <int> focus-request: root.calculator-focus-request;
                     changed focus-request => {
                         root.reveal(parent.y, parent.height);

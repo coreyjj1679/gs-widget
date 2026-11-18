@@ -599,12 +599,21 @@ impl Catalog {
 
     fn query_hero_acquisition(&self, code: &str, lang: &str) -> Value {
         let mut routes = Vec::new();
+        let hero = self.index.heroes.iter().find(|row| row.code == code);
+        let promotion = hero.and_then(|row| row.promotion_condition(lang));
+        let conditions = |en: &str, zh: &str| {
+            let mut terms = text::lead(lang, en, zh);
+            if let Some(restriction) = &promotion {
+                crate::db::character_calculator::add_condition(&mut terms, restriction);
+            }
+            terms
+        };
         if let Some(recipes) = self.index.combos.get(code) {
             for recipe in recipes.iter().filter(|recipe| recipe.result == code) {
                 routes.push(json!({"type": "combination", "source": "catalog_job_steps",
                     "from": recipe.parts.iter().map(|part| self.query_hero_ref(part, lang)).collect::<Vec<_>>(),
                     "materials": recipe.materials.iter().map(|(item, qty)| self.query_material(*item, *qty, lang)).collect::<Vec<_>>(),
-                    "conditions": text::lead(lang, &recipe.en, &recipe.zh)}));
+                    "conditions": conditions(&recipe.en, &recipe.zh)}));
             }
         }
         if let Some(steps) = self.index.chains.get(code) {
@@ -613,7 +622,7 @@ impl Catalog {
                 routes.push(json!({"type": "upgrade", "source": "catalog_job_steps",
                     "from": [self.query_hero_ref(&step.code, lang)],
                     "materials": step.materials.iter().map(|(item, qty)| self.query_material(*item, *qty, lang)).collect::<Vec<_>>(),
-                    "conditions": text::lead(lang, &step.en, &step.zh)}));
+                    "conditions": conditions(&step.en, &step.zh)}));
             }
         }
         // Preserve existing curated beast requirements, including alternatives (quantity 0 is not free).
@@ -633,15 +642,13 @@ impl Catalog {
                 "credit_level": self.index.beast_credit(code)}),
             );
         }
-        let hero = self.index.heroes.iter().find(|row| row.code == code);
-        if hero.is_some_and(|row| row.rank == 13) {
-            // Reuse the catalog route builder so MCP and the calculator agree
-            // about direct mount requirements. These are freshly built inputs,
-            // not saved user prices; only the fee can have a recorded amount.
-            if let Some(route) = self
+        if hero.is_some_and(|row| row.rank == 13 || !row.recruitment_methods.is_empty()) {
+            // Each route is one way to obtain this character. Read fresh catalog
+            // inputs so saved prices never appear in acquisition results.
+            for route in self
                 .character_calculator_routes(code, lang)
                 .into_iter()
-                .find(|route| route.id == "acquisition")
+                .filter(|route| route.id == "acquisition" || route.id.starts_with("recruitment:"))
             {
                 let from: Vec<_> = route
                     .inputs
@@ -661,28 +668,38 @@ impl Catalog {
                         Some(self.query_material(code, input.per_unit, lang))
                     })
                     .collect();
-                let fee = route
-                    .inputs
-                    .iter()
-                    .find(|input| input.kind == "fee")
-                    .and_then(|input| {
-                        input
-                            .unit_price
-                            .and_then(|amount| amount.checked_mul(input.per_unit))
-                    });
-                routes.push(json!({
+                let mut value = json!({
                     "type": "acquisition", "source": "catalog_character_data",
-                    "from": from, "materials": materials, "fee": fee,
+                    "from": from, "materials": materials,
                     "conditions": route.conditions
-                }));
+                });
+                // Redeeming an item has no trainer fee field. A null trainer
+                // or mount fee denotes a fee whose amount is unknown.
+                if let Some(input) = route.inputs.iter().find(|input| input.kind == "fee") {
+                    value["fee"] = json!(input.unit_price.and_then(|p| p.checked_mul(input.per_unit)));
+                }
+                if let Some(method) = route.id.strip_prefix("recruitment:") {
+                    value["type"] = json!("recruitment");
+                    value["method"] = json!(method);
+                    value["title"] = json!(route.title);
+                    if let Some(data) = hero.and_then(|row| row.recruitment_methods.get(&route.id)) {
+                        if let Some(nation) = data.nationality {
+                            value["required_player_nationality"] = json!(nation);
+                        }
+                        if let Some((recipe, certificate)) = data.certificate_recipe {
+                            value["recipe_id"] = json!(recipe);
+                            value["certificate_item_code"] = json!(certificate);
+                        }
+                    }
+                }
+                routes.push(value);
             }
         }
         let hire = hero
             .map(|row| text::lead(lang, &row.hire_en, &row.hire_zh))
             .unwrap_or_default();
-        // These supplemental rows already distinguish incoming spirit requirements
-        // from next-form navigation. Riding training is a separate prerequisite,
-        // not an ingredient consumed each time this mount is obtained.
+        // Recruitment costs are already grouped by method above. Keep incoming
+        // companion requirements here and omit riding training and later forms.
         let mut direct_section = true;
         let supplemental: Vec<_> = self
             .hero_data_links(code, lang)
@@ -690,7 +707,7 @@ impl Catalog {
             .take_while(|row| row.key != "companion:upgrades")
             .filter(|row| {
                 if row.chip == "section" {
-                    direct_section = !row.key.starts_with("companion:riding:");
+                    direct_section = row.key != "recruitment" && !row.key.starts_with("companion:riding:");
                 }
                 direct_section
             })
@@ -758,6 +775,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn monster_promotion_nationality_follows_the_incoming_recipe() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (code, nationality) in [
+            ("E35", "朝鮮"), ("E36", "日本"), ("E42", "中國"), ("E39", "台灣"),
+            ("F14", "不限"), ("F31", "不限"), ("D58", "朝鮮"),
+            ("T79", "印度籍，或任何國籍且主角已二轉"),
+        ] {
+            let condition = format!("轉職所需主角國籍 · {nationality}");
+            let key = format!("hero:{code}");
+            let (_, links, _) = catalog.open_key(&key, "zh-en");
+            assert_eq!(links[0].title, condition, "{code}");
+            let calc = catalog.character_calculator_routes(code, "zh-en");
+            assert!(calc.iter().any(|r| r.conditions.contains(&condition)), "{code}");
+            let acquisition = catalog.query_hero_acquisition(code, "zh-en");
+            let routes = acquisition["routes"].as_array().unwrap();
+            assert!(routes.iter().any(|r| r["conditions"].as_str().is_some_and(|c| c.contains(&condition))), "{code}");
+            if code == "T79" {
+                let hire = acquisition["recruitment"].as_str().unwrap();
+                assert!(hire.contains("信用度100"));
+                assert!(!hire.contains("印度國籍、"));
+            }
+        }
+        // The White Tiger is a prerequisite for both E35 and F15.
+        let (_, links, _) = catalog.open_key("hero:M33", "zh-en");
+        assert!(!links.iter().any(|row| row.title.starts_with("轉職所需主角國籍")));
+    }
+
+    #[test]
     fn colloquial_hero_question_returns_only_incoming_requirements() {
         let catalog = Catalog::open_for_mcp().unwrap();
         let result = catalog
@@ -801,6 +846,56 @@ mod tests {
                 acquisition["recruitment"].as_str().unwrap().contains("100"),
                 "{code}"
             );
+        }
+    }
+
+    #[test]
+    fn donkey_recruitment_lists_separate_trainer_and_certificate_costs() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        let result = catalog
+            .mcp_query("Donkey", &[], Some("hero"), "acquisition", "zh", 5)
+            .unwrap();
+        let hero = &result["results"][0];
+        assert_eq!(hero["key"], "hero:U85");
+        let routes = hero["acquisition"]["routes"].as_array().unwrap();
+        assert_eq!(routes.len(), 2);
+        for (method, code, quantity) in [("trainer", 853, 4), ("certificate", 897, 1)] {
+            let route = routes.iter().find(|r| r["method"] == method).unwrap();
+            assert_eq!(route["type"], "recruitment");
+            assert_eq!(route["materials"], json!([catalog.query_material(code, quantity, "zh")]));
+            assert!(route["from"].as_array().unwrap().is_empty());
+            assert_eq!(route.get("fee").is_some(), method == "trainer");
+            if method == "trainer" {
+                assert_eq!(route["required_player_nationality"], 0);
+                assert_eq!(route["fee"], 35_000);
+            }
+        }
+        let bandit = catalog.query_hero_acquisition("M06", "en");
+        for method in ["trainer", "certificate"] {
+            let route = bandit["routes"].as_array().unwrap().iter().find(|r| r["method"] == method).unwrap();
+            assert_eq!(route["required_player_nationality"], 1);
+            assert!(route["conditions"].as_str().unwrap().contains("Joseon"));
+        }
+    }
+
+    #[test]
+    fn monster_certificate_manufacture_and_redemption_are_alternatives() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (code, recipe, certificate, fee) in [("F41", 677, 7587, 200_000_000), ("H47", 675, 6414, 5_000_000)] {
+            let result = catalog.query_hero_acquisition(code, "zh");
+            let routes = result["routes"].as_array().unwrap();
+            let craft = routes.iter().find(|r| r["method"] == "craft_certificate").unwrap();
+            assert_eq!(craft["recipe_id"], recipe);
+            assert_eq!(craft["certificate_item_code"], certificate);
+            assert_eq!(craft["fee"], fee);
+            let ingredients = craft["materials"].as_array().unwrap();
+            assert_eq!(ingredients.len(), 5);
+            assert!(ingredients.iter().all(|i| i["item_code"] != certificate));
+            for redeem in routes.iter().filter(|r| r["method"] != "craft_certificate") {
+                assert_eq!(redeem["materials"].as_array().unwrap().len(), 1);
+                assert!(redeem.get("fee").is_none());
+                assert!(redeem.get("recipe_id").is_none());
+            }
         }
     }
 

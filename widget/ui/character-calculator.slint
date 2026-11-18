@@ -112,7 +112,7 @@ export component CharacterPicker inherits Rectangle {
         x: root.selected-name == "" ? 12px : 47px;
         y: 0px;
         width: parent.width - self.x - 36px; height: root.selected-alternate-name != "" ? 23px : parent.height;
-        text: root.selected-name == "" ? CharacterCalcLanguage.tr("Choose a character or mercenary…", "選擇可合成的角色或傭兵…", "합성할 캐릭터 또는 용병 선택…") : root.selected-name;
+        text: root.selected-name == "" ? CharacterCalcLanguage.tr("Choose a character or mercenary…", "選擇角色或傭兵…", "캐릭터 또는 용병 선택…") : root.selected-name;
         color: root.selected-name == "" ? DesktopTheme.secondary : DesktopTheme.text;
         font-size: 14px; overflow: elide; vertical-alignment: center;
     }
@@ -218,7 +218,7 @@ export component CharacterPicker inherits Rectangle {
                 }
                 if root.options.length == 0: Text {
                     x: 12px; width: parent.width - 24px; height: 52px;
-                    text: CharacterCalcLanguage.tr("No matching characters. Try another name or category.", "找不到可合成角色，請換個名稱或分類。", "검색 결과가 없습니다. 다른 이름이나 분류를 선택해 주세요.");
+                    text: CharacterCalcLanguage.tr("No matching characters. Try another name or category.", "找不到相符角色，請換個名稱或分類。", "검색 결과가 없습니다. 다른 이름이나 분류를 선택해 주세요.");
                     font-size: 13px; color: DesktopTheme.secondary;
                     vertical-alignment: center; wrap: word-wrap;
                 }
@@ -276,7 +276,7 @@ export component CharacterCalculatorPane inherits Rectangle {
         VerticalLayout {
             spacing: 6px;
             Text {
-                text: CharacterCalcLanguage.tr("Character / mercenary crafting cost", "角色／傭兵合成成本", "캐릭터 / 용병 합성 비용");
+                text: CharacterCalcLanguage.tr("Character / mercenary acquisition cost", "角色／傭兵取得成本", "캐릭터 / 용병 획득 비용");
                 font-size: 21px; font-weight: 600; color: DesktopTheme.text;
                 wrap: word-wrap;
             }
@@ -307,7 +307,7 @@ export component CharacterCalculatorPane inherits Rectangle {
             VerticalLayout {
                 horizontal-stretch: 1; min-width: 0px; spacing: 7px;
                 Text {
-                    text: CharacterCalcLanguage.tr("Character / mercenary", "合成角色／傭兵", "합성할 캐릭터 / 용병");
+                    text: CharacterCalcLanguage.tr("Character / mercenary", "角色／傭兵", "캐릭터 / 용병");
                     color: DesktopTheme.secondary; font-size: 12px;
                 }
                 character-picker := CharacterPicker {
@@ -323,7 +323,7 @@ export component CharacterCalculatorPane inherits Rectangle {
             VerticalLayout {
                 width: 110px; spacing: 7px;
                 Text {
-                    text: CharacterCalcLanguage.tr("Output quantity", "合成數量", "합성 수량");
+                    text: CharacterCalcLanguage.tr("Quantity", "數量", "수량");
                     color: DesktopTheme.secondary; font-size: 12px;
                 }
                 CalcNumber {
@@ -332,7 +332,7 @@ export component CharacterCalculatorPane inherits Rectangle {
                     reset-token: root.input-revision;
                     draft: root.quantity-draft;
                     has-draft: root.quantity-has-draft;
-                    label: CharacterCalcLanguage.tr("Number of characters to craft", "角色合成數量", "합성할 캐릭터 수량");
+                    label: CharacterCalcLanguage.tr("Number of characters to acquire", "取得角色數量", "획득할 캐릭터 수");
                     enabled: root.selected-name != "";
                     commit(value) => { return root.quantity-changed(value); }
                 }
@@ -357,12 +357,12 @@ export component CharacterCalculatorPane inherits Rectangle {
                     padding-top: 38px;
                     padding-bottom: 38px;
                     Text {
-                        text: CharacterCalcLanguage.tr("Start with the character you want to craft", "從想合成的角色或傭兵開始", "합성할 캐릭터 또는 용병을 선택하세요");
+                        text: CharacterCalcLanguage.tr("Choose a character or mercenary", "請選擇角色或傭兵", "캐릭터 또는 용병을 선택하세요");
                         color: DesktopTheme.text; font-size: 17px; font-weight: 600;
                         horizontal-alignment: center; wrap: word-wrap;
                     }
                     Text {
-                        text: CharacterCalcLanguage.tr("Choose a character with a crafting route.\nRequired materials, characters and fees will appear here.", "選單只列出有合成路線的角色與傭兵。\n選擇後，這裡會列出所需材料、角色與費用。", "합성 경로가 있는 캐릭터와 용병만 표시됩니다.\n선택하면 필요한 재료, 캐릭터 및 비용을 확인할 수 있습니다.");
+                        text: CharacterCalcLanguage.tr("Required materials, characters and fees will appear here.", "選擇後，這裡會列出所需材料、角色與費用。", "선택하면 필요한 재료, 캐릭터 및 비용을 확인할 수 있습니다.");
                         color: DesktopTheme.secondary; font-size: 13px;
                         horizontal-alignment: center; wrap: word-wrap;
                     }
@@ -372,25 +372,25 @@ export component CharacterCalculatorPane inherits Rectangle {
                     if root.routes.length > 1: HorizontalLayout {
                         spacing: 12px;
                         Text {
-                            text: CharacterCalcLanguage.tr("Crafting route", "合成路線", "합성 경로");
+                            text: CharacterCalcLanguage.tr("Acquisition route", "取得方式", "획득 방법");
                             font-size: 12px; color: DesktopTheme.secondary; vertical-alignment: center;
                         }
                         ComboBox {
                             horizontal-stretch: 1; min-width: 0px;
                             model: root.routes;
                             current-index <=> root.route-index;
-                            accessible-label: CharacterCalcLanguage.tr("Choose crafting route", "選擇合成路線", "합성 경로 선택");
+                            accessible-label: CharacterCalcLanguage.tr("Choose acquisition route", "選擇取得方式", "획득 방법 선택");
                             selected(value) => { root.select-route(self.current-index); }
                         }
                     }
                     if root.routes.length == 1: Text {
-                        text: CharacterCalcLanguage.tr("Crafting route: ", "合成路線：", "합성 경로: ") + root.routes[0];
+                        text: CharacterCalcLanguage.tr("Acquisition route · ", "取得方式 · ", "획득 방법 · ") + root.routes[0];
                         font-size: 13px; color: DesktopTheme.secondary; wrap: word-wrap;
                     }
                     if root.conditions != "": VerticalLayout {
                         spacing: 4px;
                         Text {
-                            text: CharacterCalcLanguage.tr("Requirements", "合成條件", "합성 조건");
+                            text: CharacterCalcLanguage.tr("Requirements", "取得條件", "획득 조건");
                             font-size: 12px; color: DesktopTheme.secondary;
                         }
                         Text {
@@ -579,10 +579,10 @@ export component CharacterCalculatorPane inherits Rectangle {
                     }
                     Text { text: root.material-total; color: DesktopTheme.text; font-size: 13px; }
                 }
-                HorizontalLayout {
+                if root.fee != "": HorizontalLayout {
                     Text {
                         horizontal-stretch: 1;
-                        text: CharacterCalcLanguage.tr("Crafting fee", "合成費用", "합성 수수료");
+                        text: CharacterCalcLanguage.tr("Fees", "費用", "수수료");
                         color: DesktopTheme.secondary; font-size: 13px;
                     }
                     Text { text: root.fee; color: DesktopTheme.text; font-size: 13px; }

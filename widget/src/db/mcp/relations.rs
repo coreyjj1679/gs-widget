@@ -526,7 +526,11 @@ impl Catalog {
                     row["source"] = json!("character_materials");
                     // The source code owns this requirement; evolution rows
                     // must not be represented as incoming acquisition costs.
-                    row["scope"] = json!("Requirement recorded on this character; evolution materials describe progression from this form.");
+                    row["scope"] = if super::super::character_data::RECRUITMENT_METHODS.contains(&kind.as_str()) {
+                        json!("Material for this recruitment method only. Other methods have separate requirements.")
+                    } else {
+                        json!("Requirement recorded on this character; evolution materials describe progression from this form.")
+                    };
                     result.push(row);
                 }
             }

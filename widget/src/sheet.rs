@@ -157,7 +157,7 @@ pub(crate) fn publish_item_sources(app: &App, rows: &[Hit], keep_sheet: bool) ->
     listed
 }
 
-pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool) {
+fn hero_section_rows(rows: Vec<Hit>, preferred: Option<SharedString>) -> (Vec<Hit>, SharedString) {
     let mut prefix = Vec::new();
     let mut groups: Vec<(Hit, Vec<Hit>)> = Vec::new();
     let mut current: Option<(Hit, Vec<Hit>)> = None;
@@ -176,69 +176,39 @@ pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool)
     if let Some(group) = current {
         groups.push(group);
     }
-    let preferred = if keep_sheet { app.get_item_source().to_string() } else { String::new() };
-    let pick = if (keep_sheet && preferred.is_empty()) || groups.iter().any(|(header, _)| header.key.as_str() == preferred) {
-        preferred
-    } else if groups.iter().any(|(header, _)| header.key.as_str() == "need") {
-        "need".to_string()
-    } else {
-        groups.first().map(|(header, _)| header.key.to_string()).unwrap_or_default()
-    };
-    let mut shown = prefix;
-    for (header, items) in groups {
-        let open = header.key.as_str() == pick;
-        shown.push(Hit {
-            title: header.title,
-            alternate_name: Default::default(),
-            subtitle: header.subtitle,
-            detail: SharedString::default(),
-            monster_drops: Default::default(),
-            enchant_equipment: Default::default(),
-            enchant_materials: Default::default(),
-            enchant_scroll: false,
-            enchant_level: Default::default(),
-            enchant_rate: -1,
-            enchant_bonuses: Default::default(),
-            enchant_bonuses_recorded: false,
-            spawn_places: Default::default(),
-            stat_kind: SharedString::default(),
-            stat_element: SharedString::default(),
-            stat_hp: SharedString::default(),
-            stat_mp: SharedString::default(),
-            stat_hit: SharedString::default(),
-            stat_magic: SharedString::default(),
-            stat_atk: SharedString::default(),
-            stat_exp: SharedString::default(),
-            drop1: Image::default(),
-            drop2: Image::default(),
-            drop3: Image::default(),
-            drop4: Image::default(),
-            drop5: Image::default(),
-            drop6: Image::default(),
-            drop7: Image::default(),
-            drop8: Image::default(),
-            drop9: Image::default(),
-            drop10: Image::default(),
-            drop_total: 0,
-            battle: Image::default(),
-            has_battle: false,
-            key: header.key,
-            icon: Image::default(),
-            has_icon: false,
-            no_image: false,
-            can_favourite: false,
-            favourite: false,
-            solo: false,
-            has_badge: false,
-            badge: Image::default(),
-            aside: if open { "▼".into() } else { "▶".into() },
-            chip: "section".into(),
-        });
+    // Recruitment is part of the detail itself, above the optional progression groups.
+    let mut shown = Vec::new();
+    if let Some(index) = groups.iter().position(|(header, _)| header.key == "recruitment") {
+        let (mut heading, items) = groups.remove(index);
+        heading.key = SharedString::default();
+        heading.chip = "label".into();
+        shown.push(heading);
+        shown.extend(items);
+    }
+    shown.extend(prefix);
+
+    let selected = preferred
+        .filter(|key| key.is_empty() || groups.iter().any(|(header, _)| &header.key == key))
+        .or_else(|| {
+            groups.iter().find(|(header, _)| header.key == "need")
+                .or_else(|| groups.first())
+                .map(|(header, _)| header.key.clone())
+        })
+        .unwrap_or_default();
+    for (mut header, items) in groups {
+        let open = header.key == selected;
+        header.aside = if open { "▼".into() } else { "▶".into() };
+        shown.push(header);
         if open {
             shown.extend(items);
         }
     }
-    app.set_item_source(pick.into());
+    (shown, selected)
+}
+
+pub(crate) fn publish_hero_sections(app: &App, rows: Vec<Hit>, keep_sheet: bool) {
+    let (shown, selected) = hero_section_rows(rows, keep_sheet.then(|| app.get_item_source()));
+    app.set_item_source(selected);
     app.set_source_note("".into());
     app.set_source_note_lines(0);
     app.set_sources(ModelRc::new(VecModel::from(Vec::<Hit>::new())));
@@ -438,7 +408,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
             app.set_facts(ModelRc::new(VecModel::from(Vec::<Fact>::new())));
         }
     } else if let Some(code) = key.strip_prefix("hero:") {
-        if let Some((name, alt, heading, lines, note)) = catalog.hero_sheet(code, &lang) {
+        if let Some((name, alt, heading, lines, note)) = catalog.hero_inline_sheet(code, &lang) {
             apply_sheet(&app, name, alt, heading, lines);
             let stats = catalog.hero_stat_lines(code, &lang).into_iter().map(|(label, value)| Fact {
                 label: label.into(), value: value.into(), ..Fact::default()
@@ -731,6 +701,26 @@ pub(crate) fn link_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recruitment_stays_visible_above_the_selected_progression_section() {
+        let catalog = db::Catalog::open_for_mcp().unwrap();
+        let cache = RefCell::new(HashMap::new());
+        for (code, expected) in [("U85", vec!["item:853", "item:897"]), ("M33", vec!["item:853", "item:5950"])] {
+            let (_, hits, _) = catalog.open_key(&format!("hero:{code}"), "zh-en");
+            let (rows, _) = link_rows(&cache, hits, 1, &catalog, "zh-en");
+            for preferred in [None, Some("need".into()), Some("".into())] {
+                let (shown, selected) = hero_section_rows(rows.clone(), preferred);
+                assert!(shown[0].key.is_empty());
+                assert!(shown[0].title.starts_with("招募材料"));
+                assert_ne!(selected, "recruitment");
+                let items: Vec<_> = shown.iter().take_while(|row| row.chip != "section")
+                    .filter(|row| row.key.starts_with("item:"))
+                    .map(|row| row.key.as_str()).collect();
+                assert_eq!(items, expected, "{code}");
+            }
+        }
+    }
 
     #[test]
     fn item_source_links_show_both_names_and_keep_the_quantity() {

@@ -47,6 +47,46 @@ fn fill_character_prices(app: &App) -> i64 {
         .sum()
 }
 
+fn check_donkey_recruitment(app: &App, catalog: &Rc<db::Catalog>) {
+    set_language(app, "zh-en");
+    app.invoke_character_calculator_select_group(0);
+    app.invoke_character_calculator_search("Donkey".into());
+    assert!(app.get_character_calculator_candidates().iter().any(|row| row.id == "U85"));
+    app.invoke_character_calculator_select_character("U85".into());
+    let routes: Vec<_> = app.get_character_calculator_routes().iter().collect();
+    assert_eq!(routes.len(), 2);
+    assert!(routes[0].contains("封印珠"));
+    assert!(routes[1].contains("驢的證書"));
+    assert_eq!(app.get_character_calculator_route_index(), 0);
+    assert!(app.invoke_character_calculator_quantity_changed("2".into()));
+    let rows = character_rows(app);
+    assert!(rows.iter().any(|row| row.key == "item:853" && row.quantity == "8"));
+    assert!(!rows.iter().any(|row| row.key == "item:897"));
+    assert!(app.invoke_character_calculator_price_changed("item:853".into(), "100".into()));
+    assert!(app.get_character_calculator_complete());
+    assert_eq!(amount(&app.get_character_calculator_fee()), 70_000);
+    assert_eq!(amount(&app.get_character_calculator_total()), 70_800);
+
+    app.invoke_character_calculator_select_route(1);
+    assert_eq!(app.get_character_calculator_route_index(), 1);
+    assert_eq!(app.get_character_calculator_routes().iter().collect::<Vec<_>>(), routes);
+    let rows = character_rows(app);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].key, "item:897");
+    assert_eq!(rows[0].quantity, "2");
+    assert!(app.get_character_calculator_fee().is_empty());
+    assert!(!app.get_character_calculator_complete());
+    assert!(app.invoke_character_calculator_price_changed("item:897".into(), "300".into()));
+    assert!(app.get_character_calculator_complete());
+    assert_eq!(amount(&app.get_character_calculator_total()), 600);
+
+    super::install(app, catalog.clone(), Rc::new(RefCell::new(HashMap::new())));
+    set_language(app, "en-zh");
+    assert_eq!(app.get_character_calculator_route_index(), 1);
+    assert_eq!(character_rows(app)[0].key, "item:897");
+    assert_eq!(amount(&app.get_character_calculator_unit_total()), 300);
+}
+
 fn draw(
     app: &App,
     window: &MinimalSoftwareWindow,
@@ -695,9 +735,8 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
     }
 
     // Changing routes resets drafts and keeps the accepted output quantity.
-    // The bundled catalog currently has one route per character. A previously
-    // saved route can still differ from today's catalog: retain the actual
-    // material snapshot and change only its route ID to exercise that case.
+    // Keep the actual material snapshot and change only its route ID to
+    // exercise a previously saved route which has left the catalog.
     let revision_before_select = app.get_character_calculator_input_revision();
     app.invoke_character_calculator_select_character("T49".into());
     assert_eq!(app.get_character_calculator_input_revision(), revision_before_select);
@@ -785,5 +824,6 @@ fn callbacks_keep_character_and_item_drafts_independent_across_tabs_routes_and_l
         save_entry_review_images(&app, &window, &catalog, &item_key);
     }
     nested_checks::check_character_groups_and_nested_materials(&app, &window, &catalog);
+    check_donkey_recruitment(&app, &catalog);
     app.hide().unwrap();
 }

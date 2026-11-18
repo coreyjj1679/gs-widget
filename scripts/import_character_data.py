@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Import character base stats, spirits, and mounts from a gs-parser full DB.
+"""Import character stats, companions, and monster recruitment costs.
 
 Only the matching character and companion records are updated, in one transaction.
-The source is opened read-only. No website data or derived player-build stats are
-used. HP/MP are the character sheet's Life/Mana values, already in health points;
-attack speed and ground/air type are unknown and remain NULL. Mount bonuses are
+The gs-parser source is opened read-only. HP/MP use the character sheet's
+Life/Mana values in health points. Attack speed and ground/air type remain
+unknown. Mount bonuses are
 facts, never invented character base stats. Raw-sheet members are resolved by
 column signatures so a changed archive ordering does not silently join wrong data.
 """
@@ -18,8 +18,72 @@ from collections import Counter
 from contextlib import closing
 from pathlib import Path
 
+from monster_promotion_nationality import MONSTER_PROMOTION_NATIONALITY
+
 DEFAULT_TARGET = Path(__file__).resolve().parents[1] / "data" / "gersang.db"
 DEFAULT_CLIENT_ROOT = DEFAULT_TARGET.parent / "client"
+# Reviewed ordinary trainer hires (character name, required player nation,
+# Sealing Stones, cash fee). Donkey can be hired by any nationality, even
+# though its character record lists Taiwan and its generic Cost is only 3,500.
+TRAINER_COSTS = {
+    "M06": ("꼬마산적", 1, 3, 30_000),
+    "M12": ("구미호", 1, 3, 30_000),
+    "M13": ("불가사리", 1, 4, 35_000),
+    "M18": ("궁수산적", 1, 2, 30_000),
+    "M24": ("사슴", 1, 3, 30_000),
+    "M30": ("돌하루방", 1, 9, 80_000),
+    "M33": ("백호", 1, 5, 45_000),
+    "M34": ("바다거북이", 1, 3, 30_000),
+    "M43": ("해마", 1, 6, 55_000),
+    "M05": ("견신", 10, 5, 45_000),
+    "M17": ("털가면", 10, 4, 35_000),
+    "M22": ("독지네", 10, 11, 85_000),
+    "M26": ("왜구", 10, 2, 30_000),
+    "M28": ("설녀", 10, 9, 80_000),
+    "M32": ("귀묘", 10, 5, 45_000),
+    "M37": ("사마귀", 10, 3, 30_000),
+    "M46": ("반달곰", 100, 5, 45_000),
+    "M54": ("총수마적", 100, 3, 30_000),
+    "M57": ("꼬마해적", 100, 4, 35_000),
+    "M70": ("얼음나무", 100, 4, 35_000),
+    "M71": ("눈도마뱀", 100, 5, 45_000),
+    "M74": ("괴물덩굴손", 100, 3, 30_000),
+    "M82": ("족제비", 100, 3, 30_000),
+    "M85": ("화산의불꽃", 100, 9, 80_000),
+    "M49": ("도둑고양이", 1000, 3, 30_000),
+    "M51": ("악덕상인", 1000, 3, 30_000),
+    "M55": ("원주민", 1000, 5, 45_000),
+    "M56": ("원주민무당", 1000, 7, 60_000),
+    "M59": ("꼬마선인장", 1000, 7, 60_000),
+    "M61": ("구렁이", 1000, 4, 35_000),
+    "M62": ("식인악어", 1000, 4, 35_000),
+    "M64": ("마두인", 1000, 11, 85_000),
+    "M72": ("광우", 1000, 9, 80_000),
+    "U85": ("당나귀", 0, 4, 35_000),
+}
+# Reviewed rank-4 rows from CreatureItem.txt. All of these rows explicitly
+# allow ALL nations. Only five elemental certificates and the bound sorcerer
+# certificates have Zhang Guolao recipes.
+# Character name, regular certificate name, regular item code, bound item code.
+SPECIAL_MONSTER_CERTIFICATES = {
+    "H44": ("꿀벌(風)", "바람정령 몬스터 증서(꿀벌)", 6411, None),
+    "H45": ("새끼불도마뱀(火)", "불정령 몬스터 증서(새끼불도마뱀)", 6412, None),
+    "H46": ("어린수인(水)", "물정령 몬스터 증서(어린수인)", 6413, None),
+    "H47": ("삼미호(雷)", "번개정령 몬스터 증서(삼미호)", 6414, None),
+    "F40": ("어린백웅(地)", "땅정령 몬스터 증서(어린백웅)", 6967, None),
+    "F41": ("코끼리 주술사", "몬스터 증서(코끼리 주술사)", 7528, 7587),
+    "F42": ("원숭이 주술사", "몬스터 증서(원숭이 주술사)", 7529, 7588),
+    "F3": ("육지거북", "몬스터 증서(육지거북)", None, 8778),
+    "F9": ("쌍두사", "몬스터 증서(쌍두사)", None, 8779),
+    "F2": ("딱정벌레", "몬스터 증서(딱정벌레)", None, 8780),
+    "F1": ("쌍칼도적", "몬스터 증서(쌍칼도적)", None, 8781),
+    "D78": ("몽구스", "몬스터 증서(몽구스)", None, 8782),
+    "F4": ("뱅골여우", "몬스터 증서(뱅골여우)", None, 8783),
+    "D79": ("큰칼도적", "몬스터 증서(큰칼도적)", None, 8784),
+    "F15": ("정글살쾡이", "몬스터 증서(정글살쾡이)", None, 8785),
+}
+CERTIFICATE_COLUMNS = {"Item Code", "Name", "Group", "Allowed Nation", "Creature DB ID"}
+CERTIFICATE_NATIONS = {"ALL": 0, "KOREA": 1, "JAPAN": 10, "CHINA": 100, "TAIWAN": 1000, "INDIA": 10000}
 MIN_ATTACK = "MinApower = TotalEquipMinDamage + IP.GetLevel()*6/10 + TotalStr*4/10"
 MAX_ATTACK = "MaxApower = TotalEquipMaxDamage + IP.GetLevel()*6/10 + TotalStr*4/10"
 ATTRIBUTE = "Attribute(1 : 바람, 2 : 불, 3 : 물)"
@@ -42,7 +106,7 @@ COMPANION_COLUMNS = [
     "spirit_group", "evolution_root", "evolution_order",
 ]
 SHEETS = {
-    "stats": {"ID", "Name", "Name Code", "Nation", "Desc Text", *[v for v in STATS.values() if v]},
+    "stats": {"ID", "Name", "Name Code", "Nation", "Desc Text", "Need Credit", *[v for v in STATS.values() if v]},
     "spirits": {"CharacterID", "CharacterName", ATTRIBUTE, GRADE, "Group", "SkillGTS", "Upper CharacterID", INTIMACY,
                 *[f"{p}{i}" for p in ("Material", "Quentity") for i in range(1, 6)]},
     "mounts": {"말 번호", "이름", "이름 GTS", "필요 승마술 GTS", "필드 이동속도", "탈것 정보 GTS", "습득 정보 GTS",
@@ -87,7 +151,30 @@ def resolve_sheets(source):
         if len(matches) != 1:
             raise ValueError(f"Expected one {key} source sheet, found {len(matches)}")
         resolved[key] = matches[0]
+    certificates = [row for row, columns in available if CERTIFICATE_COLUMNS <= columns]
+    if len(certificates) > 1:
+        raise ValueError("Ambiguous CreatureItem source sheets")
+    if certificates:
+        resolved["certificates"] = certificates[0]
     return resolved
+
+
+def archive_certificate_rows(client, parser_root):
+    # gs-parser's full DB currently drops the item-specific fields of this
+    # sheet. The source archive has the actual recipient and nation together.
+    from import_enchant import client_texts, table_rows
+    matches = []
+    for text in client_texts(client, parser_root=parser_root):
+        if "Creature DB ID" not in text or "Allowed Nation" not in text:
+            continue
+        for line in text.splitlines():
+            if line.startswith("#Item Code\t"):
+                columns = line[1:].split("\t")
+                if CERTIFICATE_COLUMNS <= set(columns):
+                    matches.append([dict(zip(columns, row)) for row in table_rows(text, "Creature DB ID")])
+    if len(matches) != 1:
+        raise ValueError(f"Expected one CreatureItem source sheet, found {len(matches)}")
+    return matches[0]
 
 
 def unique_rows(source, table, key):
@@ -281,12 +368,32 @@ def create_tables(target):
         raise ValueError("Incompatible existing character_companions schema")
 
 
-def import_character_data(source_path, target_path=DEFAULT_TARGET, *, client_root=DEFAULT_CLIENT_ROOT):
+def import_character_data(source_path, target_path=DEFAULT_TARGET, *, client_root=DEFAULT_CLIENT_ROOT,
+                          certificate_client=None, parser_root=None):
     source_path, target_path = Path(source_path), Path(target_path)
     if source_path.resolve() == target_path.resolve():
         raise ValueError("Source and target databases must be different files")
     with closing(connect(source_path, True)) as source, closing(connect(target_path)) as target:
         sheets = resolve_sheets(source)
+        creature_items = None
+        certificate_source = {"type": "reviewed CreatureItem rows", "member_sha256": "f0fc0f166fd787070d38a61624acd928de2767916b63446c62e55d9e4fe411cf"}
+        if certificate_client is not None:
+            from import_enchant import file_sha256
+            creature_items = archive_certificate_rows(certificate_client, parser_root)
+            certificate_source = {"type": "gersang.gcs CreatureItem.txt", "archive_sha256": file_sha256(Path(certificate_client) / "gersang.gcs")}
+        elif "certificates" in sheets:
+            creature_items = source.execute(f"SELECT * FROM {quoted(sheets['certificates']['table_name'])}")
+            certificate_source = sheets["certificates"]
+        certificate_rows = None
+        if creature_items is not None:
+            certificate_rows = {}
+            for row in creature_items:
+                if row["Group"] != "IJ":
+                    continue
+                item = integer(row["Item Code"], "CreatureItem ID")
+                if not item or item in certificate_rows:
+                    raise ValueError(f"Invalid or duplicate CreatureItem ID: {item}")
+                certificate_rows[item] = row
         data = {key: unique_rows(source, sheets[key]["table_name"], field) for key, field in {
             "stats": "ID", "spirits": "CharacterID", "mounts": "말 번호", "skins": "스킨 번호",
             "traits": "특성 번호", "bonuses": "번호", "purchases": "판매 말 번호", "riding": "승마술 레벨",
@@ -311,7 +418,7 @@ def import_character_data(source_path, target_path=DEFAULT_TARGET, *, client_roo
             raise ValueError("Target characters is empty")
         new_chars, facts, materials, upgrades, requirements, companions = [], [], [], [], [], []
         facts_per_code = Counter()
-        item_codes = {r[0] for r in target.execute("SELECT code FROM items")}
+        item_names = dict(target.execute("SELECT code, name_ko FROM items"))
 
         def fact(code, label_en, label_zh, value_en, value_zh=None, *, bonus=False):
             if value_zh is None:
@@ -329,7 +436,7 @@ def import_character_data(source_path, target_path=DEFAULT_TARGET, *, client_roo
             item, qty = integer(item, "material", missing=0), integer(qty, "quantity", missing=0)
             if not item and not qty:
                 return
-            if not item or qty <= 0 or item not in item_codes:
+            if not item or qty <= 0 or item not in item_names:
                 raise ValueError(f"Invalid or missing material item for {code}: {item} x {qty}")
             materials.append((code, kind, slot, item, qty))
 
@@ -457,6 +564,66 @@ def import_character_data(source_path, target_path=DEFAULT_TARGET, *, client_roo
                 text(gts, "en"); text(gts, "zh")
 
         companion_codes = {row[0] for row in new_chars}
+        def certificate(code, kind, item, nation):
+            if certificate_rows is not None:
+                row = certificate_rows.get(item)
+                if row is None or row["Name"] != item_names[item] or row["Creature DB ID"] != code:
+                    raise ValueError(f"CreatureItem recipient or item mismatch for {code}: {item}")
+                nation_name = row["Allowed Nation"]
+                if nation_name not in CERTIFICATE_NATIONS:
+                    raise ValueError(f"Unknown allowed nation for certificate {item}: {nation_name}")
+                nation = CERTIFICATE_NATIONS[nation_name]
+            material(code, kind, 1, item, 1)
+            if kind == "recruitment:certificate_bound":
+                facts.append((code, 1006, "Bound certificate nationality", "不可交易證書所需國籍", str(nation), str(nation)))
+            else:
+                facts.append((code, 1004, "Certificate nationality", "證書所需國籍", str(nation), str(nation)))
+
+        # The two methods are alternatives. Certificate names for these four
+        # nations identify both the country and the exact character; reject
+        # packs and similarly named characters by joining the whole name.
+        certificates = target.execute("""
+            SELECT c.code, i.code, c.nation FROM characters c JOIN items i
+            ON i.name_ko = (CASE c.nation WHEN 1 THEN '조선' WHEN 10 THEN '일본'
+                            WHEN 100 THEN '중국' WHEN 1000 THEN '대만' END)
+                       || ' 몬스터 증서(' || c.name_ko || ')'
+            WHERE c.rank=4
+            """).fetchall()
+        for code, item, nation in certificates:
+            certificate(code, "recruitment:certificate", item, nation)
+        for code, (name, player_nation, stones, fee) in TRAINER_COSTS.items():
+            if code not in existing:
+                continue
+            if existing[code]["rank"] != 4 or existing[code]["name_ko"] != name:
+                raise ValueError(f"Unexpected trainer character: {code}")
+            material(code, "recruitment:trainer", 1, 853, stones)
+            credit = integer(data["stats"].get(code, {}).get("Need Credit"), f"{code}/Need Credit")
+            if credit is None or credit <= 0:
+                raise ValueError(f"Invalid trainer credit level: {code}")
+            facts.append((code, 1001, "Trainer credit level", "訓練所所需信用等級", str(credit), str(credit)))
+            facts.append((code, 1002, "Trainer fee", "訓練所僱用費", str(fee), str(fee)))
+            facts.append((code, 1003, "Trainer nationality", "訓練所所需國籍", str(player_nation), str(player_nation)))
+        if "U85" in existing:
+            # Donkey's certificate has its own item name. Its description
+            # explicitly grants one Donkey (OnlineText.dat 04000291).
+            material("U85", "recruitment:certificate", 1, 897, 1)
+        for code, (name, cert_name, item, bound_item) in SPECIAL_MONSTER_CERTIFICATES.items():
+            if code not in existing:
+                continue
+            if existing[code]["rank"] != 4 or existing[code]["name_ko"] != name:
+                raise ValueError(f"Unexpected certificate character: {code}")
+            for kind, cert_item, expected_name in (
+                ("recruitment:certificate", item, cert_name),
+                ("recruitment:certificate_bound", bound_item, cert_name + "-(거래불가)"),
+            ):
+                if cert_item not in item_names:
+                    continue
+                if item_names[cert_item] != expected_name:
+                    raise ValueError(f"Unexpected certificate item for {code}: {cert_item}")
+                certificate(code, kind, cert_item, 0)
+        for code, nationality in MONSTER_PROMOTION_NATIONALITY.items():
+            if code in existing:
+                facts.append((code, 1005, "Promotion nationality", "轉職所需國籍", str(nationality), str(nationality)))
         stat_rows = []
         for code in sorted(set(existing) | companion_codes):
             row = data["stats"].get(code)
@@ -481,6 +648,18 @@ def import_character_data(source_path, target_path=DEFAULT_TARGET, *, client_roo
                 digest.update(chunk)
         result = {
             "source_file": source_path.name, "source_sha256": digest.hexdigest(), "sheets": sheets,
+            "recruitment": {
+                "trainer": "Ordinary monster hires at four nations' trainers. Reviewed Sealing Stone quantities, player nationality and fees; Need Credit from character stats.",
+                "certificates": "Nation-prefixed monster certificates require the nation named on the item. Joined by full name and country. Donkey uses separate item 897.",
+                "creature_certificates": "CreatureItem.txt (gersang.gcs) Item Code, Creature DB ID and Allowed Nation for rank-4 monsters. ALL means unrestricted. Regular and bound certificates are separate methods. The Donkey item is outside this table. Craft costs join recipes/recipe_materials by exact result item.",
+                "creature_certificate_source": certificate_source,
+                "trainer_sources": {
+                    "roster_and_costs": ["https://gflix.kr/?p=63486", "https://www.gersangjjang.com/yongbing/guaiwu.asp", "https://www.52jushang.com/yongbing/guaiwu.asp"],
+                    "nationality": ["https://www.gersang.co.kr/gersang/guide_09.gs", "https://gflix.kr/?p=63486"],
+                    "U85": ["https://w.atwiki.jp/kyosyoden/pages/26.html", "https://www.gersangjjang.com/yongbing/korea/nagyu.asp"],
+                    "M06": ["https://www.gersang.co.kr/info/hire_monster.gs"],
+                },
+            },
             "counts": {"characters_with_stats": len(stat_rows), "companions": len(companions), "spirits": len(data["spirits"]), "mounts": len(data["mounts"]), "mount_sprite_assets": len(set(mount_sprites) & set(data["mounts"])), "facts": len(facts), "materials": len(materials), "evolutions": len(upgrades), "required_mounts": len(requirements)},
             "notes": {"hp_mp": "Life and Mana, no multiplier", "attack": "source MinApower/MaxApower base values", "unavailable": ["attack_speed", "unit_type", "mount base stats", "mount native action timing"], "riding": "level 2 only; maximum sentinel and temporary entries excluded", "mount_speed": "0777 field speed; 0779 trait kind/level resolved through 0778 and 0780", "family_element": "PetInfo Attribute mapped to app enum: 0 none, 1 fire, 2 water, 3 wind, 4 thunder, 5 earth; independent from combat Type", "evolution_order": "1-based position in observed chain; not the source grade", "mount_sprites": "vehicle table ID -> Vehicle token -> existing VE<Vehicle>N11HSU.agf base sheet; optional VH/VT glow layers are not composited"},
         }
@@ -493,6 +672,12 @@ def import_character_data(source_path, target_path=DEFAULT_TARGET, *, client_roo
             # Only replace dependent rows for companions owned by this import.
             for table in ("character_facts", "character_materials", "character_upgrades", "character_requirements"):
                 target.executemany(f"DELETE FROM {table} WHERE code=?", [(code,) for code in companion_codes])
+            target.execute("DELETE FROM character_materials WHERE kind='recruitment:certificate' AND code IN (SELECT code FROM characters WHERE rank=4)")
+            target.executemany("DELETE FROM character_materials WHERE code=? AND kind='recruitment:certificate_bound'", [(code,) for code in SPECIAL_MONSTER_CERTIFICATES])
+            target.execute("DELETE FROM character_facts WHERE label_en IN ('Certificate nationality','Bound certificate nationality') AND code IN (SELECT code FROM characters WHERE rank=4)")
+            target.execute("DELETE FROM character_facts WHERE slot=1005 AND label_en='Promotion nationality'")
+            target.executemany("DELETE FROM character_materials WHERE code=? AND kind='recruitment:trainer'", [(code,) for code in TRAINER_COSTS])
+            target.executemany("DELETE FROM character_facts WHERE code=? AND label_en IN ('Trainer credit level','Trainer fee','Trainer nationality')", [(code,) for code in TRAINER_COSTS])
             for table, rows in [("character_facts", facts), ("character_materials", materials), ("character_upgrades", upgrades), ("character_requirements", requirements)]:
                 if rows:
                     target.executemany(f"INSERT INTO {table} VALUES ({','.join('?' for _ in rows[0])})", rows)
@@ -512,9 +697,12 @@ def main():
     parser.add_argument("source", type=Path)
     parser.add_argument("--target", type=Path, default=DEFAULT_TARGET)
     parser.add_argument("--client-root", type=Path, default=DEFAULT_CLIENT_ROOT, help="client asset root used to verify optional mount animation files")
+    parser.add_argument("--certificate-client", type=Path, help="read CreatureItem.txt directly from this directory's gersang.gcs; defaults to the parsed source sheet or its reviewed mappings")
+    parser.add_argument("--parser-root", type=Path, help="gs-parser package root for reading a certificate client archive")
     args = parser.parse_args()
     try:
-        result = import_character_data(args.source, args.target, client_root=args.client_root)
+        result = import_character_data(args.source, args.target, client_root=args.client_root,
+                                       certificate_client=args.certificate_client, parser_root=args.parser_root)
     except (OSError, sqlite3.Error, ValueError) as error:
         parser.exit(1, f"Import failed: {error}\n")
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

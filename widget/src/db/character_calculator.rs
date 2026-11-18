@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::calculator::{CalcBreakdown, CalcDocument, MAX_TOTAL_MATERIALS};
+use super::character_data::{material_heading, RECRUITMENT_METHODS};
 use super::hero::{fixed_beast, hero_names, tidy};
 use super::text::lead;
 use super::user_data::{preferences_dir, write_preference_checked};
@@ -238,7 +239,7 @@ fn input(key: String, kind: &str, title: String, per_unit: i64) -> CharacterCalc
     }
 }
 
-fn add_condition(conditions: &mut String, note: &str) {
+pub(in crate::db) fn add_condition(conditions: &mut String, note: &str) {
     let note = tidy(note);
     if !note.is_empty() && !conditions.contains(&note) {
         if !conditions.is_empty() {
@@ -368,6 +369,11 @@ impl Catalog {
                 routes.push(route);
             }
         }
+        if let Some(condition) = hero.promotion_condition(lang) {
+            for route in &mut routes {
+                add_condition(&mut route.conditions, &condition);
+            }
+        }
         if let Some(parts) = fixed_beast(code) {
             let mut route = CharacterCalcRoute {
                 id: "beast".into(),
@@ -436,17 +442,74 @@ impl Catalog {
                 routes.push(route);
             }
         }
-        if routes.is_empty() && !hire.is_empty() && hero.rank != 14 {
-            // A recruitment description is useful even when no structured
-            // recipe exists. One explicit all-in estimate avoids claiming an
-            // empty materials list is a free recruitment recipe.
+        let manual_estimate = routes.is_empty()
+            && !hire.is_empty()
+            && hero.rank != 14
+            && !hero.recruitment_methods.contains_key("recruitment:trainer")
+            && !hero.recruitment_methods.contains_key("recruitment:craft_certificate");
+        for method in RECRUITMENT_METHODS {
+            let Some(data) = hero.recruitment_methods.get(method) else {
+                continue;
+            };
+            let mut inputs = self.character_calc_parts(&[], &data.materials, lang);
+            let mut conditions = String::new();
+            let title = if let Some((_, certificate)) = data.certificate_recipe {
+                conditions = self.item_name(certificate, lang);
+                material_heading(method, lang)
+            } else {
+                inputs.iter().map(|row| format!("{} ×{}", row.title, row.per_unit))
+                    .collect::<Vec<_>>().join(" + ")
+            };
+            let fee_input = match method {
+                "recruitment:trainer" => {
+                    conditions = hire.clone();
+                    Some(("fee:trainer", ui_text(lang, "訓練所雇用費", "Trainer fee")))
+                }
+                "recruitment:craft_certificate" => {
+                    Some(("fee:certificate_craft", ui_text(lang, "證書製作費", "Crafting fee")))
+                }
+                _ => None,
+            };
+            if let Some((key, label)) = fee_input {
+                let mut fee = input(key.into(), "fee", label, 1);
+                fee.unit_price = data.fee;
+                inputs.push(fee);
+            }
+            for term in data.eligibility(lang) {
+                add_condition(&mut conditions, &term);
+            }
             routes.push(CharacterCalcRoute {
-                id: "recruitment".into(), title: ui_text(lang, "招募／取得估算", "Recruitment / acquisition estimate"),
-                conditions: format!("{}\n{}", hire, ui_text(lang,
-                    "此角色尚無完整配方，請填入整體取得成本（包括相關費用）。",
-                    "A complete recipe is not available. Enter this character's full acquisition cost, including any fees.")),
-                inputs: vec![input(format!("hero:{code}"), "hero", ui_text(lang,
-                    "角色整體取得成本", "Complete character acquisition cost"), 1)],
+                id: method.into(),
+                title,
+                conditions,
+                inputs,
+            });
+        }
+        if manual_estimate {
+            // Keep the all-in hire estimate when trainer materials are unknown,
+            // including characters that also have a known certificate option.
+            let mentions_trainer = hero.hire_en.to_ascii_lowercase().contains("monster trainer")
+                || hero.hire_zh.contains("訓練所雇用");
+            let (title, note, cost_label) = if mentions_trainer && hero.recruitment_methods.contains_key("recruitment:certificate") {
+                (
+                    ui_text(lang, "訓練所雇用估算", "Trainer recruitment estimate"),
+                    ui_text(lang, "請輸入訓練所雇用的總成本，包括材料和雇用費。",
+                        "Enter the total cost of hiring this character from the trainer, including materials and fees."),
+                    ui_text(lang, "訓練所雇用總成本", "Total trainer recruitment cost"),
+                )
+            } else {
+                (
+                    ui_text(lang, "招募／取得估算", "Recruitment / acquisition estimate"),
+                    ui_text(lang, "此角色尚無完整配方，請填入整體取得成本（包括相關費用）。",
+                        "A complete recipe is not available. Enter this character's full acquisition cost, including any fees."),
+                    ui_text(lang, "角色整體取得成本", "Complete character acquisition cost"),
+                )
+            };
+            routes.push(CharacterCalcRoute {
+                id: "recruitment".into(),
+                title,
+                conditions: format!("{hire}\n{note}"),
+                inputs: vec![input(format!("hero:{code}"), "hero", cost_label, 1)],
             });
         }
         routes
@@ -567,8 +630,8 @@ impl Catalog {
         Some(route)
     }
 
-    /// A synthesis shortcut must lead to a real incoming route, rather than
-    /// the fallback where the user estimates the character's entire price.
+    /// Offer a shortcut for a recorded route with priced inputs. The manual
+    /// estimate asks for the character's entire purchase price.
     pub fn character_calculator_entry_route(
         &self,
         code: &str,
@@ -577,11 +640,7 @@ impl Catalog {
         self.character_calculator_routes(code, lang)
             .into_iter()
             .find(|route| {
-                let synthesis = route.id.starts_with("combination:")
-                    || route.id.starts_with("upgrade:")
-                    || route.id.starts_with("evolution:")
-                    || matches!(route.id.as_str(), "beast" | "acquisition");
-                synthesis
+                route.id != "recruitment"
                     && route.inputs.iter().any(|row| {
                         matches!(row.kind.as_str(), "hero" | "item" | "choice")
                     })
@@ -802,12 +861,13 @@ mod tests {
     }
 
     #[test]
-    fn detail_shortcuts_offer_synthesis_but_not_plain_recruitment() {
+    fn detail_shortcuts_offer_recorded_costs_but_not_manual_estimates() {
         let catalog = Catalog::open_for_mcp().expect("bundled database");
         for (code, expected_route) in [
             ("T51", "combination:0"),
             ("V09", "upgrade:T51"),
             ("E74", "beast"),
+            ("U85", "recruitment:trainer"),
             ("mount:2", "acquisition"),
             ("F19", "evolution:F16"),
         ] {
@@ -832,6 +892,70 @@ mod tests {
                 "unexpected synthesis shortcut for {code}"
             );
             assert!(!catalog.can_calculate_record(&format!("hero:{code}")));
+        }
+    }
+
+    #[test]
+    fn recruitment_costs_stay_with_their_method() {
+        let catalog = Catalog::open_for_mcp().expect("bundled database");
+        for (code, beads, fee, credit, certificate) in [
+            ("U85", 4, 35_000, "35", "item:897"),
+            ("M06", 3, 30_000, "30", "item:4002"),
+        ] {
+            let routes = catalog.character_calculator_routes(code, "en");
+            let trainer = routes.iter().find(|r| r.id == "recruitment:trainer").unwrap();
+            assert!(trainer.conditions.contains(credit));
+            assert_eq!(trainer.inputs.len(), 2);
+            let stones = &trainer.inputs[0];
+            assert_eq!((stones.key.as_str(), stones.per_unit, stones.unit_price), ("item:853", beads, None));
+            assert_eq!(trainer.inputs[1].unit_price, Some(fee));
+            let redeem = routes.iter().find(|r| r.id == "recruitment:certificate").unwrap();
+            assert!(!redeem.conditions.contains("credit"));
+            if code == "M06" {
+                assert_eq!(redeem.conditions, "Required player nationality: Joseon");
+            }
+            assert_eq!(redeem.inputs.len(), 1);
+            let item = &redeem.inputs[0];
+            assert_eq!((item.key.as_str(), item.per_unit, item.unit_price), (certificate, 1, None));
+        }
+
+        let snow_tiger = catalog.character_calculator_routes("M33", "en");
+        assert!(snow_tiger.iter().any(|r| r.id == "recruitment:certificate"));
+        assert!(!snow_tiger.iter().any(|r| r.id == "recruitment"));
+        let trainer = snow_tiger.iter().find(|r| r.id == "recruitment:trainer").unwrap();
+        assert!(trainer.conditions.contains("Required player nationality: Joseon"));
+        assert_eq!((trainer.inputs[0].per_unit, trainer.inputs[1].unit_price), (5, Some(45_000)));
+    }
+
+    #[test]
+    fn crafting_a_monster_certificate_prices_the_materials_and_fee_once() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        for (code, fee, materials, certificates) in [
+            ("F41", 200_000_000, vec![(853, 20), (3506, 2), (6852, 1), (7174, 50), (7176, 2)], vec![7528, 7587]),
+            ("H47", 5_000_000, vec![(853, 9), (3506, 1), (5855, 20), (6328, 5), (6405, 20)], vec![6414]),
+        ] {
+            let mut doc = catalog.character_calculator_document(code, "recruitment:craft_certificate", "zh").unwrap();
+            doc.quantity = 2;
+            let unpriced = doc.calculate().unwrap();
+            assert_eq!((unpriced.fee, unpriced.known_total, unpriced.total), (2 * fee, 2 * fee, None));
+            assert_eq!(doc.inputs.len(), materials.len() + 1);
+            let mut unit_cost = fee;
+            for (item, quantity) in materials {
+                let input = doc.inputs.iter_mut().find(|i| i.key == format!("item:{item}")).unwrap();
+                assert_eq!((input.per_unit, input.unit_price), (quantity, None));
+                input.unit_price = Some(10);
+                unit_cost += quantity * 10;
+            }
+            let fixed_fee = doc.inputs.iter().find(|i| i.key == "fee:certificate_craft").unwrap();
+            assert_eq!((fixed_fee.per_unit, fixed_fee.unit_price), (1, Some(fee)));
+            assert_eq!(doc.calculate().unwrap().total, Some(2 * unit_cost));
+
+            let routes = catalog.character_calculator_routes(code, "zh");
+            assert_eq!(routes.len(), certificates.len() + 1);
+            for item in certificates {
+                let route = routes.iter().find(|r| r.inputs.len() == 1 && r.inputs[0].key == format!("item:{item}")).unwrap();
+                assert_eq!((route.inputs[0].per_unit, route.inputs[0].unit_price), (1, None));
+            }
         }
     }
 

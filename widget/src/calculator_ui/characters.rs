@@ -162,17 +162,17 @@ impl CharacterController {
         let routes = self
             .catalog
             .character_calculator_routes(&doc.hero_code, &lang);
-        let mut ids = vec![doc.route_id.clone()];
-        let mut labels = vec![doc.route_title.clone().into()];
-        for route in routes {
-            if route.id != doc.route_id {
-                ids.push(route.id);
-                labels.push(route.title.into());
-            }
-        }
+        let (mut ids, mut labels): (Vec<_>, Vec<_>) =
+            routes.into_iter().map(|route| (route.id, route.title.into())).unzip();
+        let selected = ids.iter().position(|id| id == &doc.route_id).unwrap_or_else(|| {
+            // Keep a saved route selectable even after it leaves the catalog.
+            ids.insert(0, doc.route_id.clone());
+            labels.insert(0, doc.route_title.clone().into());
+            0
+        });
         *self.routes.borrow_mut() = ids;
         app.set_character_calculator_routes(ModelRc::new(VecModel::from(labels)));
-        app.set_character_calculator_route_index(0);
+        app.set_character_calculator_route_index(selected as i32);
         let rows = doc
             .inputs
             .iter()
@@ -189,9 +189,9 @@ impl CharacterController {
                     ),
                     "fee" => text(
                         &lang,
-                        "每次合成費用；未知請留空",
-                        "Fee per synthesis; leave blank if unknown",
-                        "1회 합성 비용 · 모르면 비워 두세요",
+                        "每位角色的費用，未知請留空",
+                        "Fee per character, leave blank if unknown",
+                        "캐릭터당 비용 · 모르면 비워 두세요",
                     ),
                     "choice" => text(
                         &lang,
@@ -264,17 +264,15 @@ impl CharacterController {
             rows,
         ));
         app.set_character_calculator_material_total(number(costs.material_total).into());
-        app.set_character_calculator_fee(
-            if doc
-                .inputs
-                .iter()
-                .any(|input| input.kind == "fee" && input.unit_price.is_none())
-            {
-                "—".into()
-            } else {
-                number(costs.fee).into()
-            },
-        );
+        let mut fees = doc.inputs.iter().filter(|input| input.kind == "fee").peekable();
+        let fee = if fees.peek().is_none() {
+            String::new()
+        } else if fees.any(|input| input.unit_price.is_none()) {
+            "—".into()
+        } else {
+            number(costs.fee)
+        };
+        app.set_character_calculator_fee(fee.into());
         app.set_character_calculator_total(number(costs.known_total).into());
         app.set_character_calculator_unit_total(
             costs
@@ -341,7 +339,10 @@ impl CharacterController {
             return false;
         };
         let current = self.document.borrow().as_ref().is_some_and(|document| {
-            document.hero_code == code && document.route_id != "recruitment"
+            document.hero_code == code
+                && (document.route_id != "recruitment"
+                    || self.catalog.character_calculator_routes(code, &app.get_lang())
+                        .iter().any(|route| route.id == document.route_id))
         });
         if current && self.load_error.is_none() {
             // Returning from the detail page must retain accepted prices and
@@ -537,12 +538,16 @@ pub(super) fn install(
             .ok()
             .and_then(|index| c.routes.borrow().get(index).cloned());
         let document = c.document.borrow().clone();
-        if let (Some(route), Some(doc)) = (route, document) {
-            if route != doc.route_id {
-                c.select(&app, &doc.hero_code, &route, true);
+        if let Some(doc) = document {
+            if let Some(route) = route {
+                if route == doc.route_id || c.select(&app, &doc.hero_code, &route, true) {
+                    return;
+                }
+            }
+            if let Some(current) = c.routes.borrow().iter().position(|id| id == &doc.route_id) {
+                app.set_character_calculator_route_index(current as i32);
             }
         }
-        app.set_character_calculator_route_index(0);
     });
     let c = Rc::clone(&controller);
     let weak = app.as_weak();

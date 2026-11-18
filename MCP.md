@@ -108,6 +108,8 @@ Version 1.1.0 and later include a local stdio MCP server in the existing executa
 - `find_item_drops` 提供掉落率：`drop_rate` 是 0～1 的機率、`drop_rate_percent` 是百分比、`drop_rate_per_100000` 是原始十萬分率，例如 `5500`＝`0.055`＝`5.5%`。未知值為 `null`；`drops` 保留各欄位及單人限定條件。同一怪物有多個掉落欄位時，頂層掉落率為 `null`，請讀取 `drops`，不把多個欄位推算為綜合機率。
 - 成本只計直接材料及製作費；未填單價保持未知，明確填 `0` 才代表免費。不計學習費及失敗重試；不完整／強化配方會標示無法計算。
 - 角色取得方式只列取得該形態的直接條件，不把下一階段材料混入，也不自動展開所有前置角色的總成本。材料清單空白代表未記錄，並非免費；需要時沿前置 key 繼續查詢。道具取得摘要列出製作、掉落、商店、生產及任務來源，保留各來源的範圍與截斷提示。
+- 34 隻訓練所怪物的 `acquisition.routes` 列出封印珠數量、僱用費及信用等級。`required_player_nationality` 是該招募方式所需的主角國籍（朝鮮 1、日本 10、中國 100、台灣 1000）。`0` 代表已確認不限國籍，欄位缺省代表尚無紀錄。以驢子（`hero:U85`）為例，`trainer` 需要 4 粒封印珠及 35,000 兩，`certificate` 則需要 1 張驢的證書。轉職結果的國籍要求列在相應升級或合成路線的 `conditions`。
+- 張果老的 7 種證書可查 `method: "craft_certificate"`。`materials` 和 `fee` 是每張的製作材料和手續費，`recipe_id` 和 `certificate_item_code` 指向對應配方和成品。已持有證書時可選 `certificate` 或 `certificate_bound` 路線。
 - 這是同機桌面／CLI 連接。Claude 網頁版的自訂 connector 需要雲端可到達的遠端 MCP，不能直接使用本機執行檔。[Claude connector 官方說明](https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities)
 
 ## 排解連線問題
