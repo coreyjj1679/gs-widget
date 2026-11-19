@@ -4,10 +4,10 @@ use std::path::{Component, Path, PathBuf};
 use super::text::{dotted_version, patch_version};
 
 pub fn client_label() -> String {
-    let text = std::fs::read_to_string(client_version_file()).unwrap_or_else(|_| "V3.4220".into());
+    let text = std::fs::read_to_string(client_version_file()).unwrap_or_else(|_| "V3.4411".into());
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        "V3.4220".into()
+        "V3.4411".into()
     } else {
         dotted_version(trimmed)
     }
