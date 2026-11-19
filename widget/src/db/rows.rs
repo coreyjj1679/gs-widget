@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 pub(in crate::db) struct Index {
+    pub(in crate::db) game_version: Option<String>,
     pub(in crate::db) monsters: Vec<MonsterRow>,
     pub(in crate::db) nations: Vec<(i64, i64)>,
     pub(in crate::db) places: Vec<PlaceRow>,
@@ -313,4 +314,40 @@ pub(in crate::db) struct MakePlace {
     pub(in crate::db) facility: String,
     pub(in crate::db) key: String,
     pub(in crate::db) icon: Option<(PathBuf, i32)>,
+}
+
+impl Index {
+    pub(in crate::db) fn has_record(&self, key: &str) -> bool {
+        let Some((kind, id)) = key.split_once(':') else {
+            return false;
+        };
+        match kind {
+            "hero" => self.heroes.iter().any(|row| row.code == id),
+            "monster" => self.monsters.iter().any(|row| row.code == id),
+            "item" => id
+                .parse()
+                .ok()
+                .is_some_and(|id| self.find_item(id).is_some()),
+            "npc" => self
+                .npcs
+                .iter()
+                .any(|row| Some(row.code) == id.parse().ok()),
+            "set" => self
+                .sets
+                .iter()
+                .any(|row| Some(row.code) == id.parse().ok()),
+            "recipe" => self
+                .recipes
+                .iter()
+                .any(|row| Some(row.id) == id.parse().ok()),
+            "quest" => self
+                .quests
+                .iter()
+                .any(|row| Some(row.id) == id.parse().ok()),
+            "town" => self.towns.iter().any(|row| row.code == id),
+            "bay" => self.yards.contains_key(id),
+            "yard" => self.works.iter().any(|row| row.code == id),
+            _ => false,
+        }
+    }
 }

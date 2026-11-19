@@ -460,6 +460,7 @@ impl Index {
     pub(in crate::db) fn scope_monsters(&self, key: &str, query: &str, lang: &str) -> Vec<Hit> {
         let query = query.trim();
         let folded = query.to_lowercase();
+        let folded = super::names::search_punctuation(&folded);
         let (nation, tail) = if let Some(rest) = key.strip_prefix("jump:") {
             let Some((nation, tail)) = rest.split_once('|') else {
                 return Vec::new();

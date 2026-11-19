@@ -197,7 +197,7 @@ pub(in crate::db) fn trail3(lang: &str, en: &str, zh: &str, ko: &str) -> String 
     }
 }
 
-pub(in crate::db) fn show3(lang: &str, en: &str, zh: &str, ko: &str) -> String {
+pub(crate) fn show3(lang: &str, en: &str, zh: &str, ko: &str) -> String {
     let main = lead3(lang, en, zh, ko);
     let alt = trail3(lang, en, zh, ko);
     if alt.is_empty() { main } else { format!("{main} · {alt}") }

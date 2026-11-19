@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use unicode_normalization::UnicodeNormalization;
 
@@ -36,6 +36,24 @@ pub(in crate::db) fn text_hit(folded: &str, names: &str) -> bool {
     budget > 0 && fuzzy_dist(folded, names, budget).is_some()
 }
 
+// Catalogs mix straight, curved and full-width marks (including the client's
+// backtick for apostrophes). Use one spelling for matching without changing
+// any displayed name or the user's own alias keys.
+pub(crate) fn search_punctuation(text: &str) -> Cow<'_, str> {
+    fn mark(c: char) -> char {
+        match c {
+            '‘' | '’' | 'ʼ' | '＇' | '`' => '\'',
+            '‐' | '‑' | '‒' | '–' | '—' | '―' | '－' | '−' => '-',
+            other => other,
+        }
+    }
+    if text.chars().any(|c| mark(c) != c) {
+        Cow::Owned(text.chars().map(mark).collect())
+    } else {
+        Cow::Borrowed(text)
+    }
+}
+
 pub(in crate::db) fn haystack(parts: &[&str]) -> String {
     let mut out = String::new();
     for part in parts {
@@ -47,6 +65,10 @@ pub(in crate::db) fn haystack(parts: &[&str]) -> String {
             out.push('\n');
         }
         out.push_str(&folded);
+        if let Cow::Owned(canonical) = search_punctuation(&folded) {
+            out.push('\n');
+            out.push_str(&canonical);
+        }
     }
     for part in parts {
         for alias in nicknames(part) {

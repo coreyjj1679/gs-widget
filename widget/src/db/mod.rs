@@ -22,6 +22,7 @@ mod ui_korean;
 pub(crate) mod mcp;
 mod monster;
 mod names;
+pub(crate) mod name_history;
 mod npc;
 mod paths;
 mod planner;
@@ -57,6 +58,9 @@ pub use user_data::initialize_user_data;
 pub use monster::MonsterQuery;
 pub use prefs::{DockPref, HomePref, ViewPref, WindowPref, load_dock, load_favourites, load_home, load_lang, load_opacity, load_set_extra, load_view, load_window, save_dock, save_favourites, save_full_geometry, save_home, save_lang, save_mode, save_opacity, save_set_extra, save_view, save_window};
 pub use text::{hero_land_label, hero_rank_label, hero_tier_label, item_category_label, nation_label, relation_label, source_label, weapon_family_label};
+pub(crate) use names::search_punctuation;
+pub(crate) use text::show3;
+pub(crate) use monster::drop_rate_text;
 
 use alias::parse_alias_book;
 use load::{choose_pictures, load_portraits, load_sprites};
@@ -99,6 +103,41 @@ use text::{lead, stack, trail};
 mod tests;
 
 impl Catalog {
+    pub fn set_icon(&self, code: i64) -> Option<(PathBuf, i32)> {
+        self.index.sets.iter().find(|set| set.code == code)?.icon.clone()
+    }
+
+    pub fn npc_icon(&self, code: i64) -> Option<(PathBuf, i32)> {
+        self.index.npc_face(code)
+    }
+
+    pub(crate) fn has_detail_key(&self, key: &str) -> bool {
+        self.index.has_record(key)
+    }
+
+    pub(crate) fn quest_record_key(&self, source: &str, code: &str) -> Option<String> {
+        let quest = self.index.quests.iter().find(|quest| quest.source == source && quest.code == code)?;
+        Some(format!("quest:{}", quest.id))
+    }
+
+    pub(crate) fn stable_history_key<'a>(&self, key: &'a str) -> std::borrow::Cow<'a, str> {
+        if let Some(id) = key.strip_prefix("quest:").and_then(|n| n.parse::<i64>().ok()) {
+            if let Some(quest) = self.index.quests.iter().find(|q| q.id == id) {
+                return format!("quest:{}:{}", quest.source, quest.code).into();
+            }
+        }
+        key.into()
+    }
+
+    pub fn quest_giver_icon(&self, source: &str, code: &str) -> Option<(PathBuf, i32)> {
+        let quest = self.index.quests.iter().find(|quest| quest.source == source && quest.code == code)?;
+        self.index.npc_face(quest.npc)
+    }
+
+    pub fn game_version(&self) -> Option<&str> {
+        self.index.game_version.as_deref().map(str::trim)
+    }
+
     pub fn open() -> Result<Self, String> {
         let db = find_db()?;
         let conn = Connection::open_with_flags(&db, OpenFlags::SQLITE_OPEN_READ_ONLY)
@@ -198,6 +237,7 @@ impl Catalog {
         let query = query.trim();
         let folded = query.to_lowercase();
         self.index.prepare_aliases(&folded);
+        let folded = names::search_punctuation(&folded);
         let hits = if key == "all:" {
             self.index.monster_hits(query, &folded, lang, &[], None)
         } else {
@@ -211,6 +251,7 @@ impl Catalog {
         let query = query.trim();
         let folded = query.to_lowercase();
         self.index.prepare_aliases(&folded);
+        let folded = names::search_punctuation(&folded);
         let hits = if let Some(area) = place.strip_prefix("span:") {
             self.index.scope_monsters(&format!("jump:{nation}|span:{area}"), query, lang)
         } else if !place.is_empty() {
@@ -279,6 +320,7 @@ impl Catalog {
         let query = query.trim();
         let folded = query.to_lowercase();
         self.index.prepare_aliases(&folded);
+        let folded = names::search_punctuation(&folded);
         // Lists are virtualized, so every matching record is listed and the shown
         // count is the real count. Typo suggestions are limited by the ranking.
         let all = usize::MAX;

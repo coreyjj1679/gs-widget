@@ -109,40 +109,6 @@ fn drop_rates(rate: Option<i64>) -> Value {
     })
 }
 
-fn terminology_key_exists(index: &Index, key: &str) -> bool {
-    let Some((kind, id)) = key.split_once(':') else {
-        return false;
-    };
-    match kind {
-        "hero" => index.heroes.iter().any(|row| row.code == id),
-        "monster" => index.monsters.iter().any(|row| row.code == id),
-        "item" => id
-            .parse()
-            .ok()
-            .is_some_and(|id| index.find_item(id).is_some()),
-        "npc" => index
-            .npcs
-            .iter()
-            .any(|row| Some(row.code) == id.parse().ok()),
-        "set" => index
-            .sets
-            .iter()
-            .any(|row| Some(row.code) == id.parse().ok()),
-        "recipe" => index
-            .recipes
-            .iter()
-            .any(|row| Some(row.id) == id.parse().ok()),
-        "quest" => index
-            .quests
-            .iter()
-            .any(|row| Some(row.id) == id.parse().ok()),
-        "town" => index.towns.iter().any(|row| row.code == id),
-        "bay" => index.yards.contains_key(id),
-        "yard" => index.works.iter().any(|row| row.code == id),
-        _ => false,
-    }
-}
-
 fn drop_details(slots: &[(i64, Option<i64>)]) -> Value {
     // Multiple slots can have different conditions or independent rolls. Do not
     // turn their rates into an unsupported aggregate probability.
@@ -198,7 +164,7 @@ impl Catalog {
             None => None,
         };
         let mcp_terminology = terms_path
-            .map(|path| terminology::load_external(path, |key| terminology_key_exists(&index, key)))
+            .map(|path| terminology::load_external(path, |key| index.has_record(key)))
             .transpose()?;
         Ok(Self {
             conn,

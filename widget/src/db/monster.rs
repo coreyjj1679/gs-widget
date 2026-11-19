@@ -163,7 +163,7 @@ pub(in crate::db) fn drop_rate_column(conn: &Connection) -> &'static str {
     }
 }
 
-pub(in crate::db) fn drop_rate_text(rate: Option<i64>, lang: &str) -> String {
+pub(crate) fn drop_rate_text(rate: Option<i64>, lang: &str) -> String {
     let Some(rate) = rate.filter(|value| (0..=100_000).contains(value)) else {
         return chrome_text(lang, "未記錄", "Not recorded");
     };
@@ -729,6 +729,7 @@ impl Catalog {
         let exact_code = drop_item_code(query);
         let folded = query.to_lowercase();
         let aliases = alias_codes(&self.index.aliases.borrow(), &folded);
+        let folded = super::names::search_punctuation(&folded);
         let mut stmt = match self.conn.prepare(
             "SELECT d.item_code, COUNT(DISTINCT d.monster_code)
              FROM monster_drops d JOIN monsters m ON m.code = d.monster_code

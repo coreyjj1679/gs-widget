@@ -48,3 +48,27 @@ fn quick_search_resolves_reviewed_nicknames_and_keeps_category_counts() {
     assert!(stones.iter().any(|group| group.kind == "monster"));
     assert!(catalog.quick_search("  ", "zh-en").is_empty());
 }
+
+#[test]
+fn official_former_names_find_the_current_catalog_records_without_user_aliases() {
+    let catalog = Catalog::open().expect("db");
+    catalog.index.aliases.borrow_mut().clear();
+    for (kind, query, key, current) in [
+        ("item", "Sliver Key", "item:4518", "Silver Key"),
+        ("item", "Iron–Crutch Li’s Gourd", "item:6340", "Li Tieguai`s Gourd"),
+        ("monster", "Evil Taoist_Iron‑Crutch Li", "monster:H00", "Evil Taoist_Li Tieguai"),
+        ("hero", "Sorcerer", "hero:U96", "Exorcist"),
+        ("npc", "NPC_잠든 영혼(정화)", "npc:1333", "Spring of Purification"),
+    ] {
+        let rows = catalog.search(kind, query, "en", "", "");
+        let hit = rows.iter().find(|hit| hit.key == key).expect(query);
+        assert_eq!(hit.title, current, "{query}");
+        if kind == "item" || kind == "monster" {
+            assert_eq!(rows[0].key, key, "exact historical name is ranked before fuzzy matches: {query}");
+        }
+        let quick = catalog.quick_search(query, "en");
+        assert!(quick.iter().any(|group| group.hits.iter().any(|hit| hit.key == key)), "{query}");
+    }
+    let chinese = catalog.search("item", "Sliver Key", "zh", "", "");
+    assert_eq!((&*chinese[0].key, &*chinese[0].title), ("item:4518", "銀色鑰匙"));
+}
