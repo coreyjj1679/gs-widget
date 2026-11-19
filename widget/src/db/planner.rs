@@ -52,6 +52,15 @@ impl PlannerCatalog {
     fn load(conn: &rusqlite::Connection) -> Result<Self, String> {
         let mut recipes = BTreeMap::new();
         let mut invalid = BTreeSet::new();
+        // A fixed-ingredient estimate would omit the selected alternatives.
+        if super::store::table_exists(conn, "recipe_material_choices") {
+            let mut stmt = conn.prepare("SELECT DISTINCT recipe_id FROM recipe_material_choices")
+                .map_err(|err| err.to_string())?;
+            let rows = stmt.query_map([], |row| row.get::<_, i64>(0)).map_err(|err| err.to_string())?;
+            for row in rows {
+                invalid.insert(row.map_err(|err| err.to_string())?);
+            }
+        }
         let mut stmt = conn
             .prepare(
                 "SELECT r.id, r.source, r.result_item, r.result_qty, r.fee, r.learn_fee,

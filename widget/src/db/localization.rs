@@ -588,6 +588,8 @@ fn translated(en: &str) -> Option<&'static str> {
         "Quantity or cost exceeds the supported range" => "수량 또는 비용이 지원 범위를 초과합니다",
         "Quantity exceeds the supported range" => "수량이 지원 범위를 초과합니다",
         "No complete crafting recipe found" => "완전한 제작법을 찾을 수 없습니다",
+        "Total cost is unknown because the crafting fee is unrecorded" => "제작 수수료 기록이 없어 총비용을 계산할 수 없습니다",
+        "Cost depends on which materials are selected" => "비용은 선택한 재료에 따라 달라집니다",
         "Cannot encode calculation" => "계산을 인코딩할 수 없습니다",
         "Calculation data is too large" => "계산 데이터가 너무 큽니다",
         "Invalid calculation data" => "계산 데이터 형식이 잘못되었습니다",

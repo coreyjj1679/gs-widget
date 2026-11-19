@@ -132,6 +132,8 @@ Each spirit's **Upgrade to this spirit** section lists the previous form, requir
 
 ## Data
 
+Open **Craft** on a basic White Tiger, Blue Dragon, Vermillion or Black Tortoise weapon to see Trainer Hwan's recipe. Each weapon has one recipe. Choose any three of the four listed fey weapons, one of each, and supply the fixed ingredients. Vermillion Beak (#3995) takes 30 fire crystals and 30 red peacock beaks. The client dialogue leaves the fee unspecified. Kirin Horn (#3997) requires all four fey weapons. Run `python3 scripts/import_divine_weapon_recipes.py` to refresh the four base weapons from the bundled client dialogue and item guide.
+
 Crafting workshop recipes include the required recipe book, materials, batch yield, fee, production days and recorded friendship requirement. Books link to the recipes that use them, and each recipe links back to its product. Refresh the 51 bundled workshop recipes from `Makingfacility.txt` with `python3 scripts/import_facility_recipes.py --full-db /path/to/gs-parser/data/gersang-full.db`. The source is opened read-only; the importer preserves other recipe IDs and updates its own tables transactionally. `meta.facility_recipes_source` records source hashes and coverage. Village names retain the source Korean where no explicit town-code mapping is available.
 
 Monster drops show the client catalog's recorded percentage beside each item. Unmatched rates appear as **未記錄 / Not recorded** (or **—** in the icon strip); they are not treated as zero. Single-player drops retain their existing label. These are the client's base values, before any in-game bonuses or events.

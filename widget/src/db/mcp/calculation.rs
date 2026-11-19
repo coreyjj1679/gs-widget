@@ -58,7 +58,14 @@ impl Catalog {
         let id = recipe_id.unwrap_or(ids[0].id);
         // Validate support before treating a missing material/fee as a zero-cost recipe.
         if let Err(reason) = self.calculator_document(book, id, lang) {
-            return Ok(json!({"status": "unavailable", "recipe_id": id, "reason": reason}));
+            let mut result = json!({"status": "unavailable", "recipe_id": id, "reason": reason});
+            if let Some(row) = ids.iter().find(|row| row.id == id && row.material_choice.is_some()) {
+                let code = row.result_str.parse::<i64>().map_err(|error| error.to_string())?;
+                result["next_call"] = json!({"tool": "get_recipes", "arguments": {
+                    "item_code": code, "language": language_code(lang), "limit": limit
+                }});
+            }
+            return Ok(result);
         }
         let mut result = self.mcp_calculate(book, id, quantity, prices, lang)?;
         result["status"] = json!("calculated");

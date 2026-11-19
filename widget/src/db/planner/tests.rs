@@ -7,21 +7,23 @@ fn loader_requires_complete_rows_positive_quantities_and_valid_metadata() {
         CREATE TABLE items (code INTEGER PRIMARY KEY);
         CREATE TABLE recipes (id INTEGER PRIMARY KEY, source TEXT, result_item INTEGER, result_qty INTEGER, fee INTEGER, learn_fee INTEGER, success_rate INTEGER);
         CREATE TABLE recipe_materials (recipe_id INTEGER, slot INTEGER, item_code INTEGER, qty INTEGER, enhance INTEGER);
-        INSERT INTO items VALUES (1),(2),(3),(4),(5),(6),(7),(9),(10),(100);
+        CREATE TABLE recipe_material_choices (recipe_id INTEGER, item_code INTEGER, choice_count INTEGER, qty INTEGER);
+        INSERT INTO items VALUES (1),(2),(3),(4),(5),(6),(7),(9),(10),(11),(100),(101),(102);
         INSERT INTO recipes VALUES (1,'alchemy',1,1,10,NULL,NULL), (2,'alchemy',2,1,10,NULL,NULL),
             (3,'alchemy',3,0,10,NULL,NULL), (4,'alchemy',4,1,10,NULL,NULL),
             (5,'alchemy',5,1,10,NULL,NULL), (6,'alchemy',6,1,10,NULL,0),
             (7,'alchemy',7,1,10,NULL,NULL), (8,'alchemy',999,1,10,NULL,NULL),
-            (9,'alchemy',9,1,-1,NULL,NULL), (10,'alchemy',10,1,10,-1,NULL);
+            (9,'alchemy',9,1,-1,NULL,NULL), (10,'alchemy',10,1,10,-1,NULL), (11,'alchemy',11,1,0,NULL,NULL);
         INSERT INTO recipe_materials VALUES (1,1,100,2,0),(2,1,999,2,0),
             (3,1,100,2,0),(4,1,100,-2,0),(6,1,100,2,0),(7,1,100,2,-1),
-            (8,1,100,2,0),(9,1,100,2,0),(10,1,100,2,0);
+            (8,1,100,2,0),(9,1,100,2,0),(10,1,100,2,0),(11,1,100,2,0);
+        INSERT INTO recipe_material_choices VALUES (11,101,1,1),(11,102,1,1);
     ").unwrap();
     let loaded = PlannerCatalog::load(&conn).unwrap();
     assert_eq!(loaded.recipes.keys().copied().collect::<Vec<_>>(), vec![1]);
     assert_eq!(loaded.recipes[&1].success, None);
     assert_eq!(loaded.result_code(1), Some(1));
-    for id in 2..=10 {
+    for id in 2..=11 {
         assert_eq!(loaded.result_code(id), None, "invalid recipe {id}");
     }
 }

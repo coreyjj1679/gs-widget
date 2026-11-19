@@ -287,9 +287,14 @@ impl Catalog {
                 }).collect::<Vec<_>>());
             }
             "recipe" => {
-                result["materials"] =
-                    json!(self.mcp_relation_rows(&format!("recipe:{id}"), "related", lang)?);
-                self.mcp_attach_facility(result, id.parse().unwrap_or(0), lang);
+                let recipe_id = id.parse().unwrap_or(0);
+                let mut materials = self.mcp_relation_rows(&format!("recipe:{id}"), "related", lang)?;
+                if let Some(choice) = self.mcp_material_choice(recipe_id, lang) {
+                    materials.retain(|row| row["usage_kind"] != "recipe_material_choice");
+                    result["material_choice"] = choice;
+                }
+                result["materials"] = json!(materials);
+                self.mcp_attach_facility(result, recipe_id, lang);
             }
             "town" => {
                 let town = self.index.towns.iter().find(|row| row.code == id).unwrap();

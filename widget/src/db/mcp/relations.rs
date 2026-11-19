@@ -314,9 +314,10 @@ impl Catalog {
                 rows
             }
             ("recipe", "related") => {
+                let recipe_id = number()?;
                 let mut statement = self.conn.prepare("SELECT item_code, qty, enhance FROM recipe_materials WHERE recipe_id=?1 ORDER BY slot").map_err(|error| error.to_string())?;
                 let materials = statement
-                    .query_map([number()?], |row| {
+                    .query_map([recipe_id], |row| {
                         Ok((
                             row.get::<_, i64>(0)?,
                             row.get::<_, i64>(1)?,
@@ -326,7 +327,7 @@ impl Catalog {
                     .map_err(|error| error.to_string())?
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|error| error.to_string())?;
-                materials
+                let mut related: Vec<_> = materials
                     .into_iter()
                     .map(|(item, quantity, enhance)| {
                         let mut row = self.mcp_item_ref(item, lang);
@@ -334,7 +335,18 @@ impl Catalog {
                         row["enhance"] = json!(enhance);
                         row
                     })
-                    .collect()
+                    .collect();
+                if let Some(choice) = self.index.material_choice(recipe_id) {
+                    for &(code, quantity) in &choice.options {
+                        let mut row = self.mcp_item_ref(code, lang);
+                        row["usage_kind"] = json!("recipe_material_choice");
+                        row["quantity"] = json!(quantity);
+                        row["choose_count"] = json!(choice.choose_count);
+                        row["option_count"] = json!(choice.options.len());
+                        related.push(row);
+                    }
+                }
+                related
             }
             _ => return Err(format!("Unsupported relation {relation:?} for {kind}")),
         };
@@ -382,6 +394,18 @@ impl Catalog {
                 value
             })
             .collect();
+        for recipe in &self.index.recipes {
+            let Some(choice) = &recipe.material_choice else { continue };
+            let Some((_, quantity)) = choice.options.iter().find(|(item, _)| *item == code) else { continue };
+            other.push(json!({
+                "key": format!("recipe:{}", recipe.id), "recipe_id": recipe.id,
+                "name": lead3(lang, &recipe.en, &recipe.zh, &recipe.ko),
+                "output_key": format!("item:{}", recipe.result_str),
+                "source": recipe.source, "usage_kind": "recipe_material_choice",
+                "choose_count": choice.choose_count, "option_count": choice.options.len(),
+                "requirements": [{"item_code": code, "quantity": quantity, "enhance": 0}]
+            }));
+        }
         for (item, formula) in &self.index.formulas {
             let parts: Vec<_> = formula
                 .parts
@@ -686,6 +710,29 @@ mod tests {
         assert_eq!(rows[2]["requirements"], json!([
             {"item_code": 2204, "slot": 1, "quantity": 9},
         ]));
+    }
+
+    #[test]
+    fn divine_weapon_material_choices_link_in_both_directions() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        let recipes = catalog.mcp_relation_rows("item:3995", "recipes", "zh").unwrap();
+        assert_eq!(recipes.len(), 1);
+        let key = recipes[0]["key"].as_str().unwrap();
+        let parts = catalog.mcp_relation_rows(key, "related", "zh").unwrap();
+        assert_eq!(parts.len(), 6);
+        let options: Vec<_> = parts.iter().filter(|row| row["usage_kind"] == "recipe_material_choice").collect();
+        assert_eq!(options.len(), 4);
+        for row in options {
+            assert_eq!((row["choose_count"].as_i64(), row["quantity"].as_i64()), (Some(3), Some(1)));
+            let uses = catalog.mcp_relation_rows(row["key"].as_str().unwrap(), "uses", "zh").unwrap();
+            let matching: Vec<_> = uses.iter().filter(|u| u["key"] == key).collect();
+            assert_eq!(matching.len(), 1);
+            assert_eq!(matching[0]["usage_kind"], "recipe_material_choice");
+            assert_eq!(matching[0]["option_count"], 4);
+        }
+        for row in parts.iter().filter(|row| row["usage_kind"].is_null()) {
+            assert_eq!(row["quantity"], 30);
+        }
     }
 
     #[test]

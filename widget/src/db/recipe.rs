@@ -7,8 +7,8 @@ use super::item::pref_rank;
 use super::language::{primary_lang, secondary_lang};
 use super::{Catalog, Hit};
 use super::names::haystack;
-use super::rows::RecipeRow;
-use super::store::online;
+use super::rows::{Index, RecipeMaterialChoice, RecipeRow};
+use super::store::{online, table_exists};
 use super::text::{caption, chrome_text, commas, label, lead3, phrase, show3, trail3};
 
 pub(in crate::db) const PREF: &[&str] = &[
@@ -19,6 +19,7 @@ pub(in crate::db) const PREF: &[&str] = &[
     "formation",
     "baekje",
     "npc",
+    "divine_weapon",
     "facility",
     "reinforce",
 ];
@@ -44,6 +45,20 @@ pub(in crate::db) fn load_recipes(
     texts: &HashMap<String, String>,
     icons: &HashMap<i64, (PathBuf, i32)>,
 ) -> Result<Vec<RecipeRow>, String> {
+    let mut choices = HashMap::new();
+    if table_exists(conn, "recipe_material_choices") {
+        let mut stmt = conn.prepare(
+            "SELECT recipe_id, choice_count, item_code, qty FROM recipe_material_choices ORDER BY recipe_id, item_code",
+        ).map_err(|err| err.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        }).map_err(|err| err.to_string())?;
+        for row in rows {
+            let (id, choose_count, code, qty) = row.map_err(|err| err.to_string())?;
+            choices.entry(id).or_insert_with(|| RecipeMaterialChoice { choose_count, options: Vec::new() })
+                .options.push((code, qty));
+        }
+    }
     let mut stmt = conn
         .prepare(
             "SELECT r.id, r.source, r.result_item, i.name_ko, i.name_gts, r.level_min
@@ -73,6 +88,7 @@ pub(in crate::db) fn load_recipes(
             names: haystack(&[&ko, &en, &zh]),
             id,
             source,
+            material_choice: choices.remove(&id),
             result_str: result.to_string(),
             ko,
             en,
@@ -82,6 +98,37 @@ pub(in crate::db) fn load_recipes(
         });
     }
     Ok(recipes)
+}
+
+impl Index {
+    pub(in crate::db) fn material_choice(&self, id: i64) -> Option<&RecipeMaterialChoice> {
+        let index = self.recipes.binary_search_by_key(&id, |recipe| recipe.id).ok()?;
+        self.recipes[index].material_choice.as_ref()
+    }
+
+    fn choice_names(&self, choice: &RecipeMaterialChoice, lang: &str) -> String {
+        let separator = if primary_lang(lang) == "zh" { "、" } else { ", " };
+        choice.options.iter().filter_map(|(code, _)| self.find_item(*code))
+            .map(|item| lead3(lang, &item.en, &item.zh, &item.ko))
+            .collect::<Vec<_>>().join(separator)
+    }
+}
+
+impl RecipeMaterialChoice {
+    pub(in crate::db) fn rule(&self, lang: &str) -> String {
+        let rule = chrome_text(lang, "{total} 款幻獸武器任選 {count} 款", "Choose any {count} of the {total} fey weapons")
+            .replace("{total}", &self.options.len().to_string()).replace("{count}", &self.choose_count.to_string());
+        if let Some((_, qty)) = self.options.first().filter(|(_, qty)| self.options.iter().all(|(_, n)| n == qty)) {
+            let each = chrome_text(lang, "，各 {qty} 件", ", {qty} of each").replace("{qty}", &commas(*qty));
+            format!("{rule}{each}")
+        } else {
+            rule
+        }
+    }
+}
+
+fn recipe_fee_text(fee: i64, lang: &str) -> String {
+    if fee < 0 { chrome_text(lang, "未記錄", "Not recorded") } else { commas(fee) }
 }
 
 impl Catalog {
@@ -100,27 +147,35 @@ impl Catalog {
     }
 
     pub(in crate::db) fn recipes_using(&self, code: i64, lang: &str) -> Vec<Hit> {
-        let mut stmt = match self.conn.prepare(
-            "SELECT r.id, r.source, r.result_item, m.qty
-             FROM recipe_materials m
+        let candidates = if table_exists(&self.conn, "recipe_material_choices") {
+            "UNION ALL SELECT recipe_id, qty, 1 FROM recipe_material_choices WHERE item_code = ?1"
+        } else {
+            ""
+        };
+        let sql = format!(
+            "SELECT r.id, r.source, r.result_item, m.qty, m.is_choice
+             FROM (SELECT recipe_id, qty, 0 AS is_choice FROM recipe_materials WHERE item_code = ?1 {candidates}) m
              JOIN recipes r ON r.id = m.recipe_id
-             WHERE m.item_code = ?1
              ORDER BY r.id",
-        ) {
+        );
+        let mut stmt = match self.conn.prepare(&sql) {
             Ok(stmt) => stmt,
             Err(_) => return Vec::new(),
         };
         stmt.query_map([code], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?))
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?, row.get::<_, bool>(4)?))
         })
         .map(|rows| rows.filter_map(Result::ok).collect::<Vec<_>>())
         .unwrap_or_default()
         .into_iter()
-        .map(|(id, source, result, qty)| {
+        .map(|(id, source, result, qty, is_choice)| {
             let (title, alternate) = self.related_item_names(result, lang);
+            let detail = if is_choice {
+                self.index.material_choice(id).map(|group| group.rule(lang)).unwrap_or_default()
+            } else { format!("× {}", commas(qty)) };
             Hit {
                 title,
-                subtitle: caption(&alternate, caption(&label(&source, lang), format!("× {}", commas(qty)))),
+                subtitle: caption(&alternate, caption(&label(&source, lang), detail)),
                 key: format!("recipe:{id}"),
                 icon: self.item_icon(result),
                 solo: false,
@@ -158,7 +213,7 @@ impl Catalog {
             phrase("qty", lang),
             commas(qty),
             phrase("fee", lang),
-            commas(fee)
+            recipe_fee_text(fee, lang)
         );
         if let Some(learn) = learn.filter(|value| *value > 0) {
             text.push_str(&format!("\n{} {}", phrase("learn", lang), commas(learn)));
@@ -212,8 +267,11 @@ impl Catalog {
             (phrase("kind", lang), label(&source, lang)),
             (phrase("code", lang), result.to_string()),
             (phrase("qty", lang), commas(qty)),
-            (phrase("fee", lang), commas(fee)),
+            (phrase("fee", lang), recipe_fee_text(fee, lang)),
         ];
+        if let Some(group) = self.index.material_choice(id) {
+            lines.push((phrase("materials", lang), group.rule(lang)));
+        }
         if let Some(learn) = learn.filter(|value| *value > 0) {
             lines.push((phrase("learn", lang), commas(learn)));
         }
@@ -297,6 +355,9 @@ impl Catalog {
                 }
             }
         }
+        if let Some(group) = self.index.material_choice(recipe_id) {
+            out.push_str(&format!("{indent}{}\n{indent}  {}\n", group.rule(lang), self.index.choice_names(group, lang)));
+        }
         out
     }
 
@@ -305,7 +366,7 @@ impl Catalog {
             .conn
             .prepare("SELECT item_code, qty, enhance FROM recipe_materials WHERE recipe_id = ?1 ORDER BY slot")
             .expect("link materials");
-        stmt.query_map([recipe_id], |row| {
+        let mut hits: Vec<_> = stmt.query_map([recipe_id], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
         })
         .expect("link rows")
@@ -334,49 +395,68 @@ impl Catalog {
                     chip: String::new(),
             }
         })
-        .collect()
+        .collect();
+        if let Some(group) = self.index.material_choice(recipe_id) {
+            let option = chrome_text(lang, "可選武器", "Weapon option");
+            for &(code, qty) in &group.options {
+                let (title, alternate) = self.related_item_names(code, lang);
+                hits.push(Hit {
+                    title, subtitle: caption(&alternate, format!("{option} · × {}", commas(qty))),
+                    key: format!("item:{code}"), icon: self.item_icon(code), solo: false,
+                    aside: String::new(), badge: None, chip: String::new(),
+                });
+            }
+        }
+        hits
     }
 
     pub(in crate::db) fn recipes_for(&self, code: i64, lang: &str) -> Vec<Hit> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, source FROM recipes WHERE result_item = ?1")
+            .prepare("SELECT id, source, npc FROM recipes WHERE result_item = ?1")
             .expect("makers");
-        let rows: Vec<(i64, String)> = stmt
-            .query_map([code], |row| Ok((row.get(0)?, row.get(1)?)))
+        let rows: Vec<(i64, String, String)> = stmt
+            .query_map([code], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
             .expect("maker rows")
             .filter_map(Result::ok)
             .collect();
-        let mut best: HashMap<Vec<(i64, i64)>, (i64, String, usize)> = HashMap::new();
-        for (id, source) in rows {
+        let mut best = HashMap::new();
+        for (id, source, npc) in rows {
             let mut signature = self.recipe_signature(id);
             if signature.is_empty() {
                 signature.push((-id, 0));
             }
+            let signature = (signature, self.index.material_choice(id));
             let rank = pref_rank(&source);
             match best.get(&signature) {
-                Some((_, _, old)) if *old <= rank => {}
+                Some((_, _, _, old)) if *old <= rank => {}
                 _ => {
-                    best.insert(signature, (id, source, rank));
+                    best.insert(signature, (id, source, npc, rank));
                 }
             }
         }
-        let mut kept: Vec<(i64, String, usize)> = best.into_values().collect();
-        kept.sort_by_key(|(_, _, rank)| *rank);
+        let mut kept: Vec<_> = best.into_values().collect();
+        kept.sort_by_key(|(id, _, _, rank)| (*rank, *id));
         kept.into_iter()
             .take(12)
-            .map(|(id, source, _)| Hit {
-                title: label(&source, lang),
-                subtitle: {
-                    let materials = self.recipe_material_summary(id, lang);
-                    if materials.is_empty() { phrase("open-recipe", lang) } else { materials }
-                },
-                key: format!("recipe:{id}"),
-                icon: self.item_icon(code),
+            .map(|(id, source, npc, _)| {
+                let materials = self.recipe_material_summary(id, lang);
+                let (title, subtitle) = if let Some(group) = self.index.material_choice(id) {
+                    let npc = npc.parse::<i64>().ok().and_then(|code| self.index.npc(code))
+                        .map(|npc| super::npc::npc_names(lang, npc).0).unwrap_or_default();
+                    (group.rule(lang), caption(&npc, caption(&materials, self.index.choice_names(group, lang))))
+                } else {
+                    (label(&source, lang), if materials.is_empty() { phrase("open-recipe", lang) } else { materials })
+                };
+                Hit {
+                    title, subtitle,
+                    key: format!("recipe:{id}"),
+                    icon: self.item_icon(code),
                     solo: false,
                     aside: String::new(),
-                badge: None,
+                    badge: None,
                     chip: String::new(),
+                }
             })
             .collect()
     }

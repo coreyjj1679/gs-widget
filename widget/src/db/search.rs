@@ -840,7 +840,9 @@ impl Index {
         matched
             .into_iter()
             .map(|recipe| {
-                let meta = if source.is_empty() {
+                let meta = if let Some(group) = &recipe.material_choice {
+                    group.rule(lang)
+                } else if source.is_empty() {
                     label(&recipe.source, lang)
                 } else {
                     String::new()

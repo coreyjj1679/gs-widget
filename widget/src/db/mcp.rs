@@ -504,19 +504,27 @@ impl Catalog {
             .recipes
             .iter()
             .filter(|row| row.result_str == code_str)
-            .collect();
+            .collect::<Vec<_>>();
         let name = self.item_name(code, lang);
-        let mut result = page_map(rows, offset, limit, |row| {
+        let mut results = Vec::new();
+        for row in rows.iter().skip(offset).take(limit) {
             let document = self.calculator_document(book, row.id, lang);
-            let mut result = json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id,
-                "source": row.source, "name": name,
-                "calculable": document.is_ok(), "calculation_unavailable_reason": document.as_ref().err(),
-                "recipe": document.ok()});
-            self.mcp_attach_facility(&mut result, row.id, lang);
-            result
-        });
-        result["item_code"] = json!(code);
-        Ok(result)
+            let mut result = if row.material_choice.is_some() {
+                self.recorded_recipe_summary(row.id, lang)?
+            } else {
+                let mut result = json!({"key": format!("recipe:{}", row.id), "recipe_id": row.id,
+                    "source": row.source, "calculable": document.is_ok(),
+                    "calculation_unavailable_reason": document.as_ref().err()});
+                self.mcp_attach_facility(&mut result, row.id, lang);
+                result
+            };
+            result["name"] = json!(name);
+            result["recipe"] = json!(document.ok());
+            results.push(result);
+        }
+        let next = offset.saturating_add(results.len());
+        Ok(json!({"item_code": code, "results": results, "total": rows.len(), "offset": offset,
+            "next_offset": (next < rows.len()).then_some(next)}))
     }
 
     pub fn mcp_calculate(

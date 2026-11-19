@@ -328,6 +328,7 @@ fn catalog_indexes_validated_result_ids_in_catalog_order() {
         .into_iter()
         .map(|id| crate::db::rows::RecipeRow {
             id,
+            material_choice: None,
             source: if id == 4 { "reinforce" } else { "alchemy" }.into(),
             // Membership comes from the validated planner, not display metadata.
             result_str: "999".into(),

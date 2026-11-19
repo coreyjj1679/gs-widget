@@ -273,7 +273,17 @@ impl Catalog {
                     .get(&candidate.code)
                     .is_some_and(|ids| ids.contains(&recipe_id))
             })
-            .ok_or("找不到完整的合成配方 / No complete crafting recipe found")?;
+            .ok_or_else(|| {
+                let fee = self.conn.query_row("SELECT fee FROM recipes WHERE id = ?1", [recipe_id],
+                    |row| row.get::<_, i64>(0)).ok();
+                if fee.is_some_and(|fee| fee < 0) {
+                    "製作費未記錄，無法計算總成本 / Total cost is unknown because the crafting fee is unrecorded"
+                } else if self.index.material_choice(recipe_id).is_some() {
+                    "總成本視乎所選材料 / Cost depends on which materials are selected"
+                } else {
+                    "找不到完整的合成配方 / No complete crafting recipe found"
+                }
+            })?;
         let learn_fee = self
             .conn
             .query_row(
@@ -597,6 +607,7 @@ mod entry_tests {
             .into_iter()
             .map(|id| crate::db::rows::RecipeRow {
                 id,
+                material_choice: None,
                 source: if id == 1 { "\n" } else { "alchemy" }.into(),
                 result_str: "10".into(),
                 ko: String::new(),

@@ -80,9 +80,17 @@ pub(in crate::db) struct SetMagic {
     pub(in crate::db) note: String,
 }
 
+#[derive(Default, Eq, PartialEq, Hash)]
+pub(in crate::db) struct RecipeMaterialChoice {
+    pub(in crate::db) choose_count: i64,
+    /// Each distinct candidate item and the quantity needed when chosen.
+    pub(in crate::db) options: Vec<(i64, i64)>,
+}
+
 pub(in crate::db) struct RecipeRow {
     pub(in crate::db) id: i64,
     pub(in crate::db) source: String,
+    pub(in crate::db) material_choice: Option<RecipeMaterialChoice>,
     pub(in crate::db) result_str: String,
     pub(in crate::db) ko: String,
     pub(in crate::db) en: String,

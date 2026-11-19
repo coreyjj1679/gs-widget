@@ -12,6 +12,7 @@ pub(in crate::db) const SOURCE_LABEL: &[(&str, &str, &str, &str)] = &[
     ("blacksmith", "鐵匠", "Blacksmith", "대장"),
     ("jeweler", "細工", "Jeweler", "세공"),
     ("npc", "NPC製造", "NPC craft", "NPC제작"),
+    ("divine_weapon", "神獸武器合成", "Divine beast weapons", "신수 무기 제작"),
     ("facility", "製造所", "Crafting workshop", "제조소"),
     ("formation", "陣形", "Formation", "진형"),
     ("baekje", "百濟寶物", "Baekje", "백제보물"),

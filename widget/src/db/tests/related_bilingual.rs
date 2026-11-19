@@ -221,3 +221,47 @@ fn unstructured_quest_objectives_keep_full_selected_languages_outside_the_compac
         assert!(preview.objectives.ends_with(&expected));
     }
 }
+#[test]
+fn base_divine_weapons_show_one_recipe_with_a_choice_group_and_two_fixed_materials() {
+    let catalog = Catalog::open_for_mcp().unwrap();
+    for (lang, npc, rule, candidate, unknown) in [
+        ("zh", "操練師_幻", "4 款幻獸武器任選 3 款，各 1 件", "可選武器", "未記錄"),
+        ("en", "Trainer Hwan", "Choose any 3 of the 4 fey weapons, 1 of each", "Weapon option", "Not recorded"),
+        ("ko", "조련사_환", "환수 무기 4종 중 3종 선택, 각 1개", "선택 무기", "기록 없음"),
+    ] {
+        assert_eq!(catalog.section_records("craft:divine_weapon", lang).len(), 4);
+        for code in 3993..=3996 {
+            let recipes = catalog.recipes_for(code, lang);
+            assert_eq!(recipes.len(), 1);
+            let row = &recipes[0];
+            assert_eq!(row.title, rule);
+            assert!(row.subtitle.contains(npc));
+            assert_eq!(row.subtitle.matches("× 30").count(), 2);
+            let search = catalog.search("recipe", &code.to_string(), lang, "", "");
+            assert_eq!(search.iter().filter(|hit| hit.title == catalog.item_name(code, lang)).count(), 1);
+            assert!(search.iter().any(|hit| hit.key == row.key && hit.subtitle.contains(rule)));
+            let recipe = row.key.strip_prefix("recipe:").unwrap().parse().unwrap();
+            let (_, _, _, facts) = catalog.recipe_sheet(recipe, lang).unwrap();
+            assert!(facts.iter().any(|(_, value)| value == unknown));
+            assert!(facts.iter().any(|(_, value)| value == rule));
+            let (detail, links, _) = catalog.open_recipe(recipe, lang);
+            assert!(detail.contains(unknown) && detail.contains(rule));
+            assert_eq!(links.len(), 7); // Result, two required materials and four eligible weapons.
+            assert_eq!(links.iter().filter(|hit| hit.subtitle.contains("× 30")).count(), 2);
+            for weapon in 3433..=3436 {
+                let name = catalog.item_name(weapon, lang);
+                assert!(row.subtitle.contains(&name) && detail.contains(&name));
+                assert!(links.iter().any(|hit| hit.key == format!("item:{weapon}") && hit.subtitle.contains(candidate)));
+                let uses = catalog.recipes_using(weapon, lang);
+                assert_eq!(uses.iter().filter(|hit| hit.key == row.key && hit.subtitle.contains(rule)).count(), 1);
+            }
+        }
+        let kirin = catalog.recipes_for(3997, lang);
+        assert_eq!(kirin.len(), 1);
+        assert!(!kirin[0].title.contains(rule));
+        let basic = catalog.preferred_recipe(3995, None).unwrap();
+        let advanced = catalog.preferred_recipe(4692, None).unwrap();
+        assert!(catalog.recipe_material_hits(advanced, lang).iter().any(|hit| hit.key == format!("recipe:{basic}")));
+        assert!(catalog.material_tree(advanced, 3, &mut vec![advanced], lang).contains(rule));
+    }
+}

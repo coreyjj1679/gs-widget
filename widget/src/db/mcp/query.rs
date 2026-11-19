@@ -726,53 +726,113 @@ impl Catalog {
             .filter(|row| row.result_str == code.to_string())
             .map(|row| row.id)
             .collect();
-        let mut rows = Vec::new();
-        for id in ids.iter().take(limit) {
-            let mut row = self.conn.query_row(
-                "SELECT source, result_qty, fee, learn_fee, success_rate FROM recipes WHERE id=?1", [id],
-                |row| Ok(json!({"key": format!("recipe:{id}"), "recipe_id": id,
-                    "source": row.get::<_, String>(0)?, "output_quantity": row.get::<_, i64>(1)?,
-                    "fee": row.get::<_, i64>(2)?, "learn_fee": row.get::<_, Option<i64>>(3)?,
-                    "success_rate_percent": row.get::<_, Option<i64>>(4)?})),
-            ).map_err(|error| error.to_string())?;
-            let mut statement = self.conn.prepare("SELECT item_code, qty, enhance FROM recipe_materials WHERE recipe_id=?1 ORDER BY slot").map_err(|error| error.to_string())?;
-            let materials = statement
-                .query_map([id], |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, i64>(1)?,
-                        row.get::<_, i64>(2)?,
-                    ))
-                })
-                .map_err(|error| error.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|error| error.to_string())?;
-            row["materials"] = json!(materials
-                .iter()
-                .map(|(item, qty, enhance)| {
-                    let mut material = self.query_material(*item, *qty, lang);
-                    material["enhance"] = json!(enhance);
-                    material
-                })
-                .collect::<Vec<_>>());
-            self.mcp_attach_facility(&mut row, *id, lang);
-            if row["source"] == "reinforce" {
-                row["calculable"] = json!(false);
-                row["calculation_unavailable_reason"] = json!("Reinforcement output enhancement levels are not recorded; this is not a complete craftable recipe.");
-            } else {
-                row["calculation_status"] = json!("Use get_recipes to validate calculation support; this summary preserves raw recorded requirements.");
-            }
-            rows.push(row);
+        let rows = ids.iter().take(limit)
+            .map(|id| self.recorded_recipe_summary(*id, lang))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(json!({"results": rows, "total": ids.len(), "next_offset": if ids.len() > limit { Some(limit) } else { None }}))
+    }
+
+    pub(super) fn mcp_material_choice(&self, id: i64, lang: &str) -> Option<Value> {
+        let choice = self.index.material_choice(id)?;
+        let options: Vec<_> = choice.options.iter()
+            .map(|&(code, quantity)| self.query_material(code, quantity, lang))
+            .collect();
+        Some(json!({"choose_count": choice.choose_count, "distinct": true, "options": options}))
+    }
+
+    pub(super) fn recorded_recipe_summary(&self, id: i64, lang: &str) -> Result<Value, String> {
+        let mut row = self.conn.query_row(
+            "SELECT source, result_qty, fee, learn_fee, success_rate, npc FROM recipes WHERE id=?1", [id],
+            |record| {
+                let mut value = json!({"key": format!("recipe:{id}"), "recipe_id": id,
+                    "source": record.get::<_, String>(0)?, "output_quantity": record.get::<_, i64>(1)?,
+                    "fee": record.get::<_, Option<i64>>(2)?.filter(|fee| *fee >= 0),
+                    "learn_fee": record.get::<_, Option<i64>>(3)?, "success_rate_percent": record.get::<_, Option<i64>>(4)?});
+                if let Ok(code) = record.get::<_, String>(5)?.parse::<i64>() {
+                    value["npc_key"] = json!(format!("npc:{code}"));
+                }
+                Ok(value)
+            },
+        ).map_err(|error| error.to_string())?;
+        let mut statement = self.conn.prepare("SELECT item_code, qty, enhance FROM recipe_materials WHERE recipe_id=?1 ORDER BY slot").map_err(|error| error.to_string())?;
+        let materials = statement
+            .query_map([id], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        row["materials"] = json!(materials
+            .iter()
+            .map(|(item, qty, enhance)| {
+                let mut material = self.query_material(*item, *qty, lang);
+                material["enhance"] = json!(enhance);
+                material
+            })
+            .collect::<Vec<_>>());
+        if let Some(choice) = self.mcp_material_choice(id, lang) {
+            row["material_choice"] = choice;
         }
-        Ok(
-            json!({"results": rows, "total": ids.len(), "next_offset": if ids.len() > limit { Some(limit) } else { None }}),
-        )
+        self.mcp_attach_facility(&mut row, id, lang);
+        if row["source"] == "reinforce" {
+            row["calculable"] = json!(false);
+            row["calculation_unavailable_reason"] = json!("Reinforcement output enhancement levels are not recorded; this is not a complete craftable recipe.");
+        } else if row["fee"].is_null() {
+            row["calculable"] = json!(false);
+            row["calculation_unavailable_reason"] = json!("The crafting fee has not been recorded.");
+        } else if row.get("material_choice").is_some() {
+            row["calculable"] = json!(false);
+            row["calculation_unavailable_reason"] = json!("The cost depends on which materials are selected.");
+        } else {
+            row["calculation_status"] = json!("Use get_recipes to validate calculation support; this summary preserves raw recorded requirements.");
+        }
+        Ok(row)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vermillion_beak_lists_one_recipe_with_a_distinct_material_choice() {
+        let catalog = Catalog::open_for_mcp().unwrap();
+        let recipes = catalog.query_item_recipes(3995, "zh", 10).unwrap();
+        let book = catalog.calculator_catalog().unwrap();
+        let full = catalog.mcp_recipes(&book, 3995, "zh", 0, 10).unwrap();
+        for list in [&recipes, &full] {
+            assert_eq!(list["total"], 1);
+            let row = &list["results"][0];
+            assert_eq!(row["npc_key"], "npc:164");
+            assert_eq!(row["output_quantity"], 1);
+            assert_eq!(row["calculable"], false);
+            assert!(row.get("fee").unwrap().is_null());
+            let materials: BTreeMap<_, _> = row["materials"].as_array().unwrap().iter()
+                .map(|m| (m["item_code"].as_i64().unwrap(), m["quantity"].as_i64().unwrap())).collect();
+            assert_eq!(materials, BTreeMap::from([(3906, 30), (3916, 30)]));
+            let choice = &row["material_choice"];
+            assert_eq!(choice["choose_count"], 3);
+            assert_eq!(choice["distinct"], true);
+            let options: Vec<_> = choice["options"].as_array().unwrap().iter()
+                .map(|m| (m["item_code"].as_i64().unwrap(), m["quantity"].as_i64().unwrap())).collect();
+            assert_eq!(options, [(3433, 1), (3434, 1), (3435, 1), (3436, 1)]);
+        }
+        let id = recipes["results"][0]["recipe_id"].as_i64().unwrap();
+        let overview = catalog.mcp_entity_sections(&format!("recipe:{id}"), "zh", &["overview".into()]).unwrap();
+        assert_eq!(overview["material_choice"], full["results"][0]["material_choice"]);
+        assert_eq!(overview["materials"].as_array().unwrap().len(), 2);
+        let calculation = catalog.mcp_query_calculate(&book, "item:3995", None, 1, &[], "en", 10).unwrap();
+        assert_eq!(calculation["status"], "unavailable");
+        assert_eq!(calculation["next_call"]["arguments"]["item_code"], 3995);
+        let kirin = catalog.mcp_recipes(&book, 3997, "zh", 0, 10).unwrap();
+        assert_eq!(kirin["total"], 1);
+        assert_eq!(kirin["results"][0]["recipe"]["fee_per_batch"], 0);
+        assert!(kirin["results"][0].get("material_choice").is_none());
+    }
 
     #[test]
     fn monster_promotion_nationality_follows_the_incoming_recipe() {
