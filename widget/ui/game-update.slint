@@ -1,0 +1,776 @@
+import { CheckBox, ComboBox, LineEdit, ScrollView } from "std-widgets.slint";
+import { DesktopIcon, DesktopTheme } from "desktop.slint";
+import { UiLanguage } from "language.slint";
+
+export struct GameUpdateField {
+    label: string, before: string, after: string,
+}
+
+export struct GameUpdateDrop {
+    title: string, rate: string, previous-rate: string, kind: string,
+    route: string, icon: image, has-icon: bool,
+}
+
+export struct GameUpdateRow {
+    route-key: string,
+    name-changes: [GameUpdateField], rename-label: string, name-note: string,
+    location: string, drops: [GameUpdateDrop],
+    category-id: string,
+    icon: image,
+    has-icon: bool,
+    fields: [GameUpdateField],
+    category: string,
+    kind: string,
+    title: string,
+    subtitle: string,
+    detail: string,
+    status: string,
+}
+
+export struct GameUpdateFeedRow {
+    section: bool, region: bool, expanded: bool,
+    id: string, title: string, count: int, record: GameUpdateRow,
+}
+
+// Geometry stays separate from lazy record and artwork lookups.
+export struct GameUpdateLine {
+    start: int, count: int, top: int, height: int, role: string,
+}
+
+export component GameUpdateLink inherits Rectangle {
+    in property <string> version;
+    callback clicked();
+    height: 24px;
+    width: label.preferred-width + 16px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    background: tap.has-hover ? DesktopTheme.hover : transparent;
+    accessible-role: button;
+    accessible-label: label.text;
+    accessible-action-default => { root.clicked(); }
+    label := Text {
+        text: root.version + " · " + UiLanguage.tr("Update contents", "更新內容");
+        horizontal-alignment: center; vertical-alignment: center;
+        color: DesktopTheme.accent; font-size: 11px;
+    }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+component UpdateArt inherits Rectangle {
+    in property <string> category-id;
+    in property <image> art;
+    in property <bool> has-art;
+    clip: true;
+    property <bool> has-static: category-id == "items" || category-id == "places"
+        || category-id == "quests" || category-id == "recipes" || category-id == "production";
+    if root.has-art || root.has-static: Image {
+        x: 0px; y: 0px; width: parent.width; height: parent.height;
+        image-fit: contain;
+        source: root.has-art ? root.art : root.category-id == "items" ? @image-url("icons/item.png")
+            : root.category-id == "places" ? @image-url("icons/npc.png")
+            : root.category-id == "quests" ? @image-url("icons/quest.png")
+            : root.category-id == "recipes" ? @image-url("icons/recipe.png") : @image-url("icons/works.png");
+    }
+    if !root.has-art && !root.has-static: DesktopIcon {
+        width: parent.width * 0.8; height: parent.height * 0.8; ink: DesktopTheme.accent;
+        path: root.category-id == "strings" ? "M3 4 L11 4 L13 6 L15 4 L21 4 L21 19 L15 19 L13 21 L11 19 L3 19 Z M13 6 L13 21 M5 8 L10 8 M5 11 L10 11 M16 8 L19 8 M16 11 L19 11"
+            : root.category-id == "monsters" ? "M5 8 L4 3 L9 6 L15 6 L20 3 L19 8 L19 15 L15 20 L9 20 L5 15 Z M8 11 L10 11 M14 11 L16 11 M9 16 L15 16"
+            : root.category-id == "enchant" ? "M12 2 L14 9 L21 12 L14 15 L12 22 L10 15 L3 12 L10 9 Z M18 3 L21 6 M3 18 L6 21"
+            : root.category-id == "patches" ? "M6 3 L18 3 L18 21 L6 21 Z M9 8 L15 8 M9 12 L15 12 M9 16 L13 16"
+            : "M3 7 L12 3 L21 7 L21 17 L12 21 L3 17 Z M3 7 L12 11 L21 7 M12 11 L12 21";
+    }
+}
+
+component FieldCell inherits Text {
+    in property <bool> unfolded;
+    in property <bool> heading;
+    y: 4px;
+    height: self.unfolded ? self.preferred-height : 18px;
+    font-size: self.heading ? 11px : 12px;
+    font-weight: self.heading ? 600 : 400;
+    wrap: self.unfolded ? word-wrap : no-wrap;
+    overflow: self.unfolded ? clip : elide;
+    vertical-alignment: top;
+}
+
+component FieldLine inherits Rectangle {
+    in property <GameUpdateField> field;
+    in property <bool> comparison;
+    in property <bool> heading;
+    in property <bool> removed;
+    callback dismiss(); callback toggle();
+    in property <bool> unfolded;
+    property <length> label-w: min(160px, self.width * 0.30);
+    property <length> value-w: max(12px, self.width - self.label-w - 33px);
+    property <length> old-w: self.comparison ? (self.value-w - 6px) / 2 : 0px;
+    property <bool> truncated: !self.heading && (field-measure.preferred-width > label.width
+        || (self.comparison && old-measure.preferred-width > old.width) || new-measure.preferred-width > new.width
+        || field-measure.preferred-height > 18px || (self.comparison && old-measure.preferred-height > 18px) || new-measure.preferred-height > 18px);
+    height: max(26px, 8px + max(label.height, new.height, root.comparison ? old.height : 0px));
+    background: self.heading ? DesktopTheme.surface : touch.has-hover && self.truncated ? DesktopTheme.hover : transparent;
+    label := FieldCell {
+        x: 6px; width: root.label-w;
+        text: root.field.label; heading: root.heading; unfolded: root.unfolded;
+        color: root.heading ? DesktopTheme.secondary : DesktopTheme.soft;
+    }
+    old := FieldCell {
+        x: label.x + label.width + 6px; width: root.old-w; visible: root.comparison;
+        text: root.field.before; heading: root.heading; unfolded: root.unfolded; color: DesktopTheme.secondary;
+    }
+    new := FieldCell {
+        x: old.x + (root.comparison ? old.width + 6px : 0px); width: root.value-w - (root.comparison ? old.width + 6px : 0px);
+        text: root.removed ? root.field.before : root.field.after; heading: root.heading; unfolded: root.unfolded;
+        color: root.heading ? DesktopTheme.secondary : DesktopTheme.text;
+    }
+    field-measure := Text { visible: false; text: label.text; font-size: label.font-size; }
+    old-measure := Text { visible: false; text: old.text; font-size: old.font-size; }
+    new-measure := Text { visible: false; text: new.text; font-size: new.font-size; }
+    Rectangle { x: 5px; width: parent.width - 10px; y: parent.height - 1px; height: 1px; background: DesktopTheme.border; }
+    if root.truncated || root.heading: DesktopIcon {
+        x: parent.width - 15px; y: 7px; width: 11px; height: 11px; ink: DesktopTheme.secondary;
+        path: root.unfolded || root.heading ? "M4 15 L12 7 L20 15" : "M4 9 L12 17 L20 9";
+    }
+    focus := FocusScope {
+        enabled: root.heading || root.truncated; focus-on-click: false;
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == Key.Space) { root.activate(); return accept; }
+            return reject;
+        }
+    }
+    function activate() {
+        if (root.heading) { root.dismiss(); }
+        else if (root.truncated) { root.toggle(); }
+    }
+    if focus.has-focus: Rectangle { border-width: 1px; border-color: DesktopTheme.accent; background: transparent; }
+    touch := TouchArea { enabled: root.heading || root.truncated; mouse-cursor: pointer; clicked => { focus.focus(); root.activate(); } }
+    accessible-role: button; accessible-enabled: root.heading || root.truncated;
+    accessible-label: root.field.label;
+    accessible-description: root.heading ? UiLanguage.tr("Collapse", "收合")
+        : (root.comparison ? old.text + " → " : "") + new.text;
+    accessible-expandable: root.truncated || root.heading;
+    accessible-expanded: root.heading || root.unfolded;
+    accessible-action-default => { root.activate(); }
+}
+
+component RecordChanges inherits Rectangle {
+    in property <GameUpdateRow> record;
+    callback dismiss();
+    in property <bool> all-fields;
+    callback show-all(bool);
+    callback expand-value(int);
+    in property <int> unfolded-index: -1;
+    property <bool> comparison: root.record.kind != "added" && root.record.kind != "removed";
+    property <bool> removed: root.record.kind == "removed";
+    background: DesktopTheme.detail; border-radius: 3px; clip: true;
+    body := ScrollView {
+        width: parent.width; height: parent.height; horizontal-scrollbar-policy: always-off;
+        content-width: self.visible-width; content-height: table.preferred-height;
+        table := VerticalLayout {
+            width: body.visible-width; height: self.preferred-height; spacing: 0px; alignment: start;
+            FieldLine {
+                heading: true;
+                field: { label: UiLanguage.tr("Field", "欄位"), before: UiLanguage.tr("Before update", "更新前"), after: UiLanguage.tr("After update", "更新後") };
+                comparison: root.comparison; removed: root.removed;
+                dismiss => { root.dismiss(); }
+            }
+            if root.record.name-note != "": Text {
+                text: root.record.name-note; font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap;
+            }
+            for i in root.all-fields || root.record.fields.length <= 8 ? root.record.fields.length : 6: FieldLine {
+                field: root.record.fields[i]; comparison: root.comparison; removed: root.removed;
+                unfolded: root.unfolded-index == i;
+                toggle => {
+                    root.expand-value(root.unfolded-index == i ? -1 : i);
+                }
+            }
+            if root.record.fields.length > 8: Rectangle {
+                height: 28px; background: more-touch.has-hover || more-focus.has-focus ? DesktopTheme.hover : transparent;
+                accessible-role: button; accessible-label: more-label.text;
+                accessible-action-default => { root.expand-value(-1); root.show-all(!root.all-fields); }
+                more-label := Text {
+                    x: 6px; y: 0px; height: 100%; vertical-alignment: center; font-size: 12px; color: DesktopTheme.accent;
+                    text: root.all-fields ? UiLanguage.tr("Show fewer fields", "收起其餘欄位")
+                        : UiLanguage.tr("More fields", "其餘欄位") + " (" + (root.record.fields.length - 6) + ")";
+                }
+                more-focus := FocusScope {
+                    key-pressed(e) => {
+                        if (e.text == Key.Return || e.text == Key.Space) { root.expand-value(-1); root.show-all(!root.all-fields); return accept; }
+                        return reject;
+                    }
+                }
+                more-touch := TouchArea { mouse-cursor: pointer; clicked => { more-focus.focus(); root.expand-value(-1); root.show-all(!root.all-fields); } }
+            }
+            if root.record.fields.length == 0 && root.record.detail != "": Text {
+                text: root.record.detail; wrap: word-wrap; color: DesktopTheme.text; font-size: 12px;
+            }
+        }
+    }
+}
+
+component FullRowLabel inherits Rectangle {
+    in property <string> value;
+    width: 280px; height: tip.preferred-height + 14px;
+    background: DesktopTheme.raised; border-radius: 5px;
+    tip := Text {
+        x: 9px; y: 7px; width: 262px; text: root.value; wrap: word-wrap;
+        color: DesktopTheme.text; font-size: 12px;
+    }
+}
+
+component RowAction inherits Rectangle {
+    in property <string> label;
+    in property <string> target-name;
+    in property <bool> caption;
+    in property <bool> disclosure;
+    in property <bool> expanded;
+    callback activated();
+    width: root.caption ? link-caption.preferred-width + 29px : 30px;
+    height: 30px; border-radius: 4px; border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : transparent;
+    background: tap.has-hover ? DesktopTheme.hover-strong : transparent;
+    accessible-role: button; accessible-label: root.label; accessible-description: root.target-name;
+    accessible-action-default => { root.activated(); }
+    forward-focus: focus;
+    link-caption := Text {
+        x: 6px; y: 0px; height: 100%; visible: root.caption; text: root.label;
+        font-size: 12px; color: DesktopTheme.accent; vertical-alignment: center;
+    }
+    DesktopIcon {
+        x: parent.width - 21px; y: 7px; width: 16px; height: 16px;
+        ink: root.disclosure ? DesktopTheme.secondary : DesktopTheme.accent;
+        path: root.disclosure ? (root.expanded ? "M5 15 L12 8 L19 15" : "M5 9 L12 16 L19 9")
+            : "M5 17 L18 4 M8 4 L18 4 L18 14";
+    }
+    focus := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == Key.Space) { root.activated(); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea { mouse-cursor: pointer; clicked => { focus.focus(); root.activated(); } }
+}
+
+component FeedHeader inherits Rectangle {
+    in property <GameUpdateFeedRow> entry;
+    in property <string> role;
+    in property <bool> focused;
+    callback activated();
+    callback open(string);
+    property <bool> top-level: root.role == "section";
+    property <bool> monster: root.role == "monster";
+    property <length> inset: root.top-level ? 10px : 17px;
+    border-radius: 4px; border-width: 1px;
+    border-color: root.focused ? DesktopTheme.accent : transparent;
+    background: head-tap.has-hover ? DesktopTheme.hover : root.top-level ? DesktopTheme.surface : transparent;
+    header-body := Rectangle {
+        width: root.entry.record.route-key == "" ? parent.width : parent.width - (root.width >= 420px ? 70px : 36px); height: 100%;
+        accessible-role: button; accessible-label: root.entry.title;
+        accessible-description: root.entry.count + " · " + root.entry.record.location;
+        accessible-expandable: true; accessible-expanded: root.entry.expanded;
+        accessible-action-default => { root.activated(); }
+        HorizontalLayout {
+            padding-left: root.inset; padding-right: 8px; spacing: 8px; cross-axis-alignment: center;
+            DesktopIcon {
+                width: 13px; height: 13px;
+                ink: root.top-level ? DesktopTheme.accent : DesktopTheme.muted;
+                path: root.entry.expanded ? "M4 8 L12 16 L20 8" : "M8 4 L16 12 L8 20";
+            }
+            if root.top-level || root.monster: UpdateArt {
+                width: root.monster ? 35px : 23px; height: self.width;
+                category-id: root.entry.record.category-id; art: root.entry.record.icon; has-art: root.entry.record.has-icon;
+            }
+            if root.role == "region": DesktopIcon {
+                width: 15px; height: 15px; ink: DesktopTheme.muted;
+                path: "M12 22 C10 18 4 13 4 9 C4 4 8 2 12 2 C16 2 20 4 20 9 C20 13 14 18 12 22 Z M9 9 A3 3 0 1 0 15 9 A3 3 0 1 0 9 9";
+            }
+            VerticalLayout {
+                min-width: 0px; horizontal-stretch: 1; alignment: center; spacing: 2px;
+                Text {
+                    text: root.entry.title; font-size: root.top-level ? 15px : 13px;
+                    color: root.top-level || root.monster ? DesktopTheme.text : DesktopTheme.soft;
+                    font-weight: 600; overflow: elide;
+                }
+                if root.monster && root.entry.record.location != "": Text {
+                    text: root.entry.record.location; font-size: 12px; color: DesktopTheme.secondary; overflow: elide;
+                }
+            }
+            Text { text: root.entry.count; color: root.top-level ? DesktopTheme.accent : DesktopTheme.secondary; font-size: 12px; }
+        }
+        head-tap := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+        Tooltip { FullRowLabel { value: root.entry.title + (root.entry.record.location == "" ? "" : "\n" + root.entry.record.location); } }
+    }
+    if root.entry.record.route-key != "": RowAction {
+        x: parent.width - self.width - 3px; y: (parent.height - self.height) / 2;
+        caption: root.width >= 420px; label: UiLanguage.tr("Catalog", "圖鑑"); target-name: root.entry.title;
+        activated => { root.open(root.entry.record.route-key); }
+    }
+}
+
+component FeedRecord inherits Rectangle {
+    in property <GameUpdateRow> record;
+    in property <bool> selected;
+    in property <bool> focused;
+    callback activated();
+    callback open(string);
+    in property <bool> monster;
+    in property <string> drop-preview;
+    property <bool> rename: root.record.name-changes.length > 0;
+    property <bool> narrow: root.width < 500px;
+    property <bool> has-route: root.record.route-key != "";
+    border-radius: 3px; border-width: root.focused ? 1px : 0px;
+    border-color: DesktopTheme.accent;
+    background: root.selected ? DesktopTheme.selected : tap.has-hover ? DesktopTheme.hover : transparent;
+    Rectangle { x: 10px; y: parent.height - 1px; width: parent.width - 16px; height: 1px; background: DesktopTheme.border; }
+    row-body := Rectangle {
+        x: 0px; width: root.has-route || root.rename ? parent.width - (root.narrow ? 35px : 76px) : parent.width; height: 100%;
+        accessible-role: button; accessible-label: root.record.title; accessible-expandable: true; accessible-expanded: root.selected;
+        accessible-description: root.record.status + " · " + root.record.subtitle;
+        accessible-action-default => { root.activated(); }
+        DesktopIcon {
+            x: 9px; y: (parent.height - self.height) / 2; width: 12px; height: 12px; ink: DesktopTheme.muted;
+            path: root.selected ? "M4 8 L12 16 L20 8" : "M8 4 L16 12 L8 20";
+        }
+        UpdateArt {
+            x: 27px; y: (parent.height - self.height) / 2; width: root.width < 330px ? 25px : 32px; height: self.width;
+            art: root.record.icon; has-art: root.record.has-icon; category-id: root.record.category-id;
+        }
+        content := Rectangle {
+            x: root.width < 330px ? 57px : 69px; width: max(1px, parent.width - self.x - 5px); height: parent.height;
+            if !root.rename: VerticalLayout {
+                alignment: center; spacing: 2px;
+                Text { text: root.record.title; color: DesktopTheme.text; font-size: 14px; font-weight: 600; overflow: elide; }
+                Text {
+                    text: root.drop-preview != "" ? root.drop-preview : root.record.status + (root.monster && root.record.location != "" ? " · " + root.record.location : root.record.subtitle != "" ? " · " + root.record.subtitle : "");
+                    color: DesktopTheme.secondary; font-size: 12px; overflow: elide;
+                }
+            }
+            if root.rename: VerticalLayout {
+                padding-top: 4px; padding-bottom: 4px; spacing: 2px; alignment: center;
+                HorizontalLayout {
+                    height: 17px; spacing: 6px; cross-axis-alignment: center;
+                    Text {
+                        text: root.record.rename-label != "" ? root.record.rename-label : root.record.status;
+                        font-size: 11px; font-weight: 600; color: #afcff0;
+                    }
+                    Text {
+                        min-width: 0px; horizontal-stretch: 1; overflow: elide;
+                        text: root.record.title; font-size: 11px; color: DesktopTheme.secondary;
+                    }
+                }
+                // Explicit columns keep the old name, arrow and new name aligned
+                // across records regardless of text length and link availability.
+                for change in root.record.name-changes: comparison-row := Rectangle {
+                    height: root.narrow ? 35px : 22px; max-width: 770px;
+                    property <length> lang-w: root.narrow ? 33px : 55px;
+                    property <length> arrow-x: root.narrow ? self.lang-w + 3px
+                        : self.lang-w + (self.width - self.lang-w) * 0.49;
+                    Text { x: 0px; width: comparison-row.lang-w - 3px; height: 100%; text: change.label; vertical-alignment: center; font-size: 11px; color: DesktopTheme.secondary; overflow: elide; }
+                    Text {
+                        x: comparison-row.lang-w; y: 0px;
+                        width: root.narrow ? parent.width - self.x : comparison-row.arrow-x - self.x - 6px;
+                        height: root.narrow ? 16px : parent.height; text: change.before; vertical-alignment: center;
+                        font-size: root.narrow ? 12px : 14px; color: DesktopTheme.secondary; overflow: elide;
+                    }
+                    DesktopIcon {
+                        x: comparison-row.arrow-x; y: root.narrow ? 19px : 4px; width: 14px; height: 14px;
+                        ink: DesktopTheme.muted; path: "M3 12 L21 12 M15 6 L21 12 L15 18";
+                    }
+                    Text {
+                        x: comparison-row.arrow-x + 18px; y: root.narrow ? 17px : 0px;
+                        width: parent.width - self.x; height: root.narrow ? 18px : parent.height;
+                        text: change.after; vertical-alignment: center; font-size: root.narrow ? 13px : 14px;
+                        color: DesktopTheme.text; font-weight: 600; overflow: elide;
+                    }
+                }
+            }
+        }
+        tap := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+        Tooltip { FullRowLabel { value: root.record.title + "\n" + root.record.subtitle; } }
+    }
+    if root.has-route: RowAction {
+        x: parent.width - self.width - 3px; y: (parent.height - self.height) / 2;
+        label: UiLanguage.tr("Catalog", "圖鑑"); caption: !root.narrow; target-name: root.record.title;
+        activated => { root.open(root.record.route-key); }
+    }
+}
+
+component LootSlot inherits Rectangle {
+    in property <GameUpdateDrop> drop;
+    callback open(string);
+    callback inspect(bool);
+    property <bool> inspecting: focus.has-focus || tap.has-hover;
+    changed inspecting => { root.inspect(root.inspecting); }
+    height: 50px;
+    border-width: focus.has-focus ? 1px : 0px; border-radius: 3px; border-color: DesktopTheme.accent;
+    background: tap.has-hover && root.drop.route != "" ? DesktopTheme.hover-strong : transparent;
+    accessible-role: button; accessible-enabled: root.drop.route != "";
+    accessible-label: root.drop.title; accessible-description: root.drop.rate;
+    accessible-action-default => { if (root.drop.route != "") { root.open(root.drop.route); } }
+    forward-focus: focus;
+    UpdateArt { x: 3px; y: 3px; width: 25px; height: 25px; art: root.drop.icon; has-art: root.drop.has-icon; category-id: "items"; }
+    Text {
+        x: 30px; y: 3px; width: parent.width - self.x - 2px; height: 25px;
+        text: root.drop.rate; vertical-alignment: center; color: DesktopTheme.soft; font-size: 11px;
+    }
+    Text { x: 3px; y: 31px; width: parent.width - 6px; height: 16px; text: root.drop.title; color: DesktopTheme.secondary; font-size: 11px; overflow: elide; }
+    focus := FocusScope {
+        enabled: root.drop.route != "";
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == Key.Space) { root.open(root.drop.route); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea { enabled: root.drop.route != ""; mouse-cursor: pointer; clicked => { focus.focus(); root.open(root.drop.route); } }
+    Tooltip { FullRowLabel { value: root.drop.title + " · " + root.drop.rate; } }
+}
+
+component LootPager inherits Rectangle {
+    in property <bool> next;
+    in property <bool> active;
+    callback step();
+    width: 23px; height: 43px; border-radius: 4px;
+    border-width: focus.has-focus ? 1px : 0px; border-color: DesktopTheme.accent;
+    background: tap.has-hover && root.active ? DesktopTheme.hover : transparent;
+    accessible-role: button; accessible-enabled: root.active;
+    accessible-label: root.next ? UiLanguage.tr("Next drops", "下一組掉落物") : UiLanguage.tr("Previous drops", "上一組掉落物");
+    accessible-action-default => { if (root.active) { root.step(); } }
+    forward-focus: focus;
+    DesktopIcon {
+        x: 5px; y: 13px; width: 13px; height: 15px; ink: root.active ? DesktopTheme.accent : DesktopTheme.border;
+        path: root.next ? "M8 4 L16 12 L8 20" : "M16 4 L8 12 L16 20";
+    }
+    focus := FocusScope {
+        enabled: root.active;
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == Key.Space) { root.step(); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea { enabled: root.active; mouse-cursor: pointer; clicked => { focus.focus(); root.step(); } }
+}
+
+component MonsterLoot inherits Rectangle {
+    in property <[GameUpdateDrop]> drops;
+    callback open(string);
+    property <int> page: 0;
+    property <bool> paged: root.drops.length * 76px > root.width;
+    property <length> controls: root.paged ? 46px : 0px;
+    property <int> capacity: max(1, min(root.drops.length, floor((root.width - root.controls) / 76px)));
+    property <int> pages: ceil(root.drops.length / root.capacity);
+    property <int> start: min(root.page, max(0, root.pages - 1)) * root.capacity;
+    property <length> cell-width: min(112px, (root.width - root.controls) / root.capacity);
+    in property <string> record-id;
+    property <int> inspected: -1;
+    out property <string> inspected-text: root.inspected >= root.start && root.inspected < min(root.drops.length, root.start + root.capacity) ? root.drops[root.inspected].title + " · " + root.drops[root.inspected].rate : "";
+    changed record-id => { root.page = 0; root.inspected = -1; }
+    changed capacity => { root.page = min(root.page, max(0, root.pages - 1)); }
+    changed page => { root.inspected = -1; }
+    if root.paged: LootPager { x: 0px; active: root.start > 0; step => { root.page = max(0, root.page - 1); } }
+    for slot in min(root.capacity, root.drops.length - root.start): LootSlot {
+        x: root.controls / 2 + slot * root.cell-width; width: root.cell-width;
+        drop: root.drops[root.start + slot]; open(key) => { root.open(key); }
+        inspect(on) => {
+            if (on) { root.inspected = root.start + slot; }
+            else if (root.inspected == root.start + slot) { root.inspected = -1; }
+        }
+    }
+    if root.paged: LootPager { x: parent.width - self.width; next: true; active: root.page < root.pages - 1; step => { root.page = min(root.page + 1, root.pages - 1); } }
+}
+
+component DropLine inherits Rectangle {
+    in property <GameUpdateDrop> drop;
+    in property <bool> focused;
+    callback open(string);
+    property <bool> linked: root.drop.route != "";
+    background: tap.has-hover && root.linked ? DesktopTheme.hover : transparent;
+    border-width: focus.has-focus || root.focused ? 1px : 0px; border-radius: 3px; border-color: DesktopTheme.accent;
+    accessible-role: button; accessible-enabled: root.linked;
+    accessible-label: root.drop.title; accessible-description: rate.text;
+    accessible-action-default => { if (root.linked) { root.open(root.drop.route); } }
+    forward-focus: focus;
+    UpdateArt { x: 29px; y: (parent.height - 27px) / 2; width: 27px; height: 27px; category-id: "items"; art: root.drop.icon; has-art: root.drop.has-icon; }
+    VerticalLayout {
+        x: 65px; width: max(1px, parent.width - self.x - (root.linked ? 25px : 8px)); height: 100%; alignment: center; spacing: 2px;
+        Text { text: root.drop.title; font-size: 14px; color: root.linked ? DesktopTheme.text : DesktopTheme.secondary; font-weight: 600; overflow: elide; }
+        rate := Text {
+            text: (root.drop.kind == "removed" ? UiLanguage.tr("Removed", "移除") : root.drop.kind == "added" ? UiLanguage.tr("Added", "新增") : UiLanguage.tr("Drop rate", "掉落率"))
+                + " · " + (root.drop.previous-rate != "" && root.drop.rate != "" && root.drop.previous-rate != root.drop.rate
+                    ? root.drop.previous-rate + " → " + root.drop.rate : root.drop.rate != "" ? root.drop.rate : root.drop.previous-rate);
+            font-size: 12px; color: root.drop.kind == "removed" ? #ecc0c4 : root.drop.kind == "added" ? #b1dbba : DesktopTheme.secondary; overflow: elide;
+        }
+    }
+    if root.linked: DesktopIcon { x: parent.width - 19px; y: (parent.height - 14px) / 2; width: 14px; height: 14px; ink: DesktopTheme.accent; path: "M5 17 L18 4 M8 4 L18 4 L18 14"; }
+    Rectangle { x: 29px; y: parent.height - 1px; width: parent.width - 32px; height: 1px; background: DesktopTheme.border; }
+    focus := FocusScope {
+        enabled: root.linked;
+        key-pressed(e) => {
+            if (e.text == Key.Return || e.text == Key.Space) { root.open(root.drop.route); return accept; }
+            return reject;
+        }
+    }
+    tap := TouchArea { enabled: root.linked; mouse-cursor: pointer; clicked => { focus.focus(); root.open(root.drop.route); } }
+    Tooltip { FullRowLabel { value: root.drop.title + "\n" + rate.text; } }
+}
+
+component VersionValue inherits Rectangle {
+    in property <string> value;
+    height: 28px; min-width: 0px;
+    border-width: 1px; border-color: DesktopTheme.border; border-radius: 4px; background: DesktopTheme.surface;
+    Text { x: 8px; width: parent.width - 16px; height: 100%; text: root.value; vertical-alignment: center; font-size: 13px; color: DesktopTheme.text; overflow: elide; }
+}
+
+export component GameUpdatePane inherits FocusScope {
+    in property <[GameUpdateFeedRow]> feed;
+    in property <[GameUpdateLine]> lines;
+    in property <[string]> from-versions;
+    in property <[string]> to-versions;
+    in property <int> from-index;
+    in property <int> to-index;
+    in-out property <bool> extras;
+    in-out property <string> query;
+    in property <string> summary;
+    in property <int> search-focus-request;
+    in property <int> back-request;
+    in property <bool> compact;
+    callback select-versions(int, int);
+    callback set-extras(bool);
+    callback search(string);
+    callback toggle(string);
+    callback open(string);
+    pure callback line-at-y(int) -> int;
+    callback leave();
+    min-width: 0px; min-height: 0px; focus-on-tab-navigation: false;
+
+    property <int> cursor-line: 0;
+    property <int> detail-line: -1;
+    property <int> detail-index: -1;
+    property <string> detail-id;
+    property <bool> all-fields;
+    property <int> expanded-field: -1;
+    property <int> field-count: root.detail-index >= 0 && root.detail-index < root.feed.length ? root.feed[root.detail-index].record.fields.length : 0;
+    property <int> shown-fields: root.all-fields || root.field-count <= 8 ? root.field-count : 6;
+    note-sizer := Text {
+        visible: false; width: max(1px, scroll.visible-width - 24px); font-size: 12px; wrap: word-wrap;
+        text: root.detail-index >= 0 && root.detail-index < root.feed.length ? root.feed[root.detail-index].record.name-note : "";
+    }
+    property <length> detail-limit: max(44px, scroll.visible-height - 6px);
+    property <length> detail-height: root.expanded-field >= 0 || root.field-count == 0 ? root.detail-limit
+        : min(root.detail-limit, 6px + (1 + root.shown-fields) * 26px
+            + (root.field-count > 8 ? 28px : 0px) + (note-sizer.text != "" ? note-sizer.preferred-height : 0px));
+    property <length> detail-end: root.detail-line < 0 || root.detail-line >= root.lines.length ? 0px :
+        (root.lines[root.detail-line].top + root.lines[root.detail-line].height) * 1px;
+    pure function base-offset(y: length) -> length {
+        if (root.detail-line >= 0 && y >= root.detail-end) { return max(root.detail-end - 1px, y - root.detail-height); }
+        return max(0px, y);
+    }
+    pure function line-at-offset(y: length) -> int {
+        if (root.lines.length == 0) { return 0; }
+        return max(0, min(root.lines.length - 1, root.line-at-y(floor(root.base-offset(y) / 1px))));
+    }
+    // One line of overscan on either side. Nested fields and artwork stay lazy.
+    property <int> first-line: max(0, root.line-at-offset(-scroll.content-y) - 1);
+    property <int> after-last: min(root.lines.length, root.line-at-offset(-scroll.content-y + scroll.visible-height) + 2);
+    property <int> window-size: max(0, root.after-last - root.first-line);
+
+    changed feed => {
+        if (root.detail-index >= 0 && (root.detail-index >= root.feed.length || root.feed[root.detail-index].id != root.detail-id)) { root.close-detail(); }
+    }
+    changed search-focus-request => { query-input.focus(); }
+    changed back-request => { root.back(); }
+    function back() {
+        if (root.detail-line >= 0) { root.close-detail(); root.reveal(root.cursor-line); feed-focus.focus(); }
+        else { root.leave(); }
+    }
+    function close-detail() { root.detail-line = -1; root.detail-index = -1; root.detail-id = ""; }
+    function reset-view() {
+        root.close-detail(); root.cursor-line = 0; scroll.content-y = 0px;
+    }
+    function reveal(line: int) {
+        if (line < 0 || line >= root.lines.length) { return; }
+        let segment = root.lines[line];
+        let y = segment.top * 1px + (root.detail-line >= 0 && line > root.detail-line ? root.detail-height : 0px);
+        let h = segment.height * 1px;
+        if (y < -scroll.content-y || h >= scroll.visible-height) { scroll.content-y = -y; }
+        else if (y + h > -scroll.content-y + scroll.visible-height) { scroll.content-y = scroll.visible-height - y - h; }
+    }
+    function move(line: int) {
+        if (root.lines.length == 0) { return; }
+        root.cursor-line = min(root.lines.length - 1, max(0, line));
+        root.reveal(root.cursor-line);
+    }
+    function activate(line: int) {
+        if (line < 0 || line >= root.lines.length) { return; }
+        root.move(line); feed-focus.focus();
+        let segment = root.lines[line];
+        let idx = segment.start;
+        if (idx < 0 || idx >= root.feed.length) { return; }
+        let entry = root.feed[idx];
+        if (entry.section || entry.region) {
+            root.close-detail();
+            root.toggle(entry.id);
+            root.reveal(line);
+        } else if (root.detail-index == idx) {
+            root.close-detail();
+        } else {
+            root.all-fields = false; root.expanded-field = -1;
+            root.detail-line = line; root.detail-index = idx; root.detail-id = entry.id;
+            // Keep the selected row visible above its inline comparison when space allows.
+            let panel-top = (segment.top + segment.height) * 1px;
+            let target = min(panel-top, panel-top + root.detail-height - scroll.visible-height);
+            scroll.content-y = min(scroll.content-y, -max(0px, target));
+        }
+    }
+    key-pressed(event) => {
+        if (event.text == Key.Escape) { root.back(); return accept; }
+        return reject;
+    }
+
+    VerticalLayout {
+        spacing: 8px;
+        if root.from-versions.length > 0 && root.to-versions.length > 0: HorizontalLayout {
+            height: 47px; spacing: 8px; cross-axis-alignment: center;
+            VerticalLayout {
+                min-width: 0px; horizontal-stretch: 1; max-width: 190px; spacing: 3px;
+                Text { text: UiLanguage.tr("Old version", "舊版本"); color: DesktopTheme.secondary; font-size: 12px; }
+                if root.from-versions.length == 1: VersionValue { value: root.from-versions[0]; }
+                if root.from-versions.length > 1: ComboBox {
+                    min-width: 0px; height: 28px; model: root.from-versions; current-index: root.from-index;
+                    accessible-label: UiLanguage.tr("Old version", "舊版本");
+                    selected => { root.reset-view(); root.select-versions(self.current-index, root.to-index); }
+                }
+            }
+            DesktopIcon { width: 15px; height: 15px; ink: DesktopTheme.muted; path: "M3 12 L21 12 M15 6 L21 12 L15 18"; }
+            VerticalLayout {
+                min-width: 0px; horizontal-stretch: 1; max-width: 190px; spacing: 3px;
+                Text { text: UiLanguage.tr("New version", "新版本"); color: DesktopTheme.secondary; font-size: 12px; }
+                if root.to-versions.length == 1: VersionValue { value: root.to-versions[0]; }
+                if root.to-versions.length > 1: ComboBox {
+                    min-width: 0px; height: 28px; model: root.to-versions; current-index: root.to-index - root.from-index - 1;
+                    accessible-label: UiLanguage.tr("New version", "新版本");
+                    selected => { root.reset-view(); root.select-versions(root.from-index, root.from-index + 1 + self.current-index); }
+                }
+            }
+            Rectangle { horizontal-stretch: 0; }
+        }
+        HorizontalLayout {
+            height: 30px; spacing: 6px; cross-axis-alignment: center;
+            query-input := LineEdit {
+                min-width: 0px; horizontal-stretch: 1; text <=> root.query;
+                accessible-label: UiLanguage.tr("Search updates", "搜尋更新內容"); placeholder-text: self.accessible-label;
+                edited(text) => { root.reset-view(); root.search(text); }
+            }
+            CheckBox {
+                text: UiLanguage.tr("Show unclassified", "顯示未能分類");
+                checked <=> root.extras; toggled => { root.reset-view(); root.set-extras(self.checked); }
+            }
+        }
+        if root.summary != "": Rectangle {
+            min-width: 0px; height: root.compact && root.lines.length > 0 ? 0px : summary-label.preferred-height; clip: true;
+            summary-label := Text { x: 0px; y: 0px; width: parent.width; text: root.summary; font-size: 12px; color: DesktopTheme.secondary; wrap: word-wrap; }
+        }
+        viewport := Rectangle {
+            min-height: 0px; vertical-stretch: 1; clip: true;
+            background: transparent; border-width: 1px;
+            border-color: feed-focus.has-focus ? DesktopTheme.border : transparent;
+            feed-focus := FocusScope {
+                focus-on-click: false; enabled: root.lines.length > 0;
+                key-pressed(e) => {
+                    if (root.lines.length == 0) { return reject; }
+                    let n = min(root.lines.length - 1, max(0, root.cursor-line));
+                    let segment = root.lines[n];
+                    if (e.text == Key.Return || e.text == Key.Space) { root.activate(n); return accept; }
+                    if (e.text == Key.UpArrow || e.text == Key.DownArrow) {
+                        root.move(n + (e.text == Key.UpArrow ? -1 : 1)); return accept;
+                    }
+                    if (e.text == Key.Home || e.text == Key.End) { root.move(e.text == Key.Home ? 0 : root.lines.length - 1); return accept; }
+                    if (e.text == Key.PageUp || e.text == Key.PageDown) {
+                        let delta = max(36px, scroll.visible-height - 44px) * (e.text == Key.PageUp ? -1 : 1);
+                        root.move(root.line-at-y(max(0, floor(segment.top + delta / 1px)))); return accept;
+                    }
+                    if (e.text == Key.LeftArrow || e.text == Key.RightArrow) {
+                        let dir = e.text == Key.LeftArrow ? -1 : 1;
+                        if (root.feed[segment.start].section || root.feed[segment.start].region) {
+                            if (root.feed[segment.start].expanded == (dir < 0)) { root.activate(n); }
+                        } else if ((dir > 0) != (root.detail-line == n)) { root.activate(n); }
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+            scroll := ScrollView {
+                horizontal-scrollbar-policy: always-off;
+                content-width: self.visible-width;
+                content-height: root.lines.length == 0 ? 0px :
+                    (root.lines[root.lines.length - 1].top + root.lines[root.lines.length - 1].height) * 1px
+                    + (root.detail-line >= 0 ? root.detail-height : 0px);
+                for offset in root.window-size: line-box := Rectangle {
+                    property <int> number: root.first-line + offset;
+                    property <GameUpdateLine> segment: root.lines[self.number];
+                    x: 1px; width: max(1px, scroll.visible-width - 2px);
+                    y: self.segment.top * 1px + (root.detail-line >= 0 && self.number > root.detail-line ? root.detail-height : 0px);
+                    height: self.segment.height * 1px + (self.number == root.detail-line ? root.detail-height : 0px);
+                    if line-box.segment.role == "section" || line-box.segment.role == "region" || line-box.segment.role == "group" || line-box.segment.role == "monster": FeedHeader {
+                        x: 0px; y: 2px; width: 100%; height: line-box.segment.height * 1px - 4px;
+                        entry: root.feed[line-box.segment.start]; role: line-box.segment.role;
+                        focused: feed-focus.has-focus && root.cursor-line == line-box.number;
+                        activated => { root.activate(line-box.number); }
+                        open(key) => { root.open(key); }
+                    }
+                    if line-box.segment.role == "record" || line-box.segment.role == "rename": FeedRecord {
+                        x: 0px; y: 0px; width: 100%; height: line-box.segment.height * 1px;
+                        record: root.feed[line-box.segment.start].record;
+                        selected: root.detail-index == line-box.segment.start;
+                        focused: feed-focus.has-focus && root.cursor-line == line-box.number;
+                        activated => { root.activate(line-box.number); }
+                        open(key) => { root.open(key); }
+                    }
+                    if line-box.segment.role == "new-monster": Rectangle {
+                        x: 0px; y: 0px; width: 100%; height: line-box.segment.height * 1px;
+                        property <GameUpdateFeedRow> entry: root.feed[line-box.segment.start];
+                        FeedRecord {
+                            x: 0px; y: 0px; width: 100%; height: 48px; monster: true;
+                            record: parent.entry.record; drop-preview: strip.inspected-text; selected: root.detail-index == line-box.segment.start;
+                            focused: feed-focus.has-focus && root.cursor-line == line-box.number;
+                            activated => { root.activate(line-box.number); } open(key) => { root.open(key); }
+                        }
+                        strip := MonsterLoot {
+                            x: 8px; y: 51px; width: parent.width - 16px; height: 52px;
+                            drops: parent.entry.record.drops; record-id: parent.entry.id; open(key) => { root.open(key); }
+                        }
+                        Rectangle { x: 8px; y: parent.height - 1px; width: parent.width - 16px; height: 1px; background: DesktopTheme.border; }
+                    }
+                    if line-box.segment.role == "drop": Rectangle {
+                        x: 0px; y: 0px; width: 100%; height: line-box.segment.height * 1px;
+                        property <[GameUpdateDrop]> items: root.feed[line-box.segment.start].record.drops;
+                        for drop[i] in self.items: DropLine {
+                            x: 0px; y: i * self.height; height: parent.height / max(1, parent.items.length); width: parent.width - 34px;
+                            drop: drop; focused: feed-focus.has-focus && root.cursor-line == line-box.number;
+                            open(key) => { root.open(key); }
+                        }
+                        RowAction {
+                            x: parent.width - self.width - 2px; y: (parent.height - self.height) / 2;
+                            label: UiLanguage.tr("Change details", "更新明細"); target-name: root.feed[line-box.segment.start].record.title; disclosure: true; expanded: root.detail-index == line-box.segment.start;
+                            activated => { root.activate(line-box.number); }
+                        }
+                    }
+                    if line-box.number == root.detail-line && root.detail-index >= 0 && root.detail-index < root.feed.length: RecordChanges {
+                        x: 0px; y: line-box.segment.height * 1px + 2px; width: 100%; height: root.detail-height - 4px;
+                        record: root.feed[root.detail-index].record;
+                        all-fields: root.all-fields;
+                        show-all(on) => { root.all-fields = on; }
+                        unfolded-index: root.expanded-field;
+                        expand-value(index) => { root.expanded-field = index; }
+                        dismiss => { root.close-detail(); root.reveal(line-box.number); feed-focus.focus(); }
+                    }
+                }
+            }
+        }
+    }
+}

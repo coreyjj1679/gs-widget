@@ -1,0 +1,92 @@
+import { ScrollView } from "std-widgets.slint";
+import { DesktopTheme, DesktopIcon } from "desktop.slint";
+import { UiLanguage } from "language.slint";
+
+export struct CatalogNameChange {
+    versions: string,
+    language: string,
+    before: string,
+    after: string,
+}
+
+export component CatalogNameHistory inherits Rectangle {
+    in property <[CatalogNameChange]> changes;
+    in property <string> record-key;
+    in property <length> available-width;
+    in property <length> available-height;
+    private property <string> label: UiLanguage.tr("Name history", "改名歷史");
+    width: button-label.preferred-width + 38px;
+    height: 30px;
+    background: tap.has-hover || popup.is-open ? DesktopTheme.hover : DesktopTheme.sidebar;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: focus.has-focus ? DesktopTheme.accent : DesktopTheme.border;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.toggle(); }
+    forward-focus: focus;
+    changed record-key => { if (popup.is-open) { popup.close(); } }
+    function toggle() { if (popup.is-open) { popup.close(); } else { popup.show(); } }
+
+    button-label := Text {
+        x: 10px; y: 0px; height: parent.height;
+        text: root.label; color: DesktopTheme.text; font-size: 12px;
+        vertical-alignment: center;
+    }
+    DesktopIcon {
+        x: parent.width - 22px; y: 8px; width: 14px; height: 14px;
+        path: popup.is-open ? "M5 15 L12 8 L19 15" : "M5 9 L12 16 L19 9";
+        ink: DesktopTheme.secondary;
+    }
+    tap := TouchArea { mouse-cursor: pointer; clicked => { focus.focus(); root.toggle(); } }
+    focus := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Return || event.text == Key.Space) { root.toggle(); return accept; }
+            return reject;
+        }
+    }
+    popup := PopupWindow {
+        x: root.width - self.width; y: root.height + 4px;
+        width: min(460px, root.available-width);
+        height: min(root.available-height, content.preferred-height + 20px);
+        close-policy: close-on-click-outside;
+        forward-focus: popup-keys;
+        Rectangle {
+            width: 100%; height: 100%; background: DesktopTheme.surface-alt;
+            border-radius: 6px; border-color: DesktopTheme.border; border-width: 1px;
+            ScrollView {
+                x: 8px; y: 8px; width: parent.width - 16px; height: parent.height - 16px;
+                horizontal-scrollbar-policy: always-off;
+                content := VerticalLayout {
+                    width: parent.width; spacing: 6px; padding: 2px;
+                    for change[i] in root.changes: VerticalLayout {
+                        spacing: 3px;
+                        if i == 0 || root.changes[i - 1].versions != change.versions: Text {
+                            text: change.versions; font-size: 12px; font-weight: 600; color: DesktopTheme.accent;
+                        }
+                        Text { text: change.language; font-size: 11px; color: DesktopTheme.secondary; }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            Text {
+                                min-width: 0px; preferred-width: 0px; horizontal-stretch: 1; wrap: word-wrap;
+                                text: change.before; font-size: 14px; color: DesktopTheme.secondary;
+                            }
+                            Text { width: 18px; text: "→"; color: DesktopTheme.secondary; horizontal-alignment: center; }
+                            Text {
+                                min-width: 0px; preferred-width: 0px; horizontal-stretch: 1; wrap: word-wrap;
+                                text: change.after; font-size: 14px; font-weight: 600; color: DesktopTheme.text;
+                            }
+                        }
+                    }
+                }
+            }
+            popup-keys := FocusScope {
+                focus-on-click: false;
+                key-pressed(event) => {
+                    if (event.text == Key.Escape || event.text == Key.Return) { popup.close(); return accept; }
+                    return reject;
+                }
+            }
+        }
+    }
+}

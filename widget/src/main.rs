@@ -3,6 +3,7 @@
 mod agf;
 mod alias_ui;
 mod changelog;
+mod game_updates;
 mod db;
 mod hotkey;
 mod feedback;
@@ -463,6 +464,7 @@ fn main() {
         link_generation: Arc::new(AtomicU64::new(0)),
     };
     ICON_CACHE.with(|slot| *slot.borrow_mut() = Some(Rc::clone(&icons)));
+    game_updates::install(&app, Rc::clone(&catalog), Rc::clone(&icons));
     spawn_icon_worker(
         app.as_weak(),
         icon_rx,
@@ -1195,6 +1197,9 @@ fn main() {
         app.set_primary_language(db::primary_lang(&lang).into());
         app.set_secondary_language(db::secondary_lang(&lang).unwrap_or("").into());
         app.global::<UiLanguage>().set_primary(db::primary_lang(&lang).into());
+        if app.get_game_update_open() {
+            app.invoke_refresh_game_update();
+        }
         mcp_ui::install(&app);
         db::save_lang(&lang);
         let nation = app.get_nation().to_string();

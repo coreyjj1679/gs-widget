@@ -256,6 +256,7 @@ pub(crate) fn show_key(app: &App, catalog: &db::Catalog, session: &Session, key:
     app.set_has_set_fx(false);
     app.set_has_total_fx(false);
     app.set_sheet_can_calculate(catalog.can_calculate_record(key));
+    app.set_catalog_name_history(crate::game_updates::detail_name_history(catalog, key, &app.get_lang()));
     let cache = &session.cache;
     let (detail, links, icon) = catalog.open_key(key, &app.get_lang());
     app.set_detail(detail.into());

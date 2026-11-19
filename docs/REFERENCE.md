@@ -6,6 +6,7 @@ Detailed usage, catalog data, maintenance, and performance diagnostics. For down
 - [Development and releases](#build-from-source)
 - [macOS](#macos)
 - [Interface and MCP](#interface)
+- [Game catalog changes](#catalog-changes)
 - [Catalog data](#data)
 - [Performance diagnostics](#performance-diagnostics)
 
@@ -116,6 +117,8 @@ Open a quest's **Roadmap** to follow its prerequisites and subsequent branches. 
 
 Left-click a name in a record's detail heading to copy that name. Chinese and English headings copy separately, including item, quest, character, NPC and monster names; recipe headings copy the result item's name. Only the canonical name is copied, without IDs, quantities or descriptions. Hover to see the full name and copy hint, or focus the name and press Enter, Space or Ctrl+C. Existing list and related-record links continue to open their records.
 
+Catalog search accepts current and former names in all three game languages. For example, **Sliver Key** finds the current **Silver Key** record, and **Sorcerer** finds the mercenary **Exorcist**. Open **Name history / 改名歷史** on the detail page to see each recorded version, language and spelling. History follows the entity within its lifetime and ends at the installed database version.
+
 Copy feedback appears at the bottom centre of the content area (beside the sidebar in Full mode). Names stay borderless.
 
 ### Characters, mounts and spirits
@@ -129,6 +132,51 @@ Character, spirit and mount portraits use the bundled portrait atlases. The bund
 In the region directory, expand a region to choose a rank, using the same rank order as the rank tab. Region and rank portraits and counts use only characters in that region. Select the region itself to see all its characters in rank order. The compact widget retains step-by-step region → rank → character navigation.
 
 Each spirit's **Upgrade to this spirit** section lists the previous form, required intimacy and materials needed to reach the selected form. A grade-five spirit shows its grade-four-to-five recipe; its previous form shows the grade-three-to-four recipe. The next-form link remains available, and first forms omit missing prerequisite data.
+
+### Update contents
+
+Open **Updates → Update contents / 更新 → 更新內容**, or click the game version in the footer. The starting version must precede the ending version. Each selector lists the valid choices for the other endpoint. The comparison starts at the previous and current versions. The V3.4411 bundle includes V3.4220 and V3.4411.
+
+Updates appear as expandable lists. Browse new monsters by location, new items by item type, and renamed records by the languages that changed. Search recognizes either name. Item #4518, for example, changed from *Sliver Key* to *Silver Key* in English. The list shows an old and new name for each language that changed. Details identify unchanged translations and missing translations at each endpoint. V3.4411 has 23 English-only renames, two Korean-only renames and two NPCs renamed in both English and Korean whose new text IDs have no Traditional Chinese translation. Use the catalog link on a monster, item or drop to open the full record. Back returns to the same list position.
+
+Each new monster shows its location and a strip of item icons with the recorded drop rates, including single-player slots. Select a drop to open the item. All four V3.4411 newcomers at Corrupted Pond have nine recorded slots each.
+
+Expanded quest and other records share a compact field comparison with one header. Longer field lists and long text can be unfolded individually.
+
+Under **Monsters and drops**, expand a monster to see its localized location and the individual drop slots that changed. Each drop links to its item when the installed catalog contains it. Rates come from the compared snapshots. For example, Ancient_Yeo’s Frozen Star drop decreased from 15% to 12% in V3.4411. A missing rate is distinct from a zero rate.
+
+The **顯示未能分類** checkbox includes raw game text, quest dialogue and lower-priority text updates. A location assignment or category change is grouped under the existing monster. Moving a quest requirement between slots leaves the requirement intact. In V3.4411 the two removed records are rewards for quests 72202 and 72230, which previously granted item #5246.
+
+The widget loads inventory artwork for items and portraits for monsters and NPCs as you browse. Field values and regions come from the selected snapshots. Thumbnails come from the installed catalog and fall back to category icons. In V3.4411, 105 of the 108 new items have visible inventory art, including four accessories that use their base item's picture. The atlas `Medic01_i.agf` is bundled, but frames 27–29 for herbs #13335–13337 are transparent. These records use the category icon in the update viewer.
+
+<details>
+<summary>V3.4411 artwork referenced by new records and absent from the bundled client</summary>
+
+The following 15 floor-image sheets are referenced by 103 new item records in `items.small_image`. The inventory thumbnails use `items.large_image`.
+
+```text
+Assets/Textures/Items/
+  armor05_f.agf         armor06_f.agf        dress02_f.agf
+  element01_f.agf       element15_f.agf      element16_f.agf
+  element_f.agf         enchantrecipe01_f.agf
+  food01_f.agf          food02_f.agf         food03_f.agf
+  food04_f.agf          Medic01_f.agf        ring01_f.agf
+  weapon02_f.agf
+```
+
+All four new monster portraits are bundled in `PORTRAIT_INVEN_5.AGF`. Their optional battle sprites under `Assets/Textures/Characters/` are `D_JOGUK_F_N.agf`, `D_LAMCHAE_W_N.agf`, `D_CHULGAE_A_N.agf`, and `D_HOSUN_T_N.agf`.
+
+</details>
+
+Across all 768 existing main quests in V3.4411, the old title reference (`subject`) appears in `middle-2` and the old objective (`mission`) appears in `end-6`. Quest 50000 also has `repeat_count = 24122` and `kind = 24123`, the IDs of two of its previous ending dialogue lines. These patterns suggest a shift in the importer's column mapping. The viewer shows the values recorded in each catalog.
+
+After replacing `data/gersang.db` and updating its client version, regenerate the archive from a checkout with the repository's version history before building the widget.
+
+```sh
+python3 scripts/catalog_diff.py
+```
+
+The generator uses the final first-parent snapshot of each earlier game version and the current working database. Commit `data/catalog-diff.json` and its compact historical-name index `data/catalog-names.json` with the new database. Only adjacent changes are packaged. The widget combines them locally and can compare nonconsecutive releases without Git or extra copies of the database. For a one-off comparison, pass `--from-ref` or `--from-db` and a separate `--output` path.
 
 ## Data
 

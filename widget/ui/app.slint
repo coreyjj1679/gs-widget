@@ -1,5 +1,9 @@
 import { FeedbackBanner } from "feedback.slint";
 import { UpdatePrompt } from "update-prompt.slint";
+import { GameUpdateLink, GameUpdatePane, GameUpdateRow, GameUpdateFeedRow, GameUpdateLine, GameUpdateField, GameUpdateDrop } from "game-update.slint";
+export { GameUpdateRow, GameUpdateFeedRow, GameUpdateLine, GameUpdateField, GameUpdateDrop }
+import { CatalogNameChange, CatalogNameHistory } from "catalog-name-history.slint";
+export { CatalogNameChange }
 import { UiLanguage } from "language.slint";
 export { UiLanguage }
 import { Palette, LineEdit, TextEdit, Button, ComboBox } from "std-widgets.slint";
@@ -5222,6 +5226,8 @@ export component App inherits Window {
     in-out property <[Hit]> related;
     in-out property <string> detail;
     in-out property <[Fact]> facts;
+    in-out property <[CatalogNameChange]> catalog-name-history;
+    property <bool> has-name-history: root.viewing != "" && root.catalog-name-history.length > 0;
     in-out property <[Fact]> hero-stats;
     in-out property <[Fact]> hero-effects;
     in-out property <bool> hero-spirit: false;
@@ -5297,6 +5303,27 @@ export component App inherits Window {
     in-out property <string> client-version: "V3.4411";
     in-out property <string> app-version;
     in property <[ChangelogRelease]> changelog-releases;
+    in-out property <bool> game-update-open: false;
+    in property <[GameUpdateFeedRow]> game-update-feed;
+    in property <[GameUpdateLine]> game-update-lines;
+    in property <[string]> game-update-from-versions;
+    in property <[string]> game-update-to-versions;
+    in-out property <int> game-update-from;
+    in-out property <int> game-update-to;
+    in-out property <bool> game-update-show-extra: false;
+    property <bool> game-update-return;
+    property <int> game-update-search-focus-request;
+    property <int> game-update-back-request;
+    in-out property <string> game-update-query;
+    in property <string> game-update-summary;
+    in property <string> game-update-versions;
+    callback refresh-game-update();
+    callback select-game-update-versions(int, int);
+    callback set-game-update-extras(bool);
+    callback toggle-game-update-section(string);
+    pure callback game-update-line-at-y(int) -> int;
+    callback finish-game-update-icons();
+    callback search-game-updates(string);
     in-out property <bool> updates-supported: false;
     // idle, checking, current, available, downloading, ready, error, restarting
     in-out property <int> update-state: 0;
@@ -5481,7 +5508,42 @@ export component App inherits Window {
     preferred-height: 740px;
     resize-border-width: 6px;
 
+    function open-game-update() {
+        if (root.game-update-open && !root.settings-open) { return; }
+        if (root.settings-open) { root.close-settings(); }
+        if (root.category != "patch" || root.viewing != "") { root.open-category("patch"); }
+        root.game-update-open = true;
+        root.game-update-query = "";
+        root.refresh-game-update();
+        keys.focus();
+    }
+
+    // Keep the update pane mounted while its catalog entry (and any nested
+    // entries) is open, so Back restores the exact reading position.
+    public function open-game-update-record(key: string) {
+        if (!root.game-update-open || !root.record-key(key)) { return; }
+        root.open-hit(key);
+        if (root.viewing != "") {
+            // Detail layout and keyboard handling depend on the active catalog.
+            root.category = key.starts-with("monster:") ? "monster" : key.starts-with("quest:") ? "quest"
+                : key.starts-with("hero:") ? "hero" : key.starts-with("npc:") ? "npc"
+                : key.starts-with("recipe:") ? "recipe" : key.starts-with("chart:") ? "atlas"
+                : key.starts-with("patch:") ? "patch" : "item";
+            root.game-update-return = true;
+            root.game-update-open = false;
+            keys.focus();
+        }
+    }
+
+    function close-game-update() {
+        root.game-update-return = false;
+        root.game-update-open = false;
+        keys.focus();
+    }
+
     function open-category(id: string) {
+        root.game-update-return = false;
+        root.game-update-open = false;
         root.mcp-open = false;
         root.calculator-open = false;
         root.quest-map-open = false;
@@ -5524,6 +5586,7 @@ export component App inherits Window {
     // A record opens in the current category so Back returns there; pages without
     // a category open the record's own category first.
     function open-quick-result(key: string) {
+        root.game-update-open = false;
         let text = root.quick-query;
         root.close-quick-search();
         if (root.settings-open) { root.close-settings(); }
@@ -5797,6 +5860,8 @@ export component App inherits Window {
     }
 
     function go-home() {
+        root.game-update-return = false;
+        root.game-update-open = false;
         root.mcp-open = false;
         root.calculator-open = false;
         root.drop-return-key = "";
@@ -5900,6 +5965,7 @@ export component App inherits Window {
     }
 
     function go-back() {
+        if (root.game-update-open) { root.game-update-back-request += 1; return; }
         if (root.quest-map-open && (root.quest-browser || root.quest-sheet)) { root.quest-map-open = false; return; }
         if (root.monster-page-settings-open) {
             root.monster-page-settings-open = false;
@@ -5940,6 +6006,13 @@ export component App inherits Window {
             root.show-icon = false;
             root.show-battle = false;
             root.show-element = false;
+            if (root.game-update-return) {
+                root.category = "patch";
+                root.game-update-open = true;
+                root.game-update-return = false;
+                keys.focus();
+                return;
+            }
             if (root.full-board && root.catalog-category != root.category) {
                 root.query-changed(root.category, root.query);
             }
@@ -6670,6 +6743,14 @@ export component App inherits Window {
             RecordInfo.text = "";
             return accept;
         }
+        if (root.game-update-open && !root.settings-open && !root.collapsed) {
+            if ((event.modifiers.control || event.modifiers.meta) && (event.text == "f" || event.text == "F")) {
+                root.game-update-search-focus-request += 1; return accept;
+            }
+            if (event.text == Key.Escape) { root.game-update-back-request += 1; return accept; }
+            if (event.modifiers.control && event.text == "-") { root.shrink-window(); return accept; }
+            return reject;
+        }
         if (!root.settings-open && !root.collapsed && !root.calculator-open && !root.mcp-open && (event.modifiers.control || event.modifiers.meta) && (event.text == "i" || event.text == "I")) {
             if (root.viewing == "" && root.cursor >= 0 && root.cursor < root.hits.length) {
                 RecordInfo.show(root.hits[root.cursor]);
@@ -7298,8 +7379,8 @@ export component App inherits Window {
     property <bool> filter-active: filter-element >= 0 || filter-ela-min != "" || filter-ela-max != "" || filter-drop != "" || filter-drop-key != "" || filter-hit-min != "" || filter-hit-max != "" || filter-magic-min != "" || filter-magic-max != "" || monster-sort-key != 0;
     property <length> board-monsters-h: ceil(board-monsters.length / monster-board-columns) * monster-row + detail-h;
     property <length> list-row: full-mode && monster-cards ? root.monster-row : monster-gallery && monster-cards ? 220px : 52px;
-    property <length> search-y: category == "patch" ? 128px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 86px : 50px;
-    property <length> list-y: full-mode ? search-y + 16px + (monster-results-filter ? filter-h + 16px : 0px) : search-open ? (category == "patch" ? 176px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
+    property <length> search-y: category == "patch" ? 168px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 86px : 50px;
+    property <length> list-y: full-mode ? search-y + 16px + (monster-results-filter ? filter-h + 16px : 0px) : search-open ? (category == "patch" ? 216px : set-browser || (category == "monster" && !full-mode) || category == "hero" || category == "enchant" || (category == "quest" && place == "main") ? 132px : 100px) : search-y;
     property <length> foot: 26px + (root.feedback-message != "" ? feedback-banner.height + 12px : 0px);
     property <length> list-view: max(root.height - list-y - 42px - root.foot, 80px);
     in-out property <bool> form-open: false;
@@ -7646,7 +7727,7 @@ export component App inherits Window {
                                     lifted: nav-drag.moving && nav-drag.from-row == i;
                                     english: UiLanguage.primary == "en";
                                     clicked => {
-                                        if (root.category != root.categories[slot].id || root.page-back-visible
+                                        if (root.category != root.categories[slot].id || root.page-back-visible || root.game-update-open
                                             || root.settings-open || root.calculator-open || root.mcp-open) {
                                             root.open-dock(slot);
                                         }
@@ -8302,7 +8383,7 @@ export component App inherits Window {
                     }
                 }
 
-                if root.category != "" && !root.settings-open && !root.calculator-open: Rectangle {
+                if root.category != "" && !root.settings-open && !root.calculator-open && !root.game-update-open: Rectangle {
                     width: root.pane-w;
                     height: 100%;
 
@@ -8315,7 +8396,7 @@ export component App inherits Window {
                     Text {
                         x: root.full-mode ? (root.page-back-visible ? 66px : root.page-pad) : 52px;
                         y: root.full-mode ? 13px : 16px;
-                        width: (root.full-mode && root.category == "monster" ? max(root.pane-w - (root.viewing == "" ? 434px : 146px), 40px) : root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (UiLanguage.primary == "en" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px)) + (root.full-mode && !root.page-back-visible ? 66px - root.page-pad : 0px);
+                        width: root.has-name-history ? max(parent.width - self.x - root.page-pad - 128px - (root.monster-page-settings-visible ? 42px : 0px), 28px) : (root.full-mode && root.category == "monster" ? max(root.pane-w - (root.viewing == "" ? 434px : 146px), 40px) : root.full-mode && root.viewing == "" ? max(root.pane-w - 390px, 40px) : root.category == "patch" && root.viewing != "" ? max(root.pane-w - 150px, 40px) : root.viewing == "" ? max(root.pane-w - (UiLanguage.primary == "en" ? 172px : 148px), 40px) : max(root.pane-w - 70px, 40px)) + (root.full-mode && !root.page-back-visible ? 66px - root.page-pad : 0px);
                         overflow: elide;
                         text: root.favourites-only && root.category == "monster" ? (UiLanguage.tr("Favourites", "收藏")) : root.category == "atlas" && root.area-name != "" ? root.area-name : root.category == "atlas" && root.place-name != "" ? root.place-name : root.category == "works" && root.area-name != "" ? root.area-name : root.category == "works" && root.place-name != "" ? root.place-name : root.category == "hero" && root.area-name != "" ? root.area-name : root.category == "item" && root.area-name != "" ? root.area-name : root.place-name != "" ? root.place-name : root.area-name != "" ? root.area-name : root.nation-name != "" ? root.nation-name : root.category == "monster" ? root.categories[0].name : root.category == "item" ? root.categories[1].name : root.category == "recipe" ? root.categories[2].name : root.category == "patch" ? (root.categories[4].name + "  " + root.client-version) : root.category == "npc" ? root.categories[5].name : root.category == "hero" ? root.categories[6].name : root.category == "works" ? root.categories[7].name : root.category == "atlas" ? root.categories[8].name : root.category == "enchant" ? UiLanguage.tr("Enchantments", "鬼道") : root.categories[3].name;
                         font-size: root.full-mode ? 21px : 16px;
@@ -8340,7 +8421,7 @@ export component App inherits Window {
                     }
                     if root.category == "patch" && root.viewing == "": Rectangle {
                         x: root.page-pad;
-                        y: 48px;
+                        y: 88px;
                         width: max(root.pane-w - 2 * root.page-pad, 40px);
                         height: 32px;
                         border-radius: 8px;
@@ -8386,7 +8467,7 @@ export component App inherits Window {
                     }
                     if root.category == "patch" && root.viewing == "": HorizontalLayout {
                         x: root.page-pad;
-                        y: 88px;
+                        y: 128px;
                         width: max(root.pane-w - 2 * root.page-pad, 40px);
                         spacing: 6px;
                         alignment: start;
@@ -10278,6 +10359,14 @@ export component App inherits Window {
                             init => { self.focus(); }
                         }
                     }
+                    if root.has-name-history: CatalogNameHistory {
+                        x: parent.width - self.width - root.page-pad - (root.monster-page-settings-visible ? 42px : 0px);
+                        y: 11px;
+                        available-width: parent.width - 2 * root.page-pad - (root.monster-page-settings-visible ? 42px : 0px);
+                        available-height: max(76px, parent.height - 58px);
+                        changes: root.catalog-name-history;
+                        record-key: root.viewing;
+                    }
                     if root.monster-page-settings-visible: MonsterPageSettings {
                         x: 0px; y: 0px; width: 100%; height: 100%;
                         english: UiLanguage.primary == "en";
@@ -10299,6 +10388,75 @@ export component App inherits Window {
                         choose-animate(on) => { root.choose-animate(on); }
                     }
                 }
+                if (root.game-update-open || root.game-update-return) && !root.settings-open: Rectangle {
+                    visible: root.game-update-open;
+                    width: 100%; height: 100%;
+                    if !root.full-mode: WinButton {
+                        x: root.page-pad; y: 14px; glyph: "←";
+                        clicked => { root.game-update-back-request += 1; }
+                    }
+                    Text {
+                        x: root.full-mode ? root.page-pad : 52px;
+                        y: root.full-mode ? 13px : 16px;
+                        text: root.categories[4].name;
+                        font-size: root.full-mode ? 21px : 16px;
+                        font-weight: 600; color: DesktopTheme.text;
+                    }
+                    Text {
+                        x: root.pane-w / 2 - 24px; y: root.full-mode ? 15px : 17px;
+                        width: root.pane-w / 2 + 24px - root.page-pad;
+                        text: root.game-update-versions; font-size: root.full-mode ? 14px : 12px;
+                        color: DesktopTheme.secondary; horizontal-alignment: right; overflow: elide;
+                    }
+                    GameUpdatePane {
+                        x: root.page-pad; y: 94px;
+                        width: parent.width - 2 * root.page-pad;
+                        height: max(0px, parent.height - self.y - 12px);
+                        feed: root.game-update-feed;
+                        lines: root.game-update-lines;
+                        from-versions: root.game-update-from-versions;
+                        to-versions: root.game-update-to-versions;
+                        from-index: root.game-update-from;
+                        to-index: root.game-update-to;
+                        extras <=> root.game-update-show-extra;
+                        compact: root.pane-w - 2 * root.page-pad < 500px;
+                        search-focus-request: root.game-update-search-focus-request;
+                        back-request: root.game-update-back-request;
+                        query <=> root.game-update-query;
+                        summary: root.game-update-summary;
+                        leave => { root.close-game-update(); }
+                        select-versions(from, to) => { root.select-game-update-versions(from, to); }
+                        set-extras(on) => { root.set-game-update-extras(on); }
+                        toggle(id) => { root.toggle-game-update-section(id); }
+                        open(key) => { root.open-game-update-record(key); }
+                        line-at-y(y) => { return root.game-update-line-at-y(y); }
+                        search(text) => { root.search-game-updates(text); }
+                    }
+                }
+                if root.category == "patch" && root.viewing == "" && !root.settings-open: Rectangle {
+                    x: root.page-pad; y: 48px; width: min(300px, parent.width - 2 * root.page-pad);
+                    height: 32px; border-radius: 8px; clip: true; background: DesktopTheme.inset;
+                    border-width: 1px; border-color: DesktopTheme.border;
+                    HorizontalLayout {
+                        spacing: 1px;
+                        notes-tab := PatchTab {
+                            label: UiLanguage.tr("Game notices", "遊戲公告");
+                            active: !root.game-update-open; arrow-navigation: true; tab-stop: self.active;
+                            clicked => { if (root.game-update-open) { root.close-game-update(); self.focus(); } }
+                            navigate(step) => {
+                                if (step != -2) { root.open-game-update(); changes-tab.focus(); }
+                            }
+                        }
+                        changes-tab := PatchTab {
+                            label: UiLanguage.tr("Update contents", "更新內容");
+                            active: root.game-update-open; arrow-navigation: true; tab-stop: self.active;
+                            clicked => { root.open-game-update(); self.focus(); }
+                            navigate(step) => {
+                                if (step != 2) { root.close-game-update(); notes-tab.focus(); }
+                            }
+                        }
+                    }
+                }
             }
             Rectangle {
                 height: root.foot;
@@ -10313,8 +10471,12 @@ export component App inherits Window {
                     height: 26px;
                     alignment: center;
                     spacing: 8px;
-                    Text {
-                        text: root.calculator-export-busy ? (UiLanguage.primary == "ko" ? "이미지 내보내는 중…" : UiLanguage.tr("Exporting image…", "正在匯出圖片…")) : (UiLanguage.tr("Client  ", "對應版本  ")) + root.client-version;
+                    if !root.calculator-export-busy: GameUpdateLink {
+                        version: root.client-version;
+                        clicked => { root.open-game-update(); }
+                    }
+                    if root.calculator-export-busy: Text {
+                        text: UiLanguage.primary == "ko" ? "이미지 내보내는 중…" : UiLanguage.tr("Exporting image…", "正在匯出圖片…");
                         font-size: 11px;
                         color: DesktopTheme.secondary;
                         vertical-alignment: center;
