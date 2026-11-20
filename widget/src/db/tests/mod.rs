@@ -372,7 +372,7 @@ fn quest_sheet_links_the_chain_and_targets() {
     assert!(sheet.2.contains("50001"));
     assert!(sheet.3.iter().any(|(label, value, key)| label == "要物品" && key == "item:140" && value.contains('×')));
     assert!(catalog.linked_icon("item:140").is_some());
-    assert!(sheet.3.iter().any(|(label, value, _)| label == "其他" && value == "等級 2"));
+    assert!(sheet.3.iter().any(|(label, value, _)| label == "其他" && value == "等級 1"));
     let rewards = catalog.quest_reward_lines(id, "zh");
     assert!(rewards.iter().any(|(label, value)| label == "經驗" && value == "150,000"));
     assert!(rewards.iter().any(|(label, value)| label == "信用" && value == "100"));

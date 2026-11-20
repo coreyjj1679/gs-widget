@@ -73,7 +73,7 @@ Use **Full / 完整** for the desktop workspace: persistent category navigation,
 
 **Search everything / 搜尋全部** (the title bar, the overview, or **Ctrl+K**, also **⌘K** on macOS) searches items, monsters, characters, quests, NPCs and sets at once. Each group shows its closest five matches and its real count, with **Show all** opening that category's search. Reviewed community nicknames from `data/terminology.json`, such as `雀天`, are listed first with the record they name. Use ↑/↓ and Enter to open a result; Back returns to the page you searched from. From the overview, settings, Calculate or MCP, a result opens in its own category.
 
-Open **Enchantments / 鬼道** from the client's Black Tortoise scroll icon in the left navigation, or from the compact home screen. **Scroll categories / 秘訣分類** groups all 135 scrolls by their client artwork: Blue, Green, Red, Yellow, Brown, Other, then Events (including anniversary scrolls). Lists put all scrolls with explicitly linked applicable equipment first and all scrolls without it at the bottom, sorting each set by minimum level. In full mode, each scroll row shows its added abilities as wrapping text above clickable equipment and material icons, with names on hover and material quantities beneath the icons. Ability previews preserve negative modifiers, exclude equipment requirements, and distinguish missing records from known profiles without numeric bonuses. Success percentages stay visible and use red at 20% or below, yellow at 21–49%, and green at 50% or above in the list and scroll details. **All records / 全部資料** keeps separate scroll and equipment directories, including all 1,317 client equipment records. Search by scroll, equipment or material name. Details show success rates, materials, applicable equipment, added abilities and equipment requirements; related items link in both directions. Records without an explicit client scroll reference stay marked as unspecified or missing.
+Open **Enchantments / 鬼道** from the client's Black Tortoise scroll icon in the left navigation, or from the compact home screen. **Scroll categories / 秘訣分類** groups all 136 V3.4411 scrolls by their client artwork: Blue, Green, Red, Yellow, Brown, Other, then Events (including anniversary scrolls). Lists put all scrolls with explicitly linked applicable equipment first and all scrolls without it at the bottom, sorting each set by minimum level. In full mode, each scroll row shows its added abilities as wrapping text above clickable equipment and material icons, with names on hover and material quantities beneath the icons. Ability previews preserve negative modifiers, exclude equipment requirements, and distinguish missing records from known profiles without numeric bonuses. Success percentages stay visible and use red at 20% or below, yellow at 21–49%, and green at 50% or above in the list and scroll details. **All records / 全部資料** keeps separate scroll and equipment directories, including all 1,321 client equipment records. Search by scroll, equipment or material name. Details show success rates, materials, applicable equipment, added abilities and equipment requirements; related items link in both directions. Records without an explicit client scroll reference stay marked as unspecified or missing.
 
 Use **Widget / 小窗** for the compact interface, or **–** for the floating category bar. Full and widget modes share the same slate colors, bronze accents and control styling while keeping their different layouts and density. The floating bar uses the same palette with a translucent background; your window opacity setting still applies. Both systems share the Slint interface; macOS uses PingFang TC and Windows uses Microsoft JhengHei UI. See [DESIGN.md](../DESIGN.md) for the implemented design tokens and layout rules.
 
@@ -168,11 +168,12 @@ All four new monster portraits are bundled in `PORTRAIT_INVEN_5.AGF`. Their opti
 
 </details>
 
-Across all 768 existing main quests in V3.4411, the old title reference (`subject`) appears in `middle-2` and the old objective (`mission`) appears in `end-6`. Quest 50000 also has `repeat_count = 24122` and `kind = 24123`, the IDs of two of its previous ending dialogue lines. These patterns suggest a shift in the importer's column mapping. The viewer shows the values recorded in each catalog.
+V3.4411 adds 12 main quests. Four existing main quest records changed and all 768 existing quests kept their dialogue references. Quest 50001 now requires level 1. The revised client sheet inserts eight grouping columns before the opening dialogue. To refresh the 780 main quests from the matching client archive, run `python3 scripts/import_main_quest_text.py --parser-root /path/to/gs-parser` with Python 3.10 or newer. The importer checks the archive's SHA-256 against the database and reads the named columns for dialogue, quest type and repeat rules.
 
-After replacing `data/gersang.db` and updating its client version, regenerate the archive from a checkout with the repository's version history before building the widget.
+Keep a copy of the previous widget database before importing a new game version. Once the new records are in place, restore their published quest and recipe IDs so saved calculators and links still refer to the same records. Then regenerate the archives from a checkout with the repository’s version history.
 
 ```sh
+python3 scripts/preserve_catalog_ids.py /path/to/previous-widget.db --target data/gersang.db
 python3 scripts/catalog_diff.py
 ```
 
@@ -190,7 +191,7 @@ In full-mode monster filters, search the drop-item dropdown by name, alias or it
 
 To refresh rates after replacing the catalog, run `python3 scripts/import_drop_rates.py /path/to/gs-parser/data/gersang-full.db --target data/gersang.db`. The importer matches monster and item codes within the same normal/single-player drop mode, preserves existing drop rows, and stores the original integer in `monster_drops.drop_rate_per_100000` (`5500` means `5.5%`). Source metadata is recorded in `meta` under `drop_rates_source`. Map-specific boss rewards and reward pools are not merged into per-monster rates.
 
-Enchantment (鬼道) data comes from the local client archive in `data/gcs/gersang.gcs`. Refresh it with Python **3.10 or newer** and a `gs-parser` checkout:
+Enchantment (鬼道) data comes from the matching V3.4411 client archive in `data/gcs/gersang.gcs`. Use Python **3.10 or newer** and a `gs-parser` checkout:
 
 ```sh
 python3 scripts/import_enchant.py --parser-root /path/to/gs-parser

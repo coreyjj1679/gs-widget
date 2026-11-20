@@ -446,37 +446,72 @@ mod tests {
         let catalog = Catalog::open().expect("bundled database");
         let all: BTreeSet<_> = catalog.index.quests.iter().map(|quest| quest.id).collect();
         let maps = load_map_names(&catalog.conn);
-        for (grouping, expected_groups) in [("npc", 168), ("region", 85), ("chain", 92)] {
-            let memberships = catalog.quest_group_memberships(grouping, &maps);
-            assert_eq!(memberships.len(), expected_groups, "{grouping}");
+        let mut expected: BTreeMap<String, BTreeSet<i64>> = BTreeMap::new();
+        let mut stmt = catalog.conn.prepare(
+            "SELECT q.id,n.code,n.map_index FROM quests q LEFT JOIN npcs n ON n.code=q.npc_code AND n.code>0"
+        ).unwrap();
+        let givers = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, Option<i64>>(2)?,
+                ))
+            })
+            .unwrap();
+        for row in givers {
+            let (id, npc, map) = row.unwrap();
+            for (kind, key) in [
+                ("npc", npc),
+                ("region", map.filter(|m| maps.contains_key(m))),
+            ] {
+                let identity = key
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|| "unknown".into());
+                expected
+                    .entry(format!("qgroup:{kind}:{identity}"))
+                    .or_default()
+                    .insert(id);
+            }
+        }
+        for component in catalog.quest_dependency_components() {
+            let identity = if component.edge_count == 0 && component.quest_ids.len() == 1 {
+                "standalone".to_string()
+            } else {
+                component.canonical_id.to_string()
+            };
+            expected
+                .entry(format!("qgroup:chain:{identity}"))
+                .or_default()
+                .extend(component.quest_ids);
+        }
+        for (grouping, last) in [
+            ("npc", "qgroup:npc:unknown"),
+            ("region", "qgroup:region:unknown"),
+            ("chain", "qgroup:chain:standalone"),
+        ] {
             let mut seen = BTreeSet::new();
-            for group in memberships {
+            for group in catalog.quest_group_memberships(grouping, &maps) {
+                assert_eq!(Some(&group.ids), expected.get(&group.key), "{}", group.key);
                 for id in group.ids {
                     assert!(
                         seen.insert(id),
-                        "{grouping} assigns quest{id} more than once"
+                        "{grouping} assigns quest {id} more than once"
                     );
                 }
             }
             assert_eq!(seen, all, "{grouping} must include every source");
-            assert_eq!(
-                catalog
-                    .quest_browse_groups(grouping, "en")
-                    .iter()
-                    .map(|group| group.aside.parse::<usize>().unwrap())
-                    .sum::<usize>(),
-                all.len()
-            );
-        }
-        for (grouping, key, expected) in [
-            ("npc", "qgroup:npc:unknown", 121),
-            ("region", "qgroup:region:unknown", 252),
-            ("chain", "qgroup:chain:standalone", 125),
-        ] {
             let groups = catalog.quest_browse_groups(grouping, "en");
-            assert_eq!(groups.last().unwrap().key, key);
-            assert_eq!(groups.last().unwrap().aside, expected.to_string());
+            assert_eq!(groups.last().unwrap().key, last);
+            for group in groups {
+                let members = expected.remove(&group.key).expect("unique directory group");
+                assert_eq!(group.aside, members.len().to_string(), "{}", group.key);
+            }
         }
+        assert!(
+            expected.is_empty(),
+            "missing directory groups: {expected:?}"
+        );
     }
 
     #[test]

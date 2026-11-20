@@ -1,5 +1,9 @@
 use super::*;
 
+// Verified against the V3.4411 enchantment tables.
+const SCROLL_COUNT: usize = 136;
+const EQUIPMENT_COUNT: usize = 1321;
+
 fn relation_keys(rows: &[Hit], kind: &str) -> HashSet<String> {
     rows.iter().filter(|row| row.chip == kind).map(|row| row.key.clone()).collect()
 }
@@ -14,9 +18,9 @@ fn expect_relation(rows: &[Hit], kind: &str, key: &str) {
 #[test]
 fn enchant_scroll_info_returns_raw_boundaries_and_only_requested_scrolls() {
     let catalog = Catalog::open().expect("db");
-    let info = catalog.enchant_scroll_info(&[8165, 8247, 1127, 1175, 1175, 0, -1, 1480, 2287, 11642]);
-    assert_eq!(info.keys().copied().collect::<HashSet<_>>(), HashSet::from([8165, 8247, 1127, 1175]));
-    for (code, level, rate) in [(8165, 1, 100), (8247, 150, 10), (1127, 2, 50), (1175, 90, 25)] {
+    let info = catalog.enchant_scroll_info(&[8165, 8247, 1127, 1175, 1175, 13362, 0, -1, 1480, 2287, 11642]);
+    assert_eq!(info.keys().copied().collect::<HashSet<_>>(), HashSet::from([8165, 8247, 1127, 1175, 13362]));
+    for (code, level, rate) in [(8165, 1, 100), (8247, 150, 10), (1127, 2, 50), (1175, 90, 25), (13362, 150, 10)] {
         assert_eq!((info[&code].level, info[&code].rate), (level, rate), "raw client values for {code}");
     }
     assert!(catalog.enchant_scroll_info(&[]).is_empty());
@@ -38,8 +42,8 @@ fn enchant_directory_exposes_every_scroll_and_source_equipment_record() {
         ["ecat:scrolls", "ecat:equipment"]
     );
     for (key, table, expected) in [
-        ("ecat:scrolls", "enchant_recipes", 135),
-        ("ecat:equipment", "enchant_equipment", 1317),
+        ("ecat:scrolls", "enchant_recipes", SCROLL_COUNT),
+        ("ecat:equipment", "enchant_equipment", EQUIPMENT_COUNT),
     ] {
         let count: usize = catalog.conn.query_row(
             &format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)
@@ -66,7 +70,7 @@ fn enchant_color_directory_partitions_all_scrolls_with_real_icons() {
         ("ecat:green", 1161, 28),
         ("ecat:red", 1222, 54),
         ("ecat:yellow", 1128, 12),
-        ("ecat:brown", 6914, 5),
+        ("ecat:brown", 6914, 6),
         ("ecat:other", 8165, 8),
         ("ecat:event", 3096, 3),
     ];
@@ -93,7 +97,7 @@ fn enchant_color_directory_partitions_all_scrolls_with_real_icons() {
     }
     let all_scrolls: HashSet<_> = catalog.enchant_records("scrolls", "", "zh-en")
         .into_iter().map(|row| row.key).collect();
-    assert_eq!(all_keys.len(), 135);
+    assert_eq!(all_keys.len(), SCROLL_COUNT);
     assert_eq!(all_keys, all_scrolls, "color browsing retains every scroll exactly once");
 }
 
@@ -105,7 +109,7 @@ fn enchant_colors_follow_inventory_frames_and_event_source_ids_in_every_language
         ("green", vec![1161]),
         ("red", vec![1222]),
         ("yellow", vec![1128, 1168, 11636, 11645, 11648, 11786]),
-        ("brown", vec![6914, 6915, 6916, 6917, 6918]),
+        ("brown", vec![6914, 6915, 6916, 6917, 6918, 13362]),
         ("other", vec![8165, 8242, 8243, 8244, 8245, 8246, 8247, 8248]),
         ("event", vec![3096, 3097, 3098]),
     ];
@@ -242,7 +246,7 @@ fn enchant_applicable_equipment_marks_empty_scrolls_without_guessing_category_ta
     let codes: Vec<_> = catalog.enchant_hits("", "zh-en").into_iter()
         .filter_map(|hit| hit.key.strip_prefix("item:")?.parse::<i64>().ok()).collect();
     let all = catalog.enchant_applicable_equipment(&codes, "zh-en");
-    assert_eq!(all.len(), 135, "every real scroll remains identifiable, including empty targets");
+    assert_eq!(all.len(), SCROLL_COUNT, "every real scroll remains identifiable, including empty targets");
     for targets in all.values() {
         let unique: HashSet<_> = targets.iter().map(|hit| hit.key.as_str()).collect();
         assert_eq!(unique.len(), targets.len(), "a batch must never duplicate equipment");
@@ -275,8 +279,8 @@ fn enchant_preview_materials_preserve_client_slot_order_quantities_names_and_ico
     let codes: Vec<_> = catalog.enchant_hits("", "zh-en").into_iter()
         .filter_map(|hit| hit.key.strip_prefix("item:")?.parse::<i64>().ok()).collect();
     let all = catalog.enchant_preview_materials(&codes, "zh-en");
-    assert_eq!(all.len(), 135);
-    assert_eq!(all.values().map(Vec::len).sum::<usize>(), 754, "every source material slot remains visible");
+    assert_eq!(all.len(), SCROLL_COUNT);
+    assert_eq!(all.values().map(Vec::len).sum::<usize>(), 759, "every source material slot remains visible");
     assert!(catalog.enchant_preview_materials(&[], "zh-en").is_empty());
     assert!(catalog.enchant_preview_materials(&[1480, 2287, 0], "zh-en").is_empty());
 }
@@ -340,8 +344,8 @@ fn enchant_ability_previews_keep_bonuses_penalties_and_known_zero_distinct_from_
     let codes: Vec<_> = catalog.enchant_hits("", "zh-en").into_iter()
         .filter_map(|hit| hit.key.strip_prefix("item:")?.parse::<i64>().ok()).collect();
     let all = catalog.enchant_preview_abilities(&codes, "zh-en");
-    assert_eq!(all.len(), 135);
-    assert_eq!(all.values().filter(|preview| preview.recorded).count(), 63);
+    assert_eq!(all.len(), SCROLL_COUNT);
+    assert_eq!(all.values().filter(|preview| preview.recorded).count(), 64);
     assert_eq!(all.values().filter(|preview| !preview.recorded).count(), 72);
     assert!(all.values().all(|preview| !preview.summary.is_empty()));
     assert!(catalog.enchant_preview_abilities(&[], "zh-en").is_empty());
@@ -444,6 +448,11 @@ fn enchant_item_routes_link_scroll_base_result_jackpot_and_restoration() {
         relation_keys(&scroll_links, "enchant-target"),
         HashSet::from(["item:1103".to_string(), "item:2271".to_string()])
     );
+    let (_, new_scroll_links, _) = catalog.open_key("item:13362", "zh-en");
+    assert_eq!(relation_keys(&new_scroll_links, "enchant-target"),
+        HashSet::from(["item:13356".to_string(), "item:13357".to_string()]));
+    assert_eq!(relation_keys(&new_scroll_links, "enchant-result"),
+        HashSet::from(["item:13358".to_string(), "item:13359".to_string()]));
     let (_, result_links, _) = catalog.open_key("item:1480", "zh-en");
     expect_relation(&result_links, "enchant-for", "item:1175");
     expect_relation(&result_links, "enchant-base", "item:1103");
@@ -456,7 +465,7 @@ fn enchant_item_routes_link_scroll_base_result_jackpot_and_restoration() {
     expect_relation(&jackpot_links, "enchant-result", "item:1480");
     let (_, restoration_links, _) = catalog.open_key("item:8165", "zh-en");
     expect_relation(&restoration_links, "enchant-result", "item:1480");
-    assert_eq!(relation_keys(&restoration_links, "enchant-result").len(), 1317,
+    assert_eq!(relation_keys(&restoration_links, "enchant-result").len(), EQUIPMENT_COUNT,
         "restoration relationships must retain every explicit source result");
     for (key, links) in [
         ("1175", &scroll_links), ("1480", &result_links), ("1103", &base_links),

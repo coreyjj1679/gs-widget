@@ -1569,7 +1569,7 @@ mod tests {
         assert!(item_quest
             .objectives
             .contains(&format!("Item: {} × 1", item_name("140", "en-zh"))));
-        assert!(item_quest.objectives.contains("Level: 2"));
+        assert!(item_quest.objectives.contains("Level: 1"));
         assert!(item_quest.objectives.contains("Prerequisite:"));
         assert!(item_quest.rewards.lines().any(|line| line == "XP: 150,000"));
         assert!(item_quest.rewards.lines().any(|line| line == "Credit: 100"));
