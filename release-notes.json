@@ -2,6 +2,34 @@
   "schema_version": 1,
   "releases": [
     {
+      "version": "1.3.0",
+      "date": "2026-11-20",
+      "sections": [
+        {
+          "kind": "added",
+          "en": [
+            "Compare game catalogs offline in Update contents. The V3.4411 update includes four new monsters at Corrupted Pond and 108 new items. Select a drop to see its item details.",
+            "Search by current or former names in the catalog and quick search. Name history shows which language changed and in which version.",
+            "Check monster recruitment costs and nationality requirements. The four basic Divine Beast weapon recipes let you choose any three of the four listed materials."
+          ],
+          "zh-TW": [
+            "在「更新內容」離線比較遊戲版本。V3.4411 在 Corrupted Pond 新增 4 隻怪物，全圖鑑新增 108 件道具。點選掉落物即可查看道具詳情。",
+            "在全域或分類搜尋輸入新名或舊名，都能找到目前的圖鑑條目。「改名歷史」會列出變更版本、語言和前後名稱。",
+            "可查看怪物招募費用和國籍條件。四種基礎神獸武器的配方會列出可四選三的材料。"
+          ]
+        },
+        {
+          "kind": "improved",
+          "en": [
+            "Saved crafting calculations and links to recipes and quests keep pointing to the same records after the catalog update."
+          ],
+          "zh-TW": [
+            "更新圖鑑後，已儲存的合成計算、配方連結和任務連結會繼續指向原有條目。"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.2.3",
       "date": "2026-10-25",
       "sections": [
