@@ -2,6 +2,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack, closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -149,11 +150,10 @@ class CatalogDiffTests(unittest.TestCase):
 
     def test_added_monster_loot_includes_preexisting_slots_and_future_name_only_updates(self):
         releases, snapshots = [], []
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as connections:
             for i, version in enumerate("ABCD"):
                 path = Path(directory) / f"{version}.db"
-                conn = sqlite3.connect(path)
-                self.addCleanup(conn.close)
+                conn = connections.enter_context(closing(sqlite3.connect(path)))
                 conn.executescript("""
                     CREATE TABLE monsters(code TEXT PRIMARY KEY, name_ko, name_gts, location_gts);
                     CREATE TABLE items(code INTEGER PRIMARY KEY, name_ko, name_gts);
